@@ -1,0 +1,334 @@
+# The agentteam Handbook
+
+One document, everything you need: what agentteam is, every command, a real
+worked example from your own history, and the maintenance recipes. Written
+to be readable without a programming background.
+
+---
+
+## 1. What agentteam is
+
+agentteam turns five separate AI coding subscriptions — Claude, Codex
+(ChatGPT), Antigravity (Google), Grok Build (X), and OpenCode — into one
+coordinated software team on your Ubuntu machine. One AI acts as the
+**foreman** (plans work, writes task orders, inspects results); the others
+act as **workers** (each builds its assigned piece in its own isolated
+copy of the project); and **you** are the owner — the only one who can
+accept work into the real codebase.
+
+What it is NOT: it isn't an AI itself, and it doesn't contain the AI
+tools. It's coordination machinery — about 500 lines of scripting that
+handles workshops, work orders, reports, and safety switches. The
+intelligence is rented from your five subscriptions; agentteam is the
+office they work in.
+
+Three principles it's built on:
+
+**Isolation.** Every worker gets its own complete copy of the project (a
+"git worktree") pinned to its own branch. Two workers physically cannot
+overwrite each other's files.
+
+**Receipts over reports.** Every run produces a report (the agent's own
+claim) and a diff (the exact line-by-line truth). Rule one of operating
+this system: reports can lie, diffs can't.
+
+**One human gate.** Nothing enters the real codebase without you merging
+it. The foreman recommends; you decide. This is not a formality — it is
+the entire safety model.
+
+## 2. The loop
+
+Every piece of work follows the same cycle:
+
+```text
+ YOU: "I want X"  (two sentences, plain English)
+   ↓
+ FOREMAN: studies project → proposes task breakdown → waits for your "go"
+   ↓ (you read the task files, then: "go")
+ FOREMAN: dispatches workers, in parallel, each in its own workshop
+   ↓
+ WORKERS: build, test, commit on their own branch, report
+   ↓
+ FOREMAN: reads reports, verifies diffs and tests itself, recommends
+   ↓
+ YOU: read the diff yourself → merge what passes → reject what doesn't
+```
+
+Rejection is normal and healthy. A long streak with zero rejections means
+your gate has gone soft, not that the team has become perfect.
+
+## 3. Project anatomy
+
+`agentteam init` builds this next to any repo clone:
+
+```text
+<project>/
+├── repo/            The real project, on the base branch (normally dev).
+│   │                YOU and the FOREMAN work here. Nobody else.
+│   └── MASTER.md    Foreman's standing orders — symlinked as CLAUDE.md,
+│                    AGENTS.md, GEMINI.md so any AI brand reads its role.
+├── wt/              The workshops.
+│   ├── codex/       Full project copy, branch agent/codex, WORKER.md orders.
+│   ├── antigravity/ Same pattern per worker. Workers never leave their
+│   ├── grok/        own folder and never touch the base branch.
+│   ├── opencode/
+│   └── claude/      (a Claude WORKER — distinct from the foreman)
+└── coord/           The office. Deliberately OUTSIDE git.
+    ├── base         One word: the integration branch (dev).
+    ├── docs/        Your playbooks — foreman must read before planning.
+    ├── board.md     Task board. Foreman-only writes.
+    ├── tasks/       Work orders, one .md per task (TEMPLATE.md included).
+    ├── reports/     Auto-written run reports (.md) + full raw logs (.log).
+    ├── blockers.md  "I'm stuck" notes, append-only.
+    └── STOP         If this file exists, all new runs are refused.
+```
+
+Key facts about the data: report `.md` files are append-only (every run
+adds a block — this is the historical record); `.log` files hold only the
+latest run (overwritten each time). The scorecard reads the `.md`s for
+history and git for merges.
+
+## 4. Complete command reference
+
+### agentteam (the machinery)
+
+| Command | What it does |
+|---|---|
+| `agentteam init [w1 w2 ...]` | Build workshops + office next to your clone. Run once per project, from inside the repo. Default workers: codex antigravity opencode grok. Add more anytime: `agentteam init claude`. |
+| `agentteam agents` | Roll call:each agent — binary installed? switched on/off? Run when anything seems wrong; it isolates "which agent" in seconds. |
+| `agentteam run <w> <task>` | Execute `coord/tasks/<task>.md` with worker `<w>` in its workshop. Blocks until done; prints exit code + report path. |
+| `agentteam run -b <w> <task>` | Same, in the background — dispatch several at once, poll with `status`. |
+| `agentteam diff <w> [--stat]` | The receipts: exact changes on that worker's branch vs the base branch, committed and uncommitted separately. `--stat` = file list only (your scope check). |
+| `agentteam status` | Morning briefing: benched agents, open tasks, recent reports,each workshop's branch state, anything still running. |
+| `agentteam off <agent> [30m\|5h\|7d]` | Quota switch: bench an agent. `5h` for a burned session window, `7d` for a weekly cap — auto-returns when the time expires. No duration = benched until `on`. |
+| `agentteam on <agent>` | Un-bench immediately. |
+| `agentteam stop` / `resume` | Project-wide red button: refuse ALL new runs / release. |
+
+Worker naming: the part before a dash picks the engine — worker `codex-2`
+runs the codex CLI, so you can have two codex workshops.
+
+### Settings (environment variables and files)
+
+| Thing | Meaning |
+|---|---|
+| `~/.config/agentteam/agents.conf` | One line per agent: how to invoke its CLI headless. THE lego file — add/retune agents here. |
+| `<project>/coord/agents.conf` | Optional per-project override of the above. |
+| `<project>/coord/base` | The integration branch name (auto-detected: dev). |
+| `AGENTTEAM_TIMEOUT=7200 agentteam run ...` | Per-run time limit in seconds (default 3600). |
+| `AGENTTEAM_AUTO_OFF=1` | Auto-bench an agent for 5h when its output mentions usage limits. |
+
+### myapp (the scorecard — the team's first product)
+
+| Command | What it does |
+|---|---|
+| `myapp <project-root>` | Per-agent performance table for any agentteam project: Runs, OK, Fail, Walls (runs that hit auth/quota walls), Merges (branches you accepted), Last run. Sorted by merges — earners on top. |
+
+Run it weekly per active project. Merges are the column that matters:
+effort is Runs, results are Merges.
+
+### Your commands (the human gate — plain git)
+
+| Command | When |
+|---|---|
+| `git merge --no-ff agent/<w> -m "merge T1: ..."` | Accept a worker's branch into dev. Only after reading the diff. From `repo/`. |
+| `python3 -m unittest discover tests -v` | Your own test run — acceptance evidence you produced yourself. |
+| `git push` | End of every work session. This IS your backup strategy. |
+| `git checkout main && git merge dev -m "release vX.Y.Z" && git tag vX.Y.Z && git checkout dev && git push origin dev main --tags` | Release, per your model: main only moves when you say "release". Order matters: merge fix → verify → THEN tag. |
+
+---
+
+## 5. A real example: how the scorecard got built
+
+This is not hypothetical — it's the compressed true story of myapp v0.1.1,
+your first shipped product. Every mechanism in this handbook appears in it.
+
+**The brief.** You gave the foreman two sentences: "a command-line tool
+that reads an agentteam project's reports and git history and prints a
+per-agent scorecard. It exists so I can see which AI worker earns its
+seat." Plus a pointer to real reference data: the sandbox project's
+reports from the fleet certification.
+
+**The plan.** The foreman studied the reference files, discovered on its
+own that `.log` files get overwritten while `.md` reports append (so only
+`.md` is a valid history source), hand-computed the correct answers into
+an "oracle" table BEFORE any code existed, froze a contract (the shared
+data structures nobody but it may edit), and proposed a task split. It
+also asked you one genuine decision question — should auth errors count as
+"walls"? — instead of guessing. You adjusted two things (count runs not
+lines; keep the foreman out of feature code) and said go.
+
+**The build.** Five tasks across five workers, four in parallel:
+
+```text
+S1 codex        reports.py   parse the run history
+S2 grok         logs.py      count wall-hitting runs
+S3 antigravity  gitmerges.py count accepted merges from git
+S4 opencode     render.py    print the table
+S5 claude       aggregate + cli — wired together AFTER S1–S4 merged
+```
+
+While they built, `agentteam status` showed four different AI companies
+working simultaneously on four modules of one program.
+
+**The failures — all real, all caught.** Codex's first run died with an
+expired login; the log said exactly that; `codex logout && codex login`
+fixed it. Codex then couldn't commit because its own sandbox blocked git's
+worktree metadata — a genuine infrastructure incompatibility, diagnosed
+from its honest NEEDS-REVIEW note, fixed with one config line. The foreman
+confessed its own contract gap (a missing test file) — two workers
+correctly flagged it and waited; one fixed it slightly beyond scope, which
+you accepted once and recorded as precedent: flagging beats fixing.
+
+**The gate.** For every branch: `agentteam diff <w> --stat` (files match
+the assignment?), then the tests run by your own hands, then
+`git merge --no-ff`. Five branches in, zero conflicts — because scopes
+were disjoint by design.
+
+**The proof.** `./myapp ~/code/sandbox` printed the table, and every
+number matched the oracle computed before the code existed. Then you found
+a real bug the twelve passing tests missed — the launcher only worked from
+inside its own folder — because tests check what was predicted and users
+find what wasn't. One pre-approved fix task (S7), one new test, v0.1.1.
+
+**Total human input:** a two-sentence spec, a handful of decisions, diff
+reading, and merge commands. Everything else — plan, code, tests, docs,
+fixes — was machine work under your gate.
+
+---
+
+## 6. Onboarding an EXISTING project (including production)
+
+New projects start empty; established projects have history, users, and
+things that must not break. The recipe differs in three ways: fresh clone,
+an onboarding-only first cycle, and stricter safety rules.
+
+**Step 1 — clone fresh into the layout** (never move your working copy):
+
+```bash
+cd ~/code && mkdir <proj> && cd <proj>
+git clone <repo-url> repo && cd repo
+git checkout dev 2>/dev/null || git checkout -b dev   # create dev off main if missing
+git push -u origin dev                                # dev must exist on the remote too
+agentteam init codex antigravity                      # start with two workers, always
+cp ~/path/to/ai-*.md ../coord/docs/
+```
+
+**Step 2 — the onboarding cycle: study only, build nothing.** Open
+`claude` in `repo/` and give it this instead of a feature request:
+
+```text
+Read MASTER.md and the playbooks in ../coord/docs/. This is an EXISTING
+production project. Do not plan any feature work yet. First: run codegraph
+init if needed, study the codebase, and produce/refresh the docs/ai/ set
+per the setup playbook — START_HERE.md (purpose, how to run, current
+state), DECISIONS.md for architecture choices you can infer, GOTCHAS.md
+for build/run traps you find. Commit that to dev, then give me a one-page
+summary of what this project is, its risk areas, and what kinds of tasks
+are SAFE to delegate first. Wait for my go on everything else.
+```
+
+This costs one cycle and pays forever: every future worker inherits an
+accurate map instead of guessing about a codebase it's never seen.
+
+**Step 3 — safety rules for production work:**
+
+- **Secrets stay out.** Check that `.env` / credential files are
+  gitignored BEFORE init — worktrees copy tracked files, and workers run
+  with auto-approve. If secrets are tracked in the repo, fix that first.
+- **First tasks are small and reversible:** a bug fix, missing tests, doc
+  updates. Never "refactor the core" on cycle one — you're calibrating
+  how well the agents understand this codebase.
+- **No deploy automation.** Agents build on branches; you merge to dev;
+  what reaches production stays a purely human action, same as today.
+- **The gate tightens, not loosens.** On the toy project a soft gate cost
+  nothing. Here a bad merge has users. Reject freely.
+
+**Step 4 — then normal operation.** After one or two calibration cycles,
+it's the standard loop, and the project's git history + reports start
+feeding `myapp <project-root>` like any other.
+
+---
+
+## 7. Maintenance
+
+### Updating the AI CLIs
+
+agentteam has no bundled AI — it calls whatever binaries are on your
+PATH, so updating a CLI updates the fleet instantly. Update commands:
+
+```bash
+claude update
+curl -fsSL https://chatgpt.com/codex/install.sh | sh     # codex: rerun installer
+agy update
+opencode upgrade
+curl -fsSL https://x.ai/cli/install.sh | bash            # grok: rerun installer
+```
+
+**The post-update ritual (do not skip):** flags move between versions —
+it has already happened three times in this system's short life (agy,
+opencode, codex). After updating, run the five smoke lines:
+
+```bash
+claude -p "say ok"; codex exec "say ok"; agy -p "say ok" --dangerously-skip-permissions
+opencode run "say ok" --dangerously-skip-permissions; grok -p "say ok" --always-approve
+```
+
+If one fails with a usage/flag dump: `<binary> --help`, find the renamed
+flag, fix that agent's line in `~/.config/agentteam/agents.conf`. One
+line, two minutes — the drill you already know. Sensible cadence: monthly,
+or when a worker starts behaving oddly.
+
+### Updating agentteam itself
+
+Re-run `bash agentteam-install.sh` anytime: it overwrites the `agentteam`
+command and templates with the newest versions but NEVER touches your
+`agents.conf` (your tuned flags survive). Existing projects keep their
+old MASTER.md/WORKER.md copies; new projects get the new templates. After
+big template changes, paste the new sections into important existing
+projects' MASTER.md by hand if you want them.
+
+### Updating myapp (the scorecard)
+
+It's a normal project of yours: new features = new task cycles through
+its foreman (backlog: multi-project scan, HTML output, bench watching);
+code updates on another machine = `git clone`/`git pull` from
+github.com/danielmevit/myapp. No dependencies to maintain — standard
+library only, by design.
+
+### Backups, standing policy
+
+Code: `git push` at session end — that's everything that matters.
+Config: `tar czf /mnt/c/Users/dmite/agentteam-conf.tgz -C ~ .config/agentteam`
+after conf changes (a few KB). Full VM export: optional, only when disk
+allows; the rebuild path (installer + five logins, under an hour) is
+documented and acceptable.
+
+---
+
+## 8. Troubleshooting, condensed
+
+| Symptom | Cause → fix |
+|---|---|
+| `not inside an agentteam project` | Wrong folder — cd into the project (it searches upward for coord/ + wt/). |
+| Worker fails instantly, log shows a flag/usage dump | CLI updated, flag renamed → `--help`, fix agents.conf line. |
+| Worker fails, log says token/login expired | `<cli> logout && <cli> login`, rerun. |
+| Worker hangs | Waiting on a prompt auto-approve didn't cover, or agy's 5-minute default print timeout → check the .log. |
+| Log mentions rate/usage limit | `agentteam off <agent> 5h` (weekly: 7d), foreman reroutes. |
+| Report says done, diff shows uncommitted work | Worker forgot to commit → commit it yourself in wt/<w>, or rerun with sharper Done-means. |
+| Report says done, diff looks wrong | Normal. Reject; foreman re-briefs. The system working. |
+| Two workers touched the same file | Scope overlap — accept one, reject the other, tell the foreman to fix disjointness. |
+| Everything on fire | `agentteam stop`, read status + reports, `resume` when understood. |
+
+---
+
+## 9. The document map
+
+- **This handbook** — daily operations, all commands, the worked example.
+- **AGENTTEAM-README.md** — the compact install/setup reference.
+- **MASTER-PLAN.md** — the deep explanation for a beginner + the phased
+  roadmap; dictionary of every technical term.
+- **agentteam-install.sh** — the installer; run it, don't read it.
+- **Your playbooks** (`ai-project-setup-playbook.md`,
+  `ai-full-build-recipe.md`) — the working standard every foreman follows.
+- **multi-agent-claude-review.md** — the original research: why this
+  architecture, terms-of-service analysis, alternatives, sources.
