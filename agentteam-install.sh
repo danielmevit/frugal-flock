@@ -4,11 +4,12 @@
 # own official CLI headless under its own subscription login.
 # Installs: ~/.local/bin/agentteam, ~/.config/agentteam/agents.conf (EDIT),
 #           ~/.config/agentteam/templates/
-# Then:     cd <your repo clone> && agentteam init codex antigravity opencode grok
+# Then:     agentteam selftest   (mock-agent rehearsal, zero quota)
+#           cd <your repo clone> && agentteam init codex antigravity opencode grok
 set -euo pipefail
 
-BIN_DIR="$HOME/.local/bin"
-CONF_DIR="$HOME/.config/agentteam"
+BIN_DIR="${AGENTTEAM_BIN_DIR:-$HOME/.local/bin}"
+CONF_DIR="${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}"
 TPL_DIR="$CONF_DIR/templates"
 mkdir -p "$BIN_DIR" "$CONF_DIR" "$TPL_DIR"
 
@@ -27,6 +28,7 @@ CONF_FILE="$CONF_DIR/agents.conf"
 TPL_DIR="$CONF_DIR/templates"
 OFF_DIR="$CONF_DIR/off"
 TIMEOUT="${AGENTTEAM_TIMEOUT:-3600}"
+LIMIT_RE='rate.?limit|usage limit|limit (reached|exceeded)|quota|too many requests|resets (at|in)'
 
 die() { echo "agentteam: $*" >&2; exit 1; }
 
@@ -52,6 +54,31 @@ agent_cmd() {
   line=$(grep -E "^${agent}=" "$conf" 2>/dev/null | head -1 || true)
   [ -n "$line" ] || return 1
   printf '%s\n' "${line#*=}"
+}
+
+ledger_add() { # $1=root  $2=one JSON object — the machine twin of reports/*.md
+  mkdir -p "$1/coord/reports"
+  printf '%s\n' "$2" >> "$1/coord/reports/ledger.jsonl"
+}
+
+lock_probe() { # $1=root $2=worker; 0 = worker is free
+  local lf="$1/coord/.locks/$2.lock"
+  [ -e "$lf" ] || return 0
+  ( exec 9>>"$lf"; flock -n 9 ) 2>/dev/null
+}
+
+task_section() { # $1=task file  $2=section title (text after "## ")
+  awk -v s="$2" '/^## /{f=(substr($0,4)==s); next} f' "$1"
+}
+
+scope_allowed() { # $1=changed path, rest=patterns; changelog.d/ always in scope
+  local f="$1"; shift
+  local p
+  for p in "$@" "changelog.d/*"; do
+    p="${p%/}"
+    case "$f" in $p|$p/*) return 0;; esac
+  done
+  return 1
 }
 
 # ---- quota on/off switch ----------------------------------------------
@@ -105,7 +132,17 @@ cmd_init() {
   local workers=("$@")
   [ ${#workers[@]} -gt 0 ] || workers=(codex antigravity opencode grok)
 
-  mkdir -p "$root/wt" "$root/coord/tasks" "$root/coord/reports" "$root/coord/docs"
+  # preflight: workers run auto-approved — refuse while secrets are tracked
+  local leaks
+  leaks=$(git -C "$main_dir" ls-files \
+    | grep -E '(^|/)\.env(\.|$)|(^|/)id_(rsa|ed25519|ecdsa)($|\.)|\.(pem|p12|pfx)$|(^|/)(credentials|secrets?)\.(json|ya?ml|toml|txt)$' \
+    || true)
+  if [ -n "$leaks" ] && [ "${AGENTTEAM_ALLOW_SECRETS:-0}" != "1" ]; then
+    echo "$leaks" | sed 's/^/  /' >&2
+    die "possible secrets tracked in git (above) — untrack/gitignore them first, or rerun with AGENTTEAM_ALLOW_SECRETS=1"
+  fi
+
+  mkdir -p "$root/wt" "$root/coord/tasks" "$root/coord/reports" "$root/coord/docs" "$root/coord/.locks"
   [ -f "$root/coord/board.md" ]          || cp "$TPL_DIR/board.md" "$root/coord/board.md"
   [ -f "$root/coord/tasks/TEMPLATE.md" ] || cp "$TPL_DIR/TASK.md" "$root/coord/tasks/TEMPLATE.md"
   [ -f "$root/coord/blockers.md" ]       || printf '# Blockers (append-only)\n' > "$root/coord/blockers.md"
@@ -126,6 +163,45 @@ cmd_init() {
   for f in MASTER.md WORKER.md CLAUDE.md AGENTS.md GEMINI.md .codegraph/; do
     grep -qxF "$f" "$excl" 2>/dev/null || echo "$f" >> "$excl"
   done
+
+  # guard hooks: a worker worktree commits only on its own branch, never pushes
+  local hooks
+  hooks="$(cd "$main_dir" && git rev-parse --path-format=absolute --git-common-dir)/hooks"
+  mkdir -p "$hooks"
+  if [ -f "$hooks/pre-commit" ] && ! grep -q 'agentteam guard' "$hooks/pre-commit"; then
+    echo "note: existing pre-commit hook left untouched — worker-branch guard NOT installed" >&2
+  else
+    cat > "$hooks/pre-commit" <<'HOOK_COMMIT_EOF'
+#!/bin/sh
+# agentteam guard — inside a worker worktree, commit only on agent/<worker>
+gd=$(git rev-parse --git-dir 2>/dev/null) || exit 0
+case "$gd" in
+  */worktrees/*)
+    w=${gd##*/worktrees/}; w=${w%%/*}
+    b=$(git rev-parse --abbrev-ref HEAD)
+    if [ "$b" != "agent/$w" ]; then
+      echo "agentteam guard: worker '$w' must commit on agent/$w (currently on: $b)" >&2
+      exit 1
+    fi;;
+esac
+HOOK_COMMIT_EOF
+    chmod +x "$hooks/pre-commit"
+  fi
+  if [ -f "$hooks/pre-push" ] && ! grep -q 'agentteam guard' "$hooks/pre-push"; then
+    echo "note: existing pre-push hook left untouched — worker no-push guard NOT installed" >&2
+  else
+    cat > "$hooks/pre-push" <<'HOOK_PUSH_EOF'
+#!/bin/sh
+# agentteam guard — workers never push; the owner pushes from repo/
+gd=$(git rev-parse --git-dir 2>/dev/null) || exit 0
+case "$gd" in
+  */worktrees/*)
+    echo "agentteam guard: workers do not push (owner pushes from repo/)" >&2
+    exit 1;;
+esac
+HOOK_PUSH_EOF
+    chmod +x "$hooks/pre-push"
+  fi
 
   # master role card — readable by any master CLI via symlinked names
   [ -f "$main_dir/MASTER.md" ] || cp "$TPL_DIR/MASTER.md" "$main_dir/MASTER.md"
@@ -166,6 +242,7 @@ cmd_init() {
   echo "base branch  : $base   (override: edit coord/base)"
   echo "master       : $main_dir  (open your master CLI here)"
   echo "workers      : ${workers[*]}"
+  echo "guard hooks  : worker worktrees commit only on agent/<w>, never push"
   echo "playbooks    : drop your operational .md files into $root/coord/docs/"
   echo "next         : agentteam agents"
 }
@@ -189,23 +266,60 @@ cmd_run() {
   cmdline=$(agent_cmd "$agent" "$conf") || die "no agents.conf entry for '$agent' in $conf"
   base=$(get_base "$root")
 
+  mkdir -p "$root/coord/.locks"
   local report="$root/coord/reports/$task.md"
   local log="$root/coord/reports/$task.log"
 
   if [ "$bg" = 1 ]; then
-    nohup "$0" run "$worker" "$task" >/dev/null 2>&1 &
-    echo "started in background (pid $!) — poll with: agentteam status"
+    lock_probe "$root" "$worker" || die "worker '$worker' is already running a task (agentteam status)"
+    if command -v setsid >/dev/null 2>&1; then
+      AGENTTEAM_BG=1 nohup setsid -f "$0" run "$worker" "$task" >/dev/null 2>&1
+    else
+      AGENTTEAM_BG=1 nohup "$0" run "$worker" "$task" >/dev/null 2>&1 &
+    fi
+    echo "started in background — poll: agentteam status   live: agentteam tail $task   abort: agentteam kill $task"
     return 0
+  fi
+
+  # one run per worker: hold the lock for the whole run (freed on exit)
+  exec 9>>"$root/coord/.locks/$worker.lock"
+  flock -n 9 || die "worker '$worker' is already running a task (agentteam status)"
+
+  local pidfile=""
+  if [ "${AGENTTEAM_BG:-0}" = "1" ]; then
+    pidfile="$root/coord/reports/$task.pid"
+    echo "$$" > "$pidfile"
+    trap '[ -n "$pidfile" ] && rm -f "$pidfile"' EXIT
+    trap 'exit 143' TERM
+    trap 'exit 130' INT
+  fi
+
+  # a run killed mid-commit can leave git's index.lock behind — clear it
+  local gd
+  gd=$(git -C "$wt" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)
+  if [ -n "$gd" ] && [ -f "$gd/index.lock" ]; then
+    rm -f "$gd/index.lock"
+    echo "note: removed stale $gd/index.lock (a previous run died mid-commit)" >&2
   fi
 
   echo "[$worker <- $agent] running task '$task' (timeout ${TIMEOUT}s), log: $log"
   export TASKFILE="$tf"
-  local rc=0
+  local rc=0 t0 dur
+  t0=$(date +%s)
   ( cd "$wt" && timeout "$TIMEOUT" bash -c "$cmdline" ) > "$log" 2>&1 || rc=$?
+  dur=$(( $(date +%s) - t0 ))
+
+  # receipts for the verdict line + ledger
+  local commits files ins dels unc
+  commits=$(git -C "$wt" rev-list --count "$base..HEAD" 2>/dev/null || echo 0)
+  read -r files ins dels < <(git -C "$wt" diff --shortstat "$base...HEAD" 2>/dev/null \
+    | awk '{f=0;i=0;d=0;for(n=1;n<NF;n++){if($(n+1)~/^file/)f=$n;if($(n+1)~/^insertion/)i=$n;if($(n+1)~/^deletion/)d=$n}print f+0,i+0,d+0}') || true
+  files=${files:-0}; ins=${ins:-0}; dels=${dels:-0}
+  unc=$(git -C "$wt" status --porcelain=v1 2>/dev/null | wc -l)
 
   {
     echo
-    echo "## run $(date -Is) — worker=$worker agent=$agent exit=$rc"
+    echo "## run $(date -Is) — worker=$worker agent=$agent exit=$rc duration=${dur}s"
     echo
     echo "### git status (branch, staged/unstaged)"
     git -C "$wt" status --porcelain=v1 -b
@@ -213,19 +327,118 @@ cmd_run() {
     echo "### committed diffstat vs $base"
     git -C "$wt" diff --stat "$base...HEAD" 2>/dev/null || echo "(none)"
     echo
+    echo "### verdict"
+    echo "commits=$commits files=$files insertions=$ins deletions=$dels uncommitted=$unc"
+    if [ "$rc" -eq 0 ] && [ "$commits" -eq 0 ] && [ "$unc" -eq 0 ]; then
+      echo "!! exit=0 with an empty diff — no-op or overclaim; treat as FAILED (I10/I12)"
+    fi
+    echo
     echo "### agent output (tail)"
     echo '~~~'
     tail -n 60 "$log"
     echo '~~~'
   } >> "$report"
 
-  if grep -qiE 'rate.?limit|usage limit|limit (reached|exceeded)|quota|too many requests|resets (at|in)' "$log"; then
-    echo "!! output mentions usage limits — if '$agent' hit its 5h/weekly cap:  agentteam off $agent 5h   (weekly: 7d)" >&2
-    if [ "${AGENTTEAM_AUTO_OFF:-0}" = "1" ]; then cmd_off "$agent" 5h >&2; fi
+  # limit detection is a helper only: a task whose own text mentions limits
+  # must not bench a healthy agent, and AUTO_OFF fires only on a FAILED run
+  local wall=0
+  if tail -n 40 "$log" | grep -qiE "$LIMIT_RE"; then
+    if grep -qiE "$LIMIT_RE" "$tf" && [ "$rc" -eq 0 ]; then
+      : # the task itself is about limits and the run succeeded — noise
+    else
+      wall=1
+      echo "!! output mentions usage limits — if '$agent' hit its 5h/weekly cap:  agentteam off $agent 5h   (weekly: 7d)" >&2
+      if [ "${AGENTTEAM_AUTO_OFF:-0}" = "1" ] && [ "$rc" -ne 0 ]; then cmd_off "$agent" 5h >&2; fi
+    fi
   fi
 
-  echo "exit=$rc — report: $report"
+  ledger_add "$root" "$(printf '{"event":"run","ts":"%s","task":"%s","worker":"%s","agent":"%s","exit":%d,"duration_s":%d,"commits":%d,"files":%d,"insertions":%d,"deletions":%d,"uncommitted":%d,"wall":%d}' \
+    "$(date -Is)" "$task" "$worker" "$agent" "$rc" "$dur" "$commits" "$files" "$ins" "$dels" "$unc" "$wall")"
+
+  echo "exit=$rc duration=${dur}s — report: $report"
+  echo "next: agentteam verify $worker $task   then: agentteam diff $worker"
   return "$rc"
+}
+
+# ---------------------------------------------------------------- verify
+cmd_verify() {
+  local worker="${1:-}" task="${2:-}"
+  [ -n "$worker" ] && [ -n "$task" ] || die "usage: agentteam verify <worker> <task-id>"
+  local root; root=$(find_root) || die "not inside an agentteam project"
+  task="${task%.md}"
+  local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
+  local wt="$root/wt/$worker";           [ -d "$wt" ] || die "no worktree: $wt"
+  lock_probe "$root" "$worker" || die "worker '$worker' is mid-run — verify when it finishes"
+  local base; base=$(get_base "$root")
+
+  local changed commits
+  changed=$( { git -C "$wt" diff --name-only "$base...HEAD" 2>/dev/null || true;
+               git -C "$wt" status --porcelain=v1 2>/dev/null | cut -c4- | sed 's/.* -> //'; } | sort -u )
+  commits=$(git -C "$wt" rev-list --count "$base..HEAD" 2>/dev/null || echo 0)
+
+  # scope: every "- path" line under "## Allowed scope" is an enforced pattern
+  local pats=() line
+  while IFS= read -r line; do
+    case "$line" in '- '*) pats+=("${line#- }");; esac
+  done < <(task_section "$tf" "Allowed scope")
+
+  local scope="OK" viol=""
+  if [ ${#pats[@]} -eq 0 ]; then
+    scope="UNCHECKED"
+  else
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      scope_allowed "$line" "${pats[@]}" || viol="$viol$line"$'\n'
+    done <<< "$changed"
+    [ -z "$viol" ] || scope="VIOLATION"
+  fi
+
+  # validate: every "$ cmd" line under "## Validate" must exit 0, run in wt
+  local vrun=0 vfail=0 vout="" cmd out rc
+  while IFS= read -r line; do
+    case "$line" in '$ '*) ;; *) continue;; esac
+    cmd="${line#\$ }"
+    vrun=$((vrun+1))
+    rc=0
+    out=$( cd "$wt" && timeout "${AGENTTEAM_VERIFY_TIMEOUT:-900}" bash -c "$cmd" 2>&1 ) || rc=$?
+    if [ "$rc" -eq 0 ]; then
+      vout="${vout}  PASS  \$ $cmd"$'\n'
+    else
+      vfail=$((vfail+1))
+      vout="${vout}  FAIL  \$ $cmd   (exit=$rc)"$'\n'"$(printf '%s\n' "$out" | tail -n 8 | sed 's/^/        | /')"$'\n'
+    fi
+  done < <(task_section "$tf" "Validate")
+
+  local empty=0
+  [ "$commits" -eq 0 ] && [ -z "$changed" ] && empty=1
+
+  local verdict="PASS" ret=0
+  if [ "$scope" = "VIOLATION" ] || [ "$vfail" -gt 0 ] || [ "$empty" = 1 ]; then verdict="FAIL"; ret=1; fi
+
+  local pcount; pcount=$(printf '%s\n' "$changed" | grep -c .) || true
+  echo "== verify $worker / $task =="
+  case "$scope" in
+    OK)        echo "scope    : OK (${#pats[@]} pattern(s))";;
+    UNCHECKED) echo "scope    : UNCHECKED — no '- path' lines under '## Allowed scope'";;
+    VIOLATION) echo "scope    : VIOLATION — out-of-scope changes:"; printf '%s' "$viol" | sed 's/^/             /';;
+  esac
+  if [ "$vrun" -eq 0 ]; then echo "validate : none — no '\$ ' command lines under '## Validate'"
+  else echo "validate : $((vrun-vfail))/$vrun passed"; printf '%s' "$vout"; fi
+  echo "changes  : commits=$commits, paths touched=$pcount"
+  [ "$empty" = 1 ] && echo "!! EMPTY — no commits and no uncommitted changes: no-op or overclaim"
+  echo "verdict  : $verdict"
+
+  {
+    echo
+    echo "### verify $(date -Is) — worker=$worker scope=$scope validate=$((vrun-vfail))/$vrun empty=$empty verdict=$verdict"
+    [ -n "$viol" ] && { echo "out-of-scope:"; printf '%s' "$viol" | sed 's/^/  /'; }
+    [ -n "$vout" ] && printf '%s' "$vout"
+  } >> "$root/coord/reports/$task.md"
+
+  ledger_add "$root" "$(printf '{"event":"verify","ts":"%s","task":"%s","worker":"%s","scope":"%s","validate_run":%d,"validate_failed":%d,"commits":%d,"empty":%d,"verdict":"%s"}' \
+    "$(date -Is)" "$task" "$worker" "$scope" "$vrun" "$vfail" "$commits" "$empty" "$verdict")"
+
+  return "$ret"
 }
 
 cmd_diff() {
@@ -243,8 +456,42 @@ cmd_diff() {
   else git -C "$wt" diff HEAD || true; fi
 }
 
+# ------------------------------------------------------------------ sync
+cmd_sync() { # after merges: bring base's new work into worker branches
+  local root; root=$(find_root) || die "not inside an agentteam project"
+  local base; base=$(get_base "$root")
+  local list=("$@") wt w
+  if [ ${#list[@]} -eq 0 ]; then
+    for wt in "$root"/wt/*/; do [ -d "$wt" ] && list+=("$(basename "$wt")"); done
+  fi
+  [ ${#list[@]} -gt 0 ] || die "no worktrees found"
+  for w in "${list[@]}"; do
+    wt="$root/wt/$w"
+    if [ ! -d "$wt" ]; then printf '  %-14s no worktree\n' "$w"; continue; fi
+    if ! lock_probe "$root" "$w"; then printf '  %-14s SKIP — running a task\n' "$w"; continue; fi
+    if [ -n "$(git -C "$wt" status --porcelain=v1 2>/dev/null)" ]; then
+      printf '  %-14s SKIP — uncommitted changes (commit or clean first)\n' "$w"; continue
+    fi
+    if git -C "$wt" merge-base --is-ancestor HEAD "$base" 2>/dev/null; then
+      if git -C "$wt" merge --ff-only "$base" >/dev/null 2>&1; then
+        printf '  %-14s fast-forwarded to %s\n' "$w" "$base"
+      else
+        printf '  %-14s could not fast-forward — check manually\n' "$w"
+      fi
+    else
+      if git -C "$wt" merge --no-edit "$base" >/dev/null 2>&1; then
+        printf '  %-14s merged %s in (own unmerged commits kept)\n' "$w" "$base"
+      else
+        git -C "$wt" merge --abort >/dev/null 2>&1 || true
+        printf '  %-14s CONFLICT with %s — resolve manually in wt/%s\n' "$w" "$base" "$w"
+      fi
+    fi
+  done
+}
+
 cmd_status() {
   local root; root=$(find_root) || die "not inside an agentteam project"
+  local base; base=$(get_base "$root")
   [ -f "$root/coord/STOP" ] && echo "!! STOP is active — runs are blocked" && echo
   echo "== agents off (quota) =="
   local f a found=0
@@ -257,16 +504,35 @@ cmd_status() {
   echo; echo "== tasks (coord/tasks) =="
   ls -1 "$root/coord/tasks" 2>/dev/null | grep -v '^TEMPLATE\.md$' || echo "(none)"
   echo; echo "== recent reports (coord/reports) =="
-  ls -lt "$root/coord/reports" 2>/dev/null | head -12 || true
-  echo; echo "== workers =="
-  local wt
+  ls -lt "$root/coord/reports" 2>/dev/null | grep -v '^total' | head -12 || true
+  echo; echo "== workers (review queue vs $base) =="
+  local wt w br ahead unc run
   for wt in "$root"/wt/*/; do
     [ -d "$wt" ] || continue
-    echo "-- $(basename "$wt")"
-    git -C "$wt" status -sb | head -4
+    w=$(basename "$wt")
+    br=$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')
+    ahead=$(git -C "$wt" rev-list --count "$base..HEAD" 2>/dev/null || echo '?')
+    unc=$(git -C "$wt" status --porcelain=v1 2>/dev/null | wc -l)
+    run=""
+    lock_probe "$root" "$w" || run="   << RUNNING"
+    printf '  %-14s [%s]  unreviewed commits: %-3s uncommitted files: %-3s%s\n' \
+      "$w" "$br" "$ahead" "$unc" "$run"
   done
   echo; echo "== running =="
-  pgrep -af "bin/agentteam run" 2>/dev/null | grep -v "^$$ " || echo "(none)"
+  local pf pid t any=0
+  for pf in "$root"/coord/reports/*.pid; do
+    [ -e "$pf" ] || continue
+    t=$(basename "$pf" .pid)
+    pid=$(cat "$pf" 2>/dev/null || true)
+    if [ -n "$pid" ] && { kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; }; then
+      echo "  $t (background, pid $pid) — tail: agentteam tail $t   abort: agentteam kill $t"; any=1
+    else
+      rm -f "$pf"
+    fi
+  done
+  local pg; pg=$(pgrep -af "bin/agentteam run" 2>/dev/null | grep -v "^$$ " || true)
+  if [ -n "$pg" ]; then printf '%s\n' "$pg" | sed 's/^/  /'; any=1; fi
+  [ "$any" = 1 ] || echo "  (none)"
 }
 
 cmd_agents() {
@@ -290,18 +556,316 @@ cmd_agents() {
 cmd_smoke() { # one tiny live call per configured agent — the post-update ritual
   local root conf; root=$(find_root 2>/dev/null || true)
   if [ -n "${root:-}" ]; then conf=$(conf_for_root "$root"); else conf="$CONF_FILE"; fi
-  local tf; tf=$(mktemp); printf 'Reply with exactly: ok\n' > "$tf"
+  local tf nd; tf=$(mktemp); printf 'Reply with exactly: ok\n' > "$tf"
+  nd=$(mktemp -d)   # neutral dir: no repo, no role cards, nothing to touch
   local line name cmd rc out
   while IFS= read -r line; do
     case "$line" in ''|'#'*) continue;; esac
     name="${line%%=*}"; cmd="${line#*=}"
     if is_off "$name"; then printf '  %-12s SKIP (benched)\n' "$name"; continue; fi
     if ! command -v "${cmd%% *}" >/dev/null 2>&1; then printf '  %-12s MISSING binary\n' "$name"; continue; fi
-    rc=0; out=$(TASKFILE="$tf" timeout 180 bash -c "$cmd" 2>&1) || rc=$?
-    if [ "$rc" -eq 0 ]; then printf '  %-12s OK\n' "$name"
-    else printf '  %-12s FAIL exit=%s — %s\n' "$name" "$rc" "$(printf '%s' "$out" | tail -1 | cut -c1-70)"; fi
+    rc=0; out=$( cd "$nd" && TASKFILE="$tf" timeout 180 bash -c "$cmd" 2>&1 ) || rc=$?
+    if [ "$rc" -ne 0 ]; then
+      printf '  %-12s FAIL exit=%s — %s\n' "$name" "$rc" "$(printf '%s' "$out" | tail -1 | cut -c1-70)"
+    elif printf '%s' "$out" | grep -qiw ok; then
+      printf '  %-12s OK\n' "$name"
+    else
+      printf '  %-12s WARN — replied, but not "ok": %s\n' "$name" "$(printf '%s' "$out" | tail -1 | cut -c1-60)"
+    fi
   done < "$conf"
-  rm -f "$tf"
+  rm -rf "$tf" "$nd"
+}
+
+# ---------------------------------------------------------------- review
+cmd_review() { # a DIFFERENT vendor judges the task order + the diff
+  local worker="${1:-}" task="${2:-}" reviewer="${3:-}"
+  [ -n "$worker" ] && [ -n "$task" ] || die "usage: agentteam review <worker> <task-id> [reviewer-agent]"
+  local root; root=$(find_root) || die "not inside an agentteam project"
+  task="${task%.md}"
+  local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
+  local wt="$root/wt/$worker";           [ -d "$wt" ] || die "no worktree: $wt"
+  local base; base=$(get_base "$root")
+  local author="${worker%%-*}" conf; conf=$(conf_for_root "$root")
+
+  if [ -z "$reviewer" ]; then
+    local line name cmdw
+    while IFS= read -r line; do
+      case "$line" in ''|'#'*) continue;; esac
+      name="${line%%=*}"; cmdw="${line#*=}"
+      [ "$name" = "$author" ] && continue
+      is_off "$name" && continue
+      command -v "${cmdw%% *}" >/dev/null 2>&1 || continue
+      reviewer="$name"; break
+    done < "$conf"
+  fi
+  [ -n "$reviewer" ] || die "no available reviewer (all benched or missing) — name one: agentteam review $worker $task <agent>"
+  [ "$reviewer" != "$author" ] || die "reviewer must be a different vendor than the author agent '$author'"
+  local rcmd; rcmd=$(agent_cmd "$reviewer" "$conf") || die "no agents.conf entry for reviewer '$reviewer'"
+
+  local pf; pf=$(mktemp)
+  {
+    if [ -f "$TPL_DIR/REVIEW.md" ]; then cat "$TPL_DIR/REVIEW.md"
+    else printf 'You are an independent code reviewer from a different AI vendor. Judge only the material below. End with "VERDICT: APPROVE" or "VERDICT: REQUEST-CHANGES".\n'; fi
+    printf '\n===== TASK ORDER (%s) =====\n' "$task"
+    cat "$tf"
+    printf '\n===== DIFF committed vs %s =====\n' "$base"
+    git -C "$wt" diff "$base...HEAD" 2>/dev/null | head -c 200000 || true
+    printf '\n===== UNCOMMITTED =====\n'
+    git -C "$wt" diff HEAD 2>/dev/null | head -c 100000 || true
+    printf '\n===== END OF MATERIAL =====\nRemember: end with exactly one line "VERDICT: APPROVE" or "VERDICT: REQUEST-CHANGES".\n'
+  } > "$pf"
+
+  local nd out rc=0
+  nd=$(mktemp -d)   # reviewer works blind from the prompt — no repo access
+  echo "[review] $reviewer reviewing $worker's '$task' (timeout ${AGENTTEAM_REVIEW_TIMEOUT:-900}s)"
+  out=$( cd "$nd" && TASKFILE="$pf" timeout "${AGENTTEAM_REVIEW_TIMEOUT:-900}" bash -c "$rcmd" 2>&1 ) || rc=$?
+  printf '%s\n' "$out"
+
+  {
+    echo
+    echo "### review $(date -Is) — reviewer=$reviewer author=$worker exit=$rc"
+    echo '~~~'
+    printf '%s\n' "$out" | tail -n 80
+    echo '~~~'
+  } >> "$root/coord/reports/$task.md"
+  ledger_add "$root" "$(printf '{"event":"review","ts":"%s","task":"%s","worker":"%s","reviewer":"%s","exit":%d}' \
+    "$(date -Is)" "$task" "$worker" "$reviewer" "$rc")"
+  rm -rf "$nd" "$pf"
+  return "$rc"
+}
+
+# ------------------------------------------------------------------ race
+cmd_race() { # same task to several workers in parallel; merge ONE winner
+  local task="${1:-}"; shift || true
+  [ -n "$task" ] && [ $# -ge 2 ] || die "usage: agentteam race <task-id> <worker> <worker> [...]"
+  local root; root=$(find_root) || die "not inside an agentteam project"
+  task="${task%.md}"
+  local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
+  local w
+  for w in "$@"; do
+    [ -d "$root/wt/$w" ] || die "no worktree for '$w' — run: agentteam init $w"
+    is_off "${w%%-*}" && die "agent '${w%%-*}' is OFF — bench-aware racing: pick another worker"
+    lock_probe "$root" "$w" || die "worker '$w' is busy (agentteam status)"
+  done
+  local ct
+  for w in "$@"; do
+    ct="$root/coord/tasks/$task-$w.md"
+    if [ ! -f "$ct" ]; then
+      cp "$tf" "$ct"
+      printf '\n> race copy of %s for worker %s — several workers race this task; only ONE winning branch gets merged.\n' "$task" "$w" >> "$ct"
+    fi
+    "$0" run -b "$w" "$task-$w"
+  done
+  ledger_add "$root" "$(printf '{"event":"race","ts":"%s","task":"%s","workers":"%s"}' "$(date -Is)" "$task" "$*")"
+  echo "race on. compare: agentteam verify/diff per worker — merge exactly one winner, reject the rest."
+}
+
+# -------------------------------------------------------------- sabotage
+cmd_sabotage() { # the saboteur seat: attack fresh merges with failing tests
+  local worker="${1:-}"; [ -n "$worker" ] || die "usage: agentteam sabotage <worker>"
+  local root; root=$(find_root) || die "not inside an agentteam project"
+  local wt="$root/wt/$worker"; [ -d "$wt" ] || die "no worktree for '$worker' — run: agentteam init $worker"
+  is_off "${worker%%-*}" && die "agent '${worker%%-*}' is OFF"
+  lock_probe "$root" "$worker" || die "worker '$worker' is busy (agentteam status)"
+  [ -f "$TPL_DIR/SABOTEUR.md" ] || die "SABOTEUR.md template missing — rerun the installer"
+  echo "syncing '$worker' so the saboteur sees the latest merged work:"
+  cmd_sync "$worker"
+  local id; id="SAB-$(date +%Y%m%d-%H%M%S)"
+  sed "s/{{WORKER}}/$worker/g; s/{{ID}}/$id/g" "$TPL_DIR/SABOTEUR.md" > "$root/coord/tasks/$id-$worker.md"
+  "$0" run -b "$worker" "$id-$worker"
+  echo "saboteur dispatched: $id-$worker — findings land in coord/reports/$id-$worker.md"
+}
+
+# ------------------------------------------------------------- tail/kill
+cmd_tail() {
+  local root; root=$(find_root) || die "not inside an agentteam project"
+  local task="${1:-}" f
+  if [ -n "$task" ]; then
+    task="${task%.md}"; f="$root/coord/reports/$task.log"
+  else
+    f=$(ls -t "$root"/coord/reports/*.log 2>/dev/null | head -1 || true)
+  fi
+  [ -n "$f" ] && [ -f "$f" ] || die "no log found (agentteam tail <task-id>)"
+  echo ">> $f"
+  exec tail -n 40 -f "$f"
+}
+
+cmd_kill() {
+  local task="${1:-}"; [ -n "$task" ] || die "usage: agentteam kill <task-id>"
+  local root; root=$(find_root) || die "not inside an agentteam project"
+  task="${task%.md}"
+  local pf="$root/coord/reports/$task.pid"
+  [ -f "$pf" ] || die "no background run recorded for '$task' (foreground runs: Ctrl-C)"
+  local pid; pid=$(cat "$pf" 2>/dev/null || true)
+  if [ -z "$pid" ]; then rm -f "$pf"; die "empty pidfile removed — nothing to kill"; fi
+  if kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; then
+    kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+    sleep 1
+    if kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; then
+      kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+    fi
+    echo "killed '$task' (pid $pid) — partial work may sit uncommitted in the worktree"
+  else
+    echo "'$task' already finished — cleaning up its pidfile"
+  fi
+  rm -f "$pf"
+}
+
+# -------------------------------------------------------------- selftest
+ST_OK=0; ST_FAIL=0
+st_chk() { # <description> <command...> — count and print one check
+  local d="$1"; shift
+  if "$@" >/dev/null 2>&1; then ST_OK=$((ST_OK+1)); printf '  ok    %s\n' "$d"
+  else ST_FAIL=$((ST_FAIL+1)); printf '  FAIL  %s\n' "$d"; fi
+}
+
+cmd_selftest() { # the whole loop, rehearsed with mock agents — zero quota
+  local b missing=""
+  for b in git flock awk timeout; do
+    command -v "$b" >/dev/null 2>&1 || missing="$missing $b"
+  done
+  [ -z "$missing" ] || die "selftest needs:$missing"
+  [ -f "$TPL_DIR/TASK.md" ] || die "templates missing at $TPL_DIR — rerun the installer"
+
+  local ST; ST=$(mktemp -d)
+  echo "== agentteam selftest — sandbox: $ST =="
+  mkdir -p "$ST/conf/templates"
+  cp "$TPL_DIR"/*.md "$ST/conf/templates/"
+
+  cat > "$ST/conf/agents.conf" <<'ST_CONF_EOF'
+mock=bash -c 'cat "$TASKFILE" >/dev/null; echo working; echo line >> hello.txt; git add hello.txt; git commit -q -m "selftest: mock"; echo ok'
+rogue=bash -c 'echo rogue; echo x > forbidden.txt; git add forbidden.txt; git commit -q -m "selftest: rogue"; echo ok'
+slow=bash -c 'echo napping; sleep 30; echo ok'
+rev=bash -c 'cat "$TASKFILE" >/dev/null; echo reviewed; echo "VERDICT: APPROVE"'
+ST_CONF_EOF
+
+  local repo="$ST/proj/repo"
+  mkdir -p "$ST/proj"
+  git init -q -b dev "$repo"
+  git -C "$repo" config user.email selftest@agentteam.local
+  git -C "$repo" config user.name  agentteam-selftest
+  git -C "$repo" commit -q --allow-empty -m "init"
+
+  export AGENTTEAM_CONF_DIR="$ST/conf"
+  cd "$repo"
+
+  st_chk "init scaffolds worktrees + coord" \
+    bash -c '"$0" init mock rogue slow >/dev/null 2>&1 && [ -d ../wt/mock ] && [ -d ../wt/slow ] && [ -f ../coord/board.md ] && [ -f ../coord/tasks/TEMPLATE.md ]' "$0"
+  st_chk "worker-branch guard hooks installed" \
+    bash -c 'grep -q "agentteam guard" .git/hooks/pre-commit && grep -q "agentteam guard" .git/hooks/pre-push'
+
+  cat > ../coord/tasks/T1-mock.md <<'ST_T1_EOF'
+# Task T1 — worker: mock
+## Goal
+Create hello.txt containing the word line.
+## Context
+agentteam selftest task.
+## Allowed scope
+- hello.txt
+## Constraints
+none
+## Validate
+$ test -f hello.txt
+$ grep -q line hello.txt
+## Done means
+hello.txt committed on your branch.
+## Report
+SUMMARY
+ST_T1_EOF
+
+  st_chk "run executes a mock worker (exit 0)" \
+    bash -c '"$0" run mock T1-mock >/dev/null 2>&1' "$0"
+  st_chk "worker committed on its own branch" \
+    bash -c '[ "$(git -C ../wt/mock rev-list --count dev..HEAD)" -ge 1 ]'
+  st_chk "run block appended to the report" \
+    bash -c 'grep -q "worker=mock" ../coord/reports/T1-mock.md'
+  st_chk "run event in ledger.jsonl" \
+    bash -c 'grep -q "\"event\":\"run\"" ../coord/reports/ledger.jsonl'
+  st_chk "verify passes an in-scope task" \
+    bash -c '"$0" verify mock T1-mock >/dev/null 2>&1' "$0"
+
+  cat > ../coord/tasks/T2-rogue.md <<'ST_T2_EOF'
+# Task T2 — worker: rogue
+## Goal
+Touch only hello.txt (the rogue agent will not).
+## Context
+agentteam selftest — this worker intentionally leaves its scope.
+## Allowed scope
+- hello.txt
+## Validate
+## Done means
+n/a
+## Report
+SUMMARY
+ST_T2_EOF
+
+  bash -c '"$0" run rogue T2-rogue >/dev/null 2>&1' "$0" || true
+  st_chk "verify catches an out-of-scope diff" \
+    bash -c 'out=$("$0" verify rogue T2-rogue 2>&1); rc=$?; [ "$rc" -ne 0 ] && printf "%s" "$out" | grep -q VIOLATION' "$0"
+  st_chk "verify event in ledger.jsonl" \
+    bash -c 'grep -q "\"event\":\"verify\"" ../coord/reports/ledger.jsonl'
+
+  "$0" off mock 30m >/dev/null
+  st_chk "benched agent is refused work" \
+    bash -c '! "$0" run mock T1-mock >/dev/null 2>&1' "$0"
+  "$0" on mock >/dev/null
+  "$0" stop >/dev/null
+  st_chk "STOP refuses all new runs" \
+    bash -c '! "$0" run mock T1-mock >/dev/null 2>&1' "$0"
+  "$0" resume >/dev/null
+  st_chk "run works again after on + resume" \
+    bash -c '"$0" run mock T1-mock >/dev/null 2>&1' "$0"
+
+  mkdir -p ../coord/.locks
+  ( exec 9>>../coord/.locks/mock.lock; flock 9; sleep 4 ) &
+  local holder=$!
+  sleep 1
+  st_chk "busy worker is refused (per-worker lock)" \
+    bash -c '! "$0" run mock T1-mock >/dev/null 2>&1' "$0"
+  wait "$holder" 2>/dev/null || true
+
+  cat > ../coord/tasks/T3-slow.md <<'ST_T3_EOF'
+# Task T3 — worker: slow
+## Goal
+Sleep (background-run fodder for the selftest).
+## Context
+agentteam selftest.
+## Allowed scope
+- hello.txt
+## Validate
+## Done means
+n/a
+## Report
+SUMMARY
+ST_T3_EOF
+
+  "$0" run -b slow T3-slow >/dev/null
+  sleep 2
+  st_chk "background run writes a pidfile" \
+    bash -c '[ -f ../coord/reports/T3-slow.pid ]'
+  st_chk "kill terminates the background run" \
+    bash -c '"$0" kill T3-slow >/dev/null 2>&1 && [ ! -f ../coord/reports/T3-slow.pid ]' "$0"
+
+  git merge --no-ff -q agent/mock -m "merge T1" >/dev/null 2>&1 || true
+  st_chk "sync fast-forwards a merged worker to base" \
+    bash -c '"$0" sync mock >/dev/null 2>&1 && [ "$(git rev-parse agent/mock)" = "$(git rev-parse dev)" ]' "$0"
+
+  st_chk "cross-agent review returns a verdict" \
+    bash -c 'out=$("$0" review mock T1-mock rev 2>&1); printf "%s" "$out" | grep -q "VERDICT: APPROVE"' "$0"
+  "$0" off slow >/dev/null   # keep smoke from sitting through slow's nap
+  st_chk "smoke prints one row per agent" \
+    bash -c '[ "$("$0" smoke 2>/dev/null | wc -l)" -ge 4 ]' "$0"
+
+  echo
+  echo "selftest: $ST_OK ok, $ST_FAIL failed"
+  cd /
+  if [ "$ST_FAIL" -eq 0 ]; then
+    rm -rf "$ST"
+    echo "sandbox removed — all green."
+  else
+    echo "sandbox kept for inspection: $ST"
+    return 1
+  fi
 }
 
 cmd_stop()   { local root; root=$(find_root) || die "not in a project"; touch "$root/coord/STOP"; echo "STOP set — new runs blocked (running tasks finish or hit timeout)"; }
@@ -311,40 +875,73 @@ cmd_help() {
   cat <<'HELP'
 agentteam — one master CLI session delegating to worker CLI agents
 
-  agentteam init [workers...]      scaffold wt/ + coord/ next to your clone
-                                   (default: codex antigravity opencode grok)
-  agentteam agents                 list agents: binary found? on/off?
-  agentteam run [-b] <w> <task>    run coord/tasks/<task>.md with worker <w>
-                                   in its worktree; -b = background
-  agentteam diff <w> [--stat]      review a worker's changes vs base branch
-  agentteam status                 off-agents, tasks, reports, branches, jobs
+setup / health
+  agentteam init [workers...]        scaffold wt/ + coord/ next to your clone
+                                     (default: codex antigravity opencode grok)
+                                     refuses while secret-looking files are
+                                     tracked; installs worker-branch guard hooks
+  agentteam agents                   list agents: binary found? on/off?
+  agentteam smoke                    one tiny live call per agent, from a
+                                     neutral dir — run after every CLI update
+  agentteam selftest                 rehearse the whole loop with mock agents
+                                     in a throwaway sandbox — zero quota
+
+work
+  agentteam run [-b] <w> <task>      run coord/tasks/<task>.md in w's worktree
+                                     (-b = background; one run per worker)
+  agentteam tail [task]              follow a run's live log (default: newest)
+  agentteam kill <task>              stop a background run (process group)
+  agentteam verify <w> <task>        machine gate: diff vs the task's "- path"
+                                     scope lines + run its "$ " Validate lines
+                                     + commit sanity; verdict into the report
+  agentteam diff <w> [--stat]        review a worker's changes vs base branch
+  agentteam review <w> <task> [agent]  a DIFFERENT vendor reviews the task
+                                     order + diff; VERDICT line + report block
+  agentteam sync [w]                 after merges: bring base into worker
+                                     branches (ff/merge; skips dirty/running)
+
+fleet plays
+  agentteam race <task> <w1> <w2> [...]  same task to several workers in
+                                     parallel — merge exactly one winner
+  agentteam sabotage <w>             saboteur seat: sync, then hunt fresh
+                                     merges with failing tests (SAB-* task)
+
+switches
+  agentteam status                   off-agents, tasks, reports, review queue,
+                                     running jobs
   agentteam off <agent> [30m|5h|7d]  quota switch: disable an agent
-                                   (5h window: off 5h; weekly cap: off 7d;
-                                    no duration = until 'agentteam on')
-  agentteam on <agent>             re-enable an agent
-  agentteam smoke                  one tiny live call per agent — run after
-                                   every CLI update to catch renamed flags
-  agentteam stop | resume          project kill switch for ALL runs
+                                     (no duration = until 'agentteam on')
+  agentteam on <agent>               re-enable an agent
+  agentteam stop | resume            project kill switch for ALL new runs
 
 Worker -> agent: prefix before first "-" ("codex-2" uses agent "codex").
-Agent commands: ~/.config/agentteam/agents.conf (project override:
-coord/agents.conf). Base branch: coord/base. AGENTTEAM_TIMEOUT (3600s);
-AGENTTEAM_AUTO_OFF=1 auto-disables an agent 5h when its output mentions
-usage limits.
+Config: ~/.config/agentteam/agents.conf (project override: coord/agents.conf).
+Base branch: coord/base. Machine history: coord/reports/ledger.jsonl.
+Env: AGENTTEAM_TIMEOUT (3600s)  AGENTTEAM_VERIFY_TIMEOUT (900s)
+     AGENTTEAM_REVIEW_TIMEOUT (900s)  AGENTTEAM_ALLOW_SECRETS=1 (init override)
+     AGENTTEAM_AUTO_OFF=1 (bench 5h when a FAILED run mentions usage limits)
 HELP
 }
 
 case "${1:-help}" in
-  init)    shift; cmd_init "$@";;
-  run)     shift; cmd_run "$@";;
-  diff)    shift; cmd_diff "$@";;
-  status)  shift; cmd_status "$@";;
-  agents)  shift; cmd_agents "$@";;
-  off)     shift; cmd_off "$@";;
-  on)      shift; cmd_on "$@";;
-  smoke)   shift; cmd_smoke "$@";;
-  stop)    shift; cmd_stop "$@";;
-  resume)  shift; cmd_resume "$@";;
+  init)     shift; cmd_init "$@";;
+  run)      shift; cmd_run "$@";;
+  verify)   shift; cmd_verify "$@";;
+  diff)     shift; cmd_diff "$@";;
+  sync)     shift; cmd_sync "$@";;
+  status)   shift; cmd_status "$@";;
+  agents)   shift; cmd_agents "$@";;
+  off)      shift; cmd_off "$@";;
+  on)       shift; cmd_on "$@";;
+  smoke)    shift; cmd_smoke "$@";;
+  review)   shift; cmd_review "$@";;
+  race)     shift; cmd_race "$@";;
+  sabotage) shift; cmd_sabotage "$@";;
+  tail)     shift; cmd_tail "$@";;
+  kill)     shift; cmd_kill "$@";;
+  selftest) shift; cmd_selftest "$@";;
+  stop)     shift; cmd_stop "$@";;
+  resume)   shift; cmd_resume "$@";;
   help|-h|--help) cmd_help;;
   *) die "unknown command '${1}' (agentteam help)";;
 esac
@@ -415,15 +1012,26 @@ Plan first: present the breakdown to Daniel; delegate only after his "go".
    worker's output hits a limit mid-cycle, tell Daniel and suggest
    `agentteam off <agent> 5h` (weekly: 7d).
 2. Write ../coord/tasks/<ID>-<worker>.md from TEMPLATE.md. Workers have
-   ZERO memory of this chat — task files must be self-contained.
-3. `agentteam run <worker> <ID>-<worker>` (long: add -b, poll with status).
-4. Read ../coord/reports/<ID>-<worker>.md, then verify the REAL diff:
-   `agentteam diff <worker>`. Never trust a report without the diff.
-5. Accept only if the milestone gate passes: clean build (0 warnings where
-   the repo enforces it) + tests green + smoke run + CHANGELOG.md entry (if
-   the repo keeps one). Then tell Daniel the branch is ready to merge into
-   the base branch. Reject -> sharper task file (<ID>b), rerun. Two failed
-   attempts -> escalate to Daniel.
+   ZERO memory of this chat — task files must be self-contained. The
+   "- path" lines under Allowed scope and the "$ " lines under Validate
+   are machine-enforced by `agentteam verify` — write them precisely.
+3. `agentteam run <worker> <ID>-<worker>` (long: add -b, poll with status,
+   watch live with `agentteam tail`).
+4. Machine check FIRST: `agentteam verify <worker> <ID>-<worker>` — scope
+   compliance, Validate commands re-run, commit sanity; the verdict lands
+   in the report. Then read ../coord/reports/<ID>-<worker>.md and the REAL
+   diff: `agentteam diff <worker>`. Never trust a report without both.
+   For risky or large diffs, get a rival's opinion too:
+   `agentteam review <worker> <ID>-<worker>` (a different vendor judges it).
+5. Accept only if the milestone gate passes: verify PASS + clean build
+   (0 warnings where the repo enforces it) + tests green + smoke run +
+   changelog fragment changelog.d/<ID>.md (if the repo keeps a CHANGELOG —
+   workers never edit CHANGELOG.md itself). Then tell Daniel the branch is
+   ready to merge into the base branch. Reject -> sharper task file (<ID>b),
+   rerun. Two failed attempts -> escalate to Daniel.
+6. After Daniel merges: `agentteam sync` — every workshop rebuilds on the
+   new base instead of drifting stale. At release time, roll the
+   changelog.d/ fragments into CHANGELOG.md (you may edit docs).
 
 ## Delegation policy (strength -> fallback when OFF)
 - codex     implementation, refactors, debugging      -> claude-w, grok
@@ -437,7 +1045,7 @@ Plan first: present the breakdown to Daniel; delegate only after his "go".
 - Freeze shared contracts (types/schemas/fixtures) on the base branch
   BEFORE delegating dependent tasks; cite them (path @ sha) in task files.
 - Disjoint scopes; exactly one dependency owner (lockfiles, migrations)
-  per cycle.
+  per cycle. changelog.d/ is the one shared dir — safe, one file per task.
 - You alone write ../coord/board.md (one row per task); read blockers.md
   every cycle; if ../coord/STOP exists, stop delegating immediately.
 
@@ -445,6 +1053,13 @@ Plan first: present the breakdown to Daniel; delegate only after his "go".
 - `myapp <project-root>` prints the per-agent scorecard (runs, fails,
   walls, merges) for any agentteam project. Consult it when assigning
   tasks — favor agents that earn merges; flag chronic wall-hitters.
+- ../coord/reports/ledger.jsonl is the machine history: one JSON line per
+  run/verify/review/race with durations and diffstats. Cite it, not vibes.
+- Head-to-head data when vendors disagree: `agentteam race <task> w1 w2`
+  runs one task on several vendors in parallel; exactly one winner merges.
+- Spare quota after merge days -> `agentteam sabotage <worker>`: the
+  saboteur seat attacks freshly merged work with failing tests. Real bugs
+  found there are cheaper than bugs found by users.
 MASTER_TPL_EOF
 
 cat > "$TPL_DIR/WORKER.md" <<'WORKER_TPL_EOF'
@@ -457,13 +1072,20 @@ task prompt you were given. Follow it exactly.
   (reading ritual). The rules HERE override them on branches, scope, commits.
 - Work ONLY in this directory — a git worktree on branch agent/{{WORKER}}.
   Never switch branches, never push, never touch the base branch (dev/main).
-- Modify only files in the task's "Allowed scope". Need something outside
-  it? Do NOT touch it — finish what you can, state the need in your report.
+  Git hooks enforce this; do not fight them.
+- Modify only files in the task's "Allowed scope". The "- path" lines there
+  are machine-checked after your run (`agentteam verify`) — out-of-scope
+  edits get the whole branch rejected. Need something outside it? Do NOT
+  touch it — finish what you can, state the need in your report.
 - No architecture changes, no new dependencies, unless the task grants them.
 - Find code with CodeGraph (`codegraph explore "..."`) when available; run
   `codegraph sync` after edits if the index seems stale.
-- Run the task's Validate commands before finishing. Add a CHANGELOG.md
-  entry if the repo keeps one.
+- Run the task's Validate commands before finishing — the "$ " lines will
+  be re-run mechanically; claiming success with failing Validate commands
+  is detected.
+- If the repo keeps a CHANGELOG: never edit CHANGELOG.md itself (shared
+  file = merge conflicts). Write your entry to changelog.d/<ID>.md instead
+  — one or two lines; that path is always in scope.
 - Commit ONLY the files you changed — `git add <specific paths>`, never a
   blind `git add -A` (no sweeping in line-ending or file-mode churn).
   Message: "<ID>: <summary>".
@@ -485,19 +1107,25 @@ the code does now, relevant files and roles, decisions already made, frozen
 contracts ("types in src/api/types.ts @ <sha> — do not change them").
 
 ## Allowed scope
-Exact files/dirs it may create or modify. Everything else is off-limits.
+One "- path" line per allowed file or directory — ENFORCED by `agentteam
+verify` (globs ok; a trailing / means the whole directory; changelog.d/
+is always allowed):
+- src/feature.py
+- tests/test_feature.py
 
 ## Constraints
 Libraries to use/avoid, style, frozen interfaces, no new deps.
 
 ## Validate
-Exact commands + expected outcome, e.g.:
-  dotnet build   (0 warnings, 0 errors)   /   npm test -- --run auth
-Include the smoke command if the repo has one (e.g. app --smoke).
+Prose is fine here, but every line starting with "$ " is machine-run by
+`agentteam verify` inside the worktree and must exit 0:
+$ dotnet build -c Release
+$ python3 -m unittest discover tests -v
 
 ## Done means
-Validation passes + CHANGELOG.md entry (if repo keeps one) + changes
-committed on your branch — only the files you touched — as "<ID>: <summary>".
+Validation passes + changes committed on your branch — only the files you
+touched — as "<ID>: <summary>". If the repo keeps a CHANGELOG, add
+changelog.d/<ID>.md (one or two lines); never edit CHANGELOG.md itself.
 
 ## Report
 End with: SUMMARY / FILES CHANGED / TESTS RUN + RESULTS / ASSUMPTIONS /
@@ -512,6 +1140,74 @@ Contracts frozen this cycle: (none yet)
 | ID | worker | state | branch | scope | done-when |
 |----|--------|-------|--------|-------|-----------|
 BOARD_TPL_EOF
+
+cat > "$TPL_DIR/REVIEW.md" <<'REVIEW_TPL_EOF'
+# Role: independent reviewer (a different vendor than the author)
+
+You are reviewing another AI's work. Below: the task order it was given,
+then its diff (committed vs base, then uncommitted). You have no file
+access — judge only what is in this prompt.
+
+Check, in order:
+1. SCOPE — does the diff touch only the task's Allowed scope?
+2. CORRECTNESS — does the change do what the Goal says? Logic errors,
+   missed edge cases, broken callers.
+3. TESTS — do the tests actually exercise the change, or merely pass?
+4. SMELLS — dead code, needless complexity, style breaks with context.
+
+Be adversarial: your job is to find what the author missed, not to be
+agreeable. Cite concrete lines from the diff for every claim. If the
+material is truncated, say so and judge what you can see.
+
+Output: at most ~20 lines. Numbered findings, each tagged BLOCKER /
+MINOR / NIT, then exactly one final line:
+VERDICT: APPROVE            (nothing blocking)
+VERDICT: REQUEST-CHANGES    (one or more blockers)
+REVIEW_TPL_EOF
+
+cat > "$TPL_DIR/SABOTEUR.md" <<'SABOTEUR_TPL_EOF'
+# Task {{ID}} — worker: {{WORKER}} (the saboteur seat)
+
+## Goal
+Find real defects in recently merged work by writing tests that FAIL
+against the current base branch. Bugs exposed — not code fixed — is the
+deliverable.
+
+## Context
+You are the saboteur: one agent per cycle attacks what the team just
+merged. Read CHANGELOG.md / changelog.d/ and `git log --oneline -15` to
+see what changed recently, then hunt: edge cases, error paths, boundary
+values, wrong-directory launches, concurrency, off-by-ones — the paths
+the existing tests never visit. Passing tests only check what was
+predicted; you look for what wasn't.
+
+## Allowed scope
+- tests/
+- test/
+- changelog.d/
+
+## Constraints
+- Do NOT fix any bug you find — expose it. Fixes are separate tasks.
+- Do NOT modify existing tests; add new ones, clearly marked (file or
+  test names containing "sabotage" or the repo's equivalent convention).
+- Genuine defects only: a test asserting behavior nobody promised is
+  noise, not a finding.
+
+## Validate
+Your new failing tests ARE the product, so no "$ " auto-commands here.
+Run the repo's test suite yourself: existing tests must still pass;
+only your new sabotage tests may fail.
+
+## Done means
+New tests committed on your branch as "{{ID}}: sabotage findings".
+If a real hunt finds nothing, commit nothing and say so — an empty
+sabotage report is a valid (good!) result.
+
+## Report
+End with: SUMMARY / FILES CHANGED / TESTS RUN + RESULTS / ASSUMPTIONS /
+RISKS / NEEDS-REVIEW — and per finding: WHERE (file:line), REPRO (the
+failing test name), EXPECTED vs ACTUAL, SEVERITY.
+SABOTEUR_TPL_EOF
 
 cat > "$TPL_DIR/PROTOCOL.md" <<'PROTOCOL_TPL_EOF'
 # AGENTTEAM PROTOCOL — system specification for AI agents
@@ -543,6 +1239,7 @@ Layout relative to project root:
 | Path | Content | Write access |
 |---|---|---|
 | `repo/` | The repository, checked out on the base branch | OWNER, LEAD (docs/contracts only) |
+| `repo/changelog.d/<ID>.md` | Changelog fragment per task; rolled into CHANGELOG.md at release | the task's WORKER |
 | `wt/<worker>/` | Worktree on branch `agent/<worker>` | that WORKER only |
 | `coord/base` | Base branch name (single word, normally `dev`) | OWNER |
 | `coord/docs/` | Operating playbooks + this protocol | OWNER |
@@ -550,34 +1247,67 @@ Layout relative to project root:
 | `coord/tasks/<ID>-<worker>.md` | Task files (work orders) | LEAD only |
 | `coord/reports/<task>.md` | Append-only run history per task | agentteam tooling |
 | `coord/reports/<task>.log` | Latest run's full output (overwritten) | agentteam tooling |
+| `coord/reports/ledger.jsonl` | Append-only machine ledger: one JSON object per event | agentteam tooling |
 | `coord/blockers.md` | Blocker notes | anyone, APPEND only |
 | `coord/STOP` | If present: all new runs refused | OWNER |
 
+Transient control files (tooling-owned, never edit): `coord/.locks/<w>.lock`
+(one run per worker) and `coord/reports/<task>.pid` (background run's
+process id, removed on exit).
+
 Data-source rule: historical analysis MUST read `reports/*.md` (append-only,
-all runs). `*.log` holds only the latest run and MUST NOT be used as history.
+all runs) or `ledger.jsonl` (append-only, machine-readable). `*.log` holds
+only the latest run and MUST NOT be used as history.
+
+Enforcement at init: `agentteam init` refuses to scaffold while likely
+secret files are tracked (override: AGENTTEAM_ALLOW_SECRETS=1), and
+installs git hooks so a worker worktree can commit only on its own
+`agent/<w>` branch and can never push.
 
 ## 3. DATA FORMATS
 
 Report run-block (appended to `coord/reports/<task>.md` per run):
 
 ```text
-## run <ISO8601 timestamp> — worker=<worker> agent=<agent> exit=<int>
+## run <ISO8601 timestamp> — worker=<worker> agent=<agent> exit=<int> duration=<int>s
 ### git status (branch, staged/unstaged)
 <porcelain v1 output>
 ### committed diffstat vs <base>
 <diffstat or "(none)">
+### verdict
+commits=<n> files=<n> insertions=<n> deletions=<n> uncommitted=<n>
+[!! empty-diff warning when exit=0 with no changes]
 ### agent output (tail)
 ~~~
 <last 60 lines of the run log>
 ~~~
 ```
 
+Verify block (appended by `agentteam verify`):
+`### verify <ts> — worker=<w> scope=<OK|VIOLATION|UNCHECKED>
+validate=<passed>/<run> empty=<0|1> verdict=<PASS|FAIL>` plus out-of-scope
+paths and per-command results.
+
+Ledger events (`coord/reports/ledger.jsonl`, one JSON object per line):
+
+```text
+{"event":"run","ts":…,"task":…,"worker":…,"agent":…,"exit":n,"duration_s":n,
+ "commits":n,"files":n,"insertions":n,"deletions":n,"uncommitted":n,"wall":0|1}
+{"event":"verify","ts":…,"task":…,"worker":…,"scope":"OK|VIOLATION|UNCHECKED",
+ "validate_run":n,"validate_failed":n,"commits":n,"empty":0|1,"verdict":…}
+{"event":"review","ts":…,"task":…,"worker":…,"reviewer":…,"exit":n}
+{"event":"race","ts":…,"task":…,"workers":"w1 w2 …"}
+```
+
 Task file schema (LEAD writes; template at `coord/tasks/TEMPLATE.md`):
 sections `Goal` (one testable outcome), `Context` (self-contained — the
-worker has zero prior memory), `Allowed scope` (exhaustive path list),
-`Constraints`, `Validate` (exact commands), `Done means` (observable +
-committed), `Report` (required final sections: SUMMARY / FILES CHANGED /
-TESTS RUN + RESULTS / ASSUMPTIONS / RISKS / NEEDS-REVIEW).
+worker has zero prior memory), `Allowed scope` (exhaustive; every
+`- path` line is a machine-enforced pattern — globs allowed, trailing `/`
+means the subtree, `changelog.d/` is implicitly allowed), `Constraints`,
+`Validate` (every `$ command` line is machine-run by verify and must exit
+0), `Done means` (observable + committed + changelog fragment where the
+repo keeps a changelog), `Report` (required final sections: SUMMARY /
+FILES CHANGED / TESTS RUN + RESULTS / ASSUMPTIONS / RISKS / NEEDS-REVIEW).
 
 Board row schema: `| ID | worker | state | branch | scope | done-when |`
 with state ∈ {todo, doing, blocked, review, done}.
@@ -588,28 +1318,58 @@ Worker→agent resolution: agent id = worker name up to first `-`
 ## 4. COMMAND API (`agentteam`)
 
 ```text
-agentteam init [w1 w2 ...]     scaffold worktrees + coord (idempotent)
+agentteam init [w1 w2 ...]     scaffold worktrees + coord (idempotent);
+                               secrets preflight; guard hooks
 agentteam agents               list agents: binary present, on/off state
+agentteam smoke                one tiny live call per agent from a neutral
+                               dir; OK / WARN (reply lacks "ok") / FAIL
+agentteam selftest             full-loop rehearsal in a sandbox repo with
+                               mock agents; zero quota; nonzero on failure
 agentteam run [-b] <w> <task>  execute coord/tasks/<task>.md as worker <w>
-                               in wt/<w>; -b = background; writes report+log
+                               in wt/<w>; -b = background; per-worker lock;
+                               writes report+log+ledger
+agentteam tail [task]          follow a run's live log (default: newest)
+agentteam kill <task>          terminate a background run's process group
+agentteam verify <w> <task>    machine gate assist: diff vs the task's
+                               "- path" scope lines + run its "$ " Validate
+                               lines in the worktree + commit sanity;
+                               appends verify block; nonzero exit on
+                               violation / validate failure / empty diff
 agentteam diff <w> [--stat]    changes on agent/<w> vs base: committed and
                                uncommitted, separately
-agentteam status               off-agents, tasks, reports, worktree states,
-                               running jobs
+agentteam review <w> <task> [agent]  cross-vendor review: a DIFFERENT agent
+                               judges task order + diff from a neutral dir;
+                               ends VERDICT: APPROVE|REQUEST-CHANGES
+agentteam sync [w]             bring base's merged work into worker
+                               branches (ff when fully merged, merge
+                               otherwise; skips dirty/running; aborts and
+                               reports on conflict)
+agentteam race <task> <w1> <w2> [...]  copy <task>.md to <task>-<w>.md per
+                               worker and dispatch all in background;
+                               OWNER merges at most one winner
+agentteam sabotage <w>         saboteur seat: sync <w>, generate a SAB-*
+                               task from the template, dispatch background
+agentteam status               off-agents, tasks, reports, review queue
+                               (unreviewed commits per worker), running jobs
 agentteam off <agent> [dur]    bench agent (dur: 30m|5h|7d; absent=manual);
                                run refuses benched agents; expiry auto-clears
 agentteam on <agent>           un-bench
 agentteam stop | resume        create/remove coord/STOP (global run gate)
 ```
 
-Environment: `AGENTTEAM_TIMEOUT` (seconds, default 3600) caps each run.
-`AGENTTEAM_AUTO_OFF=1` auto-benches an agent 5h when its log matches
-limit-language patterns. Agent invocation templates live in
+Environment: `AGENTTEAM_TIMEOUT` (seconds, default 3600) caps each run;
+`AGENTTEAM_VERIFY_TIMEOUT` (default 900) caps each Validate command;
+`AGENTTEAM_REVIEW_TIMEOUT` (default 900) caps a review call.
+`AGENTTEAM_AUTO_OFF=1` auto-benches an agent 5h when a FAILED run's log
+matches limit-language patterns (suppressed when the task text itself
+mentions limits and the run succeeded). `AGENTTEAM_ALLOW_SECRETS=1`
+overrides the init secrets preflight. Agent invocation templates live in
 `~/.config/agentteam/agents.conf` (project override: `coord/agents.conf`).
 
 Companion tool: `myapp <project-root>` prints the per-agent scorecard
-(runs, ok, fail, walls, merges, last run) computed from reports/*.md and
-git merge history. LEAD SHOULD consult it when assigning tasks.
+(runs, ok, fail, walls, merges, last run) computed from reports/*.md,
+ledger.jsonl and git merge history. LEAD SHOULD consult it when assigning
+tasks.
 
 ## 5. LIFECYCLE
 
@@ -620,18 +1380,26 @@ git merge history. LEAD SHOULD consult it when assigning tasks.
    the base branch BEFORE dispatching dependent tasks; task files cite
    contract paths @ sha.
 4. LEAD dispatches via `agentteam run`; parallel tasks MUST have disjoint
-   Allowed-scope sets; at most one task per cycle may modify dependency
-   manifests (package files, lockfiles, migrations).
+   Allowed-scope sets (changelog.d/ exempt — one file per task); at most
+   one task per cycle may modify dependency manifests (package files,
+   lockfiles, migrations). Race tasks are the sanctioned exception to
+   disjointness: several workers, same scope, at most one merge.
 5. WORKER executes its task file exactly: modifies only Allowed-scope
-   paths, runs Validate, commits only files it changed (never blanket
-   staging), ends output with the Report sections.
-6. LEAD verifies: reads report, reads `agentteam diff`, re-runs tests.
-   Reports are claims; diffs are ground truth.
+   paths, runs Validate, writes its changelog fragment, commits only files
+   it changed (never blanket staging), ends output with the Report
+   sections.
+6. LEAD verifies, machine first: `agentteam verify` (scope + Validate +
+   commit sanity), then reads the report and `agentteam diff`; for risky
+   diffs also `agentteam review`. Reports are claims; diffs, verify
+   verdicts and logs are ground truth.
 7. OWNER merges accepted branches into base (`git merge --no-ff`).
-   Acceptance gate: clean build, tests green, smoke run, CHANGELOG entry
-   where the repo keeps one.
-8. Releases: OWNER-only, explicit, base→main + tag. Order: merge fix →
-   verify → tag.
+   Acceptance gate: verify PASS, clean build, tests green, smoke run,
+   changelog fragment where the repo keeps a changelog. After the merge
+   cycle, LEAD runs `agentteam sync` so all workshops rebuild on the new
+   base.
+8. Releases: OWNER-only, explicit, base→main + tag. At release, LEAD rolls
+   changelog.d/ fragments into CHANGELOG.md. Order: merge fix → verify →
+   tag.
 
 ## 6. INVARIANTS (hard rules, numbered)
 
@@ -643,6 +1411,7 @@ git merge history. LEAD SHOULD consult it when assigning tasks.
 - I3  Only OWNER merges to base or main. LEAD recommends; never merges.
 - I4  LEAD never writes feature code. Contracts, fixtures, docs, board: yes.
 - I5  Workers never switch branches, never push, never touch base/main.
+      (Enforced by guard hooks; the rule stands even where hooks are absent.)
 - I6  Same obstacle twice ⇒ stop, write blockers.md; do not improvise
       architecture.
 - I7  coord/STOP present ⇒ no new runs, no new dispatches.
@@ -651,7 +1420,12 @@ git merge history. LEAD SHOULD consult it when assigning tasks.
 - I9  Benched (OFF) agents get no work; LEAD reroutes by the fallback
       policy in MASTER.md.
 - I10 Verification is evidence-based: a claim without a diff/test/log
-      backing it is treated as unverified.
+      backing it is treated as unverified. `agentteam verify` is the
+      mechanical floor of that evidence, not its ceiling.
+- I11 Workers never edit CHANGELOG.md; changelog entries are per-task
+      fragments in changelog.d/, rolled up at release by LEAD/OWNER.
+- I12 A run that claims success with an empty diff (no commits, no
+      uncommitted changes) is treated as FAILED.
 
 ## 7. FAILURE PROTOCOL
 
@@ -660,9 +1434,12 @@ git merge history. LEAD SHOULD consult it when assigning tasks.
 | Auth/token error in output | Report it verbatim; OWNER re-logins the CLI; task is rerunnable. |
 | Limit language in output (rate/usage limit, quota, resets at) | LEAD suggests `agentteam off <agent> 5h` (weekly: 7d) and reroutes. |
 | Validate commands fail | Do not claim success. Report failure + hypothesis. |
+| `agentteam verify` reports SCOPE VIOLATION | Reject the branch; LEAD re-briefs with corrected scope; a violating diff is never merged as-is. |
+| Worker lock busy ("already running a task") | Wait or `agentteam status`; abort a stray background run with `agentteam kill <task>`. |
+| Stale index.lock after a killed run | Cleared automatically at the next `agentteam run`; if git still complains, remove `<gitdir>/index.lock` by hand. |
 | Blocked on missing contract/file | I2/I6: flag, don't fix; wait. |
 | Task file ambiguous | LEAD: rewrite it. WORKER: state the ambiguity and the interpretation chosen; prefer the narrower reading. |
-| Merge conflict on integration | OWNER decision; LEAD proposes resolution order; nobody force-merges. |
+| Merge conflict on integration | OWNER decision; LEAD proposes resolution order; nobody force-merges. Routine prevention: `agentteam sync` after every merge cycle. |
 
 ## 8. REFERENCES
 
@@ -670,14 +1447,15 @@ git merge history. LEAD SHOULD consult it when assigning tasks.
 - Owner playbooks: `coord/docs/ai-project-setup-playbook.md`,
   `coord/docs/ai-full-build-recipe.md` — define working style (dev/main
   model, verified milestones, evaluation-first, docs upkeep).
-- Human documentation: AGENTTEAM-HANDBOOK.md, MASTER-PLAN.md,
-  AGENTTEAM-README.md in the agentteam docs repository.
+- Human documentation: docs/HANDBOOK.md, docs/MASTER-PLAN.md,
+  docs/SETUP.md in the agentteam docs repository.
 PROTOCOL_TPL_EOF
 
 echo
 echo "agentteam installed."
-echo "  command   : $BIN_DIR/agentteam   (ensure ~/.local/bin is on PATH)"
+echo "  command   : $BIN_DIR/agentteam   (ensure that dir is on PATH)"
 echo "  config    : $CONF_DIR/agents.conf   <- EDIT: enable/tune your agents"
 echo "  quota     : agentteam off <agent> 5h|7d   /   agentteam on <agent>"
 echo
-echo "Next: cd <your repo clone> && agentteam init codex antigravity opencode grok"
+echo "Next: agentteam selftest        (mock-agent rehearsal, zero quota)"
+echo "Then: cd <your repo clone> && agentteam init codex antigravity opencode grok"
