@@ -31,6 +31,7 @@ same day — sources at the bottom.
 bash agentteam-install.sh
 # ~/.local/bin must be on PATH (Ubuntu default; otherwise:)
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+agentteam selftest       # rehearse the whole loop with mock agents — no quota
 ```
 
 ## 2. Log in each CLI once (interactive, one time)
@@ -117,8 +118,15 @@ The master (or you, in a second terminal) drives everything with:
 ```bash
 agentteam run codex T1-codex        # run a task (foreground)
 agentteam run -b grok T2-grok       # long task in background
-agentteam status                    # off-agents, tasks, reports, branches, jobs
+agentteam tail T2-grok              # watch a background run live
+agentteam kill T2-grok              # stop a background run
+agentteam status                    # off-agents, tasks, review queue, jobs
+agentteam verify codex T1-codex     # machine gate: scope + Validate + commits
 agentteam diff codex                # the REAL diff vs dev — reports can lie
+agentteam review codex T1-codex     # a rival vendor reviews the diff
+agentteam sync                      # after merges: refresh all workshops
+agentteam race T5 codex grok        # bake-off: two vendors, one task, one winner
+agentteam sabotage opencode         # saboteur seat: failing tests vs fresh merges
 agentteam off antigravity 5h        # it hit its window -> bench it
 agentteam stop                      # kill switch for the whole project
 ```
@@ -130,10 +138,11 @@ cd ~/code/myproj/repo
 git merge --no-ff agent/codex       # after the milestone gate passes
 ```
 
-Acceptance gate (from your recipe, enforced by MASTER.md): clean build
-(0 warnings where the repo enforces it) + tests green + smoke run +
-CHANGELOG entry — only then is a branch merge-ready. main is touched only
-on an explicit release.
+Acceptance gate (from your recipe, enforced by MASTER.md): `agentteam
+verify` PASS + clean build (0 warnings where the repo enforces it) +
+tests green + smoke run + changelog fragment (`changelog.d/<ID>.md` —
+workers never edit CHANGELOG.md itself) — only then is a branch
+merge-ready. main is touched only on an explicit release.
 
 If Claude Code asks approval for every agentteam call, allow once in
 `repo/.claude/settings.json`:

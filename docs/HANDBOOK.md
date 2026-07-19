@@ -17,8 +17,9 @@ copy of the project); and **you** are the owner — the only one who can
 accept work into the real codebase.
 
 What it is NOT: it isn't an AI itself, and it doesn't contain the AI
-tools. It's coordination machinery — about 500 lines of scripting that
-handles workshops, work orders, reports, and safety switches. The
+tools. It's coordination machinery — about a thousand lines of scripting
+that handles workshops, work orders, reports, receipts, and safety
+switches. The
 intelligence is rented from your five subscriptions; agentteam is the
 office they work in.
 
@@ -49,7 +50,7 @@ Every piece of work follows the same cycle:
    ↓
  WORKERS: build, test, commit on their own branch, report
    ↓
- FOREMAN: reads reports, verifies diffs and tests itself, recommends
+ FOREMAN: machine-checks first (agentteam verify), reads the diffs, recommends
    ↓
  YOU: read the diff yourself → merge what passes → reject what doesn't
 ```
@@ -65,8 +66,11 @@ your gate has gone soft, not that the team has become perfect.
 <project>/
 ├── repo/            The real project, on the base branch (normally dev).
 │   │                YOU and the FOREMAN work here. Nobody else.
-│   └── MASTER.md    Foreman's standing orders — symlinked as CLAUDE.md,
-│                    AGENTS.md, GEMINI.md so any AI brand reads its role.
+│   ├── MASTER.md    Foreman's standing orders — symlinked as CLAUDE.md,
+│   │                AGENTS.md, GEMINI.md so any AI brand reads its role.
+│   └── changelog.d/ Changelog fragments, one file per task. Workers never
+│                    edit CHANGELOG.md itself — the one shared file that
+│                    used to guarantee merge conflicts.
 ├── wt/              The workshops.
 │   ├── codex/       Full project copy, branch agent/codex, WORKER.md orders.
 │   ├── antigravity/ Same pattern per worker. Workers never leave their
@@ -78,15 +82,19 @@ your gate has gone soft, not that the team has become perfect.
     ├── docs/        Your playbooks — foreman must read before planning.
     ├── board.md     Task board. Foreman-only writes.
     ├── tasks/       Work orders, one .md per task (TEMPLATE.md included).
-    ├── reports/     Auto-written run reports (.md) + full raw logs (.log).
+    ├── reports/     Auto-written run reports (.md) + full raw logs (.log)
+    │                + ledger.jsonl: one JSON line per run/verify/review.
     ├── blockers.md  "I'm stuck" notes, append-only.
     └── STOP         If this file exists, all new runs are refused.
 ```
 
 Key facts about the data: report `.md` files are append-only (every run
 adds a block — this is the historical record); `.log` files hold only the
-latest run (overwritten each time). The scorecard reads the `.md`s for
-history and git for merges.
+latest run (overwritten each time). `ledger.jsonl` is the machine twin of
+the reports — append-only JSON, one line per run/verify/review with
+durations and diffstats, made for the scorecard to read without parsing
+markdown. The scorecard reads reports/ledger for history and git for
+merges.
 
 ## 4. Complete command reference
 
@@ -98,11 +106,19 @@ history and git for merges.
 | `agentteam agents` | Roll call:each agent — binary installed? switched on/off? Run when anything seems wrong; it isolates "which agent" in seconds. |
 | `agentteam run <w> <task>` | Execute `coord/tasks/<task>.md` with worker `<w>` in its workshop. Blocks until done; prints exit code + report path. |
 | `agentteam run -b <w> <task>` | Same, in the background — dispatch several at once, poll with `status`. |
+| `agentteam tail [task]` | Watch a run's log live (default: the newest). Ctrl-C stops watching, not the run. |
+| `agentteam kill <task>` | Stop a background run cleanly — kills its whole process group; any partial work stays uncommitted in the workshop. |
+| `agentteam verify <w> <task>` | The mechanical gate assist: checks the diff against the task's "- path" scope lines, re-runs its "$ " Validate commands inside the workshop, and flags empty "success" diffs. Verdict lands in the report. Run it BEFORE reading any diff. |
 | `agentteam diff <w> [--stat]` | The receipts: exact changes on that worker's branch vs the base branch, committed and uncommitted separately. `--stat` = file list only (your scope check). |
+| `agentteam review <w> <task> [agent]` | Second opinion from a DIFFERENT vendor: it gets the task order + the diff, returns findings and a VERDICT line. Your gate, with a rival's eyes attached. |
+| `agentteam sync [w]` | After your merges: brings the base branch into worker branches (fast-forward when fully merged, merge otherwise) so workshops build on current reality instead of drifting stale. Skips dirty or running workers; reports conflicts instead of forcing them. |
 | `agentteam status` | Morning briefing: benched agents, open tasks, recent reports,each workshop's branch state, anything still running. |
 | `agentteam off <agent> [30m\|5h\|7d]` | Quota switch: bench an agent. `5h` for a burned session window, `7d` for a weekly cap — auto-returns when the time expires. No duration = benched until `on`. |
 | `agentteam on <agent>` | Un-bench immediately. |
-| `agentteam smoke` | One tiny live call per agent. Run after any CLI update or after days away — catches renamed flags and expired logins in 30 seconds. |
+| `agentteam smoke` | One tiny live call per agent, from a neutral folder. Run after any CLI update or after days away — catches renamed flags and expired logins in 30 seconds. Rows read OK / WARN (replied, but not "ok") / FAIL. |
+| `agentteam selftest` | The whole loop — init, run, verify, bench, lock, background + kill, sync, review — rehearsed in a throwaway sandbox with mock agents. Zero quota, ~15 seconds. Run after updating agentteam itself. |
+| `agentteam race <task> <w1> <w2> …` | Bake-off: the same task dispatched to several workers in parallel (isolation makes it free). Compare the diffs, merge exactly ONE winner — head-to-head data for the scorecard. |
+| `agentteam sabotage <w>` | The saboteur seat: syncs the worker, then sends it hunting for real bugs in freshly merged work by writing failing tests. Spare quota becomes a standing red team. |
 | `agentteam stop` / `resume` | Project-wide red button: refuse ALL new runs / release. |
 
 Worker naming: the part before a dash picks the engine — worker `codex-2`
@@ -116,7 +132,10 @@ runs the codex CLI, so you can have two codex workshops.
 | `<project>/coord/agents.conf` | Optional per-project override of the above. |
 | `<project>/coord/base` | The integration branch name (auto-detected: dev). |
 | `AGENTTEAM_TIMEOUT=7200 agentteam run ...` | Per-run time limit in seconds (default 3600). |
-| `AGENTTEAM_AUTO_OFF=1` | Auto-bench an agent for 5h when its output mentions usage limits. |
+| `AGENTTEAM_VERIFY_TIMEOUT=900` | Per-command time limit for verify's Validate re-runs. |
+| `AGENTTEAM_REVIEW_TIMEOUT=900` | Time limit for a cross-vendor review call. |
+| `AGENTTEAM_AUTO_OFF=1` | Auto-bench an agent for 5h when a FAILED run's output mentions usage limits. (A successful run on a task that is itself about rate limits no longer benches anyone.) |
+| `AGENTTEAM_ALLOW_SECRETS=1` | Override init's refusal when secret-looking files are tracked. Know exactly why before using it. |
 
 ### myapp (the scorecard — the team's first product)
 
@@ -134,7 +153,7 @@ effort is Runs, results are Merges.
 | `git merge --no-ff agent/<w> -m "merge T1: ..."` | Accept a worker's branch into dev. Only after reading the diff. From `repo/`. |
 | `python3 -m unittest discover tests -v` | Your own test run — acceptance evidence you produced yourself. |
 | `git push` | End of every work session. This IS your backup strategy. |
-| `git checkout main && git merge dev -m "release vX.Y.Z" && git tag vX.Y.Z && git checkout dev && git push origin dev main --tags` | Release, per your model: main only moves when you say "release". Order matters: merge fix → verify → THEN tag. |
+| `git checkout main && git merge dev -m "release vX.Y.Z" && git tag vX.Y.Z && git checkout dev && git push origin dev main --tags` | Release, per your model: main only moves when you say "release". First have the foreman roll `changelog.d/` into CHANGELOG.md. Order matters: merge fix → verify → THEN tag. |
 
 ---
 
@@ -174,9 +193,15 @@ then propose the next step. Wait for my go.
 
 ### Working efficiently
 
-- Dispatch long tasks with `-b`, poll with `agentteam status`, and review
-  results in batches — two or three diffs in one sitting beats
-  context-switching per task.
+- Dispatch long tasks with `-b`, poll with `agentteam status` (or watch
+  live with `agentteam tail`), and review results in batches — two or
+  three diffs in one sitting beats context-switching per task.
+- `agentteam verify` before you read any diff — let the machine flag
+  scope breaks, failing Validate commands, and empty "success" diffs
+  first, then read with its verdict in hand. Big or risky diff? Add
+  `agentteam review` for a rival vendor's second opinion.
+- After your merges: `agentteam sync` — one command and every workshop
+  rebuilds on the new base instead of drifting stale.
 - Two terminals: foreman in one, YOUR gate commands (diff, tests, merge)
   in the other. Never gate inside the foreman's window.
 - Reject early. A sharp re-brief costs minutes; polishing a wrong diff
@@ -192,6 +217,7 @@ then propose the next step. Wait for my go.
 ```bash
 agentteam status          # 1. "running: (none)" — never leave -b runs going;
                           #    Windows sleep/reboot kills them mid-write
+                          #    (stragglers: agentteam kill <task>)
 ```
 
 Then tell the foreman to close the books:
@@ -323,6 +349,8 @@ accurate map instead of guessing about a codebase it's never seen.
 - **Secrets stay out.** Check that `.env` / credential files are
   gitignored BEFORE init — worktrees copy tracked files, and workers run
   with auto-approve. If secrets are tracked in the repo, fix that first.
+  `agentteam init` enforces this: it refuses to scaffold while
+  secret-looking files are tracked.
 - **First tasks are small and reversible:** a bug fix, missing tests, doc
   updates. Never "refactor the core" on cycle one — you're calibrating
   how well the agents understand this codebase.
@@ -379,7 +407,13 @@ command and templates with the newest versions but NEVER touches your
 `agents.conf` (your tuned flags survive). Existing projects keep their
 old MASTER.md/WORKER.md copies; new projects get the new templates. After
 big template changes, paste the new sections into important existing
-projects' MASTER.md by hand if you want them.
+projects' MASTER.md by hand if you want them (re-running
+`agentteam init <worker>` in a project refreshes that worker's card).
+
+After any agentteam update, run `agentteam selftest`: the entire loop —
+init, run, verify, bench, lock, background + kill, sync, review —
+rehearsed with mock agents in a throwaway sandbox. Zero quota, about
+fifteen seconds, and it exits red if the machinery broke.
 
 ### Updating myapp (the scorecard)
 
@@ -410,7 +444,11 @@ documented and acceptable.
 | Log mentions rate/usage limit | `agentteam off <agent> 5h` (weekly: 7d), foreman reroutes. |
 | Report says done, diff shows uncommitted work | Worker forgot to commit → commit it yourself in wt/<w>, or rerun with sharper Done-means. |
 | Report says done, diff looks wrong | Normal. Reject; foreman re-briefs. The system working. |
-| Two workers touched the same file | Scope overlap — accept one, reject the other, tell the foreman to fix disjointness. |
+| `worker … is already running a task` | The per-worker lock: one run per workshop at a time → `agentteam status` to see what; stray background run: `agentteam kill <task>`. |
+| verify says SCOPE VIOLATION | The worker left its lane → reject the branch, re-brief with corrected scope. Never merge a violating diff as-is. |
+| verify FAIL while the report claims success | Working as designed — the report lied, the machine caught it. Trust verify. |
+| git complains about `index.lock` | A killed run died mid-commit → the next `agentteam run` clears it automatically; by hand: delete `<gitdir>/index.lock`. |
+| Two workers touched the same file | Scope overlap — accept one, reject the other, tell the foreman to fix disjointness. (Exception: a deliberate `race`, where only one branch merges anyway.) |
 | Everything on fire | `agentteam stop`, read status + reports, `resume` when understood. |
 
 ---
@@ -422,9 +460,9 @@ Everything lives in the private repo github.com/danielmevit/agentteam-docs
 
 - **This handbook** (docs/HANDBOOK.md) — daily operations, all commands,
   session rhythm, the worked example.
-- **AGENTTEAM-README.md** — the compact install/setup reference.
-- **MASTER-PLAN.md** — the deep explanation for a beginner + the phased
-  roadmap; dictionary of every technical term.
+- **docs/SETUP.md** — the compact install/setup reference.
+- **docs/MASTER-PLAN.md** — the deep explanation for a beginner + the
+  phased roadmap; dictionary of every technical term.
 - **agentteam-install.sh** — the installer; run it, don't read it.
 - **Your playbooks** (`ai-project-setup-playbook.md`,
   `ai-full-build-recipe.md`) — the working standard every foreman follows.
