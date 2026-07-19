@@ -373,7 +373,7 @@ cmd_verify() {
 
   local changed commits
   changed=$( { git -C "$wt" diff --name-only "$base...HEAD" 2>/dev/null || true;
-               git -C "$wt" status --porcelain=v1 2>/dev/null | cut -c4- | sed 's/.* -> //'; } | sort -u )
+               git -C "$wt" status --porcelain=v1 2>/dev/null | cut -c4- | sed 's/.* -> //; s:/$::'; } | sort -u )
   commits=$(git -C "$wt" rev-list --count "$base..HEAD" 2>/dev/null || echo 0)
 
   # scope: every "- path" line under "## Allowed scope" is an enforced pattern
@@ -524,7 +524,7 @@ cmd_status() {
     [ -e "$pf" ] || continue
     t=$(basename "$pf" .pid)
     pid=$(cat "$pf" 2>/dev/null || true)
-    if [ -n "$pid" ] && { kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; }; then
+    if [ -n "$pid" ] && { pgrep -s "$pid" >/dev/null 2>&1 || kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; }; then
       echo "  $t (background, pid $pid) — tail: agentteam tail $t   abort: agentteam kill $t"; any=1
     else
       rm -f "$pf"
@@ -698,7 +698,14 @@ cmd_kill() {
   [ -f "$pf" ] || die "no background run recorded for '$task' (foreground runs: Ctrl-C)"
   local pid; pid=$(cat "$pf" 2>/dev/null || true)
   if [ -z "$pid" ]; then rm -f "$pf"; die "empty pidfile removed — nothing to kill"; fi
-  if kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; then
+  # background runs are session leaders (setsid); kill the SESSION — a plain
+  # group-kill misses the agent because `timeout` runs it in its own group
+  if pgrep -s "$pid" >/dev/null 2>&1; then
+    pkill -TERM -s "$pid" 2>/dev/null || true
+    sleep 1
+    if pgrep -s "$pid" >/dev/null 2>&1; then pkill -KILL -s "$pid" 2>/dev/null || true; fi
+    echo "killed '$task' (session $pid) — partial work may sit uncommitted in the worktree"
+  elif kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; then
     kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
     sleep 1
     if kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; then
@@ -890,7 +897,7 @@ work
   agentteam run [-b] <w> <task>      run coord/tasks/<task>.md in w's worktree
                                      (-b = background; one run per worker)
   agentteam tail [task]              follow a run's live log (default: newest)
-  agentteam kill <task>              stop a background run (process group)
+  agentteam kill <task>              stop a background run (whole session)
   agentteam verify <w> <task>        machine gate: diff vs the task's "- path"
                                      scope lines + run its "$ " Validate lines
                                      + commit sanity; verdict into the report
@@ -1334,7 +1341,8 @@ agentteam run [-b] <w> <task>  execute coord/tasks/<task>.md as worker <w>
                                in wt/<w>; -b = background; per-worker lock;
                                writes report+log+ledger
 agentteam tail [task]          follow a run's live log (default: newest)
-agentteam kill <task>          terminate a background run's process group
+agentteam kill <task>          terminate a background run (whole session,
+                               including the agent under `timeout`)
 agentteam verify <w> <task>    machine gate assist: diff vs the task's
                                "- path" scope lines + run its "$ " Validate
                                lines in the worktree + commit sanity;

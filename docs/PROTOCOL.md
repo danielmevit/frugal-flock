@@ -122,7 +122,8 @@ agentteam run [-b] <w> <task>  execute coord/tasks/<task>.md as worker <w>
                                in wt/<w>; -b = background; per-worker lock;
                                writes report+log+ledger
 agentteam tail [task]          follow a run's live log (default: newest)
-agentteam kill <task>          terminate a background run's process group
+agentteam kill <task>          terminate a background run (whole session,
+                               including the agent under `timeout`)
 agentteam verify <w> <task>    machine gate assist: diff vs the task's
                                "- path" scope lines + run its "$ " Validate
                                lines in the worktree + commit sanity;

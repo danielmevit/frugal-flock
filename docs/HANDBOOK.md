@@ -107,7 +107,7 @@ merges.
 | `agentteam run <w> <task>` | Execute `coord/tasks/<task>.md` with worker `<w>` in its workshop. Blocks until done; prints exit code + report path. |
 | `agentteam run -b <w> <task>` | Same, in the background — dispatch several at once, poll with `status`. |
 | `agentteam tail [task]` | Watch a run's log live (default: the newest). Ctrl-C stops watching, not the run. |
-| `agentteam kill <task>` | Stop a background run cleanly — kills its whole process group; any partial work stays uncommitted in the workshop. |
+| `agentteam kill <task>` | Stop a background run cleanly — kills its whole session, including the agent under `timeout`; any partial work stays uncommitted in the workshop. |
 | `agentteam verify <w> <task>` | The mechanical gate assist: checks the diff against the task's "- path" scope lines, re-runs its "$ " Validate commands inside the workshop, and flags empty "success" diffs. Verdict lands in the report. Run it BEFORE reading any diff. |
 | `agentteam diff <w> [--stat]` | The receipts: exact changes on that worker's branch vs the base branch, committed and uncommitted separately. `--stat` = file list only (your scope check). |
 | `agentteam review <w> <task> [agent]` | Second opinion from a DIFFERENT vendor: it gets the task order + the diff, returns findings and a VERDICT line. Your gate, with a rival's eyes attached. |
@@ -460,6 +460,9 @@ Everything lives in the private repo github.com/danielmevit/agentteam-docs
 
 - **This handbook** (docs/HANDBOOK.md) — daily operations, all commands,
   session rhythm, the worked example.
+- **docs/EXAMPLE.md** — the replayable tour of every command against a
+  toy project with stand-in agents; rerun it anytime with
+  `bash examples/demo.sh /tmp/agentteam-demo` (zero quota).
 - **docs/SETUP.md** — the compact install/setup reference.
 - **docs/MASTER-PLAN.md** — the deep explanation for a beginner + the
   phased roadmap; dictionary of every technical term.
