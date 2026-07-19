@@ -287,6 +287,23 @@ cmd_agents() {
   done < "$conf"
 }
 
+cmd_smoke() { # one tiny live call per configured agent — the post-update ritual
+  local root conf; root=$(find_root 2>/dev/null || true)
+  if [ -n "${root:-}" ]; then conf=$(conf_for_root "$root"); else conf="$CONF_FILE"; fi
+  local tf; tf=$(mktemp); printf 'Reply with exactly: ok\n' > "$tf"
+  local line name cmd rc out
+  while IFS= read -r line; do
+    case "$line" in ''|'#'*) continue;; esac
+    name="${line%%=*}"; cmd="${line#*=}"
+    if is_off "$name"; then printf '  %-12s SKIP (benched)\n' "$name"; continue; fi
+    if ! command -v "${cmd%% *}" >/dev/null 2>&1; then printf '  %-12s MISSING binary\n' "$name"; continue; fi
+    rc=0; out=$(TASKFILE="$tf" timeout 180 bash -c "$cmd" 2>&1) || rc=$?
+    if [ "$rc" -eq 0 ]; then printf '  %-12s OK\n' "$name"
+    else printf '  %-12s FAIL exit=%s — %s\n' "$name" "$rc" "$(printf '%s' "$out" | tail -1 | cut -c1-70)"; fi
+  done < "$conf"
+  rm -f "$tf"
+}
+
 cmd_stop()   { local root; root=$(find_root) || die "not in a project"; touch "$root/coord/STOP"; echo "STOP set — new runs blocked (running tasks finish or hit timeout)"; }
 cmd_resume() { local root; root=$(find_root) || die "not in a project"; rm -f "$root/coord/STOP"; echo "STOP cleared"; }
 
@@ -305,6 +322,8 @@ agentteam — one master CLI session delegating to worker CLI agents
                                    (5h window: off 5h; weekly cap: off 7d;
                                     no duration = until 'agentteam on')
   agentteam on <agent>             re-enable an agent
+  agentteam smoke                  one tiny live call per agent — run after
+                                   every CLI update to catch renamed flags
   agentteam stop | resume          project kill switch for ALL runs
 
 Worker -> agent: prefix before first "-" ("codex-2" uses agent "codex").
@@ -323,6 +342,7 @@ case "${1:-help}" in
   agents)  shift; cmd_agents "$@";;
   off)     shift; cmd_off "$@";;
   on)      shift; cmd_on "$@";;
+  smoke)   shift; cmd_smoke "$@";;
   stop)    shift; cmd_stop "$@";;
   resume)  shift; cmd_resume "$@";;
   help|-h|--help) cmd_help;;

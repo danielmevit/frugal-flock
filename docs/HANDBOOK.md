@@ -102,6 +102,7 @@ history and git for merges.
 | `agentteam status` | Morning briefing: benched agents, open tasks, recent reports,each workshop's branch state, anything still running. |
 | `agentteam off <agent> [30m\|5h\|7d]` | Quota switch: bench an agent. `5h` for a burned session window, `7d` for a weekly cap — auto-returns when the time expires. No duration = benched until `on`. |
 | `agentteam on <agent>` | Un-bench immediately. |
+| `agentteam smoke` | One tiny live call per agent. Run after any CLI update or after days away — catches renamed flags and expired logins in 30 seconds. |
 | `agentteam stop` / `resume` | Project-wide red button: refuse ALL new runs / release. |
 
 Worker naming: the part before a dash picks the engine — worker `codex-2`
@@ -137,7 +138,94 @@ effort is Runs, results are Merges.
 
 ---
 
-## 5. A real example: how the scorecard got built
+## 5. The session rhythm: start, work, save, resume
+
+The single most important fact for continuity: **the project's memory
+lives in files, not in any chat.** Worker branches, reports, the board,
+CHANGELOG, git history — all survive every shutdown automatically. The
+foreman's chat is a convenience you can resume, but the files are the
+truth. You could fire the foreman every night and hire a fresh one every
+morning without losing anything that matters — that is exactly why task
+files are self-contained and the board exists.
+
+### Starting a session (2 minutes)
+
+```bash
+cd ~/code/<project>/repo
+agentteam status          # where did I leave off? benched agents? open tasks?
+agentteam smoke           # after CLI updates or days away: everyone alive?
+claude                    # hire the foreman
+```
+
+Then EITHER continue the previous conversation:
+
+```bash
+claude -c                 # instead of plain claude: resumes last chat, full memory
+```
+
+— use `-c` when returning the same day. After days away, prefer a FRESH
+session with this resume prompt (old chats degrade; files don't):
+
+```text
+Read MASTER.md, ../coord/docs/*, ../coord/board.md, and CHANGELOG.md.
+We are resuming. Summarize current state — merged, in flight, blocked —
+then propose the next step. Wait for my go.
+```
+
+### Working efficiently
+
+- Dispatch long tasks with `-b`, poll with `agentteam status`, and review
+  results in batches — two or three diffs in one sitting beats
+  context-switching per task.
+- Two terminals: foreman in one, YOUR gate commands (diff, tests, merge)
+  in the other. Never gate inside the foreman's window.
+- Reject early. A sharp re-brief costs minutes; polishing a wrong diff
+  costs an evening.
+- Quota-aware ordering: hard tasks early in your 5-hour windows, chores
+  late. Bench (`agentteam off`) the moment limits bite; never wait on a
+  dead agent.
+- One cycle at a time: don't dispatch new work while merged-pending diffs
+  are waiting on you — your review is the bottleneck, protect it.
+
+### Ending a session (3 minutes — the save ritual)
+
+```bash
+agentteam status          # 1. "running: (none)" — never leave -b runs going;
+                          #    Windows sleep/reboot kills them mid-write
+```
+
+Then tell the foreman to close the books:
+
+```text
+End of session. Update ../coord/board.md to the exact current state, add a
+CHANGELOG entry for anything merged today that lacks one, and write a
+short "NEXT SESSION" note at the top of the board: in flight, blocked,
+and the next 1-3 actions. Then stop.
+```
+
+```bash
+git push                  # 2. the actual save button — code leaves the VM
+exit                      # 3. close terminals freely; everything durable is on disk
+```
+
+Unfinished worker branches are safe to leave — they're committed in their
+worktrees and will still be there next week. The only things that die with
+the session are running processes and un-pushed work, which is what steps
+1 and 2 exist for.
+
+### What survives what
+
+| Thing | Survives shutdown? |
+|---|---|
+| Worker branches, commits, reports, board, CHANGELOG | Yes, automatically |
+| Foreman chat | Yes via `claude -c`, but degrades — files are canonical |
+| Running `-b` tasks | NO — finish or kill before leaving |
+| Un-pushed commits | Only on this VM until `git push` |
+| Benched/off timers | Yes (global, in ~/.config/agentteam/off) |
+
+---
+
+## 6. A real example: how the scorecard got built
 
 This is not hypothetical — it's the compressed true story of myapp v0.1.1,
 your first shipped product. Every mechanism in this handbook appears in it.
@@ -196,7 +284,7 @@ fixes — was machine work under your gate.
 
 ---
 
-## 6. Onboarding an EXISTING project (including production)
+## 7. Onboarding an EXISTING project (including production)
 
 New projects start empty; established projects have history, users, and
 things that must not break. The recipe differs in three ways: fresh clone,
@@ -249,7 +337,7 @@ feeding `myapp <project-root>` like any other.
 
 ---
 
-## 7. Maintenance
+## 8. Maintenance
 
 ### Updating the AI CLIs
 
@@ -266,7 +354,13 @@ curl -fsSL https://x.ai/cli/install.sh | bash            # grok: rerun installer
 
 **The post-update ritual (do not skip):** flags move between versions —
 it has already happened three times in this system's short life (agy,
-opencode, codex). After updating, run the five smoke lines:
+opencode, codex). After updating, run:
+
+```bash
+agentteam smoke        # one live call per agent; prints OK / FAIL per row
+```
+
+Equivalent manual form, if you want to see the raw output:
 
 ```bash
 claude -p "say ok"; codex exec "say ok"; agy -p "say ok" --dangerously-skip-permissions
@@ -305,7 +399,7 @@ documented and acceptable.
 
 ---
 
-## 8. Troubleshooting, condensed
+## 9. Troubleshooting, condensed
 
 | Symptom | Cause → fix |
 |---|---|
@@ -321,9 +415,13 @@ documented and acceptable.
 
 ---
 
-## 9. The document map
+## 10. The document map
 
-- **This handbook** — daily operations, all commands, the worked example.
+Everything lives in the private repo github.com/danielmevit/agentteam-docs
+(clone it on any new machine, run agentteam-install.sh, log in five CLIs).
+
+- **This handbook** (docs/HANDBOOK.md) — daily operations, all commands,
+  session rhythm, the worked example.
 - **AGENTTEAM-README.md** — the compact install/setup reference.
 - **MASTER-PLAN.md** — the deep explanation for a beginner + the phased
   roadmap; dictionary of every technical term.
