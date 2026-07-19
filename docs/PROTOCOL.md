@@ -103,7 +103,12 @@ with state ∈ {todo, doing, blocked, review, done}.
 Worker→agent resolution: agent id = worker name up to first `-`
 (worker `codex-2` → agent `codex`).
 
-## 4. COMMAND API (`agentteam`)
+## 4. THE `agentteam` COMMANDS (local shell tool)
+
+To be explicit: these are subcommands of the local `agentteam` shell
+script. No AI-provider API is involved anywhere in this system — every
+agent is an official CLI running under its own subscription LOGIN
+(cached on the machine), never an API key.
 
 ```text
 agentteam init [w1 w2 ...]     scaffold worktrees + coord (idempotent);
