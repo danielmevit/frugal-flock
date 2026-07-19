@@ -49,8 +49,9 @@ only the latest run and MUST NOT be used as history.
 
 Enforcement at init: `agentteam init` refuses to scaffold while likely
 secret files are tracked (override: AGENTTEAM_ALLOW_SECRETS=1), and
-installs git hooks so a worker worktree can commit only on its own
-`agent/<w>` branch and can never push.
+installs git hooks: a worker worktree can commit only on its own
+`agent/<w>` branch and can never push, and every merge into the base
+branch is recorded as a ledger `merge` event (post-merge hook).
 
 ## 3. DATA FORMATS
 
@@ -85,6 +86,7 @@ Ledger events (`coord/reports/ledger.jsonl`, one JSON object per line):
  "validate_run":n,"validate_failed":n,"commits":n,"empty":0|1,"verdict":…}
 {"event":"review","ts":…,"task":…,"worker":…,"reviewer":…,"exit":n}
 {"event":"race","ts":…,"task":…,"workers":"w1 w2 …"}
+{"event":"merge","ts":…,"worker":…,"subject":"<merge commit subject>"}
 ```
 
 Task file schema (LEAD writes; template at `coord/tasks/TEMPLATE.md`):
@@ -146,6 +148,12 @@ agentteam race <task> <w1> <w2> [...]  copy <task>.md to <task>-<w>.md per
                                OWNER merges at most one winner
 agentteam sabotage <w>         saboteur seat: sync <w>, generate a SAB-*
                                task from the template, dispatch background
+agentteam score [root]         per-worker scorecard from ledger.jsonl:
+                               runs, ok/fail, walls, verify rate, merges,
+                               avg duration
+agentteam new <url> [name] [w...]  bootstrap a project: clone -> dev branch
+                               -> init -> copy $CONF/playbooks/*.md into
+                               coord/docs/
 agentteam status               off-agents, tasks, reports, review queue
                                (unreviewed commits per worker), running jobs
 agentteam off <agent> [dur]    bench agent (dur: 30m|5h|7d; absent=manual);
@@ -159,14 +167,16 @@ Environment: `AGENTTEAM_TIMEOUT` (seconds, default 3600) caps each run;
 `AGENTTEAM_REVIEW_TIMEOUT` (default 900) caps a review call.
 `AGENTTEAM_AUTO_OFF=1` auto-benches an agent 5h when a FAILED run's log
 matches limit-language patterns (suppressed when the task text itself
-mentions limits and the run succeeded). `AGENTTEAM_ALLOW_SECRETS=1`
-overrides the init secrets preflight. Agent invocation templates live in
-`~/.config/agentteam/agents.conf` (project override: `coord/agents.conf`).
+mentions limits and the run succeeded). `AGENTTEAM_AUTO_VERIFY=1` makes
+every run append its own verify verdict after finishing.
+`AGENTTEAM_ALLOW_SECRETS=1` overrides the init secrets preflight. Agent
+invocation templates live in `~/.config/agentteam/agents.conf` (project
+override: `coord/agents.conf`).
 
-Companion tool: `myapp <project-root>` prints the per-agent scorecard
-(runs, ok, fail, walls, merges, last run) computed from reports/*.md,
-ledger.jsonl and git merge history. LEAD SHOULD consult it when assigning
-tasks.
+Fleet intelligence: `agentteam score` (ledger-based, always available)
+and the companion tool `myapp <project-root>` (full scorecard incl.
+pre-ledger history from reports/*.md). LEAD SHOULD consult one of them
+when assigning tasks.
 
 ## 5. LIFECYCLE
 

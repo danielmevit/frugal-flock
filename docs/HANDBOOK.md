@@ -91,10 +91,9 @@ your gate has gone soft, not that the team has become perfect.
 Key facts about the data: report `.md` files are append-only (every run
 adds a block — this is the historical record); `.log` files hold only the
 latest run (overwritten each time). `ledger.jsonl` is the machine twin of
-the reports — append-only JSON, one line per run/verify/review with
-durations and diffstats, made for the scorecard to read without parsing
-markdown. The scorecard reads reports/ledger for history and git for
-merges.
+the reports — append-only JSON, one line per run/verify/review/merge with
+durations and diffstats; `agentteam score` reads it directly, no markdown
+parsing anywhere.
 
 ## 4. Complete command reference
 
@@ -102,6 +101,7 @@ merges.
 
 | Command | What it does |
 |---|---|
+| `agentteam new <repo-url> [name] [workers...]` | The whole project bootstrap in one command: clone → dev branch → init → your playbooks copied in from `~/.config/agentteam/playbooks/`. Run it where you keep projects (e.g. `~/code`). |
 | `agentteam init [w1 w2 ...]` | Build workshops + office next to your clone. Run once per project, from inside the repo. Default workers: codex antigravity opencode grok. Add more anytime: `agentteam init claude`. |
 | `agentteam agents` | Roll call:each agent — binary installed? switched on/off? Run when anything seems wrong; it isolates "which agent" in seconds. |
 | `agentteam run <w> <task>` | Execute `coord/tasks/<task>.md` with worker `<w>` in its workshop. Blocks until done; prints exit code + report path. |
@@ -120,6 +120,7 @@ merges.
 | `agentteam selftest` | The whole loop — init, run, verify, bench, lock, background + kill, sync, review — rehearsed in a throwaway sandbox with mock agents. Zero quota, ~15 seconds. Run after updating agentteam itself. |
 | `agentteam race <task> <w1> <w2> …` | Bake-off: the same task dispatched to several workers in parallel (isolation makes it free). Compare the diffs, merge exactly ONE winner — head-to-head data for the scorecard. |
 | `agentteam sabotage <w>` | The saboteur seat: syncs the worker, then sends it hunting for real bugs in freshly merged work by writing failing tests. Spare quota becomes a standing red team. |
+| `agentteam score [project-root]` | The fleet scorecard, straight from the ledger: runs, ok/fail, walls, verify pass-rate, merges, average duration — per worker, sorted by merges. Your "who earns their seat" view; `myapp` remains the full product with pre-ledger history. |
 | `agentteam version` | Installed version + config path — check it after every `bash agentteam-install.sh`. |
 | `agentteam stop` / `resume` | Project-wide red button: refuse ALL new runs / release. |
 
@@ -142,6 +143,7 @@ runs the codex CLI, so you can have two codex workshops.
 | `AGENTTEAM_VERIFY_TIMEOUT=900` | Per-command time limit for verify's Validate re-runs. |
 | `AGENTTEAM_REVIEW_TIMEOUT=900` | Time limit for a cross-vendor review call. |
 | `AGENTTEAM_AUTO_OFF=1` | Auto-bench an agent for 5h when a FAILED run's output mentions usage limits. (A successful run on a task that is itself about rate limits no longer benches anyone.) |
+| `AGENTTEAM_AUTO_VERIFY=1` | Every run appends its own verify verdict when it finishes — background work comes back pre-judged. |
 | `AGENTTEAM_ALLOW_SECRETS=1` | Override init's refusal when secret-looking files are tracked. Know exactly why before using it. |
 
 ### myapp (the scorecard — the team's first product)
@@ -157,7 +159,7 @@ effort is Runs, results are Merges.
 
 | Command | When |
 |---|---|
-| `git merge --no-ff agent/<w> -m "merge T1: ..."` | Accept a worker's branch into dev. Only after reading the diff. From `repo/`. |
+| `git merge --no-ff agent/<w> -m "merge T1: ..."` | Accept a worker's branch into dev. Only after reading the diff. From `repo/`. (The post-merge hook logs it to the ledger — that's where `score`'s merges column comes from.) |
 | `python3 -m unittest discover tests -v` | Your own test run — acceptance evidence you produced yourself. |
 | `git push` | End of every work session. This IS your backup strategy. |
 | `git checkout main && git merge dev -m "release vX.Y.Z" && git tag vX.Y.Z && git checkout dev && git push origin dev main --tags` | Release, per your model: main only moves when you say "release". First have the foreman roll `changelog.d/` into CHANGELOG.md. Order matters: merge fix → verify → THEN tag. |

@@ -67,6 +67,15 @@ automatically when the binary is present.
 
 ## 3. Set up a project
 
+One command does the whole recipe below (clone → dev → init → playbooks
+from `~/.config/agentteam/playbooks/`):
+
+```bash
+cd ~/code && agentteam new <repo-url> myproj
+```
+
+Or step by step:
+
 ```bash
 cd ~/code && mkdir myproj && cd myproj
 git clone <your-repo-url> repo && cd repo

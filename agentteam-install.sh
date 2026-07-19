@@ -11,7 +11,7 @@ set -euo pipefail
 BIN_DIR="${AGENTTEAM_BIN_DIR:-$HOME/.local/bin}"
 CONF_DIR="${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}"
 TPL_DIR="$CONF_DIR/templates"
-mkdir -p "$BIN_DIR" "$CONF_DIR" "$TPL_DIR"
+mkdir -p "$BIN_DIR" "$CONF_DIR" "$TPL_DIR" "$CONF_DIR/playbooks"
 
 # ---------------------------------------------------------------- agentteam
 cat > "$BIN_DIR/agentteam" <<'AGENTTEAM_BIN_EOF'
@@ -23,7 +23,7 @@ cat > "$BIN_DIR/agentteam" <<'AGENTTEAM_BIN_EOF'
 #   PROJECT/coord/    board.md, base, docs/, tasks/, reports/, blockers.md, STOP
 set -euo pipefail
 
-AGENTTEAM_VERSION="3.1.0"
+AGENTTEAM_VERSION="0.3.1"
 CONF_DIR="${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}"
 CONF_FILE="$CONF_DIR/agents.conf"
 TPL_DIR="$CONF_DIR/templates"
@@ -203,6 +203,25 @@ esac
 HOOK_PUSH_EOF
     chmod +x "$hooks/pre-push"
   fi
+  if [ -f "$hooks/post-merge" ] && ! grep -q 'agentteam guard' "$hooks/post-merge"; then
+    echo "note: existing post-merge hook left untouched — merges will not be ledger-logged" >&2
+  else
+    cat > "$hooks/post-merge" <<'HOOK_MERGE_EOF'
+#!/bin/sh
+# agentteam guard — record every merge into the base branch as a ledger event
+gd=$(git rev-parse --git-dir 2>/dev/null) || exit 0
+case "$gd" in */worktrees/*) exit 0;; esac
+root=$(dirname "$(git rev-parse --show-toplevel)")
+[ -d "$root/coord/reports" ] || exit 0
+p2=$(git rev-parse -q --verify HEAD^2 2>/dev/null) || exit 0
+w=$(git for-each-ref 'refs/heads/agent/*' --points-at "$p2" --format='%(refname:short)' 2>/dev/null | head -1)
+w=${w#agent/}
+s=$(git log -1 --format=%s | tr '"' "'")
+printf '{"event":"merge","ts":"%s","worker":"%s","subject":"%s"}\n' \
+  "$(date -Is)" "$w" "$s" >> "$root/coord/reports/ledger.jsonl"
+HOOK_MERGE_EOF
+    chmod +x "$hooks/post-merge"
+  fi
 
   # master role card — readable by any master CLI via symlinked names
   [ -f "$main_dir/MASTER.md" ] || cp "$TPL_DIR/MASTER.md" "$main_dir/MASTER.md"
@@ -357,7 +376,13 @@ cmd_run() {
     "$(date -Is)" "$task" "$worker" "$agent" "$rc" "$dur" "$commits" "$files" "$ins" "$dels" "$unc" "$wall")"
 
   echo "exit=$rc duration=${dur}s — report: $report"
-  echo "next: agentteam verify $worker $task   then: agentteam diff $worker"
+  if [ "${AGENTTEAM_AUTO_VERIFY:-0}" = "1" ]; then
+    exec 9>&-   # release the worker lock so verify can probe it
+    cmd_verify "$worker" "$task" || true
+    echo "next: agentteam diff $worker"
+  else
+    echo "next: agentteam verify $worker $task   then: agentteam diff $worker"
+  fi
   return "$rc"
 }
 
@@ -736,6 +761,68 @@ cmd_version() {
   echo "config: $CONF_FILE"
 }
 
+# ------------------------------------------------------------------ score
+cmd_score() { # fleet scorecard straight from the ledger; myapp = full view
+  local root="${1:-}"
+  if [ -n "$root" ]; then [ -d "$root/coord" ] || die "no coord/ under: $root"
+  else root=$(find_root) || die "not inside an agentteam project (or: agentteam score <project-root>)"; fi
+  local lg="$root/coord/reports/ledger.jsonl"
+  [ -f "$lg" ] || die "no ledger yet: $lg (it appears after the first run)"
+  printf '  %-14s %5s %4s %5s %6s %8s %7s %8s\n' worker runs ok fail walls verify merges avg-dur
+  awk '
+    function get(s, k,   v) {
+      if (match(s, "\"" k "\":\"[^\"]*\"")) { v=substr(s,RSTART,RLENGTH); sub(/^[^:]*:"/,"",v); sub(/"$/,"",v); return v }
+      if (match(s, "\"" k "\":-?[0-9]+"))   { v=substr(s,RSTART,RLENGTH); sub(/^[^:]*:/,"",v); return v }
+      return ""
+    }
+    { e=get($0,"event"); w=get($0,"worker"); if (w=="") next; seen[w]=1 }
+    e=="run"    { runs[w]++; if (get($0,"exit")=="0") ok[w]++; else fail[w]++
+                  if (get($0,"wall")=="1") walls[w]++; dur[w]+=get($0,"duration_s") }
+    e=="verify" { if (get($0,"verdict")=="PASS") vp[w]++; else vf[w]++ }
+    e=="merge"  { merges[w]++ }
+    END {
+      for (w in seen) {
+        vd = sprintf("%d/%d", vp[w], vp[w]+vf[w])
+        ad = (runs[w] ? int(dur[w]/runs[w]) : 0)
+        printf "%d\t  %-14s %5d %4d %5d %6d %8s %7d %7ds\n", \
+               merges[w], w, runs[w], ok[w], fail[w], walls[w], vd, merges[w], ad
+      }
+    }' "$lg" | sort -rn | cut -f2-
+  echo "  (source: ledger.jsonl — merges are ledger-logged by the post-merge hook;"
+  echo "   full scorecard incl. pre-ledger history: myapp $root)"
+}
+
+# -------------------------------------------------------------------- new
+cmd_new() { # bootstrap: clone -> dev branch -> init -> playbooks, one command
+  local url="${1:-}"; [ -n "$url" ] || die "usage: agentteam new <repo-url> [name] [workers...]"
+  local name="${2:-}"
+  [ -n "$name" ] || name=$(basename "$url" .git)
+  shift; [ $# -gt 0 ] && shift || true
+  local workers=("$@")
+  [ -e "$name" ] && die "'$name' already exists here — pick another name or cd elsewhere"
+  mkdir -p "$name"
+  if ! git clone "$url" "$name/repo"; then rm -rf "$name"; die "clone failed: $url"; fi
+  ( cd "$name/repo"
+    git checkout dev 2>/dev/null || git checkout -q -b dev
+    "$0" init ${workers[@]+"${workers[@]}"}
+  )
+  mkdir -p "$CONF_DIR/playbooks"
+  local pb copied=0
+  for pb in "$CONF_DIR/playbooks/"*.md; do
+    [ -e "$pb" ] || continue
+    cp "$pb" "$name/coord/docs/" && copied=$((copied+1))
+  done
+  echo
+  echo "project '$name' ready."
+  if [ "$copied" -gt 0 ]; then
+    echo "playbooks   : $copied copied from $CONF_DIR/playbooks/ into coord/docs/"
+  else
+    echo "playbooks   : none in $CONF_DIR/playbooks/ — drop your ai-*.md there once; every 'agentteam new' copies them in"
+  fi
+  echo "remote dev  : when ready:  cd $name/repo && git push -u origin dev"
+  echo "start       : cd $name/repo && agentteam agents"
+}
+
 # -------------------------------------------------------------- selftest
 ST_OK=0; ST_FAIL=0
 st_chk() { # <description> <command...> — count and print one check
@@ -873,8 +960,16 @@ ST_T3_EOF
     bash -c '"$0" kill T3-slow >/dev/null 2>&1 && [ ! -f ../coord/reports/T3-slow.pid ]' "$0"
 
   git merge --no-ff -q agent/mock -m "merge T1" >/dev/null 2>&1 || true
+  st_chk "post-merge hook records a merge event in the ledger" \
+    bash -c 'grep "\"event\":\"merge\"" ../coord/reports/ledger.jsonl | grep -q "\"worker\":\"mock\""'
   st_chk "sync fast-forwards a merged worker to base" \
     bash -c '"$0" sync mock >/dev/null 2>&1 && [ "$(git rev-parse agent/mock)" = "$(git rev-parse dev)" ]' "$0"
+  st_chk "score prints the fleet table" \
+    bash -c '"$0" score 2>/dev/null | grep -q "  mock"' "$0"
+  st_chk "AUTO_VERIFY appends the verdict on its own" \
+    bash -c 'AGENTTEAM_AUTO_VERIFY=1 "$0" run mock T1-mock >/dev/null 2>&1; [ "$(grep -c "### verify" ../coord/reports/T1-mock.md)" -ge 2 ]' "$0"
+  st_chk "new bootstraps a project from a repo url" \
+    bash -c 'cd ../.. && "$0" new proj/repo freshcopy >/dev/null 2>&1 && [ -d freshcopy/wt/codex ] && [ -f freshcopy/coord/board.md ]' "$0"
 
   st_chk "cross-agent review returns a verdict" \
     bash -c 'out=$("$0" review mock T1-mock rev 2>&1); printf "%s" "$out" | grep -q "VERDICT: APPROVE"' "$0"
@@ -946,6 +1041,10 @@ cmd_help() {
 agentteam — one master CLI session delegating to worker CLI agents
 
 setup / health
+  agentteam new <repo-url> [name] [workers...]
+                                     bootstrap a whole project: clone ->
+                                     dev branch -> init -> playbooks copied
+                                     from ~/.config/agentteam/playbooks/
   agentteam init [workers...]        scaffold wt/ + coord/ next to your clone
                                      (default: codex antigravity opencode grok)
                                      refuses while secret-looking files are
@@ -976,6 +1075,9 @@ fleet plays
                                      parallel — merge exactly one winner
   agentteam sabotage <w>             saboteur seat: sync, then hunt fresh
                                      merges with failing tests (SAB-* task)
+  agentteam score [project-root]     fleet scorecard from the ledger: runs,
+                                     ok/fail, walls, verify rate, merges,
+                                     avg duration — per worker
 
 switches
   agentteam status                   off-agents, tasks, reports, review queue,
@@ -992,6 +1094,7 @@ Base branch: coord/base. Machine history: coord/reports/ledger.jsonl.
 Env: AGENTTEAM_TIMEOUT (3600s)  AGENTTEAM_VERIFY_TIMEOUT (900s)
      AGENTTEAM_REVIEW_TIMEOUT (900s)  AGENTTEAM_ALLOW_SECRETS=1 (init override)
      AGENTTEAM_AUTO_OFF=1 (bench 5h when a FAILED run mentions usage limits)
+     AGENTTEAM_AUTO_VERIFY=1 (every run appends its verify verdict itself)
 HELP
 }
 
@@ -1002,6 +1105,8 @@ case "${1:-help}" in
   diff)     shift; cmd_diff "$@";;
   sync)     shift; cmd_sync "$@";;
   report)   shift; cmd_report "$@";;
+  score)    shift; cmd_score "$@";;
+  new)      shift; cmd_new "$@";;
   version|-V|--version) cmd_version;;
   status)   shift; cmd_status "$@";;
   agents)   shift; cmd_agents "$@";;
@@ -1124,11 +1229,15 @@ Plan first: present the breakdown to Daniel; delegate only after his "go".
   every cycle; if ../coord/STOP exists, stop delegating immediately.
 
 ## Fleet intelligence
-- `myapp <project-root>` prints the per-agent scorecard (runs, fails,
-  walls, merges) for any agentteam project. Consult it when assigning
-  tasks — favor agents that earn merges; flag chronic wall-hitters.
+- `agentteam score` — the always-available scorecard from the ledger:
+  runs, ok/fail, walls, verify pass-rate, merges (auto-logged by the
+  post-merge hook), avg duration, per worker. Consult it when assigning
+  tasks — favor workers that earn merges; flag chronic wall-hitters.
+- `myapp <project-root>` — the full scorecard product, including
+  pre-ledger history parsed from reports/*.md.
 - ../coord/reports/ledger.jsonl is the machine history: one JSON line per
-  run/verify/review/race with durations and diffstats. Cite it, not vibes.
+  run/verify/review/race/merge with durations and diffstats. Cite it,
+  not vibes.
 - Head-to-head data when vendors disagree: `agentteam race <task> w1 w2`
   runs one task on several vendors in parallel; exactly one winner merges.
 - Spare quota after merge days -> `agentteam sabotage <worker>`: the
@@ -1335,8 +1444,9 @@ only the latest run and MUST NOT be used as history.
 
 Enforcement at init: `agentteam init` refuses to scaffold while likely
 secret files are tracked (override: AGENTTEAM_ALLOW_SECRETS=1), and
-installs git hooks so a worker worktree can commit only on its own
-`agent/<w>` branch and can never push.
+installs git hooks: a worker worktree can commit only on its own
+`agent/<w>` branch and can never push, and every merge into the base
+branch is recorded as a ledger `merge` event (post-merge hook).
 
 ## 3. DATA FORMATS
 
@@ -1371,6 +1481,7 @@ Ledger events (`coord/reports/ledger.jsonl`, one JSON object per line):
  "validate_run":n,"validate_failed":n,"commits":n,"empty":0|1,"verdict":…}
 {"event":"review","ts":…,"task":…,"worker":…,"reviewer":…,"exit":n}
 {"event":"race","ts":…,"task":…,"workers":"w1 w2 …"}
+{"event":"merge","ts":…,"worker":…,"subject":"<merge commit subject>"}
 ```
 
 Task file schema (LEAD writes; template at `coord/tasks/TEMPLATE.md`):
@@ -1432,6 +1543,12 @@ agentteam race <task> <w1> <w2> [...]  copy <task>.md to <task>-<w>.md per
                                OWNER merges at most one winner
 agentteam sabotage <w>         saboteur seat: sync <w>, generate a SAB-*
                                task from the template, dispatch background
+agentteam score [root]         per-worker scorecard from ledger.jsonl:
+                               runs, ok/fail, walls, verify rate, merges,
+                               avg duration
+agentteam new <url> [name] [w...]  bootstrap a project: clone -> dev branch
+                               -> init -> copy $CONF/playbooks/*.md into
+                               coord/docs/
 agentteam status               off-agents, tasks, reports, review queue
                                (unreviewed commits per worker), running jobs
 agentteam off <agent> [dur]    bench agent (dur: 30m|5h|7d; absent=manual);
@@ -1445,14 +1562,16 @@ Environment: `AGENTTEAM_TIMEOUT` (seconds, default 3600) caps each run;
 `AGENTTEAM_REVIEW_TIMEOUT` (default 900) caps a review call.
 `AGENTTEAM_AUTO_OFF=1` auto-benches an agent 5h when a FAILED run's log
 matches limit-language patterns (suppressed when the task text itself
-mentions limits and the run succeeded). `AGENTTEAM_ALLOW_SECRETS=1`
-overrides the init secrets preflight. Agent invocation templates live in
-`~/.config/agentteam/agents.conf` (project override: `coord/agents.conf`).
+mentions limits and the run succeeded). `AGENTTEAM_AUTO_VERIFY=1` makes
+every run append its own verify verdict after finishing.
+`AGENTTEAM_ALLOW_SECRETS=1` overrides the init secrets preflight. Agent
+invocation templates live in `~/.config/agentteam/agents.conf` (project
+override: `coord/agents.conf`).
 
-Companion tool: `myapp <project-root>` prints the per-agent scorecard
-(runs, ok, fail, walls, merges, last run) computed from reports/*.md,
-ledger.jsonl and git merge history. LEAD SHOULD consult it when assigning
-tasks.
+Fleet intelligence: `agentteam score` (ledger-based, always available)
+and the companion tool `myapp <project-root>` (full scorecard incl.
+pre-ledger history from reports/*.md). LEAD SHOULD consult one of them
+when assigning tasks.
 
 ## 5. LIFECYCLE
 
@@ -1542,7 +1661,7 @@ cat > "$COMP_DIR/agentteam" <<'COMPLETION_EOF'
 _agentteam() {
   local cur cmd root d cmds
   cur="${COMP_WORDS[COMP_CWORD]}"
-  cmds="init run verify diff sync review race sabotage tail kill report status agents off on smoke selftest stop resume version help"
+  cmds="new init run verify diff sync review race sabotage score tail kill report status agents off on smoke selftest stop resume version help"
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ); return
   fi
