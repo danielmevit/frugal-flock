@@ -32,7 +32,11 @@ bash agentteam-install.sh
 # ~/.local/bin must be on PATH (Ubuntu default; otherwise:)
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
 agentteam selftest       # rehearse the whole loop with mock agents — no quota
+agentteam version        # confirm what's installed
 ```
+
+Tab-completion (commands, workers, tasks, agents) installs automatically;
+open a new shell to pick it up.
 
 ## 2. Log in each CLI once (interactive, one time)
 

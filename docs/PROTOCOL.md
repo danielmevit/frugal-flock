@@ -124,6 +124,9 @@ agentteam run [-b] <w> <task>  execute coord/tasks/<task>.md as worker <w>
 agentteam tail [task]          follow a run's live log (default: newest)
 agentteam kill <task>          terminate a background run (whole session,
                                including the agent under `timeout`)
+agentteam report <task> [n]    print the last n (default 60) lines of a
+                               task's append-only report
+agentteam version              installed tool version + config path
 agentteam verify <w> <task>    machine gate assist: diff vs the task's
                                "- path" scope lines + run its "$ " Validate
                                lines in the worktree + commit sanity;

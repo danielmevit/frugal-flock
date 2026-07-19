@@ -23,6 +23,7 @@ cat > "$BIN_DIR/agentteam" <<'AGENTTEAM_BIN_EOF'
 #   PROJECT/coord/    board.md, base, docs/, tasks/, reports/, blockers.md, STOP
 set -euo pipefail
 
+AGENTTEAM_VERSION="3.1.0"
 CONF_DIR="${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}"
 CONF_FILE="$CONF_DIR/agents.conf"
 TPL_DIR="$CONF_DIR/templates"
@@ -718,6 +719,23 @@ cmd_kill() {
   rm -f "$pf"
 }
 
+# ---------------------------------------------------------- report/version
+cmd_report() { # read a task's report without typing coord/reports paths
+  local task="${1:-}"; [ -n "$task" ] || die "usage: agentteam report <task-id> [lines]"
+  local root; root=$(find_root) || die "not inside an agentteam project"
+  task="${task%.md}"
+  local f="$root/coord/reports/$task.md"
+  [ -f "$f" ] || die "no report yet for '$task' (run it first; live output: agentteam tail $task)"
+  local n="${2:-60}"
+  echo ">> $f (last $n lines — full history is append-only above)"
+  tail -n "$n" "$f"
+}
+
+cmd_version() {
+  echo "agentteam $AGENTTEAM_VERSION ($0)"
+  echo "config: $CONF_FILE"
+}
+
 # -------------------------------------------------------------- selftest
 ST_OK=0; ST_FAIL=0
 st_chk() { # <description> <command...> — count and print one check
@@ -744,6 +762,7 @@ mock=bash -c 'cat "$TASKFILE" >/dev/null; echo working; echo line >> hello.txt; 
 rogue=bash -c 'echo rogue; echo x > forbidden.txt; git add forbidden.txt; git commit -q -m "selftest: rogue"; echo ok'
 slow=bash -c 'echo napping; sleep 30; echo ok'
 rev=bash -c 'cat "$TASKFILE" >/dev/null; echo reviewed; echo "VERDICT: APPROVE"'
+noop=bash -c 'echo did nothing at all; echo ok'
 ST_CONF_EOF
 
   local repo="$ST/proj/repo"
@@ -757,7 +776,7 @@ ST_CONF_EOF
   cd "$repo"
 
   st_chk "init scaffolds worktrees + coord" \
-    bash -c '"$0" init mock rogue slow >/dev/null 2>&1 && [ -d ../wt/mock ] && [ -d ../wt/slow ] && [ -f ../coord/board.md ] && [ -f ../coord/tasks/TEMPLATE.md ]' "$0"
+    bash -c '"$0" init mock rogue slow noop >/dev/null 2>&1 && [ -d ../wt/mock ] && [ -d ../wt/slow ] && [ -f ../coord/board.md ] && [ -f ../coord/tasks/TEMPLATE.md ]' "$0"
   st_chk "worker-branch guard hooks installed" \
     bash -c 'grep -q "agentteam guard" .git/hooks/pre-commit && grep -q "agentteam guard" .git/hooks/pre-push'
 
@@ -859,9 +878,53 @@ ST_T3_EOF
 
   st_chk "cross-agent review returns a verdict" \
     bash -c 'out=$("$0" review mock T1-mock rev 2>&1); printf "%s" "$out" | grep -q "VERDICT: APPROVE"' "$0"
+
+  cat > ../coord/tasks/T4-mock.md <<'ST_T4_EOF'
+# Task T4 — worker: mock
+## Goal
+No machine-run Validate lines here (prose only).
+## Context
+agentteam selftest.
+## Allowed scope
+- hello.txt
+## Validate
+Prose only: run the suite yourself.
+## Done means
+n/a
+## Report
+SUMMARY
+ST_T4_EOF
+  bash -c '"$0" run mock T4-mock >/dev/null 2>&1' "$0" || true
+  st_chk "verify exits 0 on a no-Validate task" \
+    bash -c '"$0" verify mock T4-mock >/dev/null 2>&1' "$0"
+
+  cat > ../coord/tasks/T5-noop.md <<'ST_T5_EOF'
+# Task T5 — worker: noop
+## Goal
+The agent will do nothing; the machinery must notice.
+## Context
+agentteam selftest.
+## Allowed scope
+- hello.txt
+## Validate
+## Done means
+n/a
+## Report
+SUMMARY
+ST_T5_EOF
+  bash -c '"$0" run noop T5-noop >/dev/null 2>&1' "$0" || true
+  st_chk "empty exit-0 run is flagged in the report" \
+    bash -c 'grep -q "empty diff" ../coord/reports/T5-noop.md'
+  st_chk "verify FAILs an empty run" \
+    bash -c 'out=$("$0" verify noop T5-noop 2>&1); rc=$?; [ "$rc" -ne 0 ] && printf "%s" "$out" | grep -q EMPTY' "$0"
+  st_chk "report command prints a task's history" \
+    bash -c '"$0" report T1-mock 200 2>/dev/null | grep -q "worker=mock"' "$0"
+  st_chk "version prints" \
+    bash -c '"$0" version | grep -q "^agentteam "' "$0"
+
   "$0" off slow >/dev/null   # keep smoke from sitting through slow's nap
   st_chk "smoke prints one row per agent" \
-    bash -c '[ "$("$0" smoke 2>/dev/null | wc -l)" -ge 4 ]' "$0"
+    bash -c '[ "$("$0" smoke 2>/dev/null | wc -l)" -ge 5 ]' "$0"
 
   echo
   echo "selftest: $ST_OK ok, $ST_FAIL failed"
@@ -898,6 +961,7 @@ work
                                      (-b = background; one run per worker)
   agentteam tail [task]              follow a run's live log (default: newest)
   agentteam kill <task>              stop a background run (whole session)
+  agentteam report <task> [lines]    read a task's report (default: last 60)
   agentteam verify <w> <task>        machine gate: diff vs the task's "- path"
                                      scope lines + run its "$ " Validate lines
                                      + commit sanity; verdict into the report
@@ -920,6 +984,7 @@ switches
                                      (no duration = until 'agentteam on')
   agentteam on <agent>               re-enable an agent
   agentteam stop | resume            project kill switch for ALL new runs
+  agentteam version                  installed version + config path
 
 Worker -> agent: prefix before first "-" ("codex-2" uses agent "codex").
 Config: ~/.config/agentteam/agents.conf (project override: coord/agents.conf).
@@ -936,6 +1001,8 @@ case "${1:-help}" in
   verify)   shift; cmd_verify "$@";;
   diff)     shift; cmd_diff "$@";;
   sync)     shift; cmd_sync "$@";;
+  report)   shift; cmd_report "$@";;
+  version|-V|--version) cmd_version;;
   status)   shift; cmd_status "$@";;
   agents)   shift; cmd_agents "$@";;
   off)      shift; cmd_off "$@";;
@@ -1343,6 +1410,9 @@ agentteam run [-b] <w> <task>  execute coord/tasks/<task>.md as worker <w>
 agentteam tail [task]          follow a run's live log (default: newest)
 agentteam kill <task>          terminate a background run (whole session,
                                including the agent under `timeout`)
+agentteam report <task> [n]    print the last n (default 60) lines of a
+                               task's append-only report
+agentteam version              installed tool version + config path
 agentteam verify <w> <task>    machine gate assist: diff vs the task's
                                "- path" scope lines + run its "$ " Validate
                                lines in the worktree + commit sanity;
@@ -1463,6 +1533,49 @@ tasks.
 - Human documentation: docs/HANDBOOK.md, docs/MASTER-PLAN.md,
   docs/SETUP.md in the agentteam docs repository.
 PROTOCOL_TPL_EOF
+
+# --------------------------------------------------------------- completion
+COMP_DIR="${AGENTTEAM_COMPLETION_DIR:-$HOME/.local/share/bash-completion/completions}"
+mkdir -p "$COMP_DIR"
+cat > "$COMP_DIR/agentteam" <<'COMPLETION_EOF'
+# bash completion for agentteam — commands, then workers/tasks/agents in context
+_agentteam() {
+  local cur cmd root d cmds
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  cmds="init run verify diff sync review race sabotage tail kill report status agents off on smoke selftest stop resume version help"
+  if [ "$COMP_CWORD" -eq 1 ]; then
+    COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ); return
+  fi
+  cmd="${COMP_WORDS[1]}"
+  d="$PWD"; root=""
+  while [ "$d" != "/" ]; do
+    if [ -d "$d/coord" ] && [ -d "$d/wt" ]; then root="$d"; break; fi
+    d=$(dirname "$d")
+  done
+  local workers="" tasks="" agents=""
+  [ -n "$root" ] && workers=$(ls "$root/wt" 2>/dev/null)
+  [ -n "$root" ] && tasks=$(ls "$root/coord/tasks" 2>/dev/null | sed 's/\.md$//' | grep -v '^TEMPLATE$')
+  agents=$(sed -n 's/^\([a-zA-Z0-9_-]*\)=.*/\1/p' \
+    "${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}/agents.conf" 2>/dev/null)
+  case "$cmd" in
+    run)
+      if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "-b $workers" -- "$cur") )
+      elif [ "${COMP_WORDS[2]}" = "-b" ] && [ "$COMP_CWORD" -eq 3 ]; then COMPREPLY=( $(compgen -W "$workers" -- "$cur") )
+      else COMPREPLY=( $(compgen -W "$tasks" -- "$cur") ); fi;;
+    verify|review)
+      if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "$workers" -- "$cur") )
+      elif [ "$COMP_CWORD" -eq 3 ]; then COMPREPLY=( $(compgen -W "$tasks" -- "$cur") )
+      else COMPREPLY=( $(compgen -W "$agents" -- "$cur") ); fi;;
+    diff|sync|sabotage) COMPREPLY=( $(compgen -W "$workers" -- "$cur") );;
+    race)
+      if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "$tasks" -- "$cur") )
+      else COMPREPLY=( $(compgen -W "$workers" -- "$cur") ); fi;;
+    tail|kill|report) COMPREPLY=( $(compgen -W "$tasks" -- "$cur") );;
+    off|on) COMPREPLY=( $(compgen -W "$agents" -- "$cur") );;
+  esac
+}
+complete -F _agentteam agentteam
+COMPLETION_EOF
 
 echo
 echo "agentteam installed."

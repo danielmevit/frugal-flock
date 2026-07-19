@@ -108,6 +108,7 @@ merges.
 | `agentteam run -b <w> <task>` | Same, in the background — dispatch several at once, poll with `status`. |
 | `agentteam tail [task]` | Watch a run's log live (default: the newest). Ctrl-C stops watching, not the run. |
 | `agentteam kill <task>` | Stop a background run cleanly — kills its whole session, including the agent under `timeout`; any partial work stays uncommitted in the workshop. |
+| `agentteam report <task> [lines]` | Read a task's report without typing paths (default: last 60 lines of the append-only history). |
 | `agentteam verify <w> <task>` | The mechanical gate assist: checks the diff against the task's "- path" scope lines, re-runs its "$ " Validate commands inside the workshop, and flags empty "success" diffs. Verdict lands in the report. Run it BEFORE reading any diff. |
 | `agentteam diff <w> [--stat]` | The receipts: exact changes on that worker's branch vs the base branch, committed and uncommitted separately. `--stat` = file list only (your scope check). |
 | `agentteam review <w> <task> [agent]` | Second opinion from a DIFFERENT vendor: it gets the task order + the diff, returns findings and a VERDICT line. Your gate, with a rival's eyes attached. |
@@ -119,7 +120,13 @@ merges.
 | `agentteam selftest` | The whole loop — init, run, verify, bench, lock, background + kill, sync, review — rehearsed in a throwaway sandbox with mock agents. Zero quota, ~15 seconds. Run after updating agentteam itself. |
 | `agentteam race <task> <w1> <w2> …` | Bake-off: the same task dispatched to several workers in parallel (isolation makes it free). Compare the diffs, merge exactly ONE winner — head-to-head data for the scorecard. |
 | `agentteam sabotage <w>` | The saboteur seat: syncs the worker, then sends it hunting for real bugs in freshly merged work by writing failing tests. Spare quota becomes a standing red team. |
+| `agentteam version` | Installed version + config path — check it after every `bash agentteam-install.sh`. |
 | `agentteam stop` / `resume` | Project-wide red button: refuse ALL new runs / release. |
+
+Tab-completion ships with the installer (commands, then workers / task ids
+/ agent names in context) — it lands in
+`~/.local/share/bash-completion/completions/agentteam` and just works in
+any new shell on a normal Ubuntu.
 
 Worker naming: the part before a dash picks the engine — worker `codex-2`
 runs the codex CLI, so you can have two codex workshops.
