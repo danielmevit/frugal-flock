@@ -674,6 +674,11 @@ $ bash examples/demo.sh /tmp/agentteam-demo
 
 Zero quota — the fleet is stood-in by scripts, the machinery is real.
 
+When you want to *stress-test* rather than tour — deliberately try to
+break each guarantee — run `bash examples/breakit.sh` and follow
+`docs/TESTPLAN.md`, which takes you from that automated attack kit through
+real-fleet checks to building your first genuine project.
+
 ---
 
 ## 9. The daily rhythm
@@ -1246,5 +1251,6 @@ once.
 | `docs/SETUP.md` | The compact install/setup reference. |
 | `docs/PROTOCOL.md` | The normative spec the AIs follow (auto-installed into every project). |
 | `docs/MASTER-PLAN.md` | The original deep explanation + the phased roadmap + dictionary. |
+| `docs/TESTPLAN.md` | The break-it campaign: attack every guarantee (`examples/breakit.sh`), then real-fleet checks, then your first real build. |
 | `agentteam-install.sh` | The installer. Run it; don't read it. |
 | `research/multi-agent-claude-review.md` | The original architecture research and terms-of-service analysis. |

@@ -12,6 +12,7 @@ Antigravity, Grok, OpenCode) on an Ubuntu VM. Subscription logins only.
 | docs/GUIDEBOOK.md | me (+ beginners) | **The complete manual** — every feature, step-by-step usage, full troubleshooting, glossary. Word copy: `docs/GUIDEBOOK.docx`, regenerate with `./tools/make-docx.sh` |
 | docs/HANDBOOK.md | me | Daily operations, all commands, real worked example |
 | docs/EXAMPLE.md | me | Replayable tour of every feature (`bash examples/demo.sh /tmp/agentteam-demo`) |
+| docs/TESTPLAN.md | me | Break-it campaign then a real build: `bash examples/breakit.sh`, real-fleet checks, first project |
 | docs/SETUP.md | me | Compact install + setup reference |
 | docs/MASTER-PLAN.md | me | Beginner deep-dive + phased roadmap + dictionary |
 | docs/PROTOCOL.md | the AIs | Normative system spec (auto-installed into every project's coord/docs/) |
@@ -23,5 +24,7 @@ Antigravity, Grok, OpenCode) on an Ubuntu VM. Subscription logins only.
 ## Tools
     ./tools/check-docs.sh      # lint every doc for conversion-breaking Markdown
     ./tools/make-docx.sh       # docs/GUIDEBOOK.md -> docs/GUIDEBOOK.docx (pandoc)
+    bash examples/demo.sh DIR  # replay every feature (stand-in fleet, zero quota)
+    bash examples/breakit.sh   # adversarial campaign: attack every guarantee
 
 Built product: github.com/danielmevit/myapp (the agent scorecard).
