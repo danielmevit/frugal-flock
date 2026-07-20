@@ -467,6 +467,10 @@ documented and acceptable.
 Everything lives in the private repo github.com/danielmevit/agentteam-docs
 (clone it on any new machine, run agentteam-install.sh, log in five CLIs).
 
+- **docs/GUIDEBOOK.md** — the complete manual: every feature explained
+  from scratch, step-by-step usage, exhaustive troubleshooting, command
+  and settings references, glossary, cheat sheet. Start there if you (or
+  anyone else) need the long form; this handbook is the terse twin.
 - **This handbook** (docs/HANDBOOK.md) — daily operations, all commands,
   session rhythm, the worked example.
 - **docs/EXAMPLE.md** — the replayable tour of every command against a
