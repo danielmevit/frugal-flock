@@ -88,6 +88,8 @@ scope_allowed() { # $1=changed path, rest=patterns; changelog.d/ always in scope
   local p
   for p in "$@" "changelog.d/*"; do
     p="${p%/}"
+    # scope patterns are globs on purpose — do not quote $p here
+    # shellcheck disable=SC2254
     case "$f" in $p|$p/*) return 0;; esac
   done
   return 1
@@ -567,8 +569,12 @@ cmd_status() {
   done
   [ "$found" = 1 ] || echo "  (none — all agents on)"
   echo; echo "== tasks (coord/tasks) =="
+  # task ids are validated names (no newlines/globs), so ls|grep is safe here
+  # shellcheck disable=SC2010
   ls -1 "$root/coord/tasks" 2>/dev/null | grep -v '^TEMPLATE\.md$' || echo "(none)"
   echo; echo "== recent reports (coord/reports) =="
+  # ls -lt is the point: newest first. filenames are validated task ids.
+  # shellcheck disable=SC2010
   ls -lt "$root/coord/reports" 2>/dev/null | grep -v '^total' | head -12 || true
   echo; echo "== workers (review queue vs $base) =="
   local wt w br ahead unc run
@@ -896,14 +902,14 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
   fi
 
   # stale control files
-  local pf stale=0 t pid
+  local pf t pid
   for pf in "$root"/coord/reports/*.pid; do
     [ -e "$pf" ] || continue
     pid=$(cat "$pf" 2>/dev/null); t=$(basename "$pf" .pid)
     if [ -n "$pid" ] && { pgrep -s "$pid" >/dev/null 2>&1 || kill -0 "$pid" 2>/dev/null; }; then
       ok "background run live: $t (pid $pid)"
     else
-      warn "stale pidfile for '$t' (dead process) — 'agentteam status' clears it"; stale=1
+      warn "stale pidfile for '$t' (dead process) — 'agentteam status' clears it"
     fi
   done
 

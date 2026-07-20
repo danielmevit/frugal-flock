@@ -44,7 +44,12 @@ fi
 
 files=("$@")
 if [ ${#files[@]} -eq 0 ]; then
-  mapfile -t files < <(ls docs/*.md ./*.md 2>/dev/null | grep -vE '(MASTER|WORKER|CLAUDE|AGENTS|GEMINI)\.md')
+  mapfile -t files < <(
+    for f in docs/*.md ./*.md; do
+      [ -e "$f" ] || continue
+      case "$(basename "$f")" in MASTER.md|WORKER.md|CLAUDE.md|AGENTS.md|GEMINI.md) continue;; esac
+      printf '%s\n' "$f"
+    done)
 fi
 [ ${#files[@]} -gt 0 ] || { echo "check-docs: no markdown files found"; exit 0; }
 

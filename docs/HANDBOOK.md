@@ -459,6 +459,8 @@ documented and acceptable.
 | verify says SCOPE VIOLATION | The worker left its lane → reject the branch, re-brief with corrected scope. Never merge a violating diff as-is. |
 | verify FAIL while the report claims success | Working as designed — the report lied, the machine caught it. Trust verify. |
 | git complains about `index.lock` | A killed run died mid-commit → the next `agentteam run` clears it automatically; by hand: delete `<gitdir>/index.lock`. |
+| "name must not contain a path separator / `..`" | Safety guard on worker/task ids (they build paths under `wt/` and `coord/tasks/`) → use the bare id, e.g. `T7-codex`. |
+| init: "this repo has no commits yet" | Worktrees branch from a commit → `git commit --allow-empty -m init`, then `agentteam init`. |
 | Two workers touched the same file | Scope overlap — accept one, reject the other, tell the foreman to fix disjointness. (Exception: a deliberate `race`, where only one branch merges anyway.) |
 | Everything on fire | `agentteam stop`, read status + reports, `resume` when understood. |
 

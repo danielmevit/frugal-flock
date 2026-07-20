@@ -950,6 +950,8 @@ machinery is fine** — the problem is an agent, a login, or a task file.
 | Tab-completion doesn't work | Open a NEW terminal (completion loads per shell). Ubuntu needs the `bash-completion` package, normally preinstalled. |
 | init: "possible secrets tracked in git" | Working as intended — see section 5.3. Untrack the file, gitignore it, run init again. |
 | init warns "no agents.conf entry for agent X" | You initialized a worker whose agent has no line in `agents.conf`. Add the line or ignore the seat. |
+| init: "this repo has no commits yet" | A worktree branches from a commit, so an empty repo cannot be scaffolded. Make one commit first (`git commit --allow-empty -m "initial commit"`), then init. |
+| "worker/task name must not contain a path separator / `..` / start with `-`" | A safety guard: these names build paths under `wt/` and `coord/tasks/`, so they must be plain names. You typed a slash, a `..`, or a leading dash — use the bare id (`T7-codex`, not a path). |
 
 ### 14.3 Agent problems
 
