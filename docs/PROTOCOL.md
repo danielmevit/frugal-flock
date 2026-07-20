@@ -151,6 +151,9 @@ agentteam sabotage <w>         saboteur seat: sync <w>, generate a SAB-*
 agentteam score [root]         per-worker scorecard from ledger.jsonl:
                                runs, ok/fail, walls, verify rate, merges,
                                avg duration
+agentteam doctor               preflight the project: base branch present,
+                               agent binaries, worktree health, stale
+                               pidfiles, disk headroom; nonzero on error
 agentteam new <url> [name] [w...]  bootstrap a project: clone -> dev branch
                                -> init -> copy $CONF/playbooks/*.md into
                                coord/docs/
@@ -169,6 +172,9 @@ Environment: `AGENTTEAM_TIMEOUT` (seconds, default 3600) caps each run;
 matches limit-language patterns (suppressed when the task text itself
 mentions limits and the run succeeded). `AGENTTEAM_AUTO_VERIFY=1` makes
 every run append its own verify verdict after finishing.
+`AGENTTEAM_AUTO_SYNC=1` fast-forwards a worker onto the base branch
+before a run when the worktree is clean, so it never builds against
+stale code (otherwise `run` warns and leaves it to the operator).
 `AGENTTEAM_ALLOW_SECRETS=1` overrides the init secrets preflight. Agent
 invocation templates live in `~/.config/agentteam/agents.conf` (project
 override: `coord/agents.conf`).

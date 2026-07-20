@@ -118,6 +118,7 @@ parsing anywhere.
 | `agentteam on <agent>` | Un-bench immediately. |
 | `agentteam smoke` | One tiny live call per agent, from a neutral folder. Run after any CLI update or after days away — catches renamed flags and expired logins in 30 seconds. Rows read OK / WARN (replied, but not "ok") / FAIL. |
 | `agentteam selftest` | The whole loop — init, run, verify, bench, lock, background + kill, sync, review — rehearsed in a throwaway sandbox with mock agents. Zero quota, ~15 seconds. Run after updating agentteam itself. |
+| `agentteam doctor` | Preflight a project before you dispatch: base branch present, each agent's binary and config line, worktree health (right branch, behind base, uncommitted), stale pidfiles, guard hooks, disk headroom. Catches the misconfigurations that would otherwise waste a run. Exits nonzero on an error. |
 | `agentteam race <task> <w1> <w2> …` | Bake-off: the same task dispatched to several workers in parallel (isolation makes it free). Compare the diffs, merge exactly ONE winner — head-to-head data for the scorecard. |
 | `agentteam sabotage <w>` | The saboteur seat: syncs the worker, then sends it hunting for real bugs in freshly merged work by writing failing tests. Spare quota becomes a standing red team. |
 | `agentteam score [project-root]` | The fleet scorecard, straight from the ledger: runs, ok/fail, walls, verify pass-rate, merges, average duration — per worker, sorted by merges. Your "who earns their seat" view; `myapp` remains the full product with pre-ledger history. |
@@ -144,6 +145,7 @@ runs the codex CLI, so you can have two codex workshops.
 | `AGENTTEAM_REVIEW_TIMEOUT=900` | Time limit for a cross-vendor review call. |
 | `AGENTTEAM_AUTO_OFF=1` | Auto-bench an agent for 5h when a FAILED run's output mentions usage limits. (A successful run on a task that is itself about rate limits no longer benches anyone.) |
 | `AGENTTEAM_AUTO_VERIFY=1` | Every run appends its own verify verdict when it finishes — background work comes back pre-judged. |
+| `AGENTTEAM_AUTO_SYNC=1` | Fast-forward a stale worker onto the base branch before a run (when its worktree is clean), so it never builds against outdated code. Without it, `run` just warns. |
 | `AGENTTEAM_ALLOW_SECRETS=1` | Override init's refusal when secret-looking files are tracked. Know exactly why before using it. |
 
 ### myapp (the scorecard — the team's first product)

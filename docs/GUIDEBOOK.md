@@ -290,6 +290,14 @@ $ agentteam agents      # is each binary installed? benched or on?
 $ agentteam smoke       # one tiny LIVE call per agent: OK / WARN / FAIL
 ```
 
+And before you dispatch work in a project, `agentteam doctor` is the
+one-command preflight. It checks the base branch exists, every worker's
+binary and config line, each worktree's health (on the right branch,
+behind the base, uncommitted leftovers), stale background state, the
+guard hooks, and disk headroom — then prints `all clear`, a list of
+warnings, or errors you should fix first. It catches the quiet
+misconfigurations that would otherwise cost you a wasted run.
+
 `smoke` runs from a neutral folder (so no project files are involved) and
 checks each agent actually answers "ok". It is the 30-second drill after
 any CLI update or after days away.
@@ -491,9 +499,11 @@ next: agentteam verify codex T7-codex   then: agentteam diff codex
 ```
 
 What happened: agentteam checked the STOP switch, the agent's bench
-status, and the per-worker lock; cleaned any stale git lock from a
-previously killed run; then ran the codex CLI inside `wt/codex/` with the
-task text, capped at `AGENTTEAM_TIMEOUT` seconds (default 3600 = 1 hour).
+status, and the per-worker lock; warned if the worker's branch had fallen
+behind the base (stale code wastes runs — set `AGENTTEAM_AUTO_SYNC=1` to
+fast-forward it first); cleaned any stale git lock from a previously
+killed run; then ran the codex CLI inside `wt/codex/` with the task text,
+capped at `AGENTTEAM_TIMEOUT` seconds (default 3600 = 1 hour).
 When it finished, a run block was appended to the report and one `run`
 event to the ledger.
 
@@ -679,6 +689,7 @@ without losing anything that matters.
 ```text
 $ cd ~/code/<project>/repo
 $ agentteam status          # where did I leave off? benched agents? queue?
+$ agentteam doctor          # anything that would waste a run? (base, agents, stale)
 $ agentteam smoke           # after CLI updates or days away
 $ claude                    # hire the foreman (or resume: claude -c)
 ```
@@ -1000,7 +1011,8 @@ Setup and health:
 | `agentteam init [w1 w2 ...]` | Scaffold workshops + office next to your clone (default workers: codex antigravity opencode grok). Idempotent; secrets preflight; installs guard hooks. |
 | `agentteam agents` | Roll call: each agent — binary installed? on or benched? |
 | `agentteam smoke` | One tiny live call per agent from a neutral folder; OK / WARN / FAIL per row. Run after every CLI update. |
-| `agentteam selftest` | Rehearse the entire loop with mock agents in a throwaway sandbox — 27 checks, zero quota. |
+| `agentteam selftest` | Rehearse the entire loop with mock agents in a throwaway sandbox — zero quota. |
+| `agentteam doctor` | Preflight a project: base branch, agent binaries and config lines, worktree health, stale state, disk. Catches what would waste a run. Exits nonzero on an error. |
 | `agentteam version` | Installed version + config path. |
 
 Work:
@@ -1057,6 +1069,7 @@ or export them in `~/.bashrc` to make them permanent.
 | `AGENTTEAM_REVIEW_TIMEOUT` | 900 | Time limit for a `review` call. |
 | `AGENTTEAM_AUTO_OFF` | off | `1` = auto-bench an agent 5h when a FAILED run mentions usage limits (suppressed when the task itself is about limits). |
 | `AGENTTEAM_AUTO_VERIFY` | off | `1` = every run appends its own verify verdict when it finishes. |
+| `AGENTTEAM_AUTO_SYNC` | off | `1` = fast-forward a stale worker onto the base before a run (clean worktree only). Otherwise `run` just warns. |
 | `AGENTTEAM_ALLOW_SECRETS` | off | `1` = override init's tracked-secrets refusal. Know why. |
 
 Files that act as settings: `coord/base` (the integration branch name),
@@ -1131,7 +1144,8 @@ project's `coord/docs/`); these are the twelve invariants translated:
 SETUP (once)          bash agentteam-install.sh ; agentteam selftest
                       log in each CLI once ; agentteam agents ; agentteam smoke
 NEW PROJECT           cd ~/code && agentteam new <repo-url> myproj
-SESSION START         agentteam status ; claude   (same day: claude -c)
+SESSION START         agentteam status ; agentteam doctor ; claude
+HEALTH CHECK          agentteam doctor    (before dispatching: catches waste)
 DISPATCH              agentteam run -b <worker> <task>
 WATCH                 agentteam status | tail <task> | kill <task>
 JUDGE                 agentteam verify <w> <task> ; agentteam diff <w>

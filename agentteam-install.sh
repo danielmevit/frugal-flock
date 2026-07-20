@@ -340,6 +340,24 @@ cmd_run() {
     echo "note: removed stale $gd/index.lock (a previous run died mid-commit)" >&2
   fi
 
+  # efficiency guard: a worker branch behind the base builds against stale
+  # code and usually wastes the whole run. Warn, or auto-sync if asked.
+  local behind
+  behind=$(git -C "$wt" rev-list --count "HEAD..$base" 2>/dev/null || echo 0)
+  if [ "${behind:-0}" -gt 0 ]; then
+    if [ "${AGENTTEAM_AUTO_SYNC:-0}" = "1" ] && [ -z "$(git -C "$wt" status --porcelain=v1 2>/dev/null)" ]; then
+      if git -C "$wt" merge --no-edit "$base" >/dev/null 2>&1; then
+        echo "note: '$worker' was $behind commit(s) behind $base — auto-synced before running"
+      else
+        git -C "$wt" merge --abort >/dev/null 2>&1 || true
+        echo "!! '$worker' is $behind behind $base and auto-sync hit a conflict — resolve in wt/$worker" >&2
+      fi
+    else
+      echo "!! '$worker' is $behind commit(s) behind $base — it may build against stale code." >&2
+      echo "   run 'agentteam sync $worker' first, or set AGENTTEAM_AUTO_SYNC=1." >&2
+    fi
+  fi
+
   echo "[$worker <- $agent] running task '$task' (timeout ${TIMEOUT}s), log: $log"
   export TASKFILE="$tf"
   local rc=0 t0 dur
@@ -819,6 +837,95 @@ cmd_score() { # fleet scorecard straight from the ledger; myapp = full view
   echo "   full scorecard incl. pre-ledger history: myapp $root)"
 }
 
+# ----------------------------------------------------------------- doctor
+cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
+  local root; root=$(find_root) || die "not inside an agentteam project"
+  local base conf warn=0 bad=0
+  base=$(get_base "$root"); conf=$(conf_for_root "$root")
+  local main_dir="$root/repo"
+  [ -d "$main_dir" ] || main_dir=$(dirname "$(git -C "$root"/wt/* rev-parse --git-common-dir 2>/dev/null | head -1)" 2>/dev/null)
+  ok()   { printf '  ok    %s\n' "$1"; }
+  warn() { printf '  WARN  %s\n' "$1"; warn=$((warn+1)); }
+  err()  { printf '  ERR   %s\n' "$1"; bad=$((bad+1)); }
+
+  echo "== agentteam doctor =="
+  echo "project: $root"
+  echo "base:    $base"
+
+  # STOP / config
+  [ -f "$root/coord/STOP" ] && warn "STOP is active — all runs are blocked (agentteam resume)" \
+                            || ok "no STOP file (runs allowed)"
+  [ -f "$conf" ] && ok "agents.conf found: $conf" \
+                 || err "no agents.conf at $conf — every run will fail"
+
+  # base branch exists where the main repo can see it
+  if [ -d "$main_dir/.git" ] || [ -f "$main_dir/.git" ]; then
+    git -C "$main_dir" rev-parse -q --verify "$base" >/dev/null 2>&1 \
+      && ok "base branch '$base' exists" \
+      || err "base branch '$base' does not exist in the repo — sync/merge/diff will misbehave"
+  fi
+
+  # each worker: worktree healthy, on its own branch, conf line present
+  local wt w br agent behind dirty
+  for wt in "$root"/wt/*/; do
+    [ -d "$wt" ] || continue
+    w=$(basename "$wt"); agent="${w%%-*}"
+    if ! git -C "$wt" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      err "worker '$w': worktree is broken (git cannot read it)"; continue
+    fi
+    br=$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null)
+    [ "$br" = "agent/$w" ] || warn "worker '$w' is on branch '$br', expected 'agent/$w'"
+    behind=$(git -C "$wt" rev-list --count "HEAD..$base" 2>/dev/null || echo 0)
+    [ "${behind:-0}" -gt 0 ] && warn "worker '$w' is $behind commit(s) behind $base (agentteam sync $w)"
+    dirty=$(git -C "$wt" status --porcelain=v1 2>/dev/null | wc -l)
+    [ "$dirty" -gt 0 ] && warn "worker '$w' has $dirty uncommitted file(s) in its worktree"
+    if ! agent_cmd "$agent" "$conf" >/dev/null 2>&1; then
+      err "worker '$w': no agents.conf line for agent '$agent' — its runs will fail"
+    elif ! command -v "$(agent_cmd "$agent" "$conf" | awk '{print $1}')" >/dev/null 2>&1; then
+      warn "worker '$w': agent '$agent' binary not on PATH (benched-equivalent)"
+    fi
+  done
+
+  # guard hooks present in the shared git dir
+  local hooks
+  hooks=$(git -C "$main_dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/hooks
+  if [ -d "$hooks" ]; then
+    grep -q 'agentteam guard' "$hooks/pre-commit" 2>/dev/null \
+      && ok "guard hooks installed (worker-branch + no-push + merge-ledger)" \
+      || warn "guard hooks missing — re-run 'agentteam init <worker>' to install them"
+  fi
+
+  # stale control files
+  local pf stale=0 t pid
+  for pf in "$root"/coord/reports/*.pid; do
+    [ -e "$pf" ] || continue
+    pid=$(cat "$pf" 2>/dev/null); t=$(basename "$pf" .pid)
+    if [ -n "$pid" ] && { pgrep -s "$pid" >/dev/null 2>&1 || kill -0 "$pid" 2>/dev/null; }; then
+      ok "background run live: $t (pid $pid)"
+    else
+      warn "stale pidfile for '$t' (dead process) — 'agentteam status' clears it"; stale=1
+    fi
+  done
+
+  # disk headroom (worktrees each copy the whole repo)
+  local avail
+  avail=$(df -Pm "$root" 2>/dev/null | awk 'NR==2{print $4}')
+  if [ -n "$avail" ]; then
+    [ "$avail" -lt 500 ] && warn "only ${avail}MB free under the project — worktrees need room" \
+                         || ok "disk headroom: ${avail}MB free"
+  fi
+
+  echo
+  if [ "$bad" -gt 0 ]; then
+    echo "doctor: $bad error(s), $warn warning(s) — fix the errors before dispatching."
+    return 1
+  elif [ "$warn" -gt 0 ]; then
+    echo "doctor: 0 errors, $warn warning(s) — runnable, but look at the warnings."
+    return 0
+  fi
+  echo "doctor: all clear."
+}
+
 # -------------------------------------------------------------------- new
 cmd_new() { # bootstrap: clone -> dev branch -> init -> playbooks, one command
   local url="${1:-}"; [ -n "$url" ] || die "usage: agentteam new <repo-url> [name] [workers...]"
@@ -1051,6 +1158,12 @@ ST_T5_EOF
     bash -c 'd=$(mktemp -d); git init -q -b dev "$d/r"; cd "$d/r";
              out=$("$0" init mock 2>&1); rc=$?; cd /; rm -rf "$d";
              [ "$rc" -ne 0 ] && printf "%s" "$out" | grep -qi "no commits"' "$0"
+  st_chk "doctor runs and prints a verdict" \
+    bash -c '"$0" doctor 2>/dev/null | grep -q "^doctor:"' "$0"
+  st_chk "run warns when a worker is behind base (noop lagged the T1 merge)" \
+    bash -c 'out=$("$0" run noop T5-noop 2>&1); printf "%s" "$out" | grep -qi "behind"' "$0"
+  st_chk "AUTO_SYNC clears the stale-branch warning" \
+    bash -c 'out=$(AGENTTEAM_AUTO_SYNC=1 "$0" run noop T5-noop 2>&1); printf "%s" "$out" | grep -qi "auto-synced"' "$0"
 
   "$0" off slow >/dev/null   # keep smoke from sitting through slow's nap
   st_chk "smoke prints one row per agent" \
@@ -1089,6 +1202,9 @@ setup / health
                                      neutral dir — run after every CLI update
   agentteam selftest                 rehearse the whole loop with mock agents
                                      in a throwaway sandbox — zero quota
+  agentteam doctor                   preflight a project: base branch, agent
+                                     binaries, worktree health, stale state,
+                                     disk — catch what would waste a run
 
 work
   agentteam run [-b] <w> <task>      run coord/tasks/<task>.md in w's worktree
@@ -1130,6 +1246,7 @@ Env: AGENTTEAM_TIMEOUT (3600s)  AGENTTEAM_VERIFY_TIMEOUT (900s)
      AGENTTEAM_REVIEW_TIMEOUT (900s)  AGENTTEAM_ALLOW_SECRETS=1 (init override)
      AGENTTEAM_AUTO_OFF=1 (bench 5h when a FAILED run mentions usage limits)
      AGENTTEAM_AUTO_VERIFY=1 (every run appends its verify verdict itself)
+     AGENTTEAM_AUTO_SYNC=1 (fast-forward a stale worker onto base before a run)
 HELP
 }
 
@@ -1141,6 +1258,7 @@ case "${1:-help}" in
   sync)     shift; cmd_sync "$@";;
   report)   shift; cmd_report "$@";;
   score)    shift; cmd_score "$@";;
+  doctor)   shift; cmd_doctor "$@";;
   new)      shift; cmd_new "$@";;
   version|-V|--version) cmd_version;;
   status)   shift; cmd_status "$@";;
@@ -1581,6 +1699,9 @@ agentteam sabotage <w>         saboteur seat: sync <w>, generate a SAB-*
 agentteam score [root]         per-worker scorecard from ledger.jsonl:
                                runs, ok/fail, walls, verify rate, merges,
                                avg duration
+agentteam doctor               preflight the project: base branch present,
+                               agent binaries, worktree health, stale
+                               pidfiles, disk headroom; nonzero on error
 agentteam new <url> [name] [w...]  bootstrap a project: clone -> dev branch
                                -> init -> copy $CONF/playbooks/*.md into
                                coord/docs/
@@ -1599,6 +1720,9 @@ Environment: `AGENTTEAM_TIMEOUT` (seconds, default 3600) caps each run;
 matches limit-language patterns (suppressed when the task text itself
 mentions limits and the run succeeded). `AGENTTEAM_AUTO_VERIFY=1` makes
 every run append its own verify verdict after finishing.
+`AGENTTEAM_AUTO_SYNC=1` fast-forwards a worker onto the base branch
+before a run when the worktree is clean, so it never builds against
+stale code (otherwise `run` warns and leaves it to the operator).
 `AGENTTEAM_ALLOW_SECRETS=1` overrides the init secrets preflight. Agent
 invocation templates live in `~/.config/agentteam/agents.conf` (project
 override: `coord/agents.conf`).
@@ -1696,7 +1820,7 @@ cat > "$COMP_DIR/agentteam" <<'COMPLETION_EOF'
 _agentteam() {
   local cur cmd root d cmds
   cur="${COMP_WORDS[COMP_CWORD]}"
-  cmds="new init run verify diff sync review race sabotage score tail kill report status agents off on smoke selftest stop resume version help"
+  cmds="new init run verify diff sync review race sabotage score doctor tail kill report status agents off on smoke selftest stop resume version help"
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ); return
   fi
