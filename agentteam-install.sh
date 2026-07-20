@@ -33,6 +33,17 @@ LIMIT_RE='rate.?limit|usage limit|limit (reached|exceeded)|quota|too many reques
 
 die() { echo "agentteam: $*" >&2; exit 1; }
 
+# Worker and task ids address files under wt/ and coord/; keep them simple
+# names so they cannot escape those directories.
+check_id() { # $1=value $2=what it is
+  case "$1" in
+    ''|.|..)      die "empty or invalid $2 name";;
+    */*|*\\*)     die "$2 name must not contain a path separator: '$1'";;
+    -*)           die "$2 name must not start with '-': '$1'";;
+    *..*)         die "$2 name must not contain '..': '$1'";;
+  esac
+}
+
 find_root() {
   local d="$PWD"
   while [ "$d" != "/" ]; do
@@ -127,6 +138,12 @@ cmd_on() {
 cmd_init() {
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
     || die "run 'agentteam init' from inside your repo clone"
+  # worktrees branch from a commit; an unborn HEAD gives a cryptic git error
+  git rev-parse -q --verify HEAD >/dev/null 2>&1 \
+    || die "this repo has no commits yet — make one first, e.g.:
+       git commit --allow-empty -m 'initial commit'"
+  local w
+  for w in "$@"; do check_id "$w" worker; done
   local main_dir root base
   main_dir=$(git rev-parse --show-toplevel)
   root=$(dirname "$main_dir")
@@ -273,6 +290,7 @@ cmd_run() {
   if [ "${1:-}" = "-b" ]; then bg=1; shift; fi
   local worker="${1:-}" task="${2:-}"
   [ -n "$worker" ] && [ -n "$task" ] || die "usage: agentteam run [-b] <worker> <task-id>"
+  check_id "$worker" worker; check_id "$task" task
   local root; root=$(find_root) || die "not inside an agentteam project"
   [ -f "$root/coord/STOP" ] && die "STOP is active (agentteam resume to clear)"
   task="${task%.md}"
@@ -390,6 +408,7 @@ cmd_run() {
 cmd_verify() {
   local worker="${1:-}" task="${2:-}"
   [ -n "$worker" ] && [ -n "$task" ] || die "usage: agentteam verify <worker> <task-id>"
+  check_id "$worker" worker; check_id "$task" task
   local root; root=$(find_root) || die "not inside an agentteam project"
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
@@ -469,6 +488,7 @@ cmd_verify() {
 
 cmd_diff() {
   local worker="${1:-}"; [ -n "$worker" ] || die "usage: agentteam diff <worker> [--stat]"
+  check_id "$worker" worker
   local root; root=$(find_root) || die "not inside an agentteam project"
   local wt="$root/wt/$worker"; [ -d "$wt" ] || die "no worktree: $wt"
   local mode="${2:-}" base; base=$(get_base "$root")
@@ -487,6 +507,7 @@ cmd_sync() { # after merges: bring base's new work into worker branches
   local root; root=$(find_root) || die "not inside an agentteam project"
   local base; base=$(get_base "$root")
   local list=("$@") wt w
+  for w in "$@"; do check_id "$w" worker; done
   if [ ${#list[@]} -eq 0 ]; then
     for wt in "$root"/wt/*/; do [ -d "$wt" ] && list+=("$(basename "$wt")"); done
   fi
@@ -606,6 +627,7 @@ cmd_smoke() { # one tiny live call per configured agent — the post-update ritu
 cmd_review() { # a DIFFERENT vendor judges the task order + the diff
   local worker="${1:-}" task="${2:-}" reviewer="${3:-}"
   [ -n "$worker" ] && [ -n "$task" ] || die "usage: agentteam review <worker> <task-id> [reviewer-agent]"
+  check_id "$worker" worker; check_id "$task" task
   local root; root=$(find_root) || die "not inside an agentteam project"
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
@@ -664,11 +686,13 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
 cmd_race() { # same task to several workers in parallel; merge ONE winner
   local task="${1:-}"; shift || true
   [ -n "$task" ] && [ $# -ge 2 ] || die "usage: agentteam race <task-id> <worker> <worker> [...]"
+  check_id "$task" task
   local root; root=$(find_root) || die "not inside an agentteam project"
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
   local w
   for w in "$@"; do
+    check_id "$w" worker
     [ -d "$root/wt/$w" ] || die "no worktree for '$w' — run: agentteam init $w"
     is_off "${w%%-*}" && die "agent '${w%%-*}' is OFF — bench-aware racing: pick another worker"
     lock_probe "$root" "$w" || die "worker '$w' is busy (agentteam status)"
@@ -689,6 +713,7 @@ cmd_race() { # same task to several workers in parallel; merge ONE winner
 # -------------------------------------------------------------- sabotage
 cmd_sabotage() { # the saboteur seat: attack fresh merges with failing tests
   local worker="${1:-}"; [ -n "$worker" ] || die "usage: agentteam sabotage <worker>"
+  check_id "$worker" worker
   local root; root=$(find_root) || die "not inside an agentteam project"
   local wt="$root/wt/$worker"; [ -d "$wt" ] || die "no worktree for '$worker' — run: agentteam init $worker"
   is_off "${worker%%-*}" && die "agent '${worker%%-*}' is OFF"
@@ -718,6 +743,7 @@ cmd_tail() {
 
 cmd_kill() {
   local task="${1:-}"; [ -n "$task" ] || die "usage: agentteam kill <task-id>"
+  check_id "${task%.md}" task
   local root; root=$(find_root) || die "not inside an agentteam project"
   task="${task%.md}"
   local pf="$root/coord/reports/$task.pid"
@@ -747,6 +773,7 @@ cmd_kill() {
 # ---------------------------------------------------------- report/version
 cmd_report() { # read a task's report without typing coord/reports paths
   local task="${1:-}"; [ -n "$task" ] || die "usage: agentteam report <task-id> [lines]"
+  check_id "${task%.md}" task
   local root; root=$(find_root) || die "not inside an agentteam project"
   task="${task%.md}"
   local f="$root/coord/reports/$task.md"
@@ -1016,6 +1043,14 @@ ST_T5_EOF
     bash -c '"$0" report T1-mock 200 2>/dev/null | grep -q "worker=mock"' "$0"
   st_chk "version prints" \
     bash -c '"$0" version | grep -q "^agentteam "' "$0"
+  st_chk "task ids cannot escape coord/tasks" \
+    bash -c '! "$0" run mock ../reports/T1-mock >/dev/null 2>&1' "$0"
+  st_chk "worker ids cannot escape wt/" \
+    bash -c '! "$0" run mock-../../repo T1-mock >/dev/null 2>&1 && ! "$0" diff ../repo >/dev/null 2>&1' "$0"
+  st_chk "init refuses a repo with no commits" \
+    bash -c 'd=$(mktemp -d); git init -q -b dev "$d/r"; cd "$d/r";
+             out=$("$0" init mock 2>&1); rc=$?; cd /; rm -rf "$d";
+             [ "$rc" -ne 0 ] && printf "%s" "$out" | grep -qi "no commits"' "$0"
 
   "$0" off slow >/dev/null   # keep smoke from sitting through slow's nap
   st_chk "smoke prints one row per agent" \
