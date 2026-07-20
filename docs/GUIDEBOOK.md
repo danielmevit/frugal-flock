@@ -1153,16 +1153,39 @@ AFTER ANY UPDATE      agentteam smoke ; after agentteam updates: selftest + vers
 This file is deliberately written in plain, portable Markdown so that any
 converter or AI assistant can produce a clean `.docx` from it.
 
-**Option 1 — one command (pandoc).** If pandoc is installed
-(`sudo apt install pandoc`):
+**Option 1 — the repo's own script (recommended).** A ready-made Word
+copy lives at `docs/GUIDEBOOK.docx`. To regenerate it after any edit:
+
+```text
+./tools/make-docx.sh                    # docs/GUIDEBOOK.md -> docs/GUIDEBOOK.docx
+./tools/make-docx.sh docs/HANDBOOK.md   # or any other document
+```
+
+The script runs pandoc for the conversion (clickable table of contents,
+real Word tables, syntax-highlighted code blocks), then applies the page
+setup pandoc leaves out: A4, 2 cm margins, and centered page numbers in
+the footer. It refuses to run while the file is open in Word, and finds
+pandoc automatically — native Linux install, or a Windows install when
+you are on WSL.
+
+Installing pandoc needs no root:
+
+```text
+curl -fsSL -o /tmp/p.tgz https://github.com/jgm/pandoc/releases/download/3.10/pandoc-3.10-linux-amd64.tar.gz
+tar xzf /tmp/p.tgz -C /tmp && install -m755 /tmp/pandoc-3.10/bin/pandoc ~/.local/bin/pandoc
+```
+
+(With root, `sudo apt install pandoc` works too.) When you open the
+result, Word asks to update fields — say yes, or press F9, to fill in the
+table of contents.
+
+**Option 2 — plain pandoc**, if you prefer to drive it yourself:
 
 ```text
 pandoc docs/GUIDEBOOK.md -o agentteam-guidebook.docx --toc --toc-depth=2
 ```
 
-`--toc` generates a clickable table of contents from the headings.
-
-**Option 2 — hand it to an AI assistant.** Upload or paste this file and
+**Option 3 — hand it to an AI assistant.** Upload or paste this file and
 use a prompt like the following:
 
 ```text
