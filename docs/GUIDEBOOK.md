@@ -1211,6 +1211,13 @@ characters (├── └──). They display correctly in any standard monospa
 font (Consolas, Courier New). If your converter mangles them, ask it to
 render that block as a plain indented list instead.
 
+**If you edit this book or write another one**, read
+`docs/DOC-CONVENTIONS.md` first and run `./tools/check-docs.sh` before
+converting. The rule that matters most: never leave a bare
+`<placeholder>` outside backticks — every converter reads it as an HTML
+tag and silently deletes it, which already cost this book a sentence
+once.
+
 ---
 
 ## Appendix B — where everything is documented

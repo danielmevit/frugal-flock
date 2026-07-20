@@ -18,5 +18,10 @@ Antigravity, Grok, OpenCode) on an Ubuntu VM. Subscription logins only.
 | docs/ai-project-setup-playbook.md | me + AIs | My project structure standard |
 | docs/ai-full-build-recipe.md | me + AIs | My build process standard |
 | research/multi-agent-claude-review.md | reference | Original architecture research, ToS analysis, sources |
+| docs/DOC-CONVENTIONS.md | me + AIs | **Read before writing or editing any doc here** — Word/PDF-safe Markdown rules; enforced by `./tools/check-docs.sh` |
+
+## Tools
+    ./tools/check-docs.sh      # lint every doc for conversion-breaking Markdown
+    ./tools/make-docx.sh       # docs/GUIDEBOOK.md -> docs/GUIDEBOOK.docx (pandoc)
 
 Built product: github.com/danielmevit/myapp (the agent scorecard).

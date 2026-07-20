@@ -211,7 +211,7 @@ When you move a project between environments, update `docs/ai/GOTCHAS.md` to mat
 
 ## 6. Handoff / kickoff prompt (fill in the blanks)
 
-> You're taking over **<project>** at `<path>`. Everything you need is in the repo.
+> You're taking over **`<project>`** at `<path>`. Everything you need is in the repo.
 > **Onboard:** read `AGENTS.md`, then `docs/ai/START_HERE.md` and follow its links; recent
 > work is in `CHANGELOG.md`, your task is in `TODO.md`. **Find code** with CodeGraph
 > (`codegraph_explore` / `codegraph explore "..."`) instead of grepping — run `codegraph sync`

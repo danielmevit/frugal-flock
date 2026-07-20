@@ -4,7 +4,7 @@ How to take an idea ("build me an app like X") end-to-end with an AI agent: stru
 git model, quality gates, and the evaluation loop. Written after the **Vecto** build
 (`D:\Vibe Coding\_desktop apps\Vecto` — a Vector Magic-style vectorizer); point any
 model at this file plus `ai-project-setup-playbook.md` (same folder) and say:
-*"Build <thing> following `_refs/ai-full-build-recipe.md`."*
+*"Build `<thing>` following `_refs/ai-full-build-recipe.md`."*
 
 ---
 
@@ -101,7 +101,7 @@ formats silently).
 
 ## 8. Handoff prompt (fill in)
 
-> You're taking over **<project>** at `<path>`. Read `AGENTS.md`, then
+> You're taking over **`<project>`** at `<path>`. Read `AGENTS.md`, then
 > `docs/ai/START_HERE.md` and follow its links; recent work is in `CHANGELOG.md`.
 > Fresh clone: `codegraph init`. Work on `dev` in verified milestones (build 0/0 →
 > tests → run → CHANGELOG → commit → push). Quality work goes through the bench

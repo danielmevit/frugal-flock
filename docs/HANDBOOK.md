@@ -451,7 +451,7 @@ documented and acceptable.
 | Worker fails, log says token/login expired | `<cli> logout && <cli> login`, rerun. |
 | Worker hangs | Waiting on a prompt auto-approve didn't cover, or agy's 5-minute default print timeout → check the .log. |
 | Log mentions rate/usage limit | `agentteam off <agent> 5h` (weekly: 7d), foreman reroutes. |
-| Report says done, diff shows uncommitted work | Worker forgot to commit → commit it yourself in wt/<w>, or rerun with sharper Done-means. |
+| Report says done, diff shows uncommitted work | Worker forgot to commit → commit it yourself in `wt/<w>`, or rerun with sharper Done-means. |
 | Report says done, diff looks wrong | Normal. Reject; foreman re-briefs. The system working. |
 | `worker … is already running a task` | The per-worker lock: one run per workshop at a time → `agentteam status` to see what; stray background run: `agentteam kill <task>`. |
 | verify says SCOPE VIOLATION | The worker left its lane → reject the branch, re-brief with corrected scope. Never merge a violating diff as-is. |
