@@ -9,7 +9,7 @@ Antigravity, Grok, OpenCode) on an Ubuntu VM. Subscription logins only.
 ## Documents
 | File | For | What |
 |---|---|---|
-| docs/GUIDEBOOK.md | me (+ beginners) | **The complete manual** — every feature, step-by-step usage, full troubleshooting, glossary. Converts cleanly to Word (Appendix A) |
+| docs/GUIDEBOOK.md | me (+ beginners) | **The complete manual** — every feature, step-by-step usage, full troubleshooting, glossary. Word copy: `docs/GUIDEBOOK.docx`, regenerate with `./tools/make-docx.sh` |
 | docs/HANDBOOK.md | me | Daily operations, all commands, real worked example |
 | docs/EXAMPLE.md | me | Replayable tour of every feature (`bash examples/demo.sh /tmp/agentteam-demo`) |
 | docs/SETUP.md | me | Compact install + setup reference |
