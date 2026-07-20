@@ -15,6 +15,33 @@
 #   4. unescaped pipes in table cells — split one column into two.
 set -uo pipefail
 
+# --selftest: prove the checks actually fire, on planted bugs (see the
+# agentteam selftest philosophy — a checker nobody checks is worth little).
+if [ "${1:-}" = "--selftest" ]; then
+  t=$(mktemp -d); ok=0; fail=0
+  probe() { # <name> <expect: bad|good> <content>
+    printf '%b' "$3" > "$t/$1.md"
+    "$0" "$t/$1.md" >/dev/null 2>&1; rc=$?
+    if { [ "$2" = bad ] && [ $rc -ne 0 ]; } || { [ "$2" = good ] && [ $rc -eq 0 ]; }; then
+      ok=$((ok+1)); printf '  ok    %s\n' "$1"
+    else
+      fail=$((fail+1)); printf '  FAIL  %s (expected %s, exit=%s)\n' "$1" "$2" "$rc"
+    fi
+  }
+  probe bare-placeholder bad  '# T\n\nrejected because <reason>. Fix it.\n'
+  probe stray-backtick   bad  '# T\n\nA stray ` tick.\n\nA bare <thing> here.\n\nAnd `code`.\n'
+  probe unclosed-fence   bad  '# T\n\n```text\nunclosed\n'
+  probe table-pipe       bad  '# T\n\n| a | b |\n|---|---|\n| x | 30m|5h |\n'
+  probe inline-fence     bad  '# T\n\nFences (```) are code.\n'
+  probe clean-doc        good '# T\n\nUse `wt/<w>` here.\n\n| a | b |\n|---|---|\n| `[30m\\|5h]` | y |\n'
+  probe wrapped-span     good '# T\n\nRe-run `agentteam init\n<worker>` to refresh it.\n'
+  rm -rf "$t"
+  echo
+  echo "check-docs selftest: $ok ok, $fail failed"
+  [ "$fail" -eq 0 ] || exit 1
+  exit 0
+fi
+
 files=("$@")
 if [ ${#files[@]} -eq 0 ]; then
   mapfile -t files < <(ls docs/*.md ./*.md 2>/dev/null | grep -vE '(MASTER|WORKER|CLAUDE|AGENTS|GEMINI)\.md')
@@ -25,12 +52,34 @@ python3 - "${files[@]}" <<'PY'
 import re, sys
 
 
+def strip_fences(text):
+    """Blank fenced code blocks, keeping line numbering intact."""
+    out, infence, unclosed = [], False, False
+    for ln in text.split("\n"):
+        if ln.lstrip().startswith("```"):
+            infence = not infence
+            out.append("")
+            continue
+        out.append("" if infence else ln)
+    return "\n".join(out), infence
+
+
 def blank_code_spans(text):
     """Blank out `code spans` (which may wrap across lines) but keep every
     newline, so reported line numbers still match the file."""
     def repl(m):
         return "".join("\n" if ch == "\n" else " " for ch in m.group(0))
     return re.sub(r"`[^`]*`", repl, text)
+
+
+def cells_of(row):
+    """Split a table row on unescaped pipes, ignoring the outer borders."""
+    r = row.strip()
+    if r.startswith("|"):
+        r = r[1:]
+    if r.endswith("|") and not r.endswith("\\|"):
+        r = r[:-1]
+    return re.split(r"(?<!\\)\|", r)
 
 
 problems = 0
@@ -41,10 +90,20 @@ for path in sys.argv[1:]:
         print(f"{path}: cannot read ({e})"); problems += 1; continue
 
     lines = raw_text.split("\n")
-    masked = blank_code_spans(raw_text).split("\n")
+    defenced, unclosed_fence = strip_fences(raw_text)
+    found = []
+
+    # A stray backtick makes every code span after it pair up wrongly, which
+    # would hide real problems from the checks below — so catch it first.
+    stray = defenced.count("`") % 2
+    if stray:
+        n = next((i for i, l in enumerate(defenced.split("\n"), 1) if "`" in l), 1)
+        found.append((n, "odd number of backticks in this file — a code span is unclosed "
+                         "(later checks are unreliable until this is fixed)"))
+
+    masked = blank_code_spans(defenced).split("\n")
 
     infence = False
-    found = []
     for n, raw in enumerate(lines, 1):
         if raw.lstrip().startswith("```"):
             infence = not infence
@@ -60,12 +119,26 @@ for path in sys.argv[1:]:
         if "```" in prose:
             found.append((n, "triple backticks inside prose — may open a stray code fence"))
 
-        if raw.lstrip().startswith("|"):
-            cells = re.split(r"(?<!\\)\|", prose)    # pipes inside code spans are safe
-            if any(c.count("|") for c in cells):
-                found.append((n, "unescaped | inside a table cell — use \\|"))
+    # Tables: every row must have the same number of cells as its header.
+    # A row with more cells means an unescaped | split one cell in two.
+    n = 0
+    while n < len(masked):
+        if masked[n].lstrip().startswith("|"):
+            start, block = n, []
+            while n < len(masked) and masked[n].lstrip().startswith("|"):
+                block.append(masked[n])
+                n += 1
+            width = len(cells_of(block[0]))
+            for k, row in enumerate(block[1:], 1):
+                got = len(cells_of(row))
+                if got != width:
+                    found.append((start + k + 1,
+                                  f"table row has {got} cells but the header has {width} — "
+                                  "an unescaped | splits a cell (write \\|)"))
+            continue
+        n += 1
 
-    if infence:
+    if unclosed_fence:
         found.append((len(lines), "file ends inside an unclosed code fence"))
 
     if found:

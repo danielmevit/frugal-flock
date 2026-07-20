@@ -10,9 +10,13 @@ Check any document before converting or committing it:
 ```text
 ./tools/check-docs.sh                 # every doc in the repo
 ./tools/check-docs.sh docs/NEW.md     # just one
+./tools/check-docs.sh --selftest      # prove the checker still catches bugs
 ```
 
-It exits nonzero when something is wrong, so it can gate a commit.
+It exits nonzero when something is wrong, so it can gate a commit. The
+`--selftest` run plants each kind of bug in a throwaway file and confirms
+it is caught — worth running after editing the checker itself, because a
+lint that silently stops catching things is worse than no lint at all.
 
 ---
 
@@ -56,6 +60,25 @@ An unclosed fence turns the entire rest of the document into a code block.
 Writing the fence characters inline in a sentence can open one by accident;
 say "triple backticks" in words instead, or use a code span.
 
+## Rule 2b — never leave a single backtick unclosed
+
+One stray backtick pairs with the next real one, so a stretch of prose
+between them silently becomes "code" — in the Word file *and* in this
+repo's own linter, which would then stop seeing bare placeholders inside
+that stretch. The checker therefore reports any file with an odd number
+of backticks before it reports anything else.
+
+A code span that wraps across two lines is fine — Markdown joins the
+lines with a space, and pandoc reproduces it correctly (several docs here
+rely on it):
+
+```text
+Re-run `agentteam init
+<worker>` to refresh that worker's card.
+```
+
+Just make sure it is closed.
+
 ## Rule 3 — escape pipes inside table cells
 
 A `|` inside a table cell splits it into two columns. Write `\|`:
@@ -65,6 +88,8 @@ A `|` inside a table cell splits it into two columns. Write `\|`:
 ```
 
 Pipes inside code spans are safe, but escaping is harmless and clearer.
+The checker catches this by comparing each row's cell count against the
+header's, so a split cell shows up as "3 cells but the header has 2".
 
 ## Rule 4 — one heading level per structural level
 
