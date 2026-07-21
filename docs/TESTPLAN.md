@@ -178,6 +178,17 @@ is genuinely useful, has clear correct answers you can predict (so you can
 gate honestly), needs no dependencies, and splits cleanly into disjoint
 pieces — the shape agentteam is best at.
 
+**Want to see it built first?** `bash examples/stamp-build.sh` runs this
+exact project through the whole loop with stand-in workers (zero quota):
+it freezes the output contract, syncs the workshops onto it, builds three
+modules in parallel (`agefmt`, `gitread`, `stamp`), verifies and merges
+each, then the saboteur finds a genuine crash (`stamp` on a missing path)
+and a fix cycle closes it — ending with a green suite and the real tool
+reading live repos. Read that script, then do it for real with your fleet
+using the briefs below. (Its one hard-won lesson is baked in: after you
+freeze a contract on the base branch, `agentteam sync` the workshops onto
+it *before* dispatching, or the workers build against stale code.)
+
 **Set it up:**
 
 ```text

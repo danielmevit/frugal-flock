@@ -26,5 +26,6 @@ Antigravity, Grok, OpenCode) on an Ubuntu VM. Subscription logins only.
     ./tools/make-docx.sh       # docs/GUIDEBOOK.md -> docs/GUIDEBOOK.docx (pandoc)
     bash examples/demo.sh DIR  # replay every feature (stand-in fleet, zero quota)
     bash examples/breakit.sh   # adversarial campaign: attack every guarantee
+    bash examples/stamp-build.sh  # build a real tool through the full loop (TESTPLAN Part C)
 
 Built product: github.com/danielmevit/myapp (the agent scorecard).
