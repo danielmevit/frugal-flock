@@ -78,7 +78,7 @@ Implement agefmt.human_age(seconds) per the contract.
 - agefmt.py
 - tests/test_agefmt.py
 ## Validate
-$ python3 -m unittest discover -s tests -t .
+$ python3 -m unittest discover -s tests
 ## Done means
 agefmt.py + its test committed as "S1: agefmt".
 ## Report
@@ -111,7 +111,7 @@ class T(unittest.TestCase):
     def test_day(self): self.assertEqual(human_age(172800), "2d ago")
     def test_year(self): self.assertEqual(human_age(63072000), "2y ago")
 PYEOF
-python3 -m unittest discover -s tests -t . >/dev/null 2>&1
+python3 -m unittest discover -s tests >/dev/null 2>&1
 git add agefmt.py tests/test_agefmt.py
 git commit -q -m "S1: agefmt"
 do -->
@@ -125,7 +125,7 @@ Implement gitread.py (all git reading) per the contract.
 - gitread.py
 - tests/test_gitread.py
 ## Validate
-$ python3 -m unittest discover -s tests -t .
+$ python3 -m unittest discover -s tests
 ## Done means
 gitread.py + its test committed as "S2: gitread".
 ## Report
@@ -194,7 +194,7 @@ class T(unittest.TestCase):
             self.assertEqual(b, "main"); self.assertTrue(s)
             self.assertFalse(gitread.is_dirty(d))
 PYEOF
-python3 -m unittest discover -s tests -t . >/dev/null 2>&1
+python3 -m unittest discover -s tests >/dev/null 2>&1
 git add gitread.py tests/test_gitread.py
 git commit -q -m "S2: gitread"
 do -->
@@ -223,7 +223,7 @@ Implement stamp.stamp(cwd) + CLI, wiring agefmt and gitread per the contract.
 - stamp.py
 - tests/test_stamp.py
 ## Validate
-$ python3 -m unittest discover -s tests -t .
+$ python3 -m unittest discover -s tests
 ## Done means
 stamp.py + its test committed as "S3: stamp cli".
 ## Report
@@ -286,7 +286,7 @@ class T(unittest.TestCase):
             out = stamp.stamp(d)
             self.assertIn("main", out); self.assertIn("clean", out)
 PYEOF
-python3 -m unittest discover -s tests -t . >/dev/null 2>&1
+python3 -m unittest discover -s tests >/dev/null 2>&1
 git add stamp.py tests/test_stamp.py
 git commit -q -m "S3: stamp cli"
 do -->
@@ -298,7 +298,7 @@ git merge --no-ff -q agent/antigravity -m "merge S3: stamp cli" 2>/dev/null
 agentteam sync >/dev/null
 
 step "PROVE IT LIKE A USER — run the real tool on real repositories"
-python3 -m unittest discover -s tests -t . 2>&1 | tail -1
+python3 -m unittest discover -s tests 2>&1 | tail -1
 own "stamp on this very project:      $(python3 stamp.py .)"
 own "stamp on the agentteam-docs repo: $(python3 stamp.py '/mnt/d/Vibe Coding/_vm/agentteam-docs' 2>/dev/null || echo '(not present)')"
 
@@ -335,7 +335,7 @@ own "the saboteur's finding:"
 agentteam report SAB-gamma 20 | grep -i finding || true
 own "confirming the finding fails against dev:"
 git merge --no-ff -q agent/gamma -m "merge SAB: adopt failing test" 2>/dev/null
-python3 -m unittest discover -s tests -t . 2>&1 | tail -3 | head -1
+python3 -m unittest discover -s tests 2>&1 | tail -3 | head -1
 
 step "FIX — one task closes the saboteur's finding"
 agentteam sync >/dev/null
@@ -346,7 +346,7 @@ Fix the saboteur's finding: a missing path must not crash.
 ## Allowed scope
 - gitread.py
 ## Validate
-$ python3 -m unittest discover -s tests -t .
+$ python3 -m unittest discover -s tests
 ## Done means
 All tests green (incl. the sabotage test), committed "F1: guard missing path".
 ## Report
@@ -360,7 +360,7 @@ s = s.replace(
     'def _git(args, cwd):\n    import os\n    if not os.path.isdir(cwd):\n        return 1, "", "no such path"\n    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)\n    return r.returncode, r.stdout.strip(), r.stderr.strip()')
 p.write_text(s)
 PYEOF
-python3 -m unittest discover -s tests -t . >/dev/null 2>&1
+python3 -m unittest discover -s tests >/dev/null 2>&1
 git add gitread.py
 git commit -q -m "F1: guard missing path"
 do -->
@@ -371,7 +371,7 @@ own "merging the fix"
 git merge --no-ff -q agent/codex -m "merge F1: guard missing path" 2>/dev/null
 
 step "DONE — green suite, the bug is closed, the tool is real"
-python3 -m unittest discover -s tests -t . 2>&1 | tail -1
+python3 -m unittest discover -s tests 2>&1 | tail -1
 own "stamp on a missing path now:  $(python3 stamp.py /no/such/path)"
 own "final history:"
 git log --oneline | sed 's/^/    /'

@@ -434,7 +434,7 @@ Libraries to use or avoid, style rules, no new dependencies.
 
 ## Validate
 $ dotnet build -c Release
-$ python3 -m unittest discover -s tests -t .
+$ python3 -m unittest discover -s tests
 
 ## Done means
 Validation passes + changes committed on your branch as "T7: <summary>"
@@ -478,8 +478,16 @@ Bad scope: "the relevant files" (nothing is enforceable).
 Good scope: three explicit `- ` lines.
 
 Bad validate: "make sure it works".
-Good validate: `$ python3 -m unittest discover -s tests -t .` with the
+Good validate: `$ python3 -m unittest discover -s tests` with the
 expected outcome stated in prose above it.
+
+> **Python gotcha (learned from a real run):** use
+> `discover -s tests` (or `discover tests`), **not**
+> `discover -s tests -t .`. On Python 3.11+ the `-t .` form fails with
+> "Start directory is not importable" unless `tests/` contains an empty
+> `__init__.py` file. A worker told to run the `-t .` form but not allowed
+> to create `tests/__init__.py` will correctly report the task as blocked
+> rather than pass — so write the Validate line in the form that just works.
 
 Bad goal: "improve error handling everywhere".
 Good goal: "requests to /api/save with an empty body return 400 with a
@@ -567,7 +575,7 @@ $ agentteam verify codex T7-codex
 scope    : OK (2 pattern(s))
 validate : 2/2 passed
   PASS  $ dotnet build -c Release
-  PASS  $ python3 -m unittest discover -s tests -t .
+  PASS  $ python3 -m unittest discover -s tests
 changes  : commits=1, paths touched=3
 verdict  : PASS
 ```

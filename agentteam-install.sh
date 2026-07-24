@@ -329,7 +329,11 @@ cmd_run() {
   if [ "${AGENTTEAM_BG:-0}" = "1" ]; then
     pidfile="$root/coord/reports/$task.pid"
     echo "$$" > "$pidfile"
-    trap '[ -n "$pidfile" ] && rm -f "$pidfile"' EXIT
+    # bake the path into the trap: it fires at script EXIT, after cmd_run has
+    # returned and its locals are gone, so a '$pidfile' reference would be
+    # empty and never clean up (orphaned pidfile). Expand it now instead.
+    # shellcheck disable=SC2064  # expanding $pidfile now is the point
+    trap "rm -f -- '$pidfile'" EXIT
     trap 'exit 143' TERM
     trap 'exit 130' INT
   fi
@@ -1152,6 +1156,13 @@ ST_T5_EOF
     bash -c 'grep -q "empty diff" ../coord/reports/T5-noop.md'
   st_chk "verify FAILs an empty run" \
     bash -c 'out=$("$0" verify noop T5-noop 2>&1); rc=$?; [ "$rc" -ne 0 ] && printf "%s" "$out" | grep -q EMPTY' "$0"
+  # a background run that finishes on its OWN must remove its pidfile — the
+  # kill path never exercises the natural-completion EXIT trap. noop commits
+  # nothing, so this cannot perturb any branch-topology check.
+  "$0" run -b noop T5-noop >/dev/null 2>&1
+  for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f ../coord/reports/T5-noop.pid ] || break; sleep 1; done
+  st_chk "background run cleans up its own pidfile on natural completion" \
+    bash -c '[ ! -f ../coord/reports/T5-noop.pid ]'
   st_chk "report command prints a task's history" \
     bash -c '"$0" report T1-mock 200 2>/dev/null | grep -q "worker=mock"' "$0"
   st_chk "version prints" \
