@@ -368,7 +368,9 @@ cmd_run() {
   export TASKFILE="$tf"
   local rc=0 t0 dur
   t0=$(date +%s)
-  ( cd "$wt" && timeout "$TIMEOUT" bash -c "$cmdline" ) > "$log" 2>&1 || rc=$?
+  # headless workers must not read stdin — an agent that does (e.g. codex)
+  # would otherwise consume whatever the caller left on stdin and hang/misfire
+  ( cd "$wt" && timeout "$TIMEOUT" bash -c "$cmdline" </dev/null ) > "$log" 2>&1 || rc=$?
   dur=$(( $(date +%s) - t0 ))
 
   # receipts for the verdict line + ledger
@@ -639,7 +641,10 @@ cmd_smoke() { # one tiny live call per configured agent — the post-update ritu
     name="${line%%=*}"; cmd="${line#*=}"
     if is_off "$name"; then printf '  %-12s SKIP (benched)\n' "$name"; continue; fi
     if ! command -v "${cmd%% *}" >/dev/null 2>&1; then printf '  %-12s MISSING binary\n' "$name"; continue; fi
-    rc=0; out=$( cd "$nd" && TASKFILE="$tf" timeout 180 bash -c "$cmd" 2>&1 ) || rc=$?
+    # </dev/null: the loop reads the conf on stdin; without this an agent
+    # that reads stdin (codex) swallows the remaining agent lines and the
+    # roll-call stops early.
+    rc=0; out=$( cd "$nd" && TASKFILE="$tf" timeout 180 bash -c "$cmd" </dev/null 2>&1 ) || rc=$?
     if [ "$rc" -ne 0 ]; then
       printf '  %-12s FAIL exit=%s — %s\n' "$name" "$rc" "$(printf '%s' "$out" | tail -1 | cut -c1-70)"
     elif printf '%s' "$out" | grep -qiw ok; then
@@ -694,7 +699,7 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
   local nd out rc=0
   nd=$(mktemp -d)   # reviewer works blind from the prompt — no repo access
   echo "[review] $reviewer reviewing $worker's '$task' (timeout ${AGENTTEAM_REVIEW_TIMEOUT:-900}s)"
-  out=$( cd "$nd" && TASKFILE="$pf" timeout "${AGENTTEAM_REVIEW_TIMEOUT:-900}" bash -c "$rcmd" 2>&1 ) || rc=$?
+  out=$( cd "$nd" && TASKFILE="$pf" timeout "${AGENTTEAM_REVIEW_TIMEOUT:-900}" bash -c "$rcmd" </dev/null 2>&1 ) || rc=$?
   printf '%s\n' "$out"
 
   {
@@ -1314,7 +1319,7 @@ claude=claude -p "$(cat "$TASKFILE")" --dangerously-skip-permissions
 # required: workspace-write keeps .git read-only and a worktree's git
 # metadata lives in the main repo's .git/worktrees/ — commits fail otherwise.
 # Same trust level as the other agents' auto-approve modes; VM-only setup.
-codex=codex exec --sandbox danger-full-access "$(cat "$TASKFILE")"
+codex=codex exec --sandbox danger-full-access --skip-git-repo-check "$(cat "$TASKFILE")"
 
 # Antigravity CLI "agy" (Google account) — replaced Gemini CLI, which Google
 # shut down 2026-06-18. Flags verified on a live install 2026-07-17:
