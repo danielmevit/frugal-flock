@@ -47,6 +47,12 @@ Data-source rule: historical analysis MUST read `reports/*.md` (append-only,
 all runs) or `ledger.jsonl` (append-only, machine-readable). `*.log` holds
 only the latest run and MUST NOT be used as history.
 
+Timing rule: `duration_s` is measured on a monotonic clock and therefore
+excludes time the machine spent asleep; `wall_s` is the wall-clock elapsed
+time and `suspended` is 1 when the two diverge by more than a minute. A
+suspended run's elapsed time is meaningless — `agentteam score` excludes it
+from averages, and any other analysis MUST do the same.
+
 Enforcement at init: `agentteam init` refuses to scaffold while likely
 secret files are tracked (override: AGENTTEAM_ALLOW_SECRETS=1), and
 installs git hooks: a worker worktree can commit only on its own
@@ -81,6 +87,7 @@ Ledger events (`coord/reports/ledger.jsonl`, one JSON object per line):
 
 ```text
 {"event":"run","ts":…,"task":…,"worker":…,"agent":…,"exit":n,"duration_s":n,
+ "wall_s":n,"suspended":0|1,
  "commits":n,"files":n,"insertions":n,"deletions":n,"uncommitted":n,"wall":0|1}
 {"event":"verify","ts":…,"task":…,"worker":…,"scope":"OK|VIOLATION|UNCHECKED",
  "validate_run":n,"validate_failed":n,"commits":n,"empty":0|1,"verdict":…}

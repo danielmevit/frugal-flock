@@ -73,6 +73,19 @@ ledger_add() { # $1=root  $2=one JSON object — the machine twin of reports/*.m
   printf '%s\n' "$2" >> "$1/coord/reports/ledger.jsonl"
 }
 
+# Seconds on a clock that does NOT advance while the machine is asleep, so a
+# run's duration reflects real working time. `date` (wall clock) keeps counting
+# through a suspend: a laptop that sleeps overnight mid-run reported 38995s for
+# ten minutes of work, which then poisoned the scorecard's averages.
+# /proc/uptime is CLOCK_MONOTONIC on Linux (and freezes with the VM under WSL).
+mono_now() {
+  if [ -r /proc/uptime ]; then
+    awk '{printf "%d\n", $1}' /proc/uptime
+  else
+    date +%s   # no monotonic source: fall back, suspend just goes undetected
+  fi
+}
+
 lock_probe() { # $1=root $2=worker; 0 = worker is free
   local lf="$1/coord/.locks/$2.lock"
   [ -e "$lf" ] || return 0
@@ -366,12 +379,18 @@ cmd_run() {
 
   echo "[$worker <- $agent] running task '$task' (timeout ${TIMEOUT}s), log: $log"
   export TASKFILE="$tf"
-  local rc=0 t0 dur
-  t0=$(date +%s)
+  # NB: 'wall' further down is the quota-wall flag — this clock value is
+  # 'wallsec' so the two never collide.
+  local rc=0 t0 t0w dur wallsec suspended=0
+  t0=$(mono_now); t0w=$(date +%s)
   # headless workers must not read stdin — an agent that does (e.g. codex)
   # would otherwise consume whatever the caller left on stdin and hang/misfire
   ( cd "$wt" && timeout "$TIMEOUT" bash -c "$cmdline" </dev/null ) > "$log" 2>&1 || rc=$?
-  dur=$(( $(date +%s) - t0 ))
+  dur=$(( $(mono_now) - t0 ))          # real working time (excludes suspend)
+  wallsec=$(( $(date +%s) - t0w ))     # elapsed on the wall clock
+  [ "$dur" -lt 0 ] && dur=0            # clock source changed mid-run
+  # a big gap between the two means the machine slept while the run was open
+  [ $(( wallsec - dur )) -gt 60 ] && suspended=1
 
   # receipts for the verdict line + ledger
   local commits files ins dels unc
@@ -384,6 +403,8 @@ cmd_run() {
   {
     echo
     echo "## run $(date -Is) — worker=$worker agent=$agent exit=$rc duration=${dur}s"
+    [ "$suspended" = 1 ] && echo "!! machine slept mid-run: ${wallsec}s wall clock, ${dur}s actually working" \
+                                 "— don't leave background runs open overnight"
     echo
     echo "### git status (branch, staged/unstaged)"
     git -C "$wt" status --porcelain=v1 -b
@@ -416,10 +437,14 @@ cmd_run() {
     fi
   fi
 
-  ledger_add "$root" "$(printf '{"event":"run","ts":"%s","task":"%s","worker":"%s","agent":"%s","exit":%d,"duration_s":%d,"commits":%d,"files":%d,"insertions":%d,"deletions":%d,"uncommitted":%d,"wall":%d}' \
-    "$(date -Is)" "$task" "$worker" "$agent" "$rc" "$dur" "$commits" "$files" "$ins" "$dels" "$unc" "$wall")"
+  ledger_add "$root" "$(printf '{"event":"run","ts":"%s","task":"%s","worker":"%s","agent":"%s","exit":%d,"duration_s":%d,"wall_s":%d,"suspended":%d,"commits":%d,"files":%d,"insertions":%d,"deletions":%d,"uncommitted":%d,"wall":%d}' \
+    "$(date -Is)" "$task" "$worker" "$agent" "$rc" "$dur" "$wallsec" "$suspended" "$commits" "$files" "$ins" "$dels" "$unc" "$wall")"
 
-  echo "exit=$rc duration=${dur}s — report: $report"
+  if [ "$suspended" = 1 ]; then
+    echo "exit=$rc duration=${dur}s (machine slept — ${wallsec}s wall) — report: $report"
+  else
+    echo "exit=$rc duration=${dur}s — report: $report"
+  fi
   if [ "${AGENTTEAM_AUTO_VERIFY:-0}" = "1" ]; then
     exec 9>&-   # release the worker lock so verify can probe it
     cmd_verify "$worker" "$task" || true
@@ -837,16 +862,27 @@ cmd_score() { # fleet scorecard straight from the ledger; myapp = full view
     }
     { e=get($0,"event"); w=get($0,"worker"); if (w=="") next; seen[w]=1 }
     e=="run"    { runs[w]++; if (get($0,"exit")=="0") ok[w]++; else fail[w]++
-                  if (get($0,"wall")=="1") walls[w]++; dur[w]+=get($0,"duration_s") }
+                  if (get($0,"wall")=="1") walls[w]++
+                  # A run the machine slept through has no meaningful duration —
+                  # count it, but keep it out of the average. Ledger entries
+                  # written before suspend-detection carry no flag, so also
+                  # reject implausible durations (> 6h, far beyond any sane
+                  # single run and 6x the default timeout) as clock corruption.
+                  if (get($0,"suspended")=="1" || get($0,"duration_s")+0 > 21600) \
+                       { slept[w]++; anyslept=1 }
+                  else { dur[w]+=get($0,"duration_s"); timed[w]++ } }
     e=="verify" { if (get($0,"verdict")=="PASS") vp[w]++; else vf[w]++ }
     e=="merge"  { merges[w]++ }
     END {
       for (w in seen) {
         vd = sprintf("%d/%d", vp[w], vp[w]+vf[w])
-        ad = (runs[w] ? int(dur[w]/runs[w]) : 0)
-        printf "%d\t  %-14s %5d %4d %5d %6d %8s %7d %7ds\n", \
+        # average over timed runs only; "-" when every run was slept through
+        ad = (timed[w] ? sprintf("%ds", int(dur[w]/timed[w])) : "-")
+        if (slept[w]) ad = ad "*"
+        printf "%d\t  %-14s %5d %4d %5d %6d %8s %7d %8s\n", \
                merges[w], w, runs[w], ok[w], fail[w], walls[w], vd, merges[w], ad
       }
+      if (anyslept) print "0\t  (* avg-dur excludes runs the machine slept through)"
     }' "$lg" | sort -rn | cut -f2-
   echo "  (source: ledger.jsonl — merges are ledger-logged by the post-merge hook;"
   echo "   full scorecard incl. pre-ledger history: myapp $root)"
@@ -1043,6 +1079,9 @@ ST_T1_EOF
     bash -c 'grep -q "worker=mock" ../coord/reports/T1-mock.md'
   st_chk "run event in ledger.jsonl" \
     bash -c 'grep -q "\"event\":\"run\"" ../coord/reports/ledger.jsonl'
+  st_chk "run duration is suspend-aware (wall_s + suspended recorded)" \
+    bash -c 'grep "\"task\":\"T1-mock\"" ../coord/reports/ledger.jsonl | tail -1 \
+             | grep -q "\"wall_s\":[0-9]*,\"suspended\":0"'
   st_chk "verify passes an in-scope task" \
     bash -c '"$0" verify mock T1-mock >/dev/null 2>&1' "$0"
 
@@ -1617,6 +1656,12 @@ Data-source rule: historical analysis MUST read `reports/*.md` (append-only,
 all runs) or `ledger.jsonl` (append-only, machine-readable). `*.log` holds
 only the latest run and MUST NOT be used as history.
 
+Timing rule: `duration_s` is measured on a monotonic clock and therefore
+excludes time the machine spent asleep; `wall_s` is the wall-clock elapsed
+time and `suspended` is 1 when the two diverge by more than a minute. A
+suspended run's elapsed time is meaningless — `agentteam score` excludes it
+from averages, and any other analysis MUST do the same.
+
 Enforcement at init: `agentteam init` refuses to scaffold while likely
 secret files are tracked (override: AGENTTEAM_ALLOW_SECRETS=1), and
 installs git hooks: a worker worktree can commit only on its own
@@ -1651,6 +1696,7 @@ Ledger events (`coord/reports/ledger.jsonl`, one JSON object per line):
 
 ```text
 {"event":"run","ts":…,"task":…,"worker":…,"agent":…,"exit":n,"duration_s":n,
+ "wall_s":n,"suspended":0|1,
  "commits":n,"files":n,"insertions":n,"deletions":n,"uncommitted":n,"wall":0|1}
 {"event":"verify","ts":…,"task":…,"worker":…,"scope":"OK|VIOLATION|UNCHECKED",
  "validate_run":n,"validate_failed":n,"commits":n,"empty":0|1,"verdict":…}

@@ -738,6 +738,12 @@ $ agentteam status      # 1. "running: (none)" — never leave -b runs going
                         #    (stragglers: agentteam kill <task>)
 ```
 
+This one is worth taking literally: a background run left open while the
+machine slept overnight came back ten hours later having errored out. The
+run block and the ledger now flag that case (`suspended`), and `agentteam
+score` keeps such runs out of its averages — but the wasted night is not
+recoverable. Close the books before you close the lid.
+
 Tell the foreman to close the books:
 
 ```text
@@ -1138,7 +1144,7 @@ project's `coord/docs/`); these are the twelve invariants translated:
 | **gate** | Your review-and-merge decision. The only way code enters the base branch. |
 | **headless** | Running non-interactively: one prompt in, work happens, output comes back, the program exits. |
 | **hook** | A small script git runs automatically around actions (commit, push, merge). agentteam installs three guards. |
-| **ledger** | `coord/reports/ledger.jsonl` — machine-readable history: one JSON line per run/verify/review/race/merge. |
+| **ledger** | `coord/reports/ledger.jsonl` — machine-readable history: one JSON line per run/verify/review/race/merge. Run timings are suspend-aware: `duration_s` counts only real working time, `wall_s` is clock time, and `suspended` marks a run the machine slept through. |
 | **lock** | The per-worker "one run at a time" guarantee (`coord/.locks/`). |
 | **merge** | Bringing one branch's commits into another. Yours alone. |
 | **PATH** | The list of folders your terminal searches for programs. |
