@@ -1055,7 +1055,8 @@ Fleet plays:
 | Command | What it does |
 |---|---|
 | `agentteam race <task> <w1> <w2> [...]` | Same task to several workers in parallel; merge exactly one winner. |
-| `agentteam sabotage <w>` | The saboteur seat: sync, then hunt fresh merges with failing tests (SAB-* background task). |
+| `agentteam sabotage [worker]` | The saboteur seat: syncs the worker, then sends it hunting for real bugs in freshly merged work by writing failing tests. Name a worker, or name none and the seat rotates round-robin through your fleet so routine work keeps getting fresh eyes. |
+| `agentteam sabotage --all` | Runs every available vendor as saboteur in turn, one after another (never in parallel — same code, and it keeps quota manageable). Use it when a feature or release is finished: each model finds different defects, and one that two models independently find is almost certainly real. |
 | `agentteam score [project-root]` | Per-worker scorecard from the ledger: runs, ok/fail, walls, verify rate, merges, avg duration. |
 
 Switches:

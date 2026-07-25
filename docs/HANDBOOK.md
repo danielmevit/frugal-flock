@@ -120,7 +120,8 @@ parsing anywhere.
 | `agentteam selftest` | The whole loop — init, run, verify, bench, lock, background + kill, sync, review — rehearsed in a throwaway sandbox with mock agents. Zero quota, ~15 seconds. Run after updating agentteam itself. |
 | `agentteam doctor` | Preflight a project before you dispatch: base branch present, each agent's binary and config line, worktree health (right branch, behind base, uncommitted), stale pidfiles, guard hooks, disk headroom. Catches the misconfigurations that would otherwise waste a run. Exits nonzero on an error. |
 | `agentteam race <task> <w1> <w2> …` | Bake-off: the same task dispatched to several workers in parallel (isolation makes it free). Compare the diffs, merge exactly ONE winner — head-to-head data for the scorecard. |
-| `agentteam sabotage <w>` | The saboteur seat: syncs the worker, then sends it hunting for real bugs in freshly merged work by writing failing tests. Spare quota becomes a standing red team. |
+| `agentteam sabotage [w]` | The saboteur seat: syncs the worker, then sends it hunting for real bugs in freshly merged work by writing failing tests. With no worker named, the seat rotates round-robin through your vendors — a different pair of eyes each time. |
+| `agentteam sabotage --all` | Every available vendor attacks the same code in turn, one after another. For a finished feature or a release: different models find different defects, and a finding two vendors agree on is almost certainly real. |
 | `agentteam score [project-root]` | The fleet scorecard, straight from the ledger: runs, ok/fail, walls, verify pass-rate, merges, average duration — per worker, sorted by merges. Your "who earns their seat" view; `myapp` remains the full product with pre-ledger history. |
 | `agentteam version` | Installed version + config path — check it after every `bash agentteam-install.sh`. |
 | `agentteam stop` / `resume` | Project-wide red button: refuse ALL new runs / release. |

@@ -769,20 +769,92 @@ cmd_race() { # same task to several workers in parallel; merge ONE winner
 }
 
 # -------------------------------------------------------------- sabotage
-cmd_sabotage() { # the saboteur seat: attack fresh merges with failing tests
-  local worker="${1:-}"; [ -n "$worker" ] || die "usage: agentteam sabotage <worker>"
-  check_id "$worker" worker
-  local root; root=$(find_root) || die "not inside an agentteam project"
-  local wt="$root/wt/$worker"; [ -d "$wt" ] || die "no worktree for '$worker' — run: agentteam init $worker"
-  is_off "${worker%%-*}" && die "agent '${worker%%-*}' is OFF"
-  lock_probe "$root" "$worker" || die "worker '$worker' is busy (agentteam status)"
-  [ -f "$TPL_DIR/SABOTEUR.md" ] || die "SABOTEUR.md template missing — rerun the installer"
+sab_available() { # workers that could take the seat right now, alphabetical
+  local root="$1" wt w
+  for wt in "$root"/wt/*/; do
+    [ -d "$wt" ] || continue
+    w=$(basename "$wt")
+    is_off "${w%%-*}" && continue
+    lock_probe "$root" "$w" || continue
+    agent_cmd "${w%%-*}" "$(conf_for_root "$root")" >/dev/null 2>&1 || continue
+    printf '%s\n' "$w"
+  done
+}
+
+sab_next() { # round-robin: the worker after the last one that took the seat
+  local root="$1" last avail first pick=""
+  avail=$(sab_available "$root"); [ -n "$avail" ] || return 1
+  last=$(cat "$root/coord/.saboteur-last" 2>/dev/null || true)
+  first=$(printf '%s\n' "$avail" | head -1)
+  if [ -n "$last" ]; then
+    # first available strictly after $last in the rotation order
+    pick=$(printf '%s\n' "$avail" | awk -v l="$last" '$0 > l {print; exit}')
+  fi
+  printf '%s\n' "${pick:-$first}"
+}
+
+sab_dispatch() { # $1=root $2=worker $3=background? — build the task and run it
+  local root="$1" worker="$2" bg="$3" id
   echo "syncing '$worker' so the saboteur sees the latest merged work:"
   cmd_sync "$worker"
-  local id; id="SAB-$(date +%Y%m%d-%H%M%S)"
+  id="SAB-$(date +%Y%m%d-%H%M%S)"
   sed "s/{{WORKER}}/$worker/g; s/{{ID}}/$id/g" "$TPL_DIR/SABOTEUR.md" > "$root/coord/tasks/$id-$worker.md"
-  "$0" run -b "$worker" "$id-$worker"
-  echo "saboteur dispatched: $id-$worker — findings land in coord/reports/$id-$worker.md"
+  printf '%s\n' "$worker" > "$root/coord/.saboteur-last"
+  if [ "$bg" = 1 ]; then
+    "$0" run -b "$worker" "$id-$worker"
+  else
+    "$0" run "$worker" "$id-$worker" || true
+  fi
+  echo "saboteur: $id-$worker — findings land in coord/reports/$id-$worker.md"
+}
+
+cmd_sweep_saboteurs() { # internal: run the named workers as saboteurs, in turn
+  local root; root=$(find_root) || die "not inside an agentteam project"
+  local sweep="$root/coord/reports/saboteur-sweep.log" w
+  : > "$sweep"
+  for w in "$@"; do
+    echo "=== $(date -Is) saboteur: $w ===" >> "$sweep"
+    # foreground: the next vendor waits for this one to finish
+    sab_dispatch "$root" "$w" 0 >> "$sweep" 2>&1 || true
+  done
+  echo "=== $(date -Is) sweep complete ($# vendors) ===" >> "$sweep"
+}
+
+cmd_sabotage() { # the saboteur seat: attack fresh merges with failing tests
+  local root; root=$(find_root) || die "not inside an agentteam project"
+  [ -f "$TPL_DIR/SABOTEUR.md" ] || die "SABOTEUR.md template missing — rerun the installer"
+
+  # --all: every available vendor in turn, one after another. Different models
+  # find different defects and agreement across them is the strongest signal
+  # a finding is real — worth the quota when a feature or release is done.
+  if [ "${1:-}" = "--all" ]; then
+    local list; list=$(sab_available "$root")
+    [ -n "$list" ] || die "no worker is available for the saboteur seat (all benched or busy)"
+    echo "== saboteur sweep: $(printf '%s' "$list" | wc -l) vendor(s), sequentially =="
+    printf '%s\n' "$list" | sed 's/^/   /'
+    echo "running detached — watch with: agentteam status"
+    echo "progress log: $root/coord/reports/saboteur-sweep.log"
+    # Detach the sweep the same way `run -b` does, so it survives this shell.
+    # The sweep itself runs each vendor in the FOREGROUND, one after another.
+    if command -v setsid >/dev/null 2>&1; then
+      nohup setsid -f "$0" sweep-saboteurs $list >/dev/null 2>&1
+    else
+      nohup "$0" sweep-saboteurs $list >/dev/null 2>&1 &
+    fi
+    return 0
+  fi
+
+  local worker="${1:-}"
+  if [ -z "$worker" ]; then
+    worker=$(sab_next "$root") \
+      || die "no worker is available for the saboteur seat (all benched or busy)"
+    echo "saboteur rotation -> $worker  (override: agentteam sabotage <worker>)"
+  fi
+  check_id "$worker" worker
+  [ -d "$root/wt/$worker" ] || die "no worktree for '$worker' — run: agentteam init $worker"
+  is_off "${worker%%-*}" && die "agent '${worker%%-*}' is OFF"
+  lock_probe "$root" "$worker" || die "worker '$worker' is busy (agentteam status)"
+  sab_dispatch "$root" "$worker" 1
 }
 
 # ------------------------------------------------------------- tail/kill
@@ -1226,6 +1298,15 @@ ST_T5_EOF
   st_chk "AUTO_SYNC clears the stale-branch warning" \
     bash -c 'out=$(AGENTTEAM_AUTO_SYNC=1 "$0" run noop T5-noop 2>&1); printf "%s" "$out" | grep -qi "auto-synced"' "$0"
 
+  # saboteur rotation: no worker named => the seat is assigned round-robin,
+  # and the choice is remembered so the next call moves on to another vendor
+  st_chk "sabotage with no worker picks one by rotation" \
+    bash -c 'out=$("$0" sabotage 2>&1); printf "%s" "$out" | grep -q "saboteur rotation ->" \
+             && [ -s ../coord/.saboteur-last ]' "$0"
+  st_chk "rotation advances to a different vendor next time" \
+    bash -c 'first=$(cat ../coord/.saboteur-last); sleep 1
+             "$0" sabotage >/dev/null 2>&1; [ "$(cat ../coord/.saboteur-last)" != "$first" ]' "$0"
+
   "$0" off slow >/dev/null   # keep smoke from sitting through slow's nap
   st_chk "smoke prints one row per agent" \
     bash -c '[ "$("$0" smoke 2>/dev/null | wc -l)" -ge 5 ]' "$0"
@@ -1285,8 +1366,14 @@ work
 fleet plays
   agentteam race <task> <w1> <w2> [...]  same task to several workers in
                                      parallel — merge exactly one winner
-  agentteam sabotage <w>             saboteur seat: sync, then hunt fresh
-                                     merges with failing tests (SAB-* task)
+  agentteam sabotage [w]             saboteur seat: sync, then hunt fresh
+                                     merges with failing tests (SAB-* task).
+                                     No worker = next vendor in rotation.
+  agentteam sabotage --all           every available vendor in turn, one after
+                                     another — for a finished feature/release.
+                                     Different models find different defects;
+                                     agreement between them is the strongest
+                                     signal a finding is real
   agentteam score [project-root]     fleet scorecard from the ledger: runs,
                                      ok/fail, walls, verify rate, merges,
                                      avg duration — per worker
@@ -1330,6 +1417,7 @@ case "${1:-help}" in
   review)   shift; cmd_review "$@";;
   race)     shift; cmd_race "$@";;
   sabotage) shift; cmd_sabotage "$@";;
+  sweep-saboteurs) shift; cmd_sweep_saboteurs "$@";;
   tail)     shift; cmd_tail "$@";;
   kill)     shift; cmd_kill "$@";;
   selftest) shift; cmd_selftest "$@";;
@@ -1912,7 +2000,8 @@ _agentteam() {
       if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "$workers" -- "$cur") )
       elif [ "$COMP_CWORD" -eq 3 ]; then COMPREPLY=( $(compgen -W "$tasks" -- "$cur") )
       else COMPREPLY=( $(compgen -W "$agents" -- "$cur") ); fi;;
-    diff|sync|sabotage) COMPREPLY=( $(compgen -W "$workers" -- "$cur") );;
+    diff|sync) COMPREPLY=( $(compgen -W "$workers" -- "$cur") );;
+    sabotage)  COMPREPLY=( $(compgen -W "--all $workers" -- "$cur") );;
     race)
       if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "$tasks" -- "$cur") )
       else COMPREPLY=( $(compgen -W "$workers" -- "$cur") ); fi;;
