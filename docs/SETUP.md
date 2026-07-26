@@ -62,8 +62,10 @@ read the task .log first.
 CodeGraph (your standard): wire agents once per the playbook —
 `codegraph install -t claude,codex,opencode,antigravity`. Grok has no
 CodeGraph target; it uses shell `codegraph explore "..."` (the worker card
-says so). `agentteam init` runs `codegraph init` in every new worktree
-automatically when the binary is present.
+says so). `agentteam init` indexes a new worktree only when your clone is
+itself indexed (there is a `.codegraph/` in `repo/`), and it does that in the
+background, time-boxed by `AGENTTEAM_CG_INDEX_TIMEOUT` (default 600s). An
+unindexed repo stays unindexed — that is your call, not the tool's.
 
 ## 3. Set up a project
 
@@ -93,7 +95,7 @@ myproj/
 │   └── MASTER.md  #   symlinked as CLAUDE.md / AGENTS.md / GEMINI.md
 ├── wt/
 │   ├── codex/     # worktree, branch agent/codex (forked from dev), WORKER.md
-│   ├── antigravity/ # ... same per worker; codegraph init auto-run
+│   ├── antigravity/ # ... same per worker; bg-indexed if repo/ is indexed
 │   ├── opencode/
 │   └── grok/
 └── coord/

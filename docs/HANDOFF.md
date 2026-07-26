@@ -61,7 +61,7 @@ has caught a real regression.
 ```bash
 bash -n agentteam-install.sh          # 1. syntax
 bash agentteam-install.sh             # 2. install (never touches your agents.conf)
-agentteam selftest                    # 3. 37 checks, mock agents, ZERO quota
+agentteam selftest                    # 3. 40 checks, mock agents, ZERO quota
 bash tests/agentteam-probes.sh        # 4. 14 adversarial probes, ZERO quota
 ./tools/check-docs.sh                 # 5. docs lint (+ --selftest for the linter)
 shellcheck -S warning <extracted bin> # 6. keep it at 0 warnings
@@ -121,6 +121,12 @@ new code:
   sleep: a ten-minute run logged 38995s and poisoned the scorecard. Timings use a
   monotonic clock; `wall_s` and `suspended` are recorded, and `score` excludes slept-through
   runs.
+- **An optional accelerator on the critical path is an outage.** `init` built a CodeGraph
+  index inline in each new worktree with its output on `/dev/null`, so six workers meant
+  minutes of apparent hang, a stray indexer daemon each, and one dispatch that silently
+  never fired. Work that only makes things *faster* must be detached, time-boxed, and
+  skipped when the owner never asked for it — a repo with no `.codegraph/` is a decision,
+  not an omission.
 
 ## 6. The vendor fleet, accounts and quota
 
@@ -163,12 +169,9 @@ agent (`agentteam off <a> 30m`), reroute the seat, carry on.
 
 ## 8. Current state and open threads
 
-- v0.3.x installed; **selftest 37 green, probes 14/14 held, shellcheck 0, docs lint clean.**
+- v0.3.x installed; **selftest 40 green, probes 14/14 held, shellcheck 0, docs lint clean.**
 - `repos` (`D:\Vibe Coding\_vm\projects`) is the reference project built with it — see its
   own `HANDOFF.md`.
-- Known-not-done: `agentteam init <worker>` blocks for minutes because it runs
-  `codegraph init` synchronously per worktree — it should background that or skip it when
-  there is no code index. This caused a dispatch to silently never fire.
 - `myapp` (the scorecard, separate repo) still parses `reports/*.md`; migrating it to read
   `ledger.jsonl` is the natural next real task.
 

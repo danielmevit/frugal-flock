@@ -29,6 +29,7 @@ CONF_FILE="$CONF_DIR/agents.conf"
 TPL_DIR="$CONF_DIR/templates"
 OFF_DIR="$CONF_DIR/off"
 TIMEOUT="${AGENTTEAM_TIMEOUT:-3600}"
+CG_INDEX_TIMEOUT="${AGENTTEAM_CG_INDEX_TIMEOUT:-600}"
 LIMIT_RE='rate.?limit|usage limit|limit (reached|exceeded)|quota|too many requests|resets (at|in)'
 
 die() { echo "agentteam: $*" >&2; exit 1; }
@@ -90,6 +91,19 @@ mono_now() {
     awk '{printf "%d\n", $1}' /proc/uptime
   else
     date +%s   # no monotonic source: fall back, suspend just goes undetected
+  fi
+}
+
+cg_index_bg() { # $1=worktree — build a CodeGraph index, detached and time-boxed
+  # Never blocks the caller. Inline, this cost ~7s per worktree on a /mnt/
+  # drive and left a daemon (5-min idle timeout) behind each time, so `init`
+  # looked hung with its output on /dev/null. The index is an accelerator, not
+  # a correctness requirement: if it is slow, stuck, or absent, agents grep.
+  local body='cd "$1" || exit 0; exec timeout "$2" codegraph init'
+  if command -v setsid >/dev/null 2>&1; then
+    nohup setsid -f sh -c "$body" _ "$1" "$CG_INDEX_TIMEOUT" >/dev/null 2>&1 </dev/null || true
+  else
+    nohup sh -c "$body" _ "$1" "$CG_INDEX_TIMEOUT" >/dev/null 2>&1 </dev/null &
   fi
 }
 
@@ -304,7 +318,7 @@ HOOK_MERGE_EOF
   done
 
   # worker worktrees + role cards (+ CodeGraph index per worktree if present)
-  local w agent conf
+  local w agent conf cg_bg=0
   conf=$(conf_for_root "$root")
   for w in "${workers[@]}"; do
     if [ ! -d "$root/wt/$w" ]; then
@@ -324,8 +338,12 @@ HOOK_MERGE_EOF
         ln -sfn WORKER.md "$root/wt/$w/$name"
       fi
     done
-    if command -v codegraph >/dev/null 2>&1; then
-      (cd "$root/wt/$w" && codegraph init >/dev/null 2>&1) || true
+    # Index only when the OWNER has indexed this repo (a .codegraph/ in repo/).
+    # Indexing a project someone deliberately left unindexed is their decision
+    # to make, not ours — that is how six worktrees of an unindexed repo each
+    # grew a multi-megabyte database nobody asked for.
+    if [ -d "$main_dir/.codegraph" ] && command -v codegraph >/dev/null 2>&1; then
+      cg_index_bg "$root/wt/$w"; cg_bg=1
     fi
     agent="${w%%-*}"
     agent_cmd "$agent" "$conf" >/dev/null \
@@ -337,6 +355,9 @@ HOOK_MERGE_EOF
   echo "master       : $main_dir  (open your master CLI here)"
   echo "workers      : ${workers[*]}"
   echo "guard hooks  : worker worktrees commit only on agent/<w>, never push"
+  if [ "$cg_bg" = "1" ]; then
+    echo "codegraph    : indexing worktrees in the background (repo/ is indexed)"
+  fi
   echo "playbooks    : drop your operational .md files into $root/coord/docs/"
   echo "next         : agentteam agents"
 }
@@ -1173,6 +1194,49 @@ st_chk() { # <description> <command...> — count and print one check
   else ST_FAIL=$((ST_FAIL+1)); printf '  FAIL  %s\n' "$d"; fi
 }
 
+# One CodeGraph scenario, driven by a stand-in `codegraph` that logs its calls
+# and then hangs like a real slow index. Indexing is an accelerator, never a
+# correctness requirement, so all three rules below are about staying out of the
+# way: skip repos the owner left unindexed, detach, and time-box.
+st_cg_case() { # $1=case dir  $2=skip|background|timebox
+  local d="$1" mode="$2" out rc pid CG_LOG
+  mkdir -p "$d/bin" "$d/p" || return 1
+  cat > "$d/bin/codegraph" <<'ST_CG_EOF'
+#!/bin/sh
+printf 'call %s %s\n' "$$" "$PWD" >> "$CG_LOG"
+mkdir -p .codegraph
+sleep 45
+printf 'done %s\n' "$PWD" >> "$CG_LOG"
+ST_CG_EOF
+  chmod +x "$d/bin/codegraph" || return 1
+  git init -q -b dev "$d/p/repo" || return 1
+  git -C "$d/p/repo" -c user.email=selftest@agentteam.local \
+      -c user.name=agentteam-selftest commit -q --allow-empty -m init || return 1
+  [ "$mode" = skip ] || mkdir -p "$d/p/repo/.codegraph"
+
+  CG_LOG="$d/calls"; : > "$CG_LOG"
+  # The cap is ~10x an ordinary init, and the fake index hangs for 45s: an
+  # inline call cannot come in under it, which is what makes rc the assertion.
+  out=$(cd "$d/p/repo" && CG_LOG="$CG_LOG" PATH="$d/bin:$PATH" \
+        AGENTTEAM_CG_INDEX_TIMEOUT=2 timeout 20 "$0" init mock 2>&1); rc=$?
+  [ "$rc" -eq 0 ] || return 1
+
+  case "$mode" in
+    skip)      sleep 1
+               [ ! -s "$CG_LOG" ] && [ ! -d "$d/p/wt/mock/.codegraph" ] \
+                 && ! printf '%s' "$out" | grep -qi codegraph ;;
+    background) grep -q '^call ' "$CG_LOG" \
+                 && printf '%s' "$out" | grep -qi 'codegraph.*background' ;;
+    timebox)   # the indexer must be gone, not merely quiet: waiting for the
+               # 45s fake to finish would "pass" with no time-box at all
+               sleep 5
+               pid=$(awk '/^call /{print $2; exit}' "$CG_LOG")
+               [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null \
+                 && ! grep -q '^done ' "$CG_LOG" ;;
+    *)         return 1 ;;
+  esac
+}
+
 cmd_selftest() { # the whole loop, rehearsed with mock agents — zero quota
   local b missing=""
   for b in git flock awk timeout; do
@@ -1376,6 +1440,15 @@ ST_T5_EOF
     bash -c 'd=$(mktemp -d); git init -q -b dev "$d/r"; cd "$d/r";
              out=$("$0" init mock 2>&1); rc=$?; cd /; rm -rf "$d";
              [ "$rc" -ne 0 ] && printf "%s" "$out" | grep -qi "no commits"' "$0"
+  # CodeGraph used to be indexed inline, per worktree: `init` sat there for
+  # minutes with its output on /dev/null and a dispatch silently never fired.
+  st_chk "init skips CodeGraph when the repo is not indexed" \
+    st_cg_case "$ST/cg-skip" skip
+  st_chk "init detaches CodeGraph indexing instead of blocking" \
+    st_cg_case "$ST/cg-bg" background
+  st_chk "a hung CodeGraph index is killed by its own timeout" \
+    st_cg_case "$ST/cg-timebox" timebox
+
   st_chk "doctor runs and prints a verdict" \
     bash -c '"$0" doctor 2>/dev/null | grep -q "^doctor:"' "$0"
   st_chk "run warns when a worker is behind base (noop lagged the T1 merge)" \
