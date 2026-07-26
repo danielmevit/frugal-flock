@@ -158,6 +158,13 @@ agent (`agentteam off <a> 30m`), reroute the seat, carry on.
   `## Allowed scope`, and every `$ command` line under `## Validate`. Write them precisely
   or the gate cannot help you.
 - **Never leave background runs open overnight** — a sleeping host suspends them.
+- **Merge a task before stacking a follow-up on the same worker.** `verify` scope-checks
+  the worker's whole branch against base, because that whole diff is what a merge will
+  land. So a second task dispatched to a worker whose first task is still unmerged is
+  judged against the *union* of both scopes and reports VIOLATION for files the follow-up
+  never touched. Either merge first, or write the follow-up's `## Allowed scope` as the
+  union. The verdict is not wrong, but it reads as the worker's fault when it is the
+  dispatcher's.
 - **Saboteur rotation is the quality loop.** `agentteam sabotage` (no worker) rotates the
   seat; `sabotage --all` runs every vendor for a finished feature. Saboteurs *can* run in
   parallel safely (isolated worktrees) — `--all` is sequential only to protect quota. A
