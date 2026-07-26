@@ -415,6 +415,30 @@ $ test -f tests/a.txt'
   NOTE="run refuses to start while a verify is in flight"; return 0
 }
 
+# --- F11: the gate's yardstick is writable by the gated party ---------
+# verify scope-checks the diff against the task file's "- path" lines —
+# but coord/ is not a git repo and nothing protects the task file, so a
+# worker that commits out-of-scope work can edit its own task file to
+# widen the scope retroactively. verify then launders the violation into
+# a PASS, and the edit leaves no trace anywhere.
+p_verify_launders_worker_scope_rewrite() {
+  sb_boot; sb_repo "$SB/proj/repo"; sb_init mock || return 2
+  sb_conf <<'EOF'
+mock=bash -c 'set -e; echo rogue > forbidden.txt; git add forbidden.txt; git commit -qm "T: rogue"; sed -i "s/^- tests\/$/- tests\/\n- forbidden.txt/" "$TASKFILE"; echo done'
+EOF
+  sb_task T-launder "- tests/" '$ true'
+  at run mock T-launder >/dev/null 2>&1
+  local out rc=0 committed=1
+  out=$(at verify mock T-launder 2>&1) || rc=$?
+  git -C "$ROOT/wt/mock" ls-tree -r --name-only HEAD | grep -qx 'forbidden.txt' || committed=0
+  if [ "$rc" -eq 0 ] && [ "$committed" = 1 ]; then
+    NOTE="worker committed out-of-scope forbidden.txt, then appended '- forbidden.txt' to its own task file — verify PASSes the doctored scope"
+    PROMISE="PROTOCOL §2 — coord/tasks write access is 'LEAD only'; GUIDEBOOK §7.4 — verdict is PASS 'only if scope is not violated': the gate's yardstick is writable by the gated party, undetectably"
+    return 1
+  fi
+  NOTE="verify does not trust a worker-edited task file (rc=$rc)"; return 0
+}
+
 # =====================================================================
 probe control-basic-loop                 p_control_basic_loop                 "control: ordinary run + verify works"
 probe verify-validate-stdin-swallow      p_verify_validate_stdin_swallow      "a '\$ ' line reading stdin swallows the remaining Validate lines"
@@ -427,6 +451,7 @@ probe guard-hooks-misfire-linked-worktree-repo p_guard_hooks_misfire_linked_work
 probe worker-can-rewrite-base-branch     p_worker_can_rewrite_base_branch     "git update-ref from a worktree moves the base; nothing notices"
 probe kill-trusts-pidfile-blindly        p_kill_trusts_pidfile_blindly        "kill signals whatever session holds the recorded pid"
 probe run-during-verify-not-refused      p_run_not_refused_during_verify      "run starts while a verify is mid-Validate on the same worker"
+probe verify-launders-worker-scope-rewrite p_verify_launders_worker_scope_rewrite "worker widens its own task scope post-run; verify PASSes the doctored scope"
 probe control-worker-lock                p_control_worker_lock                "control: per-worker lock refuses a concurrent run"
 probe control-id-escape                  p_control_id_escape                  "control: ../-style task/worker ids are refused"
 
