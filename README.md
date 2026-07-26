@@ -9,6 +9,7 @@ Antigravity, Grok, OpenCode) on an Ubuntu VM. Subscription logins only.
 ## Documents
 | File | For | What |
 |---|---|---|
+| docs/HANDOFF.md | me + AIs | **Taking over the project** — what to edit, the change loop, the bug classes found, accounts/quota, handoff prompt |
 | docs/GUIDEBOOK.md | me (+ beginners) | **The complete manual** — every feature, step-by-step usage, full troubleshooting, glossary. Word copy: `docs/GUIDEBOOK.docx`, regenerate with `./tools/make-docx.sh` |
 | docs/HANDBOOK.md | me | Daily operations, all commands, real worked example |
 | docs/EXAMPLE.md | me | Replayable tour of every feature (`bash examples/demo.sh /tmp/agentteam-demo`) |
