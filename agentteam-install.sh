@@ -42,6 +42,13 @@ check_id() { # $1=value $2=what it is
     -*)           die "$2 name must not start with '-': '$1'";;
     *..*)         die "$2 name must not contain '..': '$1'";;
   esac
+  # A newline (or any control character) lets an id smuggle extra lines into
+  # the append-only ledger — a task id containing one forged a whole `merge`
+  # event and credited a worker that never existed. Keep ids to printable,
+  # non-whitespace characters.
+  case "$1" in
+    *[[:cntrl:][:space:]]*) die "$2 name must not contain whitespace or control characters";;
+  esac
 }
 
 find_root() {
@@ -92,6 +99,10 @@ lock_probe() { # $1=root $2=worker; 0 = worker is free
   ( exec 9>>"$lf"; flock -n 9 ) 2>/dev/null
 }
 
+task_sha() { # fingerprint a task file so tampering between run and verify shows
+  sha256sum "$1" 2>/dev/null | cut -c1-16 || echo unknown
+}
+
 task_section() { # $1=task file  $2=section title (text after "## ")
   awk -v s="$2" '/^## /{f=(substr($0,4)==s); next} f' "$1"
 }
@@ -134,6 +145,7 @@ off_desc() {
 
 cmd_off() {
   local agent="${1:-}"; [ -n "$agent" ] || die "usage: agentteam off <agent> [30m|5h|7d]"
+  check_id "$agent" agent   # the name addresses a file under OFF_DIR
   mkdir -p "$OFF_DIR"
   if [ -n "${2:-}" ]; then
     local secs; secs=$(parse_dur "$2") || die "bad duration '$2' (30m / 5h / 7d)"
@@ -146,6 +158,7 @@ cmd_off() {
 
 cmd_on() {
   local a="${1:-}"; [ -n "$a" ] || die "usage: agentteam on <agent>"
+  check_id "$a" agent       # without this, `on ../../x` is an rm -f primitive
   rm -f "$OFF_DIR/$a"; echo "agent '$a' ON"
 }
 
@@ -207,16 +220,14 @@ cmd_init() {
     cat > "$hooks/pre-commit" <<'HOOK_COMMIT_EOF'
 #!/bin/sh
 # agentteam guard — inside a worker worktree, commit only on agent/<worker>
-gd=$(git rev-parse --git-dir 2>/dev/null) || exit 0
-case "$gd" in
-  */worktrees/*)
-    w=${gd##*/worktrees/}; w=${w%%/*}
-    b=$(git rev-parse --abbrev-ref HEAD)
-    if [ "$b" != "agent/$w" ]; then
-      echo "agentteam guard: worker '$w' must commit on agent/$w (currently on: $b)" >&2
-      exit 1
-    fi;;
-esac
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$top/.agentteam-worker" ] || exit 0        # not a worker worktree: owner, allow
+w=$(cat "$top/.agentteam-worker")
+b=$(git rev-parse --abbrev-ref HEAD)
+if [ "$b" != "agent/$w" ]; then
+  echo "agentteam guard: worker '$w' must commit on agent/$w (currently on: $b)" >&2
+  exit 1
+fi
 HOOK_COMMIT_EOF
     chmod +x "$hooks/pre-commit"
   fi
@@ -226,24 +237,50 @@ HOOK_COMMIT_EOF
     cat > "$hooks/pre-push" <<'HOOK_PUSH_EOF'
 #!/bin/sh
 # agentteam guard — workers never push; the owner pushes from repo/
-gd=$(git rev-parse --git-dir 2>/dev/null) || exit 0
-case "$gd" in
-  */worktrees/*)
-    echo "agentteam guard: workers do not push (owner pushes from repo/)" >&2
-    exit 1;;
-esac
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+if [ -f "$top/.agentteam-worker" ]; then
+  echo "agentteam guard: workers do not push (owner pushes from repo/)" >&2
+  exit 1
+fi
 HOOK_PUSH_EOF
     chmod +x "$hooks/pre-push"
   fi
+  # pre-commit and pre-push cannot see `git update-ref`, so a worker could move
+  # the base branch straight from its worktree with nothing noticing. The
+  # reference-transaction hook fires on EVERY ref change, which closes that.
+  if [ -f "$hooks/reference-transaction" ] && ! grep -q 'agentteam guard' "$hooks/reference-transaction"; then
+    echo "note: existing reference-transaction hook left untouched — base-branch guard NOT installed" >&2
+  else
+    cat > "$hooks/reference-transaction" <<'HOOK_REFTX_EOF'
+#!/bin/sh
+# agentteam guard — a worker worktree may only move its own agent/<w> ref
+[ "$1" = "prepared" ] || exit 0
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$top/.agentteam-worker" ] || exit 0        # owner: allow
+w=$(cat "$top/.agentteam-worker")
+root=$(dirname "$(dirname "$top")")
+base=$(cat "$root/coord/base" 2>/dev/null || echo main)
+while read -r _old _new ref; do
+  case "$ref" in
+    "refs/heads/agent/$w"|refs/stash|refs/notes/*) ;;
+    "refs/heads/$base"|refs/heads/main|refs/remotes/*)
+      echo "agentteam guard: worker '$w' may not move $ref" >&2
+      exit 1;;
+  esac
+done
+HOOK_REFTX_EOF
+    chmod +x "$hooks/reference-transaction"
+  fi
+
   if [ -f "$hooks/post-merge" ] && ! grep -q 'agentteam guard' "$hooks/post-merge"; then
     echo "note: existing post-merge hook left untouched — merges will not be ledger-logged" >&2
   else
     cat > "$hooks/post-merge" <<'HOOK_MERGE_EOF'
 #!/bin/sh
 # agentteam guard — record every merge into the base branch as a ledger event
-gd=$(git rev-parse --git-dir 2>/dev/null) || exit 0
-case "$gd" in */worktrees/*) exit 0;; esac
-root=$(dirname "$(git rev-parse --show-toplevel)")
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$top/.agentteam-worker" ] && exit 0        # a worker's merge is not an owner merge
+root=$(dirname "$top")
 [ -d "$root/coord/reports" ] || exit 0
 p2=$(git rev-parse -q --verify HEAD^2 2>/dev/null) || exit 0
 w=$(git for-each-ref 'refs/heads/agent/*' --points-at "$p2" --format='%(refname:short)' 2>/dev/null | head -1)
@@ -275,6 +312,11 @@ HOOK_MERGE_EOF
         || git -C "$main_dir" worktree add "$root/wt/$w" "agent/$w" >/dev/null
     fi
     sed "s/{{WORKER}}/$w/g" "$TPL_DIR/WORKER.md" > "$root/wt/$w/WORKER.md"
+    # Identify a worker worktree by a marker file rather than by guessing from
+    # the git dir path: when repo/ is ITSELF a linked worktree, the path guess
+    # misfired and blocked the owner's own commits.
+    printf '%s\n' "$w" > "$root/wt/$w/.agentteam-worker"
+    grep -qxF '.agentteam-worker' "$excl" 2>/dev/null || echo '.agentteam-worker' >> "$excl"
     for name in CLAUDE.md AGENTS.md GEMINI.md; do
       if [ -e "$root/wt/$w/$name" ] && [ ! -L "$root/wt/$w/$name" ]; then
         echo "note: $root/wt/$w/$name exists — add 'Also read and follow WORKER.md.' to it" >&2
@@ -378,6 +420,10 @@ cmd_run() {
   fi
 
   echo "[$worker <- $agent] running task '$task' (timeout ${TIMEOUT}s), log: $log"
+  # Fingerprint the orders BEFORE the agent starts: a worker that rewrites its
+  # own task file mid-run would otherwise have the doctored version recorded,
+  # and verify would compare the tampered file against itself.
+  local task_fp; task_fp=$(task_sha "$tf")
   export TASKFILE="$tf"
   # NB: 'wall' further down is the quota-wall flag — this clock value is
   # 'wallsec' so the two never collide.
@@ -402,7 +448,7 @@ cmd_run() {
 
   {
     echo
-    echo "## run $(date -Is) — worker=$worker agent=$agent exit=$rc duration=${dur}s"
+    echo "## run $(date -Is) — worker=$worker agent=$agent exit=$rc duration=${dur}s task_sha=$task_fp"
     [ "$suspended" = 1 ] && echo "!! machine slept mid-run: ${wallsec}s wall clock, ${dur}s actually working" \
                                  "— don't leave background runs open overnight"
     echo
@@ -464,12 +510,38 @@ cmd_verify() {
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
   local wt="$root/wt/$worker";           [ -d "$wt" ] || die "no worktree: $wt"
-  lock_probe "$root" "$worker" || die "worker '$worker' is mid-run — verify when it finishes"
+  # Hold the worker's lock for the whole check, don't just probe it: probing
+  # left the exclusion one-sided, so a run could start while verify was still
+  # part-way through the Validate commands and the verdict would describe a
+  # worktree that had already moved.
+  mkdir -p "$root/coord/.locks"
+  exec 9>>"$root/coord/.locks/$worker.lock"
+  flock -n 9 || die "worker '$worker' is mid-run — verify when it finishes"
   local base; base=$(get_base "$root")
 
+  # Fail closed on a base that isn't there. Errors used to be swallowed, so a
+  # single stale word in coord/base made the committed diff invisible and the
+  # gate reported PASS with no evidence at all.
+  git -C "$wt" rev-parse -q --verify "$base" >/dev/null 2>&1 \
+    || die "base branch '$base' does not exist — verify cannot judge anything against it (fix coord/base)"
+
+  # PROTOCOL §2 makes coord/tasks LEAD-only, but nothing physically stops a
+  # worker rewriting its own orders. Compare the task file against the sha
+  # recorded when it was dispatched: if the yardstick moved, the verdict is
+  # meaningless, so fail closed.
+  local tampered=0 run_sha cur_sha
+  run_sha=$(grep -o 'task_sha=[0-9a-f]*' "$root/coord/reports/$task.md" 2>/dev/null | tail -1 | cut -d= -f2)
+  cur_sha=$(task_sha "$tf")
+  [ -n "$run_sha" ] && [ "$run_sha" != "$cur_sha" ] && tampered=1
+
   local changed commits
-  changed=$( { git -C "$wt" diff --name-only "$base...HEAD" 2>/dev/null || true;
-               git -C "$wt" status --porcelain=v1 2>/dev/null | cut -c4- | sed 's/.* -> //; s:/$::'; } | sort -u )
+  # --no-renames so a rename is seen as delete+add and BOTH paths get scoped:
+  # otherwise `git mv out-of-scope in-scope` laundered files past the gate.
+  # core.quotePath=false so non-ASCII paths aren't C-quoted into a false
+  # VIOLATION. Renames in porcelain output are split onto two lines.
+  changed=$( { git -C "$wt" -c core.quotePath=false diff --name-only --no-renames "$base...HEAD" 2>/dev/null || true;
+               git -C "$wt" -c core.quotePath=false status --porcelain=v1 2>/dev/null \
+                 | cut -c4- | sed 's/ -> /\n/; s:/$::'; } | sort -u )
   commits=$(git -C "$wt" rev-list --count "$base..HEAD" 2>/dev/null || echo 0)
 
   # scope: every "- path" line under "## Allowed scope" is an enforced pattern
@@ -496,7 +568,11 @@ cmd_verify() {
     cmd="${line#\$ }"
     vrun=$((vrun+1))
     rc=0
-    out=$( cd "$wt" && timeout "${AGENTTEAM_VERIFY_TIMEOUT:-900}" bash -c "$cmd" 2>&1 ) || rc=$?
+    # </dev/null is load-bearing: this loop reads the task file on stdin, so a
+    # Validate command that reads stdin (a bare `cat`, an interactive tool)
+    # swallowed the REMAINING "$ " lines and the gate reported them as passed.
+    # cmd_smoke has carried this guard for the same reason since day one.
+    out=$( cd "$wt" && timeout "${AGENTTEAM_VERIFY_TIMEOUT:-900}" bash -c "$cmd" </dev/null 2>&1 ) || rc=$?
     if [ "$rc" -eq 0 ]; then
       vout="${vout}  PASS  \$ $cmd"$'\n'
     else
@@ -509,7 +585,7 @@ cmd_verify() {
   [ "$commits" -eq 0 ] && [ -z "$changed" ] && empty=1
 
   local verdict="PASS" ret=0
-  if [ "$scope" = "VIOLATION" ] || [ "$vfail" -gt 0 ] || [ "$empty" = 1 ]; then verdict="FAIL"; ret=1; fi
+  if [ "$scope" = "VIOLATION" ] || [ "$vfail" -gt 0 ] || [ "$empty" = 1 ] || [ "$tampered" = 1 ]; then verdict="FAIL"; ret=1; fi
 
   local pcount; pcount=$(printf '%s\n' "$changed" | grep -c .) || true
   echo "== verify $worker / $task =="
@@ -522,17 +598,19 @@ cmd_verify() {
   else echo "validate : $((vrun-vfail))/$vrun passed"; printf '%s' "$vout"; fi
   echo "changes  : commits=$commits, paths touched=$pcount"
   [ "$empty" = 1 ] && echo "!! EMPTY — no commits and no uncommitted changes: no-op or overclaim"
+  [ "$tampered" = 1 ] && echo "!! TAMPERED — the task file changed after the run; the scope enforced here is not the scope that was dispatched"
   echo "verdict  : $verdict"
 
   {
     echo
     echo "### verify $(date -Is) — worker=$worker scope=$scope validate=$((vrun-vfail))/$vrun empty=$empty verdict=$verdict"
+    [ "$tampered" = 1 ] && echo "!! task file changed since the run — the scope being enforced is not the scope that was dispatched"
     [ -n "$viol" ] && { echo "out-of-scope:"; printf '%s' "$viol" | sed 's/^/  /'; }
     [ -n "$vout" ] && printf '%s' "$vout"
   } >> "$root/coord/reports/$task.md"
 
-  ledger_add "$root" "$(printf '{"event":"verify","ts":"%s","task":"%s","worker":"%s","scope":"%s","validate_run":%d,"validate_failed":%d,"commits":%d,"empty":%d,"verdict":"%s"}' \
-    "$(date -Is)" "$task" "$worker" "$scope" "$vrun" "$vfail" "$commits" "$empty" "$verdict")"
+  ledger_add "$root" "$(printf '{"event":"verify","ts":"%s","task":"%s","worker":"%s","scope":"%s","validate_run":%d,"validate_failed":%d,"commits":%d,"empty":%d,"tampered":%d,"verdict":"%s"}' \
+    "$(date -Is)" "$task" "$worker" "$scope" "$vrun" "$vfail" "$commits" "$empty" "$tampered" "$verdict")"
 
   return "$ret"
 }
@@ -882,6 +960,13 @@ cmd_kill() {
   if [ -z "$pid" ]; then rm -f "$pf"; die "empty pidfile removed — nothing to kill"; fi
   # background runs are session leaders (setsid); kill the SESSION — a plain
   # group-kill misses the agent because `timeout` runs it in its own group
+  # A recorded pid is not proof of identity: after a SIGKILLed run the OS can
+  # reuse it, and `kill` would then take out an innocent process. Confirm the
+  # session really is an agentteam run before signalling it.
+  if [ -r "/proc/$pid/cmdline" ] && ! tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q 'agentteam'; then
+    rm -f "$pf"
+    die "pid $pid is not an agentteam run (stale pidfile removed) — refusing to signal it"
+  fi
   if pgrep -s "$pid" >/dev/null 2>&1; then
     pkill -TERM -s "$pid" 2>/dev/null || true
     sleep 1

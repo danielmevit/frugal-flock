@@ -269,7 +269,10 @@ EOF
   sb_task "$evil" "- hello.txt" ''
   local rc=0
   at run mock "$evil" >/dev/null 2>&1 || rc=$?
-  [ "$rc" -eq 0 ] || { NOTE="HARNESS SUSPECT: run with crafted id failed (rc=$rc)"; return 1; }
+  # Refusing the crafted id outright is the correct outcome, not a harness
+  # fault: check_id rejects whitespace/control characters in ids, so the
+  # forgery never gets a chance to reach the ledger.
+  [ "$rc" -eq 0 ] || { NOTE="crafted task id refused before it could reach the ledger (rc=$rc)"; return 0; }
   # NB: no `score | grep -q` pipeline here — under pipefail, grep -q's early
   # exit SIGPIPEs the producer and flips the result.
   local srow
