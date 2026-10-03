@@ -1,4 +1,4 @@
-# agentteam — your 5-CLI team on one Ubuntu VM
+# Frugal Flock — your 5-CLI team on one Ubuntu VM
 
 One master CLI session (default: Claude Code) delegates coding tasks to
 worker CLI agents (Codex, Antigravity, OpenCode, Grok Build), each
@@ -17,7 +17,7 @@ same day — sources at the bottom.
 
 - **One agent = one line** in `agents.conf`. Add, remove, or re-tune agents
   without touching anything else.
-- **One switch per agent**: `agentteam off codex 5h` when it burns its
+- **One switch per agent**: `frugal-flock off codex 5h` when it burns its
   5-hour window, `off codex 7d` for a weekly cap, `on codex` to re-enable.
   Expiries clear themselves; the master reroutes around OFF agents.
 - **Master is whoever you launch** in the repo dir — the role card is
@@ -28,11 +28,11 @@ same day — sources at the bottom.
 ## 1. Install (once, on the VM)
 
 ```bash
-bash agentteam-install.sh
+bash frugal-flock-install.sh
 # ~/.local/bin must be on PATH (Ubuntu default; otherwise:)
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
-agentteam selftest       # rehearse the whole loop with mock agents — no quota
-agentteam version        # confirm what's installed
+frugal-flock selftest       # rehearse the whole loop with mock agents — no quota
+frugal-flock version        # confirm what's installed
 ```
 
 Tab-completion (commands, workers, tasks, agents) installs automatically;
@@ -62,7 +62,7 @@ read the task .log first.
 CodeGraph (your standard): wire agents once per the playbook —
 `codegraph install -t claude,codex,opencode,antigravity`. Grok has no
 CodeGraph target; it uses shell `codegraph explore "..."` (the worker card
-says so). `agentteam init` indexes a new worktree only when your clone is
+says so). `frugal-flock init` indexes a new worktree only when your clone is
 itself indexed (there is a `.codegraph/` in `repo/`), and it does that in the
 background, time-boxed by `AGENTTEAM_CG_INDEX_TIMEOUT` (default 600s). An
 unindexed repo stays unindexed — that is your call, not the tool's.
@@ -73,7 +73,7 @@ One command does the whole recipe below (clone → dev → init → playbooks
 from `~/.config/agentteam/playbooks/`):
 
 ```bash
-cd ~/code && agentteam new <repo-url> myproj
+cd ~/code && frugal-flock new <repo-url> myproj
 ```
 
 Or step by step:
@@ -82,8 +82,8 @@ Or step by step:
 cd ~/code && mkdir myproj && cd myproj
 git clone <your-repo-url> repo && cd repo
 git checkout dev                       # your model: dev = work, main = releases
-agentteam init codex antigravity opencode grok
-agentteam agents                       # every row: OK + on
+frugal-flock init codex antigravity opencode grok
+frugal-flock agents                       # every row: OK + on
 cp ~/path/to/ai-*.md ../coord/docs/    # your playbooks -> master's reading ritual
 ```
 
@@ -111,7 +111,7 @@ Role cards and `.codegraph/` are excluded via `.git/info/exclude` — the repo
 stays clean. If the repo already has its own AGENTS.md router (your standard
 setup), init does NOT overwrite it; it tells you to add one line: "Also read
 and follow MASTER.md." Workers are likewise told to follow the repo's
-AGENTS.md reading ritual, with agentteam boundaries taking precedence.
+AGENTS.md reading ritual, with Frugal Flock boundaries taking precedence.
 
 ## 4. Run a cycle
 
@@ -124,26 +124,26 @@ First prompt to the master:
 
 ```text
 Read MASTER.md and the playbooks in ../coord/docs/. I want: <feature/fix>.
-Check agentteam agents, propose a task breakdown, and wait for my "go"
+Check frugal-flock agents, propose a task breakdown, and wait for my "go"
 before delegating. Then run the cycle and end with a merge recommendation.
 ```
 
 The master (or you, in a second terminal) drives everything with:
 
 ```bash
-agentteam run codex T1-codex        # run a task (foreground)
-agentteam run -b grok T2-grok       # long task in background
-agentteam tail T2-grok              # watch a background run live
-agentteam kill T2-grok              # stop a background run
-agentteam status                    # off-agents, tasks, review queue, jobs
-agentteam verify codex T1-codex     # machine gate: scope + Validate + commits
-agentteam diff codex                # the REAL diff vs dev — reports can lie
-agentteam review codex T1-codex     # a rival vendor reviews the diff
-agentteam sync                      # after merges: refresh all workshops
-agentteam race T5 codex grok        # bake-off: two vendors, one task, one winner
-agentteam sabotage opencode         # saboteur seat: failing tests vs fresh merges
-agentteam off antigravity 5h        # it hit its window -> bench it
-agentteam stop                      # kill switch for the whole project
+frugal-flock run codex T1-codex        # run a task (foreground)
+frugal-flock run -b grok T2-grok       # long task in background
+frugal-flock tail T2-grok              # watch a background run live
+frugal-flock kill T2-grok              # stop a background run
+frugal-flock status                    # off-agents, tasks, review queue, jobs
+frugal-flock verify codex T1-codex     # machine gate: scope + Validate + commits
+frugal-flock diff codex                # the REAL diff vs dev — reports can lie
+frugal-flock review codex T1-codex     # a rival vendor reviews the diff
+frugal-flock sync                      # after merges: refresh all workshops
+frugal-flock race T5 codex grok        # bake-off: two vendors, one task, one winner
+frugal-flock sabotage opencode         # saboteur seat: failing tests vs fresh merges
+frugal-flock off antigravity 5h        # it hit its window -> bench it
+frugal-flock stop                      # kill switch for the whole project
 ```
 
 You merge, nobody else — into dev, per your model:
@@ -153,17 +153,17 @@ cd ~/code/myproj/repo
 git merge --no-ff agent/codex       # after the milestone gate passes
 ```
 
-Acceptance gate (from your recipe, enforced by MASTER.md): `agentteam
+Acceptance gate (from your recipe, enforced by MASTER.md): `frugal-flock
 verify` PASS + clean build (0 warnings where the repo enforces it) +
 tests green + smoke run + changelog fragment (`changelog.d/<ID>.md` —
 workers never edit CHANGELOG.md itself) — only then is a branch
 merge-ready. main is touched only on an explicit release.
 
-If Claude Code asks approval for every agentteam call, allow once in
+If Claude Code asks approval for every Frugal Flock call, allow once in
 `repo/.claude/settings.json`:
 
 ```json
-{ "permissions": { "allow": ["Bash(agentteam *)"] } }
+{ "permissions": { "allow": ["Bash(frugal-flock *)"] } }
 ```
 
 ## 5. The quota switch (5-hour and weekly limits)
@@ -172,11 +172,11 @@ When an agent exhausts its plan window, bench it — everything else keeps
 running:
 
 ```bash
-agentteam off codex 5h    # 5-hour window burned; auto-ON when it resets
-agentteam off grok 7d     # weekly cap burned
-agentteam off opencode    # off until you say otherwise
-agentteam on codex        # manual re-enable anytime
-agentteam agents          # shows on/OFF + auto-on countdown per agent
+frugal-flock off codex 5h    # 5-hour window burned; auto-ON when it resets
+frugal-flock off grok 7d     # weekly cap burned
+frugal-flock off opencode    # off until you say otherwise
+frugal-flock on codex        # manual re-enable anytime
+frugal-flock agents          # shows on/OFF + auto-on countdown per agent
 ```
 
 Mechanics: `run` refuses OFF agents with a clear message, expired timers
@@ -198,8 +198,8 @@ the worker's worktree.
 opencode=opencode run --dangerously-skip-permissions -m opencode/<model> "$(cat "$TASKFILE")"
 ```
 
-Two workers on one engine: `agentteam init codex-2` (prefix before the dash
-picks the agent). Timeout: `AGENTTEAM_TIMEOUT=7200 agentteam run ...`.
+Two workers on one engine: `frugal-flock init codex-2` (prefix before the dash
+picks the agent). Timeout: `AGENTTEAM_TIMEOUT=7200 frugal-flock run ...`.
 
 ## 7. Read this before you scale up
 
@@ -220,17 +220,17 @@ picks the agent). Timeout: `AGENTTEAM_TIMEOUT=7200 agentteam run ...`.
 - **Grok Build is a beta** (2026-05-25). If a run fails instantly, check
   `grok --help` and fix the conf line.
 - **Always read the diff.** The report's output tail is the agent's claim;
-  `agentteam diff <worker>` is the truth.
+  `frugal-flock diff <worker>` is the truth.
 
 ## 8. Troubleshooting
 
-- `not inside an agentteam project` — run from the clone or any project
+- `not inside a Frugal Flock project` — run from the clone or any project
   subdir (it searches upward for `coord/` + `wt/`).
 - Worker hangs → an approval prompt its auto-approve flag didn't cover, or
   expired login. Check `coord/reports/<task>.log`, re-login that CLI, verify
   with the §2 one-liner.
 - Nonzero exit + near-empty log → not logged in or wrong flag;
-  `agentteam agents` + §2 verify commands isolate it fast.
+  `frugal-flock agents` + §2 verify commands isolate it fast.
 - Codex edits files but can't commit ("index.lock" / .git not writable) →
   its workspace-write sandbox keeps .git read-only, and a worktree's git
   metadata lives in the main repo's .git/worktrees/. The conf uses

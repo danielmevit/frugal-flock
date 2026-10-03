@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# agentteam worked-example driver — exercises EVERY feature against the real
-# installed agentteam, using stand-in agents (zero quota). Output becomes
+# frugal-flock worked-example driver — exercises EVERY feature against the real
+# installed frugal-flock, using stand-in agents (zero quota). Output becomes
 # docs/EXAMPLE.md.
 set -u
 export PATH="$HOME/.local/bin:$PATH"
@@ -19,7 +19,7 @@ git config user.email daniel@example.com
 git config user.name  Daniel
 
 cat > greet.py <<'EOF'
-"""greeter — the demo project for the agentteam worked example."""
+"""greeter — the demo project for the frugal-flock worked example."""
 
 
 def greet(name):
@@ -60,7 +60,7 @@ alpha=bash -c 'sed -n "/<!-- simulate/,/simulate -->/p" "$TASKFILE" | sed "1d;\$
 beta=bash -c 'sed -n "/<!-- simulate/,/simulate -->/p" "$TASKFILE" | sed "1d;\$d" | bash -s && echo ok'
 # slow: a long-running agent, for the background/tail/kill drill
 slow=bash -c 'echo starting long analysis; sleep 30; echo ok'
-# critic: reviewer stand-in for `agentteam review`
+# critic: reviewer stand-in for `frugal-flock review`
 critic=bash -c 'cat "$TASKFILE" >/dev/null; printf "1. NIT greet.py: docstring could mention the polite flag.\nScope respected; tests exercise the change; no blockers.\nVERDICT: APPROVE\nok\n"'
 # gamma: saboteur stand-in — hunts the freshest merge with a failing test
 gamma=bash -c 'printf "import unittest\nfrom greet import greet\n\n\nclass TestSabotage(unittest.TestCase):\n    def test_polite_preserves_name_capitalisation(self):\n        self.assertEqual(greet(\"McDonald\", polite=True), \"Good day, McDonald!\")\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n" > tests/test_sabotage.py && git add tests/test_sabotage.py && git commit -q -m "SAB: expose name-mangling in polite mode" && echo "SUMMARY: 1 finding — polite mode rewrites the name"; echo ok'
@@ -71,18 +71,18 @@ echo "coord/agents.conf written (project override — the global conf stays unto
 step "ACT 2 — init refuses while secrets are tracked"
 printf 'TOKEN=hunter2\n' > .env
 git add .env && git commit -q -m "oops: token in git"
-agentteam init alpha beta gamma slow || true
+frugal-flock init alpha beta gamma slow || true
 echo "-- fixing it like the handbook says:"
 git rm -q --cached .env && printf '.env\n' >> .gitignore
 git add .gitignore && git commit -q -m "untrack .env, ignore it"
 
 step "ACT 2b — init, for real this time"
-agentteam init alpha beta gamma slow
+frugal-flock init alpha beta gamma slow
 
 step "ACT 3 — roll call + smoke (stand-ins answer like any fleet)"
-agentteam agents
+frugal-flock agents
 echo "-- smoke:"
-agentteam smoke
+frugal-flock smoke
 
 # --------------------------------------------------------------- T1 cycle
 step "ACT 4 — T1: a feature task, written the machine-checkable way"
@@ -117,7 +117,7 @@ RISKS / NEEDS-REVIEW
 
 <!-- simulate
 cat > greet.py <<'EOF_G'
-"""greeter — the demo project for the agentteam worked example."""
+"""greeter — the demo project for the frugal-flock worked example."""
 
 
 def greet(name, polite=False):
@@ -154,22 +154,22 @@ git commit -q -m "T1: polite greeting mode"
 simulate -->
 EOF
 echo "task file written; dispatching:"
-agentteam run alpha T1-alpha
+frugal-flock run alpha T1-alpha
 
 step "ACT 4b — verify: the mechanical gate"
-agentteam verify alpha T1-alpha
+frugal-flock verify alpha T1-alpha
 
 step "ACT 4c — the receipts: diff --stat"
-agentteam diff alpha --stat
+frugal-flock diff alpha --stat
 
 step "ACT 4d — cross-vendor review (critic reviews alpha's work)"
-agentteam review alpha T1-alpha critic
+frugal-flock review alpha T1-alpha critic
 
 step "ACT 4e — the human gate: own test run, then merge, then sync"
 python3 -m unittest discover -s tests -t . 2>&1 | tail -2
 git merge --no-ff agent/alpha -m "merge T1: polite mode" -q
 echo "merged. now every workshop rebuilds on the new base:"
-agentteam sync
+frugal-flock sync
 
 # ------------------------------------------------------------- guard hooks
 step "ACT 5 — the guard hooks say no"
@@ -221,14 +221,14 @@ class TestEdge(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 EOF_E
-sed -i 's/the demo project for the agentteam worked example/tidied by beta while passing by/' greet.py
+sed -i 's/the demo project for the frugal-flock worked example/tidied by beta while passing by/' greet.py
 git add tests/test_edge.py greet.py
 git commit -q -m "T2: edge test (+ a helpful little refactor)"
 simulate -->
 EOF
-agentteam run beta T2-beta
+frugal-flock run beta T2-beta
 echo "-- report said done. verify says:"
-agentteam verify beta T2-beta || true
+frugal-flock verify beta T2-beta || true
 echo "-- rejected. owner wipes the branch; foreman will re-brief as T2b:"
 git -C ../wt/beta reset -q --hard dev
 
@@ -254,16 +254,16 @@ n/a — this run gets killed on purpose.
 ## Report
 SUMMARY
 EOF
-agentteam run -b slow T3-slow
+frugal-flock run -b slow T3-slow
 sleep 2
 echo "-- status while it runs (note RUNNING marker + pidfile row):"
-agentteam status
+frugal-flock status
 echo "-- a second run on the same worker is refused (per-worker lock):"
-agentteam run slow T3-slow || true
+frugal-flock run slow T3-slow || true
 echo "-- watching the live log for two seconds:"
-timeout 2 agentteam tail T3-slow || true
+timeout 2 frugal-flock tail T3-slow || true
 echo "-- enough. kill it:"
-agentteam kill T3-slow
+frugal-flock kill T3-slow
 
 # ------------------------------------------------------------------- race
 step "ACT 8 — the bake-off: race one task across two workers"
@@ -321,23 +321,23 @@ PY
 esac
 simulate -->
 EOF
-agentteam race T4 alpha beta
+frugal-flock race T4 alpha beta
 sleep 3
 echo "-- both done. the review queue:"
-agentteam status | sed -n '/== workers/,/== running/p' | head -8
+frugal-flock status | sed -n '/== workers/,/== running/p' | head -8
 echo "-- verify both, compare the diffs:"
-agentteam verify alpha T4-alpha | tail -3
-agentteam verify beta  T4-beta  | tail -3
-agentteam diff alpha --stat | sed -n '/committed vs/,/uncommitted/p' | head -5
-agentteam diff beta  --stat | sed -n '/committed vs/,/uncommitted/p' | head -6
+frugal-flock verify alpha T4-alpha | tail -3
+frugal-flock verify beta  T4-beta  | tail -3
+frugal-flock diff alpha --stat | sed -n '/committed vs/,/uncommitted/p' | head -5
+frugal-flock diff beta  --stat | sed -n '/committed vs/,/uncommitted/p' | head -6
 echo "-- beta wins (same function, plus a real test and the fragment):"
 git merge --no-ff agent/beta -m "merge T4: farewell (beta wins the race)" -q
 git -C ../wt/alpha reset -q --hard dev   # reject the losing branch
-agentteam sync
+frugal-flock sync
 
 # --------------------------------------------------------------- sabotage
 step "ACT 9 — the saboteur seat finds a real bug"
-agentteam sabotage gamma
+frugal-flock sabotage gamma
 sleep 2
 echo "-- the saboteur's report tail:"
 tail -n 12 ../coord/reports/SAB-*-gamma.md | head -14
@@ -347,12 +347,12 @@ cd ../wt/gamma && python3 -m unittest discover -s tests -t . 2>&1 | tail -4; cd 
 
 # ------------------------------------------------------- bench + red button
 step "ACT 10 — quota bench and the red button"
-agentteam off alpha 5h
-agentteam run alpha T1-alpha || true
-agentteam on alpha
-agentteam stop
-agentteam run alpha T1-alpha || true
-agentteam resume
+frugal-flock off alpha 5h
+frugal-flock run alpha T1-alpha || true
+frugal-flock on alpha
+frugal-flock stop
+frugal-flock run alpha T1-alpha || true
+frugal-flock resume
 
 # ------------------------------------------------------------- fix cycle
 step "ACT 11 — T5: the fix task closes the loop"
@@ -413,11 +413,11 @@ git add greet.py tests/test_greet.py tests/test_sabotage.py changelog.d/T5.md
 git commit -q -m "T5: stop mangling names in polite mode"
 simulate -->
 EOF
-agentteam run alpha T5-alpha
-agentteam verify alpha T5-alpha
+frugal-flock run alpha T5-alpha
+frugal-flock verify alpha T5-alpha
 git merge --no-ff agent/alpha -m "merge T5: saboteur finding fixed" -q
 git -C ../wt/gamma reset -q --hard dev   # SAB branch superseded by T5
-agentteam sync
+frugal-flock sync
 
 # ----------------------------------------------------------------- ledger
 step "ACT 12 — the ledger remembers everything"
