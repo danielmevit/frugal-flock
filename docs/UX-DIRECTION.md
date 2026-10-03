@@ -29,6 +29,11 @@ service publicly as a shortcut.
    apply the accepted changes to the project.
 
 The interface keeps one project and one meaningful next action in focus.
+A persistent conversation lets the user describe work, revise a plan, or
+ask what is stuck. Plan, Activity, and Review are cards or states within
+that workspace, not separate primary navigation tabs. Start, Stop, and
+Apply remain explicit actions beside the relevant result.
+
 The lead can manage delegation after approval. The human keeps plan and
 integration control. Publishing and releasing are separate actions.
 
@@ -47,6 +52,19 @@ branches, and shell commands available in detail views. They should not
 compete with the first task journey.
 
 ## First-use setup
+
+The proposed packaged entrypoint is a Frugal Flock launcher or shortcut.
+It starts the local service and opens the browser at the local app. If the
+service cannot start, the launcher explains the failure and offers a retry.
+The first release should target a local machine or WSL installation; a
+remote VM is an advanced connection flow. A browser URL alone does not
+fulfil the promise of setup without shell commands.
+
+On first launch, a folder selector handled by the local application asks
+the user to choose an existing project. Validate that choice before
+creating workspaces and explain what will be added. Offer recent projects
+on subsequent launches. If the engine is absent, show a setup step before
+asking the user to create work.
 
 Ask for a project and detect available coding tools. Each provider has an
 explicit state: Not installed, Sign-in needed, Connected, Limited,
@@ -115,12 +133,15 @@ This recovery interaction is central to the product:
 
 1. Identify the affected task and distinguish a reported provider limit
    from a generic error, timeout, or expired login.
-2. Inspect the worker state and persist a checkpoint: commits, uncommitted
-   changes, task instructions, completed checks, and unfinished work.
+2. Let the affected run settle, or explicitly stop it, before inspecting
+   the worker state. Persist a checkpoint: commits, uncommitted changes,
+   task instructions, completed checks, and unfinished work.
 3. Explain what is saved and what remains uncertain in plain language.
 4. Offer Continue with another agent, Wait and retry, or Save for later.
-5. After the user chooses, give the replacement a self-contained handoff
-   and an isolated workspace that preserves the recorded work.
+5. After the user chooses, give the named replacement a self-contained
+   handoff and an isolated workspace that preserves the recorded work.
+   Keep saved changes and unfinished checks visible. Continued work must
+   return to validation and human review before Apply becomes available.
 
 Example: Codex reached its limit while adding search. The committed search
 component is saved; keyboard tests are unfinished. Claude is connected.
