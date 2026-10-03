@@ -22,9 +22,20 @@ listed in its reading order.
 
 ## Next milestone and boundaries
 
-Build a clickable, locally runnable prototype with clearly labeled sample
-data. Validate comprehension before wiring up providers or an execution
-service. Do not expand this into a whole desktop product in one session.
+The owner changed the order: **M1 quality first, UX second**. Complete and
+independently verify [QUALITY-M1-CONTRACT.md](QUALITY-M1-CONTRACT.md), frozen
+at `e230ad4`, before starting the prototype. See [M1-STATUS.md](M1-STATUS.md)
+for the implementation checkpoint, evidence, and unresolved requirements.
+
+M1 covers strict checks, separate revision-bound result states, parsed
+reviewer decisions, honest local availability, trusted-host warnings, and
+a safe manual next-AI context packet for the same checkout. No waiver
+bypass, OS sandbox, dirty-file backup, automatic provider migration, GUI,
+or automatic integration is included. Full E4 and E6 remain later work.
+
+After M1 is verified and accepted, build a clickable, locally runnable
+prototype with clearly labeled sample data. Validate comprehension before
+wiring up providers or an execution service.
 
 Five connected flows must work:
 
@@ -39,7 +50,7 @@ One project workspace should contain the conversation and relevant plan,
 activity, and review cards. Keep the actual provider names visible; do not
 turn the main interface into a wall of terminals or quota charts.
 
-## Acceptance criteria
+## Later prototype acceptance criteria
 
 - The complete journey is clickable and repeatable, with a reset-to-demo
   action and no dead-end primary buttons.
@@ -73,25 +84,39 @@ instructions. Preserve existing changes. Use CodeGraph only if this repo
 already has a .codegraph directory; do not create an index unasked.
 Read README.md, docs/RESEARCH-FINDINGS.md, research/COMPETITIVE-REVIEW.md,
 docs/ENGINE-FINDINGS.md, docs/BRAND.md, docs/UX-DIRECTION.md, TODO.md,
+docs/M1-STATUS.md, docs/QUALITY-M1-CONTRACT.md, docs/AI-TEAM-WORKFLOWS.md,
 and this docs/AI-HANDOFF.md. Do not assume the historical Claude research
 contains current provider pricing, permissions, or product facts.
 
-My next requested milestone is the clickable mock-data UX prototype from
-AI-HANDOFF.md, not the full backend. Present a short implementation plan
-and an appropriate lightweight stack. Follow any applicable approval and
-delegation rules before coding; then complete and verify that milestone.
+My next requested milestone is M1 QUALITY, before UX. Respect the frozen
+contract at e230ad4. Check task FF-QUALITY-kimi and branch agent/kimi if
+available locally. If the worker is running, do not sync/reset its checkout
+or launch a duplicate writer. Preserve partial edits and commits. A fresh
+clone must not assume missing implementation branches were merged: inspect
+published status and ask for missing artifacts when needed.
+Finish the contract, run its isolated mock-only tests and existing guards,
+then inspect the real diff independently. An assigned task or successful
+worker process is not proof that the acceptance criteria passed. Record
+exact commits, commands, counts, outstanding failures, and merge status in
+M1-STATUS.md. Do not claim M1 complete with unimplemented or failing clauses.
+Follow applicable approval and delegation rules before coding.
 Use a dedicated branch/worktree where required. Do not merge or push
 without my approval; the previous publication approval was not permanent.
 
-Build one calm project workspace with a persistent conversation plus plan,
+After M1 is accepted, the subsequent prototype should build one calm
+project workspace with a persistent conversation plus plan,
 activity, and review cards. Cover sample project/tool setup, describing a
 task, plan approval, progress/questions, a provider-limit interruption with
 saved-work summary and replacement choice, and review/request-changes/apply.
 Use off-white, charcoal, restrained status accents, clear system typography,
 keyboard access, visible focus, and words as well as colors for status.
 Actual provider names must stay visible. No need for generated artwork.
+Read docs/TOOLCRAFT-REFERENCE.md and docs/FEATURE-DECISIONS.md. Use Toolcraft
+only as visual/interaction inspiration; do not run its scaffold or import
+its source, assets, templates, runtime, or skills. Build original components.
 
-Label all sample data and simulated actions. Do not invoke real agents,
+For that later prototype, label all sample data and simulated actions.
+Do not invoke real agents,
 collect credentials, execute shell text from the UI, touch real projects,
 or make real commits/merges through the prototype. No invented quota bars,
 silent paid fallbacks, automatic shared memory, or claims that recovery
@@ -100,21 +125,24 @@ states distinct. An unchecked or failed result cannot look ready to apply.
 
 Preserve frugal-flock, frgl-flc, legacy agentteam, AGENTTEAM_* variables,
 ~/.config/agentteam, and the Linux flock utility. Do not rewrite the Bash
-engine or fix all engine findings inside this UI-only milestone. The
-engine, local bridge, durable jobs, and real provider recovery are later.
+engine as a separate implementation. M1 improves the existing embedded
+runtime. Full OS isolation, the local bridge, durable jobs, and automatic
+provider recovery remain separate work. A manual context packet is not a
+backup of uncommitted files or shared conversation memory.
 
-Meet the acceptance criteria in AI-HANDOFF.md. Test the interactive paths,
-including limits, unknown capacity, failed/missing checks, and revisions.
-Run the relevant existing regression checks without spending provider
-quota. Report actual commands/results, preview instructions, changed files,
-and unresolved limitations. Update TODO.md and leave a concise handoff so
-another AI can continue. Stop at the verified prototype milestone.
+Meet the exact QUALITY-M1-CONTRACT acceptance criteria. Run the relevant
+regression checks without spending provider quota or changing the global
+installation/configuration. Report actual results, changed files, and
+unresolved limitations. Update TODO.md and the handoff so another AI can
+continue. Stop at the verified quality milestone, respecting owner merge
+authority, unless explicitly asked to proceed to the UI milestone.
 ```
 
 ## Later milestones, not included in the prompt above
 
-1. Design and test structured result states for engine findings E1–E3.
-2. Build a protected, localhost-only, read-only adapter before live controls.
+1. After M1 acceptance, build and test the mock-data prototype described above.
+2. Build a protected, localhost-only, read-only adapter before live controls;
+   establish the isolation policy before less-trusted workloads.
 3. Add bounded operations, durable jobs, and reconnectable progress.
 4. Implement checkpointed provider continuation, with revalidation.
 5. Add explicit human-approved integration tied to exact revisions.

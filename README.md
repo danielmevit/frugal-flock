@@ -229,8 +229,12 @@ See the [project setup playbook](docs/ai-project-setup-playbook.md) and
 
 ## What comes next
 
-The next step is to make the tool easier to understand, not to ask everyone
-to learn more commands:
+**First: a reliable core.** The current milestone tightens checks and
+review decisions, saves revision-bound evidence, and prepares a manual
+next-AI context packet. See the [M1 checkpoint](docs/M1-STATUS.md); these
+changes are in progress, not a claim of automatic recovery or OS isolation.
+
+After that, make the tool easier to understand:
 
 1. A simple project workspace: describe work, approve a plan, follow
    progress, and review the result.
@@ -253,6 +257,11 @@ one project, with a person directing the team**. Here, working together
 means coordinated tasks and reviewed handoffs, not automatically shared
 conversation memory. Different people describe that idea differently:
 
+Looking for “can I glue a few AI tools together in one main console?”
+That is the goal: one place to direct separate helpers, each keeping its
+own provider and limits. The [plain-English workflow guide](docs/AI-TEAM-WORKFLOWS.md)
+explains the different kinds and which ones work today.
+
 - **AI teamwork in plain language:** use different AI agents as a group,
   make AI assistants work together, build a team of AI helpers, coordinate
   AI tools from different companies, use multiple AI models on one project,
@@ -261,6 +270,15 @@ conversation memory. Different people describe that idea differently:
 - **Everyday goals:** build with AI on a budget, AI help for a side project,
   manage multiple AI assistants, organize AI coding work, work with limited
   AI plans, handle AI usage limits, review AI-generated changes.
+- **One place to steer the team:** glue AI tools together, mix different
+  AI models in one workflow, control multiple AIs from one console,
+  coordinate Claude Code and Codex, bring AI coding assistants together,
+  one command center for different AI providers, switch AI when a limit
+  interrupts a project, continue a project with another AI.
+- **Ways of working:** one AI builds and another checks, split work between
+  AI helpers, run independent tasks in parallel, pass a task from one AI
+  to the next, compare two AI solutions, ask an AI to find bugs, supervise
+  a team of agents. See the workflow guide for current versus planned support.
 - **People and projects:** learners, hobby projects, independent makers,
   designers building software, small teams, solo developers, indie apps,
   creative coding, learning to build with AI.
@@ -269,5 +287,10 @@ conversation memory. Different people describe that idea differently:
   heterogeneous agents, cross-provider coding agents, human-in-the-loop AI, Git worktrees,
   CLI orchestration, task delegation, agent review, validation gates,
   subscription-based coding tools, quota-aware coordination.
+- **Related ideas explained, not all implemented:** sequential agents,
+  parallel agents, supervisor–worker workflows, writer–reviewer pipelines,
+  agent relay, competitive agents, best-of-N, cross-provider handoff,
+  agent swarms and AI councils. This is not model merging, shared subscription
+  quotas, or an automatic consensus engine.
 - **Names and commands:** Frugal Flock, frugal-flock, frgl-flc, agentteam,
   agentteam-docs, Claude Code, Codex, Antigravity, OpenCode, Grok.

@@ -35,7 +35,20 @@ Small plans. Big ideas.
   [frugal-flock](https://github.com/danielmevit/frugal-flock). The rewritten
   README offers a beginner path, optional technical depth, and keywords.
 
-## 1. Try the integrated CLI on a clean machine
+## 1. M1 — finish quality before UX
+
+The owner explicitly moved reliability ahead of the prototype. Follow
+[QUALITY-M1-CONTRACT.md](docs/QUALITY-M1-CONTRACT.md), frozen at `e230ad4`,
+and [the current checkpoint](docs/M1-STATUS.md). Complete strict verification,
+revision-bound results, reviewer verdict parsing, honest availability,
+trusted-host warnings, and manual same-checkout context packets. Pass
+mock-only regressions and independent source review before owner integration.
+
+This is not full OS isolation, a dirty-file backup, automatic provider
+migration, or automatic merging. Keep those limitations visible. Stop at
+a verified, handoff-ready checkpoint before starting the UI.
+
+### Clean-clone baseline check
 
 - Follow the README from a fresh clone. Install with
   `bash frugal-flock-install.sh`, then run `frgl-flc selftest` and
@@ -43,7 +56,7 @@ Small plans. Big ideas.
 - Keep old configuration paths, environment overrides, and command
   compatibility. Existing local clone folders need not be renamed.
 
-## 2. Prototype one simple project workspace
+## 2. M2 — prototype one simple project workspace after M1 acceptance
 
 Build a clickable prototype with clearly labeled sample data. One
 conversation with the lead, with plan, progress, and review cards beside
@@ -58,23 +71,26 @@ Cover five connected moments:
 4. Recover from a simulated provider limit using a named replacement.
 5. Review the result and approve or request changes.
 
-Use the calm minimal direction in the UX proposal. Keep technical logs and
+Use the calm minimal direction in the UX proposal and the
+[Toolcraft composition reference](docs/TOOLCRAFT-REFERENCE.md). Build original
+components; do not run its scaffold or import its implementation. Keep technical logs and
 advanced controls in detail views. Test the prototype with two people who
 have not used the CLI before wiring up live execution.
 
-## 3. Make result states trustworthy
+## M1 acceptance details — trustworthy results
 
-Before enabling UI actions against real work:
+Before starting M2, not merely before enabling live UI actions:
 
 - Separate process completion, validation, reviewer decision, human
   acceptance, and integration outcome.
-- Missing scope or checks must be incomplete or explicitly waived; a
+- Missing scope or checks must be incomplete; M1 has no waiver bypass. A
   plain PASS must not hide missing evidence.
 - Preserve verification failures separately from the worker process exit.
 - Parse reviewer decisions into approved, changes requested, or unknown.
 - Associate evidence and approval with exact revisions and worktree state.
 
-These are follow-up behavior changes, separate from the naming work.
+These changes belong to M1, not a later frontend task. See the frozen
+contract for exact exit codes and regression cases.
 
 ## 4. Add the local application bridge
 
@@ -99,6 +115,10 @@ times only when reported by the provider. Do not invent universal quota
 percentages or silently enable paid API fallbacks.
 
 ## 6. Measure the benefit before expanding
+
+Use the [feature decisions](docs/FEATURE-DECISIONS.md) to select relevant
+competitor ideas. The [workflow guide](docs/AI-TEAM-WORKFLOWS.md) explains
+common AI-team patterns without implying they are all implemented.
 
 Compare a small set of real tasks with the existing CLI workflow and one
 capable coding agent. Measure accepted correct changes, active human time,

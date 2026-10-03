@@ -7,6 +7,12 @@ Small plans. Big ideas.
 This is the first UX proposal. Frugal Flock currently ships a command-line
 engine; the screens and interactions below are not yet implemented.
 
+Owner priority update: finish and independently verify the
+[M1 quality contract](QUALITY-M1-CONTRACT.md) before starting these screens.
+See [M1 status](M1-STATUS.md). The visual reference is now
+[Toolcraft's workspace composition](TOOLCRAFT-REFERENCE.md), adapted with
+original components and no copied source, scaffold, templates, or assets.
+
 Design for a person with an existing project and a few basic AI plans who
 wants to describe a result, stay in control, and keep building when one
 provider becomes unavailable. The first successful use should not require
@@ -167,7 +173,7 @@ changes; the next action should depend on the actual result.
 Keep these outcomes distinct in data and UI:
 
 - Agent process finished or failed.
-- Validation passed, failed, was not run, or was explicitly waived.
+- Validation passed, failed, incomplete, or not run. M1 has no waiver bypass.
 - Independent reviewer approved, requested changes, or returned no usable
   verdict.
 - Human accepted or rejected the result.
@@ -176,7 +182,7 @@ Keep these outcomes distinct in data and UI:
 The current CLI can return success after automatic verification failed,
 and review process exit codes do not encode the reviewer's decision.
 The UI adapter must not convert exit zero into Ready to apply. Missing
-scope and missing checks need an explicit incomplete or waived state.
+scope and missing checks need an explicit incomplete state.
 
 Bind displayed evidence and human approval to the exact candidate commit,
 base commit, and worktree state. Recheck them before integration; if work
@@ -196,17 +202,21 @@ task and next decision first; navigation and agent details can collapse.
 
 ## Delivery sequence
 
-1. Validate the UX with a clickable prototype using clearly labeled sample
+1. Complete M1: strict checks, revision-bound result/review evidence, honest
+   local availability, trusted-host warnings, and manual context export.
+   Require independent verification and owner acceptance; do not confuse
+   its packet with full OS isolation or automatic provider recovery.
+2. Validate the UX with a clickable prototype using clearly labeled sample
    data: first task, plan approval, a limit interruption, recovery, and
    review. No live workers or merges in this prototype.
-2. Add a local adapter and read-only project/agent/activity views. Return
+3. Add a local adapter and read-only project/agent/activity views. Return
    structured states instead of screen-scraping the CLI's human output.
-3. Connect plan approval and bounded worker runs. Add a durable job queue,
+4. Connect plan approval and bounded worker runs. Add a durable job queue,
    cancellation semantics, validated project/task IDs, and reconnectable
    progress events. Keep provider credentials outside the frontend.
-4. Add checkpointed handoff and review tied to exact revisions. Enable
+5. Add checkpointed handoff and review tied to exact revisions. Enable
    explicit owner integration only after its evidence gate works.
-5. Test the entire journey with two people who have not used the CLI.
+6. Test the entire journey with two people who have not used the CLI.
    Package a desktop window only if the browser/local-service experience
    leaves a meaningful installation or navigation problem.
 

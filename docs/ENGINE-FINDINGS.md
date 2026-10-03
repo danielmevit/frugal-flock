@@ -4,6 +4,11 @@ Reviewed 2026-10-03 against published baseline `f962b6a`. This is a
 source-backed follow-up list, not a claim that these issues were fixed.
 The rename and documentation work did not change these semantics.
 
+The owner subsequently requested **quality before UX**. The bounded
+[M1 contract](QUALITY-M1-CONTRACT.md) targets E1–E3, honest E5 diagnostics,
+E4 warnings, and a manual E6 context packet. Track implementation evidence
+in [M1 status](M1-STATUS.md); assignment alone does not close a finding.
+
 ## E1. Missing evidence can still receive PASS
 
 Status: open; must be resolved before a UI treats verification as permission
@@ -17,13 +22,13 @@ permissive no-Validate behavior; passing it does not resolve this finding.
 See [verification logic at the reviewed revision](https://github.com/danielmevit/frugal-flock/blob/f962b6a/agentteam-install.sh#L571-L639).
 
 Required outcome: distinguish complete verification, failed verification,
-missing evidence, and an explicit authorized waiver. Missing evidence
+and missing evidence. M1 deliberately provides no waiver bypass. Missing evidence
 must not silently enable Apply. Define compatibility before changing CLI
 exit codes or the task schema.
 
 Regression cases: missing scope; missing checks; both missing; all checks
-present and passing; failed check; explicit waiver with an attributable
-reason. Update the old permissive self-test intentionally, not accidentally.
+present and passing; failed check. Update the old permissive self-test
+intentionally, not accidentally. Any future waiver needs a separate contract.
 
 ## E2. Worker exit and verification outcome are different
 
@@ -129,8 +134,9 @@ E1–E6 or production-grade security.
 
 ## Order of work
 
-Build the mock-data UX prototype independently. Before connecting real
-execution, design the structured result contract for E1–E3, including
-exact candidate/base revisions and worktree state. Start the local adapter
-read-only, apply E4–E5 constraints, and implement E6 as its own milestone.
-Do not fix all of these in a branding or frontend-only task.
+Complete and verify M1 before starting the mock-data UX prototype. Its
+frozen contract covers exact candidate/base revisions, task text, and
+dirty/untracked worktree contents. Full E4 OS isolation and full E6 automatic
+checkpointed migration remain separate work. A manual same-checkout context
+packet is not a backup of uncommitted files. After M1 acceptance and the
+prototype, begin the local adapter read-only with explicit safety boundaries.
