@@ -187,7 +187,8 @@ untouched and tells you so.
 
 ### 4.2 Install Frugal Flock itself
 
-From your clone of the `agentteam-docs` repository:
+From your clone of [Frugal Flock](https://github.com/danielmevit/frugal-flock)
+(formerly `agentteam-docs`):
 
 ```text
 $ bash frugal-flock-install.sh
@@ -925,12 +926,19 @@ renamed flag, fix that one line in `agents.conf`. Two minutes.
 
 ### 13.2 Updating Frugal Flock itself
 
+Open a terminal inside your existing clone. Its local folder may still be
+called `agentteam-docs`; it does not need to be renamed.
+
 ```text
-$ cd agentteam-docs && git pull
+$ git remote set-url origin https://github.com/danielmevit/frugal-flock.git
+$ git pull --ff-only
 $ bash frugal-flock-install.sh     # never touches your agents.conf
-$ frugal-flock selftest            # 27 checks, zero quota
+$ frugal-flock selftest            # mock-agent checks, zero quota
 $ frugal-flock version             # confirm what you now run
 ```
+
+If Git reports a conflict or diverged history, stop and resolve it before
+reinstalling; do not discard local work to force the update.
 
 Existing projects keep their old role cards; re-running
 `frugal-flock init <worker>` inside a project refreshes that worker's card.

@@ -469,8 +469,10 @@ documented and acceptable.
 
 ## 10. The document map
 
-Everything lives in the private repo github.com/danielmevit/agentteam-docs
-(clone it on any new machine, run frugal-flock-install.sh, log in five CLIs).
+Everything lives in [Frugal Flock](https://github.com/danielmevit/frugal-flock),
+the repository formerly called `agentteam-docs`. Clone it, run
+`bash frugal-flock-install.sh`, and sign in to the coding CLIs you choose
+to use. You can start with one; all five are not required.
 
 - **docs/GUIDEBOOK.md** — the complete manual: every feature explained
   from scratch, step-by-step usage, exhaustive troubleshooting, command

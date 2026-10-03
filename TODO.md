@@ -10,10 +10,11 @@ Small plans. Big ideas.
 - Naming contract: [Brand](docs/BRAND.md).
 - UX proposal: [UX direction](docs/UX-DIRECTION.md). The proposed graphical
   app is not implemented yet.
-- The rename is complete on `agent/codex` in `../wt/codex`, commit
-  `9314639e79dc8bb9edde151f54cfdf35837c3024`. The worker checkout is clean.
-  The owner controls the final merge, per `AGENTS.md`; it has not been
-  merged or installed into the user's command/configuration directories.
+- The rename implementation, commit
+  `9314639e79dc8bb9edde151f54cfdf35837c3024`, and the UX documents are now
+  integrated into `main` at the owner's explicit request. Existing Git
+  history is retained. This work has not installed anything into the
+  user's live command/configuration directories.
 - Lead verification passed: scope OK, all five frozen validation commands
   passed, one task commit touching 20 paths. Worker checks also passed:
   40/40 selftests, 14/14 adversarial probes, branding smoke, ShellCheck,
@@ -26,15 +27,17 @@ Small plans. Big ideas.
   `.log` file. That interrupted run is historical, not the final task
   outcome; see the later verification and completion handoff in the report.
 - Existing local commits from before this session were preserved. The
-  GitHub repository has not been renamed or published by this work.
+  GitHub repository was renamed in place from `agentteam-docs` to
+  [frugal-flock](https://github.com/danielmevit/frugal-flock). The rewritten
+  README offers a beginner path, optional technical depth, and keywords.
 
-## 1. Complete the rename handoff
+## 1. Try the integrated CLI on a clean machine
 
-- Review commit `9314639` on `agent/codex` and the recorded validation.
-- Owner merges the accepted branch. Then install with
-  `bash frugal-flock-install.sh` and check `frgl-flc version`.
+- Follow the README from a fresh clone. Install with
+  `bash frugal-flock-install.sh`, then run `frgl-flc selftest` and
+  `frgl-flc version` before connecting a live provider.
 - Keep old configuration paths, environment overrides, and command
-  compatibility. Decide separately whether to rename the GitHub repo.
+  compatibility. Existing local clone folders need not be renamed.
 
 ## 2. Prototype one simple project workspace
 
@@ -101,3 +104,10 @@ as easy parallel ones.
 Defer a full desktop wrapper, hosted accounts, multi-user collaboration,
 advanced races, and additional provider integrations until this basic
 journey is useful and understandable.
+
+## 7. Make public participation easier
+
+- Choose and add a license before describing the project as open source.
+- Add concise contribution and issue-reporting guidance.
+- Collect onboarding feedback from both new builders and experienced
+  users; keep the README's basic path separate from optional deep dives.

@@ -29,8 +29,11 @@ used by the orchestration engine.
 
 The naming change preserves existing `AGENTTEAM_*` environment variables,
 the default `~/.config/agentteam` configuration, project coordination data,
-and existing automation. The current GitHub URL and local directory name
-remain accurate references; changing either is a separate migration.
+and existing automation. The canonical repository is now
+[danielmevit/frugal-flock](https://github.com/danielmevit/frugal-flock),
+renamed in place from `agentteam-docs` with its history retained. Existing
+local directories need not be renamed; keeping them avoids breaking
+worktree paths. Point their Git remote at the new URL.
 
 ## Voice
 
