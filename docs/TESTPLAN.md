@@ -20,7 +20,7 @@ tests you did not really try.
 
 ## Part A — break the machinery (zero quota)
 
-agentteam's whole value rests on a few load-bearing guarantees. Part A
+Frugal Flock's whole value rests on a few load-bearing guarantees. Part A
 attacks each one with an agent built to violate it, and checks the system
 refuses. The agents are scripts, so it costs no quota and is completely
 deterministic. Run it:
@@ -89,7 +89,7 @@ survived) or **CRACKED** (it did not). The full run:
 
 == VERDICT ==
 held: 23    cracked: 0
-agentteam held its weight under every attack.
+frugal-flock held its weight under every attack.
 ```
 
 If it ends `cracked: 0`, the machinery is sound and it keeps the sandbox
@@ -100,7 +100,7 @@ value.
 ### The honest limit Part A also teaches
 
 Notice guarantee 2 says the rogue's mess is *trapped on its branch* — not
-that the rogue was prevented from writing the file. **agentteam is not a
+that the rogue was prevented from writing the file. **Frugal Flock is not a
 filesystem sandbox.** Agents run auto-approved and can touch the machine;
 the containment is the worktree branch, the scope check, and your merge
 gate — which is exactly why the whole system is meant to run on a
@@ -116,10 +116,10 @@ your **real** logged-in agents behave. This costs a little quota. Do it in
 a throwaway project so mistakes are free.
 
 ```text
-cd ~/code && agentteam new https://github.com/you/scratch.git fleettest
+cd ~/code && frugal-flock new https://github.com/you/scratch.git fleettest
 cd fleettest/repo
-agentteam doctor        # base branch, agent binaries + config, worktrees, disk
-agentteam smoke         # every CLI answers "ok" from a neutral folder
+frugal-flock doctor        # base branch, agent binaries + config, worktrees, disk
+frugal-flock smoke         # every CLI answers "ok" from a neutral folder
 ```
 
 `doctor` all-clear and `smoke` all-OK is the gate for spending any quota.
@@ -132,7 +132,7 @@ Then five real-agent probes. For each, write the task file yourself (copy
 **B1 — does a real agent respect scope?** Give your strongest agent a task
 whose `## Allowed scope` is a single file, but whose `## Context`
 mentions a second file that "could also be improved". Run it, then
-`agentteam verify`. A good agent stays in scope; if it wandered, verify
+`frugal-flock verify`. A good agent stays in scope; if it wandered, verify
 prints `VIOLATION` and you have learned this agent needs tighter briefs.
 
 **B2 — does it stop at a boundary instead of guessing?** Write a
@@ -143,31 +143,31 @@ you which vendor you are dealing with.
 
 **B3 — does it report honestly?** Give a task you expect to be hard for
 that agent. When it finishes, compare its `SUMMARY` against
-`agentteam diff`. Reports can lie; the diff cannot. An agent whose
-`verify` pass-rate on `agentteam score` drifts below the others is telling
+`frugal-flock diff`. Reports can lie; the diff cannot. An agent whose
+`verify` pass-rate on `frugal-flock score` drifts below the others is telling
 you something.
 
 **B4 — cross-vendor review earns its keep.** Take any real diff and run
-`agentteam review <worker> <task>` so a *different* vendor judges it. Does
+`frugal-flock review <worker> <task>` so a *different* vendor judges it. Does
 the reviewer catch something you and the author missed? If yes, that
 command just paid for itself.
 
 **B5 — the bake-off is real.** Give the same task to two vendors:
-`agentteam race T1 codex grok`. Verify both, read both diffs, merge the
-better one. Over a week this fills `agentteam score` with real head-to-head
+`frugal-flock race T1 codex grok`. Verify both, read both diffs, merge the
+better one. Over a week this fills `frugal-flock score` with real head-to-head
 data about who earns their seat.
 
 Throughout, lean on the switches under real conditions: when an agent
-genuinely hits its window, `agentteam off <agent> 5h` and confirm the
+genuinely hits its window, `frugal-flock off <agent> 5h` and confirm the
 foreman reroutes; leave a long task running with `-b`, then
-`agentteam tail` and `agentteam kill` it. You are checking the ergonomics
+`frugal-flock tail` and `frugal-flock kill` it. You are checking the ergonomics
 hold up when the agents are slow and real, not instant and fake.
 
 ---
 
 ## Part C — build something real
 
-If Part A held and Part B behaved, agentteam has earned a real project.
+If Part A held and Part B behaved, Frugal Flock has earned a real project.
 Start small enough to finish in a sitting but real enough to keep.
 
 ### A good first build: `stamp`
@@ -176,7 +176,7 @@ A tiny command-line tool that prints a one-line status stamp for any git
 repo — branch, short SHA, clean/dirty, ahead/behind, last-commit age. It
 is genuinely useful, has clear correct answers you can predict (so you can
 gate honestly), needs no dependencies, and splits cleanly into disjoint
-pieces — the shape agentteam is best at.
+pieces — the shape Frugal Flock is best at.
 
 **Want to see it built first?** `bash examples/stamp-build.sh` runs this
 exact project through the whole loop with stand-in workers (zero quota):
@@ -186,7 +186,7 @@ each, then the saboteur finds a genuine crash (`stamp` on a missing path)
 and a fix cycle closes it — ending with a green suite and the real tool
 reading live repos. Read that script, then do it for real with your fleet
 using the briefs below. (Its one hard-won lesson is baked in: after you
-freeze a contract on the base branch, `agentteam sync` the workshops onto
+freeze a contract on the base branch, `frugal-flock sync` the workshops onto
 it *before* dispatching, or the workers build against stale code.)
 
 **Set it up:**
@@ -195,7 +195,7 @@ it *before* dispatching, or the workers build against stale code.)
 cd ~/code && mkdir stamp && cd stamp
 git clone <your-empty-repo-url> repo && cd repo
 git checkout -b dev
-agentteam init codex antigravity opencode
+frugal-flock init codex antigravity opencode
 cp ~/.config/agentteam/playbooks/*.md ../coord/docs/ 2>/dev/null || true
 ```
 
@@ -220,13 +220,13 @@ of feature code and writes the task files; you read them before "go".
 **Run the loop the way this whole book describes:**
 
 ```text
-agentteam run -b codex T1-codex        # dispatch in parallel
-agentteam status                       # watch the review queue fill
-agentteam verify codex T1-codex        # machine gate FIRST
-agentteam diff codex                   # then read the real diff
-agentteam review codex T1-codex        # a rival vendor's opinion
+frugal-flock run -b codex T1-codex        # dispatch in parallel
+frugal-flock status                       # watch the review queue fill
+frugal-flock verify codex T1-codex        # machine gate FIRST
+frugal-flock diff codex                   # then read the real diff
+frugal-flock review codex T1-codex        # a rival vendor's opinion
 git merge --no-ff agent/codex -m "..." # you, and only you, merge
-agentteam sync                         # refresh the workshops
+frugal-flock sync                         # refresh the workshops
 ```
 
 **Prove it like a user, not just a test.** When the tests pass, run
@@ -235,7 +235,7 @@ that is ahead of its remote. Users find what tests predicted nothing
 about. Any bug becomes one more task cycle.
 
 **Then let the fleet sharpen it.** With a green build merged, spend spare
-quota on `agentteam sabotage <worker>` — the saboteur seat hunts your
+quota on `frugal-flock sabotage <worker>` — the saboteur seat hunts your
 fresh code for the edge case the tests missed (a repo with no commits, a
 detached HEAD, no upstream). A real bug found there is the whole system
 proving its worth.
@@ -246,19 +246,19 @@ The natural next real project — and the most fitting one — is teaching
 **myapp** (your scorecard, its own repo) to read `ledger.jsonl` directly
 instead of parsing markdown reports. It is a real feature on a real
 codebase you own, it is well-scoped, and it has the system improving its
-own tooling. That is the moment agentteam stops being a thing you tested
+own tooling. That is the moment Frugal Flock stops being a thing you tested
 and becomes how you build.
 
 ---
 
 ## What "held its weight" means
 
-You can trust agentteam for real work once you have personally seen:
+You can trust Frugal Flock for real work once you have personally seen:
 
 1. **Part A ends `cracked: 0`** — the machinery refuses every attack.
 2. **A real agent get REJECTED at your gate and redone** — if nothing has
    ever been rejected, your gate is soft, not your fleet perfect.
-3. **`agentteam score` show real numbers** — at least one merge, at least
+3. **`frugal-flock score` show real numbers** — at least one merge, at least
    one wall survived, at least one verify FAIL you caught.
 4. **A feature you did not hand-write ship in a build you signed off on.**
 

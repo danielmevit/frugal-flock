@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# agentteam installer — one-master / many-CLI-workers orchestration for a
+# Frugal Flock installer — Small plans. Big ideas.
+# One-master / many-CLI-workers orchestration for a
 # single Ubuntu VM. No API keys, no browser automation: every agent runs its
 # own official CLI headless under its own subscription login.
-# Installs: ~/.local/bin/agentteam, ~/.config/agentteam/agents.conf (EDIT),
+# Installs: ~/.local/bin/{frugal-flock,frgl-flc,agentteam},
+#           ~/.config/agentteam/agents.conf (EDIT),
 #           ~/.config/agentteam/templates/
-# Then:     agentteam selftest   (mock-agent rehearsal, zero quota)
-#           cd <your repo clone> && agentteam init codex antigravity opencode grok
+# Then:     frugal-flock selftest   (mock-agent rehearsal, zero quota)
+#           cd <your repo clone> && frugal-flock init codex antigravity opencode grok
 set -euo pipefail
 
 BIN_DIR="${AGENTTEAM_BIN_DIR:-$HOME/.local/bin}"
@@ -13,11 +15,12 @@ CONF_DIR="${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}"
 TPL_DIR="$CONF_DIR/templates"
 mkdir -p "$BIN_DIR" "$CONF_DIR" "$TPL_DIR" "$CONF_DIR/playbooks"
 
-# ---------------------------------------------------------------- agentteam
+# ---------------------------------------------------------------- frugal-flock
 cat > "$BIN_DIR/agentteam" <<'AGENTTEAM_BIN_EOF'
 #!/usr/bin/env bash
-# agentteam — delegate tasks from a master CLI session to worker CLI agents.
-# Layout (created by `agentteam init` next to your repo clone):
+# Frugal Flock — Small plans. Big ideas.
+# Delegate tasks from a master CLI session to worker CLI agents.
+# Layout (created by `frugal-flock init` next to your repo clone):
 #   PROJECT/<clone>/  your repo on the base branch (dev) -> master runs here
 #   PROJECT/wt/<w>/   one git worktree per worker, branch agent/<w>
 #   PROJECT/coord/    board.md, base, docs/, tasks/, reports/, blockers.md, STOP
@@ -32,7 +35,7 @@ TIMEOUT="${AGENTTEAM_TIMEOUT:-3600}"
 CG_INDEX_TIMEOUT="${AGENTTEAM_CG_INDEX_TIMEOUT:-600}"
 LIMIT_RE='rate.?limit|usage limit|limit (reached|exceeded)|quota|too many requests|resets (at|in)'
 
-die() { echo "agentteam: $*" >&2; exit 1; }
+die() { echo "frugal-flock: $*" >&2; exit 1; }
 
 # Worker and task ids address files under wt/ and coord/; keep them simple
 # names so they cannot escape those directories.
@@ -153,12 +156,12 @@ is_off() { # true if agent is off; auto-clears expired markers
 
 off_desc() {
   local exp; exp=$(cat "$OFF_DIR/$1" 2>/dev/null || true)
-  if [ -z "$exp" ]; then echo "manual — re-enable with: agentteam on $1"
+  if [ -z "$exp" ]; then echo "manual — re-enable with: frugal-flock on $1"
   else echo "auto-on in $(( (exp - $(date +%s) + 59) / 60 ))m"; fi
 }
 
 cmd_off() {
-  local agent="${1:-}"; [ -n "$agent" ] || die "usage: agentteam off <agent> [30m|5h|7d]"
+  local agent="${1:-}"; [ -n "$agent" ] || die "usage: frugal-flock off <agent> [30m|5h|7d]"
   check_id "$agent" agent   # the name addresses a file under OFF_DIR
   mkdir -p "$OFF_DIR"
   if [ -n "${2:-}" ]; then
@@ -171,7 +174,7 @@ cmd_off() {
 }
 
 cmd_on() {
-  local a="${1:-}"; [ -n "$a" ] || die "usage: agentteam on <agent>"
+  local a="${1:-}"; [ -n "$a" ] || die "usage: frugal-flock on <agent>"
   check_id "$a" agent       # without this, `on ../../x` is an rm -f primitive
   rm -f "$OFF_DIR/$a"; echo "agent '$a' ON"
 }
@@ -179,7 +182,7 @@ cmd_on() {
 # ------------------------------------------------------------------ init
 cmd_init() {
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-    || die "run 'agentteam init' from inside your repo clone"
+    || die "run 'frugal-flock init' from inside your repo clone"
   # worktrees branch from a commit; an unborn HEAD gives a cryptic git error
   git rev-parse -q --verify HEAD >/dev/null 2>&1 \
     || die "this repo has no commits yet — make one first, e.g.:
@@ -359,7 +362,7 @@ HOOK_MERGE_EOF
     echo "codegraph    : indexing worktrees in the background (repo/ is indexed)"
   fi
   echo "playbooks    : drop your operational .md files into $root/coord/docs/"
-  echo "next         : agentteam agents"
+  echo "next         : frugal-flock agents"
 }
 
 # ------------------------------------------------------------------- run
@@ -367,17 +370,17 @@ cmd_run() {
   local bg=0
   if [ "${1:-}" = "-b" ]; then bg=1; shift; fi
   local worker="${1:-}" task="${2:-}"
-  [ -n "$worker" ] && [ -n "$task" ] || die "usage: agentteam run [-b] <worker> <task-id>"
+  [ -n "$worker" ] && [ -n "$task" ] || die "usage: frugal-flock run [-b] <worker> <task-id>"
   check_id "$worker" worker; check_id "$task" task
-  local root; root=$(find_root) || die "not inside an agentteam project"
-  [ -f "$root/coord/STOP" ] && die "STOP is active (agentteam resume to clear)"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  [ -f "$root/coord/STOP" ] && die "STOP is active (frugal-flock resume to clear)"
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"
   [ -f "$tf" ] || die "no task file: $tf"
   local wt="$root/wt/$worker"
-  [ -d "$wt" ] || die "no worktree for '$worker' — run: agentteam init $worker"
+  [ -d "$wt" ] || die "no worktree for '$worker' — run: frugal-flock init $worker"
   local agent="${worker%%-*}" conf cmdline base
-  is_off "$agent" && die "agent '$agent' is OFF ($(off_desc "$agent")) — reassign the task or: agentteam on $agent"
+  is_off "$agent" && die "agent '$agent' is OFF ($(off_desc "$agent")) — reassign the task or: frugal-flock on $agent"
   conf=$(conf_for_root "$root")
   cmdline=$(agent_cmd "$agent" "$conf") || die "no agents.conf entry for '$agent' in $conf"
   base=$(get_base "$root")
@@ -387,19 +390,19 @@ cmd_run() {
   local log="$root/coord/reports/$task.log"
 
   if [ "$bg" = 1 ]; then
-    lock_probe "$root" "$worker" || die "worker '$worker' is already running a task (agentteam status)"
+    lock_probe "$root" "$worker" || die "worker '$worker' is already running a task (frugal-flock status)"
     if command -v setsid >/dev/null 2>&1; then
       AGENTTEAM_BG=1 nohup setsid -f "$0" run "$worker" "$task" >/dev/null 2>&1
     else
       AGENTTEAM_BG=1 nohup "$0" run "$worker" "$task" >/dev/null 2>&1 &
     fi
-    echo "started in background — poll: agentteam status   live: agentteam tail $task   abort: agentteam kill $task"
+    echo "started in background — poll: frugal-flock status   live: frugal-flock tail $task   abort: frugal-flock kill $task"
     return 0
   fi
 
   # one run per worker: hold the lock for the whole run (freed on exit)
   exec 9>>"$root/coord/.locks/$worker.lock"
-  flock -n 9 || die "worker '$worker' is already running a task (agentteam status)"
+  flock -n 9 || die "worker '$worker' is already running a task (frugal-flock status)"
 
   local pidfile=""
   if [ "${AGENTTEAM_BG:-0}" = "1" ]; then
@@ -436,7 +439,7 @@ cmd_run() {
       fi
     else
       echo "!! '$worker' is $behind commit(s) behind $base — it may build against stale code." >&2
-      echo "   run 'agentteam sync $worker' first, or set AGENTTEAM_AUTO_SYNC=1." >&2
+      echo "   run 'frugal-flock sync $worker' first, or set AGENTTEAM_AUTO_SYNC=1." >&2
     fi
   fi
 
@@ -499,7 +502,7 @@ cmd_run() {
       : # the task itself is about limits and the run succeeded — noise
     else
       wall=1
-      echo "!! output mentions usage limits — if '$agent' hit its 5h/weekly cap:  agentteam off $agent 5h   (weekly: 7d)" >&2
+      echo "!! output mentions usage limits — if '$agent' hit its 5h/weekly cap:  frugal-flock off $agent 5h   (weekly: 7d)" >&2
       if [ "${AGENTTEAM_AUTO_OFF:-0}" = "1" ] && [ "$rc" -ne 0 ]; then cmd_off "$agent" 5h >&2; fi
     fi
   fi
@@ -515,9 +518,9 @@ cmd_run() {
   if [ "${AGENTTEAM_AUTO_VERIFY:-0}" = "1" ]; then
     exec 9>&-   # release the worker lock so verify can probe it
     cmd_verify "$worker" "$task" || true
-    echo "next: agentteam diff $worker"
+    echo "next: frugal-flock diff $worker"
   else
-    echo "next: agentteam verify $worker $task   then: agentteam diff $worker"
+    echo "next: frugal-flock verify $worker $task   then: frugal-flock diff $worker"
   fi
   return "$rc"
 }
@@ -525,9 +528,9 @@ cmd_run() {
 # ---------------------------------------------------------------- verify
 cmd_verify() {
   local worker="${1:-}" task="${2:-}"
-  [ -n "$worker" ] && [ -n "$task" ] || die "usage: agentteam verify <worker> <task-id>"
+  [ -n "$worker" ] && [ -n "$task" ] || die "usage: frugal-flock verify <worker> <task-id>"
   check_id "$worker" worker; check_id "$task" task
-  local root; root=$(find_root) || die "not inside an agentteam project"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
   local wt="$root/wt/$worker";           [ -d "$wt" ] || die "no worktree: $wt"
@@ -637,9 +640,9 @@ cmd_verify() {
 }
 
 cmd_diff() {
-  local worker="${1:-}"; [ -n "$worker" ] || die "usage: agentteam diff <worker> [--stat]"
+  local worker="${1:-}"; [ -n "$worker" ] || die "usage: frugal-flock diff <worker> [--stat]"
   check_id "$worker" worker
-  local root; root=$(find_root) || die "not inside an agentteam project"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
   local wt="$root/wt/$worker"; [ -d "$wt" ] || die "no worktree: $wt"
   local mode="${2:-}" base; base=$(get_base "$root")
   echo "== branch/status =="
@@ -654,7 +657,7 @@ cmd_diff() {
 
 # ------------------------------------------------------------------ sync
 cmd_sync() { # after merges: bring base's new work into worker branches
-  local root; root=$(find_root) || die "not inside an agentteam project"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
   local base; base=$(get_base "$root")
   local list=("$@") wt w
   for w in "$@"; do check_id "$w" worker; done
@@ -687,7 +690,7 @@ cmd_sync() { # after merges: bring base's new work into worker branches
 }
 
 cmd_status() {
-  local root; root=$(find_root) || die "not inside an agentteam project"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
   local base; base=$(get_base "$root")
   [ -f "$root/coord/STOP" ] && echo "!! STOP is active — runs are blocked" && echo
   echo "== agents off (quota) =="
@@ -726,12 +729,12 @@ cmd_status() {
     t=$(basename "$pf" .pid)
     pid=$(cat "$pf" 2>/dev/null || true)
     if [ -n "$pid" ] && { pgrep -s "$pid" >/dev/null 2>&1 || kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; }; then
-      echo "  $t (background, pid $pid) — tail: agentteam tail $t   abort: agentteam kill $t"; any=1
+      echo "  $t (background, pid $pid) — tail: frugal-flock tail $t   abort: frugal-flock kill $t"; any=1
     else
       rm -f "$pf"
     fi
   done
-  local pg; pg=$(pgrep -af "bin/agentteam run" 2>/dev/null | grep -v "^$$ " || true)
+  local pg; pg=$(pgrep -af "bin/(agentteam|frugal-flock|frgl-flc) run" 2>/dev/null | grep -v "^$$ " || true)
   if [ -n "$pg" ]; then printf '%s\n' "$pg" | sed 's/^/  /'; any=1; fi
   [ "$any" = 1 ] || echo "  (none)"
 }
@@ -783,9 +786,9 @@ cmd_smoke() { # one tiny live call per configured agent — the post-update ritu
 # ---------------------------------------------------------------- review
 cmd_review() { # a DIFFERENT vendor judges the task order + the diff
   local worker="${1:-}" task="${2:-}" reviewer="${3:-}"
-  [ -n "$worker" ] && [ -n "$task" ] || die "usage: agentteam review <worker> <task-id> [reviewer-agent]"
+  [ -n "$worker" ] && [ -n "$task" ] || die "usage: frugal-flock review <worker> <task-id> [reviewer-agent]"
   check_id "$worker" worker; check_id "$task" task
-  local root; root=$(find_root) || die "not inside an agentteam project"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
   local wt="$root/wt/$worker";           [ -d "$wt" ] || die "no worktree: $wt"
@@ -803,7 +806,7 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
       reviewer="$name"; break
     done < "$conf"
   fi
-  [ -n "$reviewer" ] || die "no available reviewer (all benched or missing) — name one: agentteam review $worker $task <agent>"
+  [ -n "$reviewer" ] || die "no available reviewer (all benched or missing) — name one: frugal-flock review $worker $task <agent>"
   [ "$reviewer" != "$author" ] || die "reviewer must be a different vendor than the author agent '$author'"
   local rcmd; rcmd=$(agent_cmd "$reviewer" "$conf") || die "no agents.conf entry for reviewer '$reviewer'"
 
@@ -842,17 +845,17 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
 # ------------------------------------------------------------------ race
 cmd_race() { # same task to several workers in parallel; merge ONE winner
   local task="${1:-}"; shift || true
-  [ -n "$task" ] && [ $# -ge 2 ] || die "usage: agentteam race <task-id> <worker> <worker> [...]"
+  [ -n "$task" ] && [ $# -ge 2 ] || die "usage: frugal-flock race <task-id> <worker> <worker> [...]"
   check_id "$task" task
-  local root; root=$(find_root) || die "not inside an agentteam project"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
   local w
   for w in "$@"; do
     check_id "$w" worker
-    [ -d "$root/wt/$w" ] || die "no worktree for '$w' — run: agentteam init $w"
+    [ -d "$root/wt/$w" ] || die "no worktree for '$w' — run: frugal-flock init $w"
     is_off "${w%%-*}" && die "agent '${w%%-*}' is OFF — bench-aware racing: pick another worker"
-    lock_probe "$root" "$w" || die "worker '$w' is busy (agentteam status)"
+    lock_probe "$root" "$w" || die "worker '$w' is busy (frugal-flock status)"
   done
   local ct
   for w in "$@"; do
@@ -864,7 +867,7 @@ cmd_race() { # same task to several workers in parallel; merge ONE winner
     "$0" run -b "$w" "$task-$w"
   done
   ledger_add "$root" "$(printf '{"event":"race","ts":"%s","task":"%s","workers":"%s"}' "$(date -Is)" "$task" "$*")"
-  echo "race on. compare: agentteam verify/diff per worker — merge exactly one winner, reject the rest."
+  echo "race on. compare: frugal-flock verify/diff per worker — merge exactly one winner, reject the rest."
 }
 
 # -------------------------------------------------------------- sabotage
@@ -908,7 +911,7 @@ sab_dispatch() { # $1=root $2=worker $3=background? — build the task and run i
 }
 
 cmd_sweep_saboteurs() { # internal: run the named workers as saboteurs, in turn
-  local root; root=$(find_root) || die "not inside an agentteam project"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
   local sweep="$root/coord/reports/saboteur-sweep.log" w
   : > "$sweep"
   for w in "$@"; do
@@ -920,7 +923,7 @@ cmd_sweep_saboteurs() { # internal: run the named workers as saboteurs, in turn
 }
 
 cmd_sabotage() { # the saboteur seat: attack fresh merges with failing tests
-  local root; root=$(find_root) || die "not inside an agentteam project"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
   [ -f "$TPL_DIR/SABOTEUR.md" ] || die "SABOTEUR.md template missing — rerun the installer"
 
   # --all: every available vendor in turn, one after another. Different models
@@ -931,7 +934,7 @@ cmd_sabotage() { # the saboteur seat: attack fresh merges with failing tests
     [ -n "$list" ] || die "no worker is available for the saboteur seat (all benched or busy)"
     echo "== saboteur sweep: $(printf '%s' "$list" | wc -l) vendor(s), sequentially =="
     printf '%s\n' "$list" | sed 's/^/   /'
-    echo "running detached — watch with: agentteam status"
+    echo "running detached — watch with: frugal-flock status"
     echo "progress log: $root/coord/reports/saboteur-sweep.log"
     # Detach the sweep the same way `run -b` does, so it survives this shell.
     # The sweep itself runs each vendor in the FOREGROUND, one after another.
@@ -947,33 +950,33 @@ cmd_sabotage() { # the saboteur seat: attack fresh merges with failing tests
   if [ -z "$worker" ]; then
     worker=$(sab_next "$root") \
       || die "no worker is available for the saboteur seat (all benched or busy)"
-    echo "saboteur rotation -> $worker  (override: agentteam sabotage <worker>)"
+    echo "saboteur rotation -> $worker  (override: frugal-flock sabotage <worker>)"
   fi
   check_id "$worker" worker
-  [ -d "$root/wt/$worker" ] || die "no worktree for '$worker' — run: agentteam init $worker"
+  [ -d "$root/wt/$worker" ] || die "no worktree for '$worker' — run: frugal-flock init $worker"
   is_off "${worker%%-*}" && die "agent '${worker%%-*}' is OFF"
-  lock_probe "$root" "$worker" || die "worker '$worker' is busy (agentteam status)"
+  lock_probe "$root" "$worker" || die "worker '$worker' is busy (frugal-flock status)"
   sab_dispatch "$root" "$worker" 1
 }
 
 # ------------------------------------------------------------- tail/kill
 cmd_tail() {
-  local root; root=$(find_root) || die "not inside an agentteam project"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
   local task="${1:-}" f
   if [ -n "$task" ]; then
     task="${task%.md}"; f="$root/coord/reports/$task.log"
   else
     f=$(ls -t "$root"/coord/reports/*.log 2>/dev/null | head -1 || true)
   fi
-  [ -n "$f" ] && [ -f "$f" ] || die "no log found (agentteam tail <task-id>)"
+  [ -n "$f" ] && [ -f "$f" ] || die "no log found (frugal-flock tail <task-id>)"
   echo ">> $f"
   exec tail -n 40 -f "$f"
 }
 
 cmd_kill() {
-  local task="${1:-}"; [ -n "$task" ] || die "usage: agentteam kill <task-id>"
+  local task="${1:-}"; [ -n "$task" ] || die "usage: frugal-flock kill <task-id>"
   check_id "${task%.md}" task
-  local root; root=$(find_root) || die "not inside an agentteam project"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
   task="${task%.md}"
   local pf="$root/coord/reports/$task.pid"
   [ -f "$pf" ] || die "no background run recorded for '$task' (foreground runs: Ctrl-C)"
@@ -983,10 +986,10 @@ cmd_kill() {
   # group-kill misses the agent because `timeout` runs it in its own group
   # A recorded pid is not proof of identity: after a SIGKILLed run the OS can
   # reuse it, and `kill` would then take out an innocent process. Confirm the
-  # session really is an agentteam run before signalling it.
-  if [ -r "/proc/$pid/cmdline" ] && ! tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q 'agentteam'; then
+  # session really is a Frugal Flock run before signalling it.
+  if [ -r "/proc/$pid/cmdline" ] && ! tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -Eq 'agentteam|frugal-flock|frgl-flc'; then
     rm -f "$pf"
-    die "pid $pid is not an agentteam run (stale pidfile removed) — refusing to signal it"
+    die "pid $pid is not a Frugal Flock run (stale pidfile removed) — refusing to signal it"
   fi
   if pgrep -s "$pid" >/dev/null 2>&1; then
     pkill -TERM -s "$pid" 2>/dev/null || true
@@ -1008,19 +1011,20 @@ cmd_kill() {
 
 # ---------------------------------------------------------- report/version
 cmd_report() { # read a task's report without typing coord/reports paths
-  local task="${1:-}"; [ -n "$task" ] || die "usage: agentteam report <task-id> [lines]"
+  local task="${1:-}"; [ -n "$task" ] || die "usage: frugal-flock report <task-id> [lines]"
   check_id "${task%.md}" task
-  local root; root=$(find_root) || die "not inside an agentteam project"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
   task="${task%.md}"
   local f="$root/coord/reports/$task.md"
-  [ -f "$f" ] || die "no report yet for '$task' (run it first; live output: agentteam tail $task)"
+  [ -f "$f" ] || die "no report yet for '$task' (run it first; live output: frugal-flock tail $task)"
   local n="${2:-60}"
   echo ">> $f (last $n lines — full history is append-only above)"
   tail -n "$n" "$f"
 }
 
 cmd_version() {
-  echo "agentteam $AGENTTEAM_VERSION ($0)"
+  echo "Frugal Flock $AGENTTEAM_VERSION ($0)"
+  echo "Small plans. Big ideas."
   echo "config: $CONF_FILE"
 }
 
@@ -1028,7 +1032,7 @@ cmd_version() {
 cmd_score() { # fleet scorecard straight from the ledger; myapp = full view
   local root="${1:-}"
   if [ -n "$root" ]; then [ -d "$root/coord" ] || die "no coord/ under: $root"
-  else root=$(find_root) || die "not inside an agentteam project (or: agentteam score <project-root>)"; fi
+  else root=$(find_root) || die "not inside a Frugal Flock project (or: frugal-flock score <project-root>)"; fi
   local lg="$root/coord/reports/ledger.jsonl"
   [ -f "$lg" ] || die "no ledger yet: $lg (it appears after the first run)"
   printf '  %-14s %5s %4s %5s %6s %8s %7s %8s\n' worker runs ok fail walls verify merges avg-dur
@@ -1068,7 +1072,7 @@ cmd_score() { # fleet scorecard straight from the ledger; myapp = full view
 
 # ----------------------------------------------------------------- doctor
 cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
-  local root; root=$(find_root) || die "not inside an agentteam project"
+  local root; root=$(find_root) || die "not inside a Frugal Flock project"
   local base conf warn=0 bad=0
   base=$(get_base "$root"); conf=$(conf_for_root "$root")
   local main_dir="$root/repo"
@@ -1077,12 +1081,12 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
   warn() { printf '  WARN  %s\n' "$1"; warn=$((warn+1)); }
   err()  { printf '  ERR   %s\n' "$1"; bad=$((bad+1)); }
 
-  echo "== agentteam doctor =="
+  echo "== frugal-flock doctor =="
   echo "project: $root"
   echo "base:    $base"
 
   # STOP / config
-  [ -f "$root/coord/STOP" ] && warn "STOP is active — all runs are blocked (agentteam resume)" \
+  [ -f "$root/coord/STOP" ] && warn "STOP is active — all runs are blocked (frugal-flock resume)" \
                             || ok "no STOP file (runs allowed)"
   [ -f "$conf" ] && ok "agents.conf found: $conf" \
                  || err "no agents.conf at $conf — every run will fail"
@@ -1105,7 +1109,7 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
     br=$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null)
     [ "$br" = "agent/$w" ] || warn "worker '$w' is on branch '$br', expected 'agent/$w'"
     behind=$(git -C "$wt" rev-list --count "HEAD..$base" 2>/dev/null || echo 0)
-    [ "${behind:-0}" -gt 0 ] && warn "worker '$w' is $behind commit(s) behind $base (agentteam sync $w)"
+    [ "${behind:-0}" -gt 0 ] && warn "worker '$w' is $behind commit(s) behind $base (frugal-flock sync $w)"
     dirty=$(git -C "$wt" status --porcelain=v1 2>/dev/null | wc -l)
     [ "$dirty" -gt 0 ] && warn "worker '$w' has $dirty uncommitted file(s) in its worktree"
     if ! agent_cmd "$agent" "$conf" >/dev/null 2>&1; then
@@ -1121,7 +1125,7 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
   if [ -d "$hooks" ]; then
     grep -q 'agentteam guard' "$hooks/pre-commit" 2>/dev/null \
       && ok "guard hooks installed (worker-branch + no-push + merge-ledger)" \
-      || warn "guard hooks missing — re-run 'agentteam init <worker>' to install them"
+      || warn "guard hooks missing — re-run 'frugal-flock init <worker>' to install them"
   fi
 
   # stale control files
@@ -1132,7 +1136,7 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
     if [ -n "$pid" ] && { pgrep -s "$pid" >/dev/null 2>&1 || kill -0 "$pid" 2>/dev/null; }; then
       ok "background run live: $t (pid $pid)"
     else
-      warn "stale pidfile for '$t' (dead process) — 'agentteam status' clears it"
+      warn "stale pidfile for '$t' (dead process) — 'frugal-flock status' clears it"
     fi
   done
 
@@ -1157,7 +1161,7 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
 
 # -------------------------------------------------------------------- new
 cmd_new() { # bootstrap: clone -> dev branch -> init -> playbooks, one command
-  local url="${1:-}"; [ -n "$url" ] || die "usage: agentteam new <repo-url> [name] [workers...]"
+  local url="${1:-}"; [ -n "$url" ] || die "usage: frugal-flock new <repo-url> [name] [workers...]"
   local name="${2:-}"
   [ -n "$name" ] || name=$(basename "$url" .git)
   shift; [ $# -gt 0 ] && shift || true
@@ -1180,10 +1184,10 @@ cmd_new() { # bootstrap: clone -> dev branch -> init -> playbooks, one command
   if [ "$copied" -gt 0 ]; then
     echo "playbooks   : $copied copied from $CONF_DIR/playbooks/ into coord/docs/"
   else
-    echo "playbooks   : none in $CONF_DIR/playbooks/ — drop your ai-*.md there once; every 'agentteam new' copies them in"
+    echo "playbooks   : none in $CONF_DIR/playbooks/ — drop your ai-*.md there once; every 'frugal-flock new' copies them in"
   fi
   echo "remote dev  : when ready:  cd $name/repo && git push -u origin dev"
-  echo "start       : cd $name/repo && agentteam agents"
+  echo "start       : cd $name/repo && frugal-flock agents"
 }
 
 # -------------------------------------------------------------- selftest
@@ -1246,7 +1250,7 @@ cmd_selftest() { # the whole loop, rehearsed with mock agents — zero quota
   [ -f "$TPL_DIR/TASK.md" ] || die "templates missing at $TPL_DIR — rerun the installer"
 
   local ST; ST=$(mktemp -d)
-  echo "== agentteam selftest — sandbox: $ST =="
+  echo "== frugal-flock selftest — sandbox: $ST =="
   mkdir -p "$ST/conf/templates"
   cp "$TPL_DIR"/*.md "$ST/conf/templates/"
 
@@ -1278,7 +1282,7 @@ ST_CONF_EOF
 ## Goal
 Create hello.txt containing the word line.
 ## Context
-agentteam selftest task.
+frugal-flock selftest task.
 ## Allowed scope
 - hello.txt
 ## Constraints
@@ -1311,7 +1315,7 @@ ST_T1_EOF
 ## Goal
 Touch only hello.txt (the rogue agent will not).
 ## Context
-agentteam selftest — this worker intentionally leaves its scope.
+frugal-flock selftest — this worker intentionally leaves its scope.
 ## Allowed scope
 - hello.txt
 ## Validate
@@ -1351,7 +1355,7 @@ ST_T2_EOF
 ## Goal
 Sleep (background-run fodder for the selftest).
 ## Context
-agentteam selftest.
+frugal-flock selftest.
 ## Allowed scope
 - hello.txt
 ## Validate
@@ -1388,7 +1392,7 @@ ST_T3_EOF
 ## Goal
 No machine-run Validate lines here (prose only).
 ## Context
-agentteam selftest.
+frugal-flock selftest.
 ## Allowed scope
 - hello.txt
 ## Validate
@@ -1407,7 +1411,7 @@ ST_T4_EOF
 ## Goal
 The agent will do nothing; the machinery must notice.
 ## Context
-agentteam selftest.
+frugal-flock selftest.
 ## Allowed scope
 - hello.txt
 ## Validate
@@ -1431,7 +1435,7 @@ ST_T5_EOF
   st_chk "report command prints a task's history" \
     bash -c '"$0" report T1-mock 200 2>/dev/null | grep -q "worker=mock"' "$0"
   st_chk "version prints" \
-    bash -c '"$0" version | grep -q "^agentteam "' "$0"
+    bash -c '"$0" version | grep -q "^Frugal Flock "' "$0"
   st_chk "task ids cannot escape coord/tasks" \
     bash -c '! "$0" run mock ../reports/T1-mock >/dev/null 2>&1' "$0"
   st_chk "worker ids cannot escape wt/" \
@@ -1486,67 +1490,71 @@ cmd_resume() { local root; root=$(find_root) || die "not in a project"; rm -f "$
 
 cmd_help() {
   cat <<'HELP'
-agentteam — one master CLI session delegating to worker CLI agents
+Frugal Flock — Small plans. Big ideas.
+One master CLI session delegating to worker CLI agents.
+Commands: frugal-flock (canonical), frgl-flc (short), agentteam (legacy).
 
 setup / health
-  agentteam new <repo-url> [name] [workers...]
+  frugal-flock new <repo-url> [name] [workers...]
                                      bootstrap a whole project: clone ->
                                      dev branch -> init -> playbooks copied
                                      from ~/.config/agentteam/playbooks/
-  agentteam init [workers...]        scaffold wt/ + coord/ next to your clone
+  frugal-flock init [workers...]        scaffold wt/ + coord/ next to your clone
                                      (default: codex antigravity opencode grok)
                                      refuses while secret-looking files are
                                      tracked; installs worker-branch guard hooks
-  agentteam agents                   list agents: binary found? on/off?
-  agentteam smoke                    one tiny live call per agent, from a
+  frugal-flock agents                   list agents: binary found? on/off?
+  frugal-flock smoke                    one tiny live call per agent, from a
                                      neutral dir — run after every CLI update
-  agentteam selftest                 rehearse the whole loop with mock agents
+  frugal-flock selftest                 rehearse the whole loop with mock agents
                                      in a throwaway sandbox — zero quota
-  agentteam doctor                   preflight a project: base branch, agent
+  frugal-flock doctor                   preflight a project: base branch, agent
                                      binaries, worktree health, stale state,
                                      disk — catch what would waste a run
 
 work
-  agentteam run [-b] <w> <task>      run coord/tasks/<task>.md in w's worktree
+  frugal-flock run [-b] <w> <task>      run coord/tasks/<task>.md in w's worktree
                                      (-b = background; one run per worker)
-  agentteam tail [task]              follow a run's live log (default: newest)
-  agentteam kill <task>              stop a background run (whole session)
-  agentteam report <task> [lines]    read a task's report (default: last 60)
-  agentteam verify <w> <task>        machine gate: diff vs the task's "- path"
+  frugal-flock tail [task]              follow a run's live log (default: newest)
+  frugal-flock kill <task>              stop a background run (whole session)
+  frugal-flock report <task> [lines]    read a task's report (default: last 60)
+  frugal-flock verify <w> <task>        machine gate: diff vs the task's "- path"
                                      scope lines + run its "$ " Validate lines
                                      + commit sanity; verdict into the report
-  agentteam diff <w> [--stat]        review a worker's changes vs base branch
-  agentteam review <w> <task> [agent]  a DIFFERENT vendor reviews the task
+  frugal-flock diff <w> [--stat]        review a worker's changes vs base branch
+  frugal-flock review <w> <task> [agent]  a DIFFERENT vendor reviews the task
                                      order + diff; VERDICT line + report block
-  agentteam sync [w]                 after merges: bring base into worker
+  frugal-flock sync [w]                 after merges: bring base into worker
                                      branches (ff/merge; skips dirty/running)
 
 fleet plays
-  agentteam race <task> <w1> <w2> [...]  same task to several workers in
+  frugal-flock race <task> <w1> <w2> [...]  same task to several workers in
                                      parallel — merge exactly one winner
-  agentteam sabotage [w]             saboteur seat: sync, then hunt fresh
+  frugal-flock sabotage [w]             saboteur seat: sync, then hunt fresh
                                      merges with failing tests (SAB-* task).
                                      No worker = next vendor in rotation.
-  agentteam sabotage --all           every available vendor in turn, one after
+  frugal-flock sabotage --all           every available vendor in turn, one after
                                      another — for a finished feature/release.
                                      Different models find different defects;
                                      agreement between them is the strongest
                                      signal a finding is real
-  agentteam score [project-root]     fleet scorecard from the ledger: runs,
+  frugal-flock score [project-root]     fleet scorecard from the ledger: runs,
                                      ok/fail, walls, verify rate, merges,
                                      avg duration — per worker
 
 switches
-  agentteam status                   off-agents, tasks, reports, review queue,
+  frugal-flock status                   off-agents, tasks, reports, review queue,
                                      running jobs
-  agentteam off <agent> [30m|5h|7d]  quota switch: disable an agent
-                                     (no duration = until 'agentteam on')
-  agentteam on <agent>               re-enable an agent
-  agentteam stop | resume            project kill switch for ALL new runs
-  agentteam version                  installed version + config path
+  frugal-flock off <agent> [30m|5h|7d]  quota switch: disable an agent
+                                     (no duration = until 'frugal-flock on')
+  frugal-flock on <agent>               re-enable an agent
+  frugal-flock stop | resume            project kill switch for ALL new runs
+  frugal-flock version                  installed version + config path
 
 Worker -> agent: prefix before first "-" ("codex-2" uses agent "codex").
 Config: ~/.config/agentteam/agents.conf (project override: coord/agents.conf).
+Compatibility: all AGENTTEAM_* variables and existing state paths are retained.
+Linux flock is required for locking; it is never a product alias.
 Base branch: coord/base. Machine history: coord/reports/ledger.jsonl.
 Env: AGENTTEAM_TIMEOUT (3600s)  AGENTTEAM_VERIFY_TIMEOUT (900s)
      AGENTTEAM_REVIEW_TIMEOUT (900s)  AGENTTEAM_ALLOW_SECRETS=1 (init override)
@@ -1582,19 +1590,23 @@ case "${1:-help}" in
   stop)     shift; cmd_stop "$@";;
   resume)   shift; cmd_resume "$@";;
   help|-h|--help) cmd_help;;
-  *) die "unknown command '${1}' (agentteam help)";;
+  *) die "unknown command '${1}' (frugal-flock help)";;
 esac
 AGENTTEAM_BIN_EOF
 chmod +x "$BIN_DIR/agentteam"
+# Keep one implementation at the legacy path so old installations upgrade in place.
+# Relative links also work when BIN_DIR contains spaces or the install is moved.
+ln -sfnT agentteam "$BIN_DIR/frugal-flock"
+ln -sfnT agentteam "$BIN_DIR/frgl-flc"
 # ------------------------------------------------------------- agents.conf
 if [ -f "$CONF_DIR/agents.conf" ]; then
   echo "keeping existing $CONF_DIR/agents.conf"
 else
 cat > "$CONF_DIR/agents.conf" <<'AGENTS_CONF_EOF'
-# agentteam agents.conf — one line per agent:  name=shell command
+# frugal-flock agents.conf — one line per agent:  name=shell command
 # $TASKFILE = task file path. Commands run INSIDE the worker's worktree.
 # Lego rules: add/remove lines freely; disable a quota-dead agent with
-# `agentteam off <name> 5h` (or 7d for weekly caps) — no editing needed.
+# `frugal-flock off <name> 5h` (or 7d for weekly caps) — no editing needed.
 # Syntax verified against official docs 2026-07-10; recheck with --help.
 
 # Claude Code (Anthropic sub). Unattended => skip-permissions; VM-only setting.
@@ -1629,7 +1641,7 @@ fi
 cat > "$TPL_DIR/MASTER.md" <<'MASTER_TPL_EOF'
 # Role: Team lead (plan, delegate, review, integrate — do NOT implement)
 
-You are the master session of a multi-agent CLI team. Daniel is the human
+You are the master session of a Frugal Flock CLI team. Daniel is the human
 owner: he approves plans and he merges. You never merge, never write code.
 
 Layout: this dir = the base branch (see ../coord/base — normally `dev`;
@@ -1646,29 +1658,29 @@ Coordination = ../coord.
 Plan first: present the breakdown to Daniel; delegate only after his "go".
 
 ## How to delegate
-1. `agentteam agents` — who is ON. OFF = quota-exhausted (5h/weekly cap).
+1. `frugal-flock agents` — who is ON. OFF = quota-exhausted (5h/weekly cap).
    Reroute per the policy below; never queue work on an OFF agent. If a
    worker's output hits a limit mid-cycle, tell Daniel and suggest
-   `agentteam off <agent> 5h` (weekly: 7d).
+   `frugal-flock off <agent> 5h` (weekly: 7d).
 2. Write ../coord/tasks/<ID>-<worker>.md from TEMPLATE.md. Workers have
    ZERO memory of this chat — task files must be self-contained. The
    "- path" lines under Allowed scope and the "$ " lines under Validate
-   are machine-enforced by `agentteam verify` — write them precisely.
-3. `agentteam run <worker> <ID>-<worker>` (long: add -b, poll with status,
-   watch live with `agentteam tail`).
-4. Machine check FIRST: `agentteam verify <worker> <ID>-<worker>` — scope
+   are machine-enforced by `frugal-flock verify` — write them precisely.
+3. `frugal-flock run <worker> <ID>-<worker>` (long: add -b, poll with status,
+   watch live with `frugal-flock tail`).
+4. Machine check FIRST: `frugal-flock verify <worker> <ID>-<worker>` — scope
    compliance, Validate commands re-run, commit sanity; the verdict lands
    in the report. Then read ../coord/reports/<ID>-<worker>.md and the REAL
-   diff: `agentteam diff <worker>`. Never trust a report without both.
+   diff: `frugal-flock diff <worker>`. Never trust a report without both.
    For risky or large diffs, get a rival's opinion too:
-   `agentteam review <worker> <ID>-<worker>` (a different vendor judges it).
+   `frugal-flock review <worker> <ID>-<worker>` (a different vendor judges it).
 5. Accept only if the milestone gate passes: verify PASS + clean build
    (0 warnings where the repo enforces it) + tests green + smoke run +
    changelog fragment changelog.d/<ID>.md (if the repo keeps a CHANGELOG —
    workers never edit CHANGELOG.md itself). Then tell Daniel the branch is
    ready to merge into the base branch. Reject -> sharper task file (<ID>b),
    rerun. Two failed attempts -> escalate to Daniel.
-6. After Daniel merges: `agentteam sync` — every workshop rebuilds on the
+6. After Daniel merges: `frugal-flock sync` — every workshop rebuilds on the
    new base instead of drifting stale. At release time, roll the
    changelog.d/ fragments into CHANGELOG.md (you may edit docs).
 
@@ -1689,7 +1701,7 @@ Plan first: present the breakdown to Daniel; delegate only after his "go".
   every cycle; if ../coord/STOP exists, stop delegating immediately.
 
 ## Fleet intelligence
-- `agentteam score` — the always-available scorecard from the ledger:
+- `frugal-flock score` — the always-available scorecard from the ledger:
   runs, ok/fail, walls, verify pass-rate, merges (auto-logged by the
   post-merge hook), avg duration, per worker. Consult it when assigning
   tasks — favor workers that earn merges; flag chronic wall-hitters.
@@ -1698,9 +1710,9 @@ Plan first: present the breakdown to Daniel; delegate only after his "go".
 - ../coord/reports/ledger.jsonl is the machine history: one JSON line per
   run/verify/review/race/merge with durations and diffstats. Cite it,
   not vibes.
-- Head-to-head data when vendors disagree: `agentteam race <task> w1 w2`
+- Head-to-head data when vendors disagree: `frugal-flock race <task> w1 w2`
   runs one task on several vendors in parallel; exactly one winner merges.
-- Spare quota after merge days -> `agentteam sabotage <worker>`: the
+- Spare quota after merge days -> `frugal-flock sabotage <worker>`: the
   saboteur seat attacks freshly merged work with failing tests. Real bugs
   found there are cheaper than bugs found by users.
 MASTER_TPL_EOF
@@ -1708,7 +1720,7 @@ MASTER_TPL_EOF
 cat > "$TPL_DIR/WORKER.md" <<'WORKER_TPL_EOF'
 # Role: worker "{{WORKER}}"
 
-You are one worker in a multi-agent team. Your entire assignment is the
+You are one worker in a Frugal Flock team. Your entire assignment is the
 task prompt you were given. Follow it exactly.
 
 - Onboard first if present: this repo's AGENTS.md and docs/ai/START_HERE.md
@@ -1717,7 +1729,7 @@ task prompt you were given. Follow it exactly.
   Never switch branches, never push, never touch the base branch (dev/main).
   Git hooks enforce this; do not fight them.
 - Modify only files in the task's "Allowed scope". The "- path" lines there
-  are machine-checked after your run (`agentteam verify`) — out-of-scope
+  are machine-checked after your run (`frugal-flock verify`) — out-of-scope
   edits get the whole branch rejected. Need something outside it? Do NOT
   touch it — finish what you can, state the need in your report.
 - No architecture changes, no new dependencies, unless the task grants them.
@@ -1750,7 +1762,7 @@ the code does now, relevant files and roles, decisions already made, frozen
 contracts ("types in src/api/types.ts @ <sha> — do not change them").
 
 ## Allowed scope
-One "- path" line per allowed file or directory — ENFORCED by `agentteam
+One "- path" line per allowed file or directory — ENFORCED by `frugal-flock
 verify` (globs ok; a trailing / means the whole directory; changelog.d/
 is always allowed):
 - src/feature.py
@@ -1761,7 +1773,7 @@ Libraries to use/avoid, style, frozen interfaces, no new deps.
 
 ## Validate
 Prose is fine here, but every line starting with "$ " is machine-run by
-`agentteam verify` inside the worktree and must exit 0:
+`frugal-flock verify` inside the worktree and must exit 0:
 $ dotnet build -c Release
 $ python3 -m unittest discover tests -v
 
@@ -1853,15 +1865,15 @@ failing test name), EXPECTED vs ACTUAL, SEVERITY.
 SABOTEUR_TPL_EOF
 
 cat > "$TPL_DIR/PROTOCOL.md" <<'PROTOCOL_TPL_EOF'
-# AGENTTEAM PROTOCOL — system specification for AI agents
+# Frugal Flock Protocol — system specification for AI agents
 
-Audience: AI agents (lead or worker) operating inside an agentteam project.
+Audience: AI agents (lead or worker) operating inside a Frugal Flock project.
 Status: normative. If your role card (MASTER.md / WORKER.md) conflicts with
 this document, the role card wins. The human owner (Daniel) outranks both.
 
 ## 1. SYSTEM
 
-agentteam coordinates one interactive LEAD session and N headless WORKER
+Frugal Flock coordinates one interactive LEAD session and N headless WORKER
 runs from different AI CLIs (claude, codex, agy/antigravity, grok,
 opencode) on one shared git repository. Isolation is per-worker git
 worktrees. Coordination is plain files. Integration is human-gated merges.
@@ -1888,9 +1900,9 @@ Layout relative to project root:
 | `coord/docs/` | Operating playbooks + this protocol | OWNER |
 | `coord/board.md` | Task board, one row per task | LEAD only |
 | `coord/tasks/<ID>-<worker>.md` | Task files (work orders) | LEAD only |
-| `coord/reports/<task>.md` | Append-only run history per task | agentteam tooling |
-| `coord/reports/<task>.log` | Latest run's full output (overwritten) | agentteam tooling |
-| `coord/reports/ledger.jsonl` | Append-only machine ledger: one JSON object per event | agentteam tooling |
+| `coord/reports/<task>.md` | Append-only run history per task | Frugal Flock tooling |
+| `coord/reports/<task>.log` | Latest run's full output (overwritten) | Frugal Flock tooling |
+| `coord/reports/ledger.jsonl` | Append-only machine ledger: one JSON object per event | Frugal Flock tooling |
 | `coord/blockers.md` | Blocker notes | anyone, APPEND only |
 | `coord/STOP` | If present: all new runs refused | OWNER |
 
@@ -1905,10 +1917,10 @@ only the latest run and MUST NOT be used as history.
 Timing rule: `duration_s` is measured on a monotonic clock and therefore
 excludes time the machine spent asleep; `wall_s` is the wall-clock elapsed
 time and `suspended` is 1 when the two diverge by more than a minute. A
-suspended run's elapsed time is meaningless — `agentteam score` excludes it
+suspended run's elapsed time is meaningless — `frugal-flock score` excludes it
 from averages, and any other analysis MUST do the same.
 
-Enforcement at init: `agentteam init` refuses to scaffold while likely
+Enforcement at init: `frugal-flock init` refuses to scaffold while likely
 secret files are tracked (override: AGENTTEAM_ALLOW_SECRETS=1), and
 installs git hooks: a worker worktree can commit only on its own
 `agent/<w>` branch and can never push, and every merge into the base
@@ -1933,7 +1945,7 @@ commits=<n> files=<n> insertions=<n> deletions=<n> uncommitted=<n>
 ~~~
 ```
 
-Verify block (appended by `agentteam verify`):
+Verify block (appended by `frugal-flock verify`):
 `### verify <ts> — worker=<w> scope=<OK|VIOLATION|UNCHECKED>
 validate=<passed>/<run> empty=<0|1> verdict=<PASS|FAIL>` plus out-of-scope
 paths and per-command results.
@@ -1967,64 +1979,64 @@ with state ∈ {todo, doing, blocked, review, done}.
 Worker→agent resolution: agent id = worker name up to first `-`
 (worker `codex-2` → agent `codex`).
 
-## 4. THE `agentteam` COMMANDS (local shell tool)
+## 4. THE `frugal-flock` COMMANDS (local shell tool)
 
-To be explicit: these are subcommands of the local `agentteam` shell
+To be explicit: these are subcommands of the local `frugal-flock` shell
 script. No AI-provider API is involved anywhere in this system — every
 agent is an official CLI running under its own subscription LOGIN
 (cached on the machine), never an API key.
 
 ```text
-agentteam init [w1 w2 ...]     scaffold worktrees + coord (idempotent);
+frugal-flock init [w1 w2 ...]     scaffold worktrees + coord (idempotent);
                                secrets preflight; guard hooks
-agentteam agents               list agents: binary present, on/off state
-agentteam smoke                one tiny live call per agent from a neutral
+frugal-flock agents               list agents: binary present, on/off state
+frugal-flock smoke                one tiny live call per agent from a neutral
                                dir; OK / WARN (reply lacks "ok") / FAIL
-agentteam selftest             full-loop rehearsal in a sandbox repo with
+frugal-flock selftest             full-loop rehearsal in a sandbox repo with
                                mock agents; zero quota; nonzero on failure
-agentteam run [-b] <w> <task>  execute coord/tasks/<task>.md as worker <w>
+frugal-flock run [-b] <w> <task>  execute coord/tasks/<task>.md as worker <w>
                                in wt/<w>; -b = background; per-worker lock;
                                writes report+log+ledger
-agentteam tail [task]          follow a run's live log (default: newest)
-agentteam kill <task>          terminate a background run (whole session,
+frugal-flock tail [task]          follow a run's live log (default: newest)
+frugal-flock kill <task>          terminate a background run (whole session,
                                including the agent under `timeout`)
-agentteam report <task> [n]    print the last n (default 60) lines of a
+frugal-flock report <task> [n]    print the last n (default 60) lines of a
                                task's append-only report
-agentteam version              installed tool version + config path
-agentteam verify <w> <task>    machine gate assist: diff vs the task's
+frugal-flock version              installed tool version + config path
+frugal-flock verify <w> <task>    machine gate assist: diff vs the task's
                                "- path" scope lines + run its "$ " Validate
                                lines in the worktree + commit sanity;
                                appends verify block; nonzero exit on
                                violation / validate failure / empty diff
-agentteam diff <w> [--stat]    changes on agent/<w> vs base: committed and
+frugal-flock diff <w> [--stat]    changes on agent/<w> vs base: committed and
                                uncommitted, separately
-agentteam review <w> <task> [agent]  cross-vendor review: a DIFFERENT agent
+frugal-flock review <w> <task> [agent]  cross-vendor review: a DIFFERENT agent
                                judges task order + diff from a neutral dir;
                                ends VERDICT: APPROVE|REQUEST-CHANGES
-agentteam sync [w]             bring base's merged work into worker
+frugal-flock sync [w]             bring base's merged work into worker
                                branches (ff when fully merged, merge
                                otherwise; skips dirty/running; aborts and
                                reports on conflict)
-agentteam race <task> <w1> <w2> [...]  copy <task>.md to <task>-<w>.md per
+frugal-flock race <task> <w1> <w2> [...]  copy <task>.md to <task>-<w>.md per
                                worker and dispatch all in background;
                                OWNER merges at most one winner
-agentteam sabotage <w>         saboteur seat: sync <w>, generate a SAB-*
+frugal-flock sabotage <w>         saboteur seat: sync <w>, generate a SAB-*
                                task from the template, dispatch background
-agentteam score [root]         per-worker scorecard from ledger.jsonl:
+frugal-flock score [root]         per-worker scorecard from ledger.jsonl:
                                runs, ok/fail, walls, verify rate, merges,
                                avg duration
-agentteam doctor               preflight the project: base branch present,
+frugal-flock doctor               preflight the project: base branch present,
                                agent binaries, worktree health, stale
                                pidfiles, disk headroom; nonzero on error
-agentteam new <url> [name] [w...]  bootstrap a project: clone -> dev branch
+frugal-flock new <url> [name] [w...]  bootstrap a project: clone -> dev branch
                                -> init -> copy $CONF/playbooks/*.md into
                                coord/docs/
-agentteam status               off-agents, tasks, reports, review queue
+frugal-flock status               off-agents, tasks, reports, review queue
                                (unreviewed commits per worker), running jobs
-agentteam off <agent> [dur]    bench agent (dur: 30m|5h|7d; absent=manual);
+frugal-flock off <agent> [dur]    bench agent (dur: 30m|5h|7d; absent=manual);
                                run refuses benched agents; expiry auto-clears
-agentteam on <agent>           un-bench
-agentteam stop | resume        create/remove coord/STOP (global run gate)
+frugal-flock on <agent>           un-bench
+frugal-flock stop | resume        create/remove coord/STOP (global run gate)
 ```
 
 Environment: `AGENTTEAM_TIMEOUT` (seconds, default 3600) caps each run;
@@ -2041,7 +2053,7 @@ stale code (otherwise `run` warns and leaves it to the operator).
 invocation templates live in `~/.config/agentteam/agents.conf` (project
 override: `coord/agents.conf`).
 
-Fleet intelligence: `agentteam score` (ledger-based, always available)
+Fleet intelligence: `frugal-flock score` (ledger-based, always available)
 and the companion tool `myapp <project-root>` (full scorecard incl.
 pre-ledger history from reports/*.md). LEAD SHOULD consult one of them
 when assigning tasks.
@@ -2050,11 +2062,11 @@ when assigning tasks.
 
 1. OWNER states intent to LEAD.
 2. LEAD reads coord/docs/*, repo docs (AGENTS.md router, docs/ai/), and
-   `agentteam agents`; produces a task breakdown; WAITS for OWNER "go".
+   `frugal-flock agents`; produces a task breakdown; WAITS for OWNER "go".
 3. LEAD freezes shared contracts (types/schemas/fixtures) as commits on
    the base branch BEFORE dispatching dependent tasks; task files cite
    contract paths @ sha.
-4. LEAD dispatches via `agentteam run`; parallel tasks MUST have disjoint
+4. LEAD dispatches via `frugal-flock run`; parallel tasks MUST have disjoint
    Allowed-scope sets (changelog.d/ exempt — one file per task); at most
    one task per cycle may modify dependency manifests (package files,
    lockfiles, migrations). Race tasks are the sanctioned exception to
@@ -2063,14 +2075,14 @@ when assigning tasks.
    paths, runs Validate, writes its changelog fragment, commits only files
    it changed (never blanket staging), ends output with the Report
    sections.
-6. LEAD verifies, machine first: `agentteam verify` (scope + Validate +
-   commit sanity), then reads the report and `agentteam diff`; for risky
-   diffs also `agentteam review`. Reports are claims; diffs, verify
+6. LEAD verifies, machine first: `frugal-flock verify` (scope + Validate +
+   commit sanity), then reads the report and `frugal-flock diff`; for risky
+   diffs also `frugal-flock review`. Reports are claims; diffs, verify
    verdicts and logs are ground truth.
 7. OWNER merges accepted branches into base (`git merge --no-ff`).
    Acceptance gate: verify PASS, clean build, tests green, smoke run,
    changelog fragment where the repo keeps a changelog. After the merge
-   cycle, LEAD runs `agentteam sync` so all workshops rebuild on the new
+   cycle, LEAD runs `frugal-flock sync` so all workshops rebuild on the new
    base.
 8. Releases: OWNER-only, explicit, base→main + tag. At release, LEAD rolls
    changelog.d/ fragments into CHANGELOG.md. Order: merge fix → verify →
@@ -2095,7 +2107,7 @@ when assigning tasks.
 - I9  Benched (OFF) agents get no work; LEAD reroutes by the fallback
       policy in MASTER.md.
 - I10 Verification is evidence-based: a claim without a diff/test/log
-      backing it is treated as unverified. `agentteam verify` is the
+      backing it is treated as unverified. `frugal-flock verify` is the
       mechanical floor of that evidence, not its ceiling.
 - I11 Workers never edit CHANGELOG.md; changelog entries are per-task
       fragments in changelog.d/, rolled up at release by LEAD/OWNER.
@@ -2107,14 +2119,14 @@ when assigning tasks.
 | Condition | Required behavior |
 |---|---|
 | Auth/token error in output | Report it verbatim; OWNER re-logins the CLI; task is rerunnable. |
-| Limit language in output (rate/usage limit, quota, resets at) | LEAD suggests `agentteam off <agent> 5h` (weekly: 7d) and reroutes. |
+| Limit language in output (rate/usage limit, quota, resets at) | LEAD suggests `frugal-flock off <agent> 5h` (weekly: 7d) and reroutes. |
 | Validate commands fail | Do not claim success. Report failure + hypothesis. |
-| `agentteam verify` reports SCOPE VIOLATION | Reject the branch; LEAD re-briefs with corrected scope; a violating diff is never merged as-is. |
-| Worker lock busy ("already running a task") | Wait or `agentteam status`; abort a stray background run with `agentteam kill <task>`. |
-| Stale index.lock after a killed run | Cleared automatically at the next `agentteam run`; if git still complains, remove `<gitdir>/index.lock` by hand. |
+| `frugal-flock verify` reports SCOPE VIOLATION | Reject the branch; LEAD re-briefs with corrected scope; a violating diff is never merged as-is. |
+| Worker lock busy ("already running a task") | Wait or `frugal-flock status`; abort a stray background run with `frugal-flock kill <task>`. |
+| Stale index.lock after a killed run | Cleared automatically at the next `frugal-flock run`; if git still complains, remove `<gitdir>/index.lock` by hand. |
 | Blocked on missing contract/file | I2/I6: flag, don't fix; wait. |
 | Task file ambiguous | LEAD: rewrite it. WORKER: state the ambiguity and the interpretation chosen; prefer the narrower reading. |
-| Merge conflict on integration | OWNER decision; LEAD proposes resolution order; nobody force-merges. Routine prevention: `agentteam sync` after every merge cycle. |
+| Merge conflict on integration | OWNER decision; LEAD proposes resolution order; nobody force-merges. Routine prevention: `frugal-flock sync` after every merge cycle. |
 
 ## 8. REFERENCES
 
@@ -2123,14 +2135,14 @@ when assigning tasks.
   `coord/docs/ai-full-build-recipe.md` — define working style (dev/main
   model, verified milestones, evaluation-first, docs upkeep).
 - Human documentation: docs/HANDBOOK.md, docs/MASTER-PLAN.md,
-  docs/SETUP.md in the agentteam docs repository.
+  docs/SETUP.md in the Frugal Flock docs repository.
 PROTOCOL_TPL_EOF
 
 # --------------------------------------------------------------- completion
 COMP_DIR="${AGENTTEAM_COMPLETION_DIR:-$HOME/.local/share/bash-completion/completions}"
 mkdir -p "$COMP_DIR"
 cat > "$COMP_DIR/agentteam" <<'COMPLETION_EOF'
-# bash completion for agentteam — commands, then workers/tasks/agents in context
+# bash completion for frugal-flock — commands, then workers/tasks/agents in context
 _agentteam() {
   local cur cmd root d cmds
   cur="${COMP_WORDS[COMP_CWORD]}"
@@ -2167,14 +2179,18 @@ _agentteam() {
     off|on) COMPREPLY=( $(compgen -W "$agents" -- "$cur") );;
   esac
 }
-complete -F _agentteam agentteam
+complete -F _agentteam frugal-flock frgl-flc agentteam
 COMPLETION_EOF
+ln -sfnT agentteam "$COMP_DIR/frugal-flock"
+ln -sfnT agentteam "$COMP_DIR/frgl-flc"
 
 echo
-echo "agentteam installed."
-echo "  command   : $BIN_DIR/agentteam   (ensure that dir is on PATH)"
+echo "Frugal Flock installed. Small plans. Big ideas."
+echo "  command   : $BIN_DIR/frugal-flock   (ensure that dir is on PATH)"
+echo "  aliases   : frgl-flc (short), agentteam (legacy) — same implementation"
+echo "  compatible: AGENTTEAM_* overrides and existing state paths are retained"
 echo "  config    : $CONF_DIR/agents.conf   <- EDIT: enable/tune your agents"
-echo "  quota     : agentteam off <agent> 5h|7d   /   agentteam on <agent>"
+echo "  quota     : frugal-flock off <agent> 5h|7d   /   frugal-flock on <agent>"
 echo
-echo "Next: agentteam selftest        (mock-agent rehearsal, zero quota)"
-echo "Then: cd <your repo clone> && agentteam init codex antigravity opencode grok"
+echo "Next: frugal-flock selftest        (mock-agent rehearsal, zero quota)"
+echo "Then: cd <your repo clone> && frugal-flock init codex antigravity opencode grok"

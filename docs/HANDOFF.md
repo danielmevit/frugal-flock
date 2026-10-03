@@ -1,36 +1,36 @@
-# agentteam — Handoff
+# Frugal Flock — Handoff
 
-How to take over **agentteam** and keep improving it without re-deriving anything.
+How to take over **Frugal Flock** and keep improving it without re-deriving anything.
 Written after the v0.3.x hardening rounds (`D:\Vibe Coding\_vm\agentteam-docs` — the
 orchestration tool that ran the `repos` build with five AI vendors in parallel); point
-any model at this file and say: *"You're taking over agentteam — read
+any model at this file and say: *"You're taking over Frugal Flock — read
 `docs/HANDOFF.md` and continue."*
 
 ---
 
 ## 1. What the thing is
 
-agentteam turns several AI coding subscriptions (Claude, Codex, Grok, OpenCode/Kimi,
+Frugal Flock turns several AI coding subscriptions (Claude, Codex, Grok, OpenCode/Kimi,
 Antigravity) into one coordinated team on a single Ubuntu/WSL machine. One AI is the
 **foreman** (plans, writes work orders, verifies); the others are **workers**, each
 building in its own git worktree; the **human owner** is the only one who merges.
 
 It is not an AI and contains none. It calls the vendors' official CLIs under their
 **subscription logins** — no API keys anywhere, ever. Anything that looks like an
-"API" in the docs means the `agentteam` subcommand surface, nothing more.
+"API" in the docs means the `frugal-flock` subcommand surface, nothing more.
 
 Three load-bearing ideas, in the order they matter:
 
 - **Isolation** — one worktree + one `agent/<w>` branch per worker; they physically
   cannot overwrite each other.
 - **Receipts over reports** — every run yields the agent's claim *and* the diff.
-  `agentteam verify` is the machine floor of that evidence. Reports lie; a real vendor
+  `frugal-flock verify` is the machine floor of that evidence. Reports lie; a real vendor
   once reported "all tests passed / NEEDS-REVIEW: None" having committed nothing at all.
 - **One human gate** — nothing enters the base branch without a human merge.
 
 ## 2. Repository layout — what to edit
 
-> **The product is one file.** `agentteam-install.sh` *embeds* the entire `agentteam`
+> **The product is one file.** `agentteam-install.sh` *embeds* the entire `frugal-flock`
 > tool (installed to `~/.local/bin/agentteam`), every template (MASTER/WORKER/TASK/
 > SABOTEUR/PROTOCOL), the agents.conf defaults, and bash completion. Editing the
 > installed copy at `~/.local/bin/agentteam` is always wrong — it is overwritten on the
@@ -53,7 +53,7 @@ cp ~/.config/agentteam/templates/PROTOCOL.md docs/PROTOCOL.md
 diff ~/.config/agentteam/templates/PROTOCOL.md docs/PROTOCOL.md   # must be empty
 ```
 
-## 3. The change loop for agentteam itself
+## 3. The change loop for Frugal Flock itself
 
 Every change to the installer goes through the same four gates. None is optional; each
 has caught a real regression.
@@ -61,7 +61,7 @@ has caught a real regression.
 ```bash
 bash -n agentteam-install.sh          # 1. syntax
 bash agentteam-install.sh             # 2. install (never touches your agents.conf)
-agentteam selftest                    # 3. 40 checks, mock agents, ZERO quota
+frugal-flock selftest                    # 3. 40 checks, mock agents, ZERO quota
 bash tests/agentteam-probes.sh        # 4. 14 adversarial probes, ZERO quota
 ./tools/check-docs.sh                 # 5. docs lint (+ --selftest for the linter)
 shellcheck -S warning <extracted bin> # 6. keep it at 0 warnings
@@ -115,7 +115,7 @@ new code:
 - **Errors swallowed = false confidence.** `2>/dev/null || true` around the diff meant a
   dangling `coord/base` produced PASS with no evidence. Fail closed.
 - **Names that address files must be validated.** `check_id` guards worker and task ids —
-  it was missing on agent names, making `agentteam on ../../x` a file-delete primitive.
+  it was missing on agent names, making `frugal-flock on ../../x` a file-delete primitive.
   It also now rejects whitespace/control characters, which had allowed forged ledger rows.
 - **Wall-clock is not elapsed work.** Durations measured with `date` counted a Windows
   sleep: a ten-minute run logged 38995s and poisoned the scorecard. Timings use a
@@ -147,7 +147,7 @@ command invoking that vendor's CLI headless. Re-running the installer never over
 > task on Codex or Kimi costs nothing from the Anthropic pool.
 
 Vendor outages are routine, not exceptional: a 503 killed a saboteur mid-run. Bench the
-agent (`agentteam off <a> 30m`), reroute the seat, carry on.
+agent (`frugal-flock off <a> 30m`), reroute the seat, carry on.
 
 ## 7. Working conventions that keep the machinery honest
 
@@ -165,7 +165,7 @@ agent (`agentteam off <a> 30m`), reroute the seat, carry on.
   never touched. Either merge first, or write the follow-up's `## Allowed scope` as the
   union. The verdict is not wrong, but it reads as the worker's fault when it is the
   dispatcher's.
-- **Saboteur rotation is the quality loop.** `agentteam sabotage` (no worker) rotates the
+- **Saboteur rotation is the quality loop.** `frugal-flock sabotage` (no worker) rotates the
   seat; `sabotage --all` runs every vendor for a finished feature. Saboteurs *can* run in
   parallel safely (isolated worktrees) — `--all` is sequential only to protect quota. A
   finding two vendors reach independently is almost certainly real; one they disagree
@@ -184,10 +184,10 @@ agent (`agentteam off <a> 30m`), reroute the seat, carry on.
 
 ## 9. Handoff prompt (fill in)
 
-> You're taking over **agentteam** at `/mnt/d/Vibe Coding/_vm/agentteam-docs`. Read
+> You're taking over **Frugal Flock** at `/mnt/d/Vibe Coding/_vm/agentteam-docs`. Read
 > `docs/HANDOFF.md`, then `docs/PROTOCOL.md` (normative) and `docs/GUIDEBOOK.md` (the
 > manual). The product is `agentteam-install.sh` — never edit the installed copy. Every
-> change: `bash -n` → install → `agentteam selftest` → `bash tests/agentteam-probes.sh` →
+> change: `bash -n` → install → `frugal-flock selftest` → `bash tests/agentteam-probes.sh` →
 > `./tools/check-docs.sh` → shellcheck at 0 warnings, and pin each fix with a new check.
 > Work on `main`; commit with a message that explains the *class* of bug, not just the
 > line. Prefer non-Claude vendors for any dispatched work, and never point the `claude`

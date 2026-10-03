@@ -73,7 +73,7 @@ lines with a space, and pandoc reproduces it correctly (several docs here
 rely on it):
 
 ```text
-Re-run `agentteam init
+Re-run `frugal-flock init
 <worker>` to refresh that worker's card.
 ```
 
@@ -84,7 +84,7 @@ Just make sure it is closed.
 A `|` inside a table cell splits it into two columns. Write `\|`:
 
 ```text
-| `agentteam off <agent> [30m\|5h\|7d]` | Bench an agent. |
+| `frugal-flock off <agent> [30m\|5h\|7d]` | Bench an agent. |
 ```
 
 Pipes inside code spans are safe, but escaping is harmless and clearer.
@@ -125,7 +125,7 @@ template that gets installed into every project's `coord/docs/`. The two
 copies must stay byte-identical. After editing either one:
 
 ```text
-bash agentteam-install.sh                                  # rewrite templates
+bash frugal-flock-install.sh                                  # rewrite templates
 cp ~/.config/agentteam/templates/PROTOCOL.md docs/PROTOCOL.md
 diff ~/.config/agentteam/templates/PROTOCOL.md docs/PROTOCOL.md   # must be empty
 ```

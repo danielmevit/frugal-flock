@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make-docx.sh — turn an agentteam Markdown document into a formatted .docx.
+# make-docx.sh — turn a Frugal Flock Markdown document into a formatted .docx.
 #
 #   ./tools/make-docx.sh                      # docs/GUIDEBOOK.md -> docs/GUIDEBOOK.docx
 #   ./tools/make-docx.sh docs/HANDBOOK.md     # any doc; output sits beside it

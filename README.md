@@ -1,10 +1,31 @@
-# agentteam — private ops repo
+# Frugal Flock
 
-One master AI session delegating to worker AI CLIs (Claude, Codex,
-Antigravity, Grok, OpenCode) on an Ubuntu VM. Subscription logins only.
+Small plans. Big ideas.
+
+Coordinate the AI coding tools you already use: review a plan, delegate work
+to Claude, Codex, Antigravity, Grok or OpenCode, and check the results before
+you merge. Runs through their CLIs on an Ubuntu VM or WSL using subscription
+logins.
 
 ## Bootstrap a new machine
-    bash agentteam-install.sh          # then log in each CLI once (docs/SETUP.md §2)
+    bash frugal-flock-install.sh          # then log in each CLI once (docs/SETUP.md §2)
+    frugal-flock selftest                 # mock agents, zero quota
+    frgl-flc help                         # optional short command
+
+`frugal-flock` is the canonical command; `frgl-flc` and legacy `agentteam`
+point to the same implementation. Completion is installed for all three names.
+The canonical installer is a thin wrapper around `agentteam-install.sh`;
+keep both files together. Old installation automation continues to work.
+
+Compatibility names stay in place: all `AGENTTEAM_*` environment overrides,
+`~/.config/agentteam/` (including `agents.conf`, templates, playbooks and quota
+state), and project state such as `.agentteam-worker`. Reinstalling preserves
+your existing `agents.conf`; no user data is migrated or deleted. The implementation
+remains at `~/.local/bin/agentteam`, with links for the two new names. We never
+install a command called `flock`: Linux `flock` remains the locking utility.
+
+Identity and product direction: [Brand](docs/BRAND.md) ·
+[UX direction](docs/UX-DIRECTION.md) · [Next steps](TODO.md).
 
 ## Documents
 | File | For | What |

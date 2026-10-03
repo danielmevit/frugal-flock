@@ -10,7 +10,7 @@ section 2 you can flip back to. Where something is genuinely confusing, it is
 marked **THE CONFUSING PART** and explained slowly — those spots are
 confusing for professional developers too, so take them at reading speed.
 
-The two companion files are practical, not explanatory: `agentteam-install.sh`
+The two companion files are practical, not explanatory: `frugal-flock-install.sh`
 is the program that sets everything up, and `AGENTTEAM-README.md` is the
 short reference card for daily use. This document is the one that makes the
 other two make sense.
@@ -69,7 +69,7 @@ commands instead of clicking buttons. You type a command, press Enter, the
 computer prints its answer as text. All of this system lives in terminals.
 
 **Command / CLI** — a program you use from the terminal ("CLI" = command
-line interface). `agentteam status` is a command: `agentteam` is the
+line interface). `frugal-flock status` is a command: `frugal-flock` is the
 program, `status` is what you're asking it to do.
 
 **AI coding agent** — an AI you run in a terminal that can not only chat,
@@ -165,7 +165,7 @@ all three names to it — so any agent you launch finds its orders.
 **PATH** — the list of folders the terminal searches when you type a
 command name. "Put it on your PATH" means "make it findable by name." The
 install step handles this; if the terminal ever says
-`agentteam: command not found`, PATH is what broke.
+`frugal-flock: command not found`, PATH is what broke.
 
 **CodeGraph** — a tool from your own playbook that builds a searchable
 index of a codebase, so agents can ask "where is the export function?"
@@ -253,19 +253,19 @@ these files are re-read automatically. Rules live in files, not in chat.
 ## 5. The controls — every command in plain language
 
 You (or the foreman — it uses the same commands through its terminal
-access) drive the system with one program, `agentteam`:
+access) drive the system with one program, `frugal-flock`:
 
 | Command | In plain language |
 |---|---|
-| `agentteam init codex antigravity opencode grok` | "Build the workshops and the office for this project." Run once per project, from inside the repo folder. |
-| `agentteam agents` | "Roll call." Shows each agent: installed? switched on? benched until when? |
-| `agentteam run codex T1-codex` | "Codex — execute work order T1." Runs it in codex's workshop, saves the full log and a result report in the office. |
-| `agentteam run -b grok T2-grok` | Same, but in the background so you can keep issuing commands while grok works. |
-| `agentteam status` | "Morning briefing." Benched agents, open work orders, fresh reports, the state of every workshop, anything still running. |
-| `agentteam diff codex` | "Show me the receipts." The exact changes codex made, compared against the home timeline. The single most important command you own. |
-| `agentteam off antigravity 5h` | "Antigravity is out of quota — bench it for 5 hours." It refuses work and un-benches itself automatically when the time is up. `7d` for a weekly cap; no duration = benched until you say otherwise. |
-| `agentteam on antigravity` | "Back in the game." |
-| `agentteam stop` / `agentteam resume` | The red button: block ALL new runs project-wide / release it. |
+| `frugal-flock init codex antigravity opencode grok` | "Build the workshops and the office for this project." Run once per project, from inside the repo folder. |
+| `frugal-flock agents` | "Roll call." Shows each agent: installed? switched on? benched until when? |
+| `frugal-flock run codex T1-codex` | "Codex — execute work order T1." Runs it in codex's workshop, saves the full log and a result report in the office. |
+| `frugal-flock run -b grok T2-grok` | Same, but in the background so you can keep issuing commands while grok works. |
+| `frugal-flock status` | "Morning briefing." Benched agents, open work orders, fresh reports, the state of every workshop, anything still running. |
+| `frugal-flock diff codex` | "Show me the receipts." The exact changes codex made, compared against the home timeline. The single most important command you own. |
+| `frugal-flock off antigravity 5h` | "Antigravity is out of quota — bench it for 5 hours." It refuses work and un-benches itself automatically when the time is up. `7d` for a weekly cap; no duration = benched until you say otherwise. |
+| `frugal-flock on antigravity` | "Back in the game." |
+| `frugal-flock stop` / `frugal-flock resume` | The red button: block ALL new runs project-wide / release it. |
 
 Two safety behaviors run automatically. Every result report ends with the
 work log's tail plus a git status — and the log is scanned for phrases like
@@ -295,7 +295,7 @@ workers edit the same file, and recombining timelines becomes archaeology.
 
 **The diff is the truth; the report is a claim.** Agents sometimes report
 success that didn't happen ("tests pass" when they don't). Every
-acceptance goes through `agentteam diff`. Without it: fiction enters your
+acceptance goes through `frugal-flock diff`. Without it: fiction enters your
 project with a confident summary attached.
 
 **Work orders are self-contained.** The amnesia principle from the
@@ -350,12 +350,12 @@ the same thing), writes two work-order files into `coord/tasks/`, updates
 the board, and dispatches:
 
 ```text
-agentteam run -b codex T1-codex
-agentteam run -b grok  T2-grok
+frugal-flock run -b codex T1-codex
+frugal-flock run -b grok  T2-grok
 ```
 
 Both workers now build simultaneously, each in its own workshop. You can
-watch with `agentteam status`, or walk away.
+watch with `frugal-flock status`, or walk away.
 
 **Step 4 — results come back.** Each run leaves two things in
 `coord/reports/`: the complete raw log, and a report ending with the
@@ -363,7 +363,7 @@ worker's own summary (what it changed, what it tested, what it's unsure
 about) plus an automatic git status. The foreman reads both reports — and
 then does the thing that actually matters:
 
-**Step 5 — inspection.** `agentteam diff codex`. Removed lines start with
+**Step 5 — inspection.** `frugal-flock diff codex`. Removed lines start with
 `-`, added lines with `+`. You don't need to understand every line to
 review usefully. You're checking: Are the changed files the ones the work
 order allowed? Is the size sane (a button shouldn't be 2,000 lines)? Do the
@@ -405,11 +405,11 @@ everything after depends on that.
 
 Goal: a VM where every agent answers when called.
 
-1. On the Ubuntu VM, run the installer: `bash agentteam-install.sh`.
+1. On the Ubuntu VM, run the installer: `bash frugal-flock-install.sh`.
 2. Install each agent CLI and log in once each (the exact commands are in
    AGENTTEAM-README §2 — each login opens a web page where you sign in
    with that service's account; the terminal remembers it afterwards).
-3. Roll call: `agentteam agents` — every configured row should say OK.
+3. Roll call: `frugal-flock agents` — every configured row should say OK.
 4. Prove each one is alive with the one-liners: `claude -p "say ok"`,
    `codex exec "say ok"`, `agy -p "say ok"`, `opencode run "say ok"`,
    `grok -p "say ok"`.
@@ -427,20 +427,20 @@ else's, on a project that cannot matter.
 
 1. Make a scratch project (any tiny folder with a git history — even a
    folder with one text file).
-2. `agentteam init codex` — one workshop.
+2. `frugal-flock init codex` — one workshop.
 3. Copy `coord/tasks/TEMPLATE.md` to `T1-codex.md` and write a trivial
    work order YOURSELF: "create a file called hello.txt containing the
    word hello; that file is your entire allowed scope."
-4. `agentteam run codex T1-codex`. Read the report in `coord/reports/`.
-5. `agentteam diff codex` — read your first diff. It will be three lines.
+4. `frugal-flock run codex T1-codex`. Read the report in `coord/reports/`.
+5. `frugal-flock diff codex` — read your first diff. It will be three lines.
 6. Merge it: `git merge --no-ff agent/codex` inside the repo folder.
-7. Practice the switches: `agentteam off codex 5h`, watch a run get
-   refused, `agentteam on codex`. Touch the red button: `agentteam stop`,
-   `agentteam resume`.
+7. Practice the switches: `frugal-flock off codex 5h`, watch a run get
+   refused, `frugal-flock on codex`. Touch the red button: `frugal-flock stop`,
+   `frugal-flock resume`.
 
 **Done when** you have personally written a work order, read a diff, and
 merged a branch — even a toy one. **Likely failure:** running commands
-from the wrong folder ("not inside an agentteam project" — go into the
+from the wrong folder ("not inside a Frugal Flock project" — go into the
 repo or any project subfolder first).
 
 ### Phase 2 — Foreman + one worker, real but small *(a weekend)*
@@ -449,7 +449,7 @@ Goal: hand the steering wheel to the foreman and learn to supervise
 instead of operate.
 
 1. Pick a real but low-stakes project. Set it up per your own playbook
-   (AGENTS.md router, docs/ai/, dev branch). `agentteam init codex`.
+   (AGENTS.md router, docs/ai/, dev branch). `frugal-flock init codex`.
 2. Copy your two playbooks into `coord/docs/`.
 3. Open `claude` in `repo/` and give it the briefing prompt (README §4).
 4. Let the foreman write the work orders this time. Read them before
@@ -467,7 +467,7 @@ never "hope it does better this time."
 
 Goal: parallel work, and limits handled as routine instead of crisis.
 
-1. Add workers one at a time, in this order: antigravity (`agentteam init
+1. Add workers one at a time, in this order: antigravity (`frugal-flock init
    antigravity`), then grok, then opencode. Give each a first task suited to
    its strength (§3's table) and judge its diffs for a day before adding
    the next.
@@ -490,7 +490,7 @@ interesting work *waits* for codex/claude to come back.
 Goal: this is just how you build software now.
 
 1. Standard cycle: brief → plan → go → parallel build → inspect → merge.
-   Background runs (`-b`) as default; `agentteam status` as your morning
+   Background runs (`-b`) as default; `frugal-flock status` as your morning
    briefing.
 2. Board discipline: the foreman keeps `coord/board.md` current; you can
    glance at one file and know the state of everything.
@@ -506,13 +506,13 @@ you did sign off on.
 ### Phase 5 — Later, when it earns it *(optional)*
 
 Only touch these when a real pain shows up. Two workshops for the same
-engine when one is your bottleneck (`agentteam init codex-2`). A
+engine when one is your bottleneck (`frugal-flock init codex-2`). A
 project-specific crew via `coord/agents.conf`. Automatic testing on
 GitHub (every push gets tested in the cloud, so "tests green" stops
 depending on anyone's honesty — this is the "CI" developers talk about).
 Bigger subscription tiers when the scorecard proves an agent is earning
 more than its quota allows. A fifth seat is the same recipe:
-one line in `agents.conf`, one `agentteam init <name>`.
+one line in `agents.conf`, one `frugal-flock init <name>`.
 
 ---
 
@@ -520,14 +520,14 @@ one line in `agents.conf`, one `agentteam init <name>`.
 
 | What you see | What it means | What to do |
 |---|---|---|
-| `agentteam: command not found` | The terminal can't find the program (PATH). | `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc` |
-| `not inside an agentteam project` | You're in a folder with no `coord/` + `wt/` above it. | `cd` into the project's repo folder first. |
+| `frugal-flock: command not found` | The terminal can't find the program (PATH). | `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc` |
+| `not inside a Frugal Flock project` | You're in a folder with no `coord/` + `wt/` above it. | `cd` into the project's repo folder first. |
 | A worker "hangs" forever | It's waiting on a question its auto-approve mode didn't cover, or its login expired. | Open `coord/reports/<task>.log` and read the end; re-login that agent interactively; rerun. |
-| Run fails instantly, log nearly empty | Agent not logged in, or its command flag changed (Grok beta especially). | `agentteam agents`, then the Phase-0 one-liner for that agent; fix the line in `agents.conf` if the flag moved. |
+| Run fails instantly, log nearly empty | Agent not logged in, or its command flag changed (Grok beta especially). | `frugal-flock agents`, then the Phase-0 one-liner for that agent; fix the line in `agents.conf` if the flag moved. |
 | Report says success, diff looks wrong | The agent is overclaiming — this is normal, not an emergency. | Reject. Foreman writes a sharper work order. This is the system working. |
-| "usage limit / resets at" in a log | Quota window burned. | `agentteam off <agent> 5h` (weekly: `7d`), reroute, carry on. |
+| "usage limit / resets at" in a log | Quota window burned. | `frugal-flock off <agent> 5h` (weekly: `7d`), reroute, carry on. |
 | Two workers changed the same file | A work order broke the disjoint-scope rule. | Accept one, reject the other, fix the scopes; tighten the foreman's task-writing with feedback. |
-| Everything is on fire | — | `agentteam stop`, breathe, read `status` and the last reports, `resume` when you understand what happened. Worst case: restore the VM snapshot; committed work survives in the repo. |
+| Everything is on fire | — | `frugal-flock stop`, breathe, read `status` and the last reports, `resume` when you understand what happened. Worst case: restore the VM snapshot; committed work survives in the repo. |
 
 **Known honest limits of the system.** The quota detector matches common
 error phrasings; it will miss unusual ones — the manual `off` switch is
@@ -545,7 +545,7 @@ them are optional.
   once fully; revisit the dictionary and troubleshooting as needed.
 - **AGENTTEAM-README.md** — the daily reference card: exact install
   commands, per-agent login table, command list, tuning.
-- **agentteam-install.sh** — the installer. You run it once per VM; you
+- **frugal-flock-install.sh** — the installer. You run it once per VM; you
   never need to read it.
 - **multi-agent-claude-review.md** — the background research: why this
   architecture, what the services' terms allow, what alternatives exist,

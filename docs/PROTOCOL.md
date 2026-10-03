@@ -1,12 +1,12 @@
-# AGENTTEAM PROTOCOL — system specification for AI agents
+# Frugal Flock Protocol — system specification for AI agents
 
-Audience: AI agents (lead or worker) operating inside an agentteam project.
+Audience: AI agents (lead or worker) operating inside a Frugal Flock project.
 Status: normative. If your role card (MASTER.md / WORKER.md) conflicts with
 this document, the role card wins. The human owner (Daniel) outranks both.
 
 ## 1. SYSTEM
 
-agentteam coordinates one interactive LEAD session and N headless WORKER
+Frugal Flock coordinates one interactive LEAD session and N headless WORKER
 runs from different AI CLIs (claude, codex, agy/antigravity, grok,
 opencode) on one shared git repository. Isolation is per-worker git
 worktrees. Coordination is plain files. Integration is human-gated merges.
@@ -33,9 +33,9 @@ Layout relative to project root:
 | `coord/docs/` | Operating playbooks + this protocol | OWNER |
 | `coord/board.md` | Task board, one row per task | LEAD only |
 | `coord/tasks/<ID>-<worker>.md` | Task files (work orders) | LEAD only |
-| `coord/reports/<task>.md` | Append-only run history per task | agentteam tooling |
-| `coord/reports/<task>.log` | Latest run's full output (overwritten) | agentteam tooling |
-| `coord/reports/ledger.jsonl` | Append-only machine ledger: one JSON object per event | agentteam tooling |
+| `coord/reports/<task>.md` | Append-only run history per task | Frugal Flock tooling |
+| `coord/reports/<task>.log` | Latest run's full output (overwritten) | Frugal Flock tooling |
+| `coord/reports/ledger.jsonl` | Append-only machine ledger: one JSON object per event | Frugal Flock tooling |
 | `coord/blockers.md` | Blocker notes | anyone, APPEND only |
 | `coord/STOP` | If present: all new runs refused | OWNER |
 
@@ -50,10 +50,10 @@ only the latest run and MUST NOT be used as history.
 Timing rule: `duration_s` is measured on a monotonic clock and therefore
 excludes time the machine spent asleep; `wall_s` is the wall-clock elapsed
 time and `suspended` is 1 when the two diverge by more than a minute. A
-suspended run's elapsed time is meaningless — `agentteam score` excludes it
+suspended run's elapsed time is meaningless — `frugal-flock score` excludes it
 from averages, and any other analysis MUST do the same.
 
-Enforcement at init: `agentteam init` refuses to scaffold while likely
+Enforcement at init: `frugal-flock init` refuses to scaffold while likely
 secret files are tracked (override: AGENTTEAM_ALLOW_SECRETS=1), and
 installs git hooks: a worker worktree can commit only on its own
 `agent/<w>` branch and can never push, and every merge into the base
@@ -78,7 +78,7 @@ commits=<n> files=<n> insertions=<n> deletions=<n> uncommitted=<n>
 ~~~
 ```
 
-Verify block (appended by `agentteam verify`):
+Verify block (appended by `frugal-flock verify`):
 `### verify <ts> — worker=<w> scope=<OK|VIOLATION|UNCHECKED>
 validate=<passed>/<run> empty=<0|1> verdict=<PASS|FAIL>` plus out-of-scope
 paths and per-command results.
@@ -112,64 +112,64 @@ with state ∈ {todo, doing, blocked, review, done}.
 Worker→agent resolution: agent id = worker name up to first `-`
 (worker `codex-2` → agent `codex`).
 
-## 4. THE `agentteam` COMMANDS (local shell tool)
+## 4. THE `frugal-flock` COMMANDS (local shell tool)
 
-To be explicit: these are subcommands of the local `agentteam` shell
+To be explicit: these are subcommands of the local `frugal-flock` shell
 script. No AI-provider API is involved anywhere in this system — every
 agent is an official CLI running under its own subscription LOGIN
 (cached on the machine), never an API key.
 
 ```text
-agentteam init [w1 w2 ...]     scaffold worktrees + coord (idempotent);
+frugal-flock init [w1 w2 ...]     scaffold worktrees + coord (idempotent);
                                secrets preflight; guard hooks
-agentteam agents               list agents: binary present, on/off state
-agentteam smoke                one tiny live call per agent from a neutral
+frugal-flock agents               list agents: binary present, on/off state
+frugal-flock smoke                one tiny live call per agent from a neutral
                                dir; OK / WARN (reply lacks "ok") / FAIL
-agentteam selftest             full-loop rehearsal in a sandbox repo with
+frugal-flock selftest             full-loop rehearsal in a sandbox repo with
                                mock agents; zero quota; nonzero on failure
-agentteam run [-b] <w> <task>  execute coord/tasks/<task>.md as worker <w>
+frugal-flock run [-b] <w> <task>  execute coord/tasks/<task>.md as worker <w>
                                in wt/<w>; -b = background; per-worker lock;
                                writes report+log+ledger
-agentteam tail [task]          follow a run's live log (default: newest)
-agentteam kill <task>          terminate a background run (whole session,
+frugal-flock tail [task]          follow a run's live log (default: newest)
+frugal-flock kill <task>          terminate a background run (whole session,
                                including the agent under `timeout`)
-agentteam report <task> [n]    print the last n (default 60) lines of a
+frugal-flock report <task> [n]    print the last n (default 60) lines of a
                                task's append-only report
-agentteam version              installed tool version + config path
-agentteam verify <w> <task>    machine gate assist: diff vs the task's
+frugal-flock version              installed tool version + config path
+frugal-flock verify <w> <task>    machine gate assist: diff vs the task's
                                "- path" scope lines + run its "$ " Validate
                                lines in the worktree + commit sanity;
                                appends verify block; nonzero exit on
                                violation / validate failure / empty diff
-agentteam diff <w> [--stat]    changes on agent/<w> vs base: committed and
+frugal-flock diff <w> [--stat]    changes on agent/<w> vs base: committed and
                                uncommitted, separately
-agentteam review <w> <task> [agent]  cross-vendor review: a DIFFERENT agent
+frugal-flock review <w> <task> [agent]  cross-vendor review: a DIFFERENT agent
                                judges task order + diff from a neutral dir;
                                ends VERDICT: APPROVE|REQUEST-CHANGES
-agentteam sync [w]             bring base's merged work into worker
+frugal-flock sync [w]             bring base's merged work into worker
                                branches (ff when fully merged, merge
                                otherwise; skips dirty/running; aborts and
                                reports on conflict)
-agentteam race <task> <w1> <w2> [...]  copy <task>.md to <task>-<w>.md per
+frugal-flock race <task> <w1> <w2> [...]  copy <task>.md to <task>-<w>.md per
                                worker and dispatch all in background;
                                OWNER merges at most one winner
-agentteam sabotage <w>         saboteur seat: sync <w>, generate a SAB-*
+frugal-flock sabotage <w>         saboteur seat: sync <w>, generate a SAB-*
                                task from the template, dispatch background
-agentteam score [root]         per-worker scorecard from ledger.jsonl:
+frugal-flock score [root]         per-worker scorecard from ledger.jsonl:
                                runs, ok/fail, walls, verify rate, merges,
                                avg duration
-agentteam doctor               preflight the project: base branch present,
+frugal-flock doctor               preflight the project: base branch present,
                                agent binaries, worktree health, stale
                                pidfiles, disk headroom; nonzero on error
-agentteam new <url> [name] [w...]  bootstrap a project: clone -> dev branch
+frugal-flock new <url> [name] [w...]  bootstrap a project: clone -> dev branch
                                -> init -> copy $CONF/playbooks/*.md into
                                coord/docs/
-agentteam status               off-agents, tasks, reports, review queue
+frugal-flock status               off-agents, tasks, reports, review queue
                                (unreviewed commits per worker), running jobs
-agentteam off <agent> [dur]    bench agent (dur: 30m|5h|7d; absent=manual);
+frugal-flock off <agent> [dur]    bench agent (dur: 30m|5h|7d; absent=manual);
                                run refuses benched agents; expiry auto-clears
-agentteam on <agent>           un-bench
-agentteam stop | resume        create/remove coord/STOP (global run gate)
+frugal-flock on <agent>           un-bench
+frugal-flock stop | resume        create/remove coord/STOP (global run gate)
 ```
 
 Environment: `AGENTTEAM_TIMEOUT` (seconds, default 3600) caps each run;
@@ -186,7 +186,7 @@ stale code (otherwise `run` warns and leaves it to the operator).
 invocation templates live in `~/.config/agentteam/agents.conf` (project
 override: `coord/agents.conf`).
 
-Fleet intelligence: `agentteam score` (ledger-based, always available)
+Fleet intelligence: `frugal-flock score` (ledger-based, always available)
 and the companion tool `myapp <project-root>` (full scorecard incl.
 pre-ledger history from reports/*.md). LEAD SHOULD consult one of them
 when assigning tasks.
@@ -195,11 +195,11 @@ when assigning tasks.
 
 1. OWNER states intent to LEAD.
 2. LEAD reads coord/docs/*, repo docs (AGENTS.md router, docs/ai/), and
-   `agentteam agents`; produces a task breakdown; WAITS for OWNER "go".
+   `frugal-flock agents`; produces a task breakdown; WAITS for OWNER "go".
 3. LEAD freezes shared contracts (types/schemas/fixtures) as commits on
    the base branch BEFORE dispatching dependent tasks; task files cite
    contract paths @ sha.
-4. LEAD dispatches via `agentteam run`; parallel tasks MUST have disjoint
+4. LEAD dispatches via `frugal-flock run`; parallel tasks MUST have disjoint
    Allowed-scope sets (changelog.d/ exempt — one file per task); at most
    one task per cycle may modify dependency manifests (package files,
    lockfiles, migrations). Race tasks are the sanctioned exception to
@@ -208,14 +208,14 @@ when assigning tasks.
    paths, runs Validate, writes its changelog fragment, commits only files
    it changed (never blanket staging), ends output with the Report
    sections.
-6. LEAD verifies, machine first: `agentteam verify` (scope + Validate +
-   commit sanity), then reads the report and `agentteam diff`; for risky
-   diffs also `agentteam review`. Reports are claims; diffs, verify
+6. LEAD verifies, machine first: `frugal-flock verify` (scope + Validate +
+   commit sanity), then reads the report and `frugal-flock diff`; for risky
+   diffs also `frugal-flock review`. Reports are claims; diffs, verify
    verdicts and logs are ground truth.
 7. OWNER merges accepted branches into base (`git merge --no-ff`).
    Acceptance gate: verify PASS, clean build, tests green, smoke run,
    changelog fragment where the repo keeps a changelog. After the merge
-   cycle, LEAD runs `agentteam sync` so all workshops rebuild on the new
+   cycle, LEAD runs `frugal-flock sync` so all workshops rebuild on the new
    base.
 8. Releases: OWNER-only, explicit, base→main + tag. At release, LEAD rolls
    changelog.d/ fragments into CHANGELOG.md. Order: merge fix → verify →
@@ -240,7 +240,7 @@ when assigning tasks.
 - I9  Benched (OFF) agents get no work; LEAD reroutes by the fallback
       policy in MASTER.md.
 - I10 Verification is evidence-based: a claim without a diff/test/log
-      backing it is treated as unverified. `agentteam verify` is the
+      backing it is treated as unverified. `frugal-flock verify` is the
       mechanical floor of that evidence, not its ceiling.
 - I11 Workers never edit CHANGELOG.md; changelog entries are per-task
       fragments in changelog.d/, rolled up at release by LEAD/OWNER.
@@ -252,14 +252,14 @@ when assigning tasks.
 | Condition | Required behavior |
 |---|---|
 | Auth/token error in output | Report it verbatim; OWNER re-logins the CLI; task is rerunnable. |
-| Limit language in output (rate/usage limit, quota, resets at) | LEAD suggests `agentteam off <agent> 5h` (weekly: 7d) and reroutes. |
+| Limit language in output (rate/usage limit, quota, resets at) | LEAD suggests `frugal-flock off <agent> 5h` (weekly: 7d) and reroutes. |
 | Validate commands fail | Do not claim success. Report failure + hypothesis. |
-| `agentteam verify` reports SCOPE VIOLATION | Reject the branch; LEAD re-briefs with corrected scope; a violating diff is never merged as-is. |
-| Worker lock busy ("already running a task") | Wait or `agentteam status`; abort a stray background run with `agentteam kill <task>`. |
-| Stale index.lock after a killed run | Cleared automatically at the next `agentteam run`; if git still complains, remove `<gitdir>/index.lock` by hand. |
+| `frugal-flock verify` reports SCOPE VIOLATION | Reject the branch; LEAD re-briefs with corrected scope; a violating diff is never merged as-is. |
+| Worker lock busy ("already running a task") | Wait or `frugal-flock status`; abort a stray background run with `frugal-flock kill <task>`. |
+| Stale index.lock after a killed run | Cleared automatically at the next `frugal-flock run`; if git still complains, remove `<gitdir>/index.lock` by hand. |
 | Blocked on missing contract/file | I2/I6: flag, don't fix; wait. |
 | Task file ambiguous | LEAD: rewrite it. WORKER: state the ambiguity and the interpretation chosen; prefer the narrower reading. |
-| Merge conflict on integration | OWNER decision; LEAD proposes resolution order; nobody force-merges. Routine prevention: `agentteam sync` after every merge cycle. |
+| Merge conflict on integration | OWNER decision; LEAD proposes resolution order; nobody force-merges. Routine prevention: `frugal-flock sync` after every merge cycle. |
 
 ## 8. REFERENCES
 
@@ -268,4 +268,4 @@ when assigning tasks.
   `coord/docs/ai-full-build-recipe.md` — define working style (dev/main
   model, verified milestones, evaluation-first, docs upkeep).
 - Human documentation: docs/HANDBOOK.md, docs/MASTER-PLAN.md,
-  docs/SETUP.md in the agentteam docs repository.
+  docs/SETUP.md in the Frugal Flock docs repository.
