@@ -1,5 +1,13 @@
 # Multi-Agent Claude Coding Setup — Review and Build Plan
 
+> Historical research, retained for context. This is not the current product
+> plan or a reliable source of current provider pricing, access, or policy.
+> In particular, Git worktrees are not a filesystem security sandbox.
+> Start with the [current findings index](../docs/RESEARCH-FINDINGS.md),
+> [competitor comparison](COMPETITIVE-REVIEW.md), and
+> [engine findings](../docs/ENGINE-FINDINGS.md). Reverify time-sensitive
+> provider claims against official sources before relying on them.
+
 Reviewed 2026-07-10. Claims verified against current docs and reporting; sources at the bottom. Anything I could not verify is marked.
 
 ---

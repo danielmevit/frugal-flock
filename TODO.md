@@ -10,6 +10,10 @@ Small plans. Big ideas.
 - Naming contract: [Brand](docs/BRAND.md).
 - UX proposal: [UX direction](docs/UX-DIRECTION.md). The proposed graphical
   app is not implemented yet.
+- Research and evidence: [Findings index](docs/RESEARCH-FINDINGS.md),
+  [competitor comparison](research/COMPETITIVE-REVIEW.md), and
+  [engine findings](docs/ENGINE-FINDINGS.md).
+- Continue with another AI: [copy-paste build handoff](docs/AI-HANDOFF.md).
 - The rename implementation, commit
   `9314639e79dc8bb9edde151f54cfdf35837c3024`, and the UX documents are now
   integrated into `main` at the owner's explicit request. Existing Git

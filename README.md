@@ -242,19 +242,31 @@ These are planned features. Read the [UX proposal](docs/UX-DIRECTION.md)
 and [prioritized next steps](TODO.md) for their scope and order.
 The [brand notes](docs/BRAND.md) explain the name and the promise behind it.
 
+Continuing with another AI? Start with the [copy-paste build handoff](docs/AI-HANDOFF.md).
+The [findings index](docs/RESEARCH-FINDINGS.md) connects the competitor
+comparison, technical review, product decisions, and unfinished work.
+
 ## Keywords
 
-Different people describe the same problem differently. These terms help
-connect the everyday goal with the technical workflow described above:
+The bigger idea is **different AI agents working together as a group on
+one project, with a person directing the team**. Here, working together
+means coordinated tasks and reviewed handoffs, not automatically shared
+conversation memory. Different people describe that idea differently:
 
+- **AI teamwork in plain language:** use different AI agents as a group,
+  make AI assistants work together, build a team of AI helpers, coordinate
+  AI tools from different companies, use multiple AI models on one project,
+  manage your own AI coding team, let one AI build and another review,
+  direct a group of AI assistants, human-controlled AI collaboration.
 - **Everyday goals:** build with AI on a budget, AI help for a side project,
   manage multiple AI assistants, organize AI coding work, work with limited
   AI plans, handle AI usage limits, review AI-generated changes.
 - **People and projects:** learners, hobby projects, independent makers,
   designers building software, small teams, solo developers, indie apps,
   creative coding, learning to build with AI.
-- **Technical terms:** multi-agent orchestration, multi-model workflow,
-  cross-provider coding agents, human-in-the-loop AI, Git worktrees,
+- **Technical terms:** multi-agent collaboration, AI agent teams,
+  multi-agent orchestration, multi-model workflow, LLM teams,
+  heterogeneous agents, cross-provider coding agents, human-in-the-loop AI, Git worktrees,
   CLI orchestration, task delegation, agent review, validation gates,
   subscription-based coding tools, quota-aware coordination.
 - **Names and commands:** Frugal Flock, frugal-flock, frgl-flc, agentteam,
