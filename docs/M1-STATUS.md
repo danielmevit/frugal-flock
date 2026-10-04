@@ -11,15 +11,15 @@ workspace's `artifacts/backups/`.
 
 M1.5 step 1 has an isolated canary prepared on `agent/codex` by Codex
 (`gpt-6.1-sol`, xhigh), 2026-10-04. The installed 0.4.0 passed the offline
-mock rehearsal. Antigravity passed in 22 seconds and Grok in 35 seconds;
-step 1 is not complete. All six agents are included, with Antigravity explicitly
+mock rehearsal. Antigravity passed in 22 seconds, Grok in 35 seconds and
+OpenCode Go GLM 5.3 in 24 seconds. Step 1 is not complete: Codex/Kimi
+canaries remain unrun and Claude is deferred. Antigravity was explicitly
 requested by the owner. See [the canary checkpoint](M1.5-LIVE-CANARY.md).
 The owner reports Claude is limited for the next five hours; this Codex
 session handles code review and implementation. Do not call Claude.
-Both runs, verify (2/2 each), in-session reviews through sealed local
-adapters and current results passed. Two worker invocations, no extra
-reviewer calls. OpenCode Go GLM 5.3 is authorized next; other canaries await
-quota approval. The fixture is stopped between calls.
+All three runs, verify (2/2 each), in-session reviews through sealed local
+adapters and current results passed. Three worker invocations, no extra
+reviewer calls. Other canaries await quota approval. The fixture is stopped.
 
 Frozen requirements: [QUALITY-M1-CONTRACT.md](QUALITY-M1-CONTRACT.md)
 at `e230ad4`. Clause-by-clause evidence:

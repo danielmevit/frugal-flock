@@ -21,9 +21,13 @@ checkpoint so another AI can continue without the previous conversation.
 - Grok evidence candidate: `2203b3b` on `agent/codex`. Grok passed in
   35 seconds: throwaway commit `868036f`, scope OK, 2/2
   checks, in-session Codex review approved and a current ready result.
-  Total live worker calls: two (Antigravity and Grok); no extra reviewer
-  calls, retries or Claude calls. Fixture stopped. Next: publish this Grok
-  checkpoint, then the authorized OpenCode Go GLM 5.3 canary.
+  Grok was merged/pushed as `c06f808`.
+- OpenCode Go `opencode-go/glm-5.3` passed in 24 seconds, throwaway commit
+  `2b847ac`. Runtime model confirmed, scope OK, 2/2 checks, complete diff
+  approved by this Codex session through the sealed local adapter, current
+  ready result. Total worker calls: three; no extra reviewer calls, retries
+  or Claude calls. Fixture stopped. Next: publish this checkpoint, then
+  obtain quota approval before any remaining Codex/Kimi canary.
 - M1.5 preparation is merged and pushed as `d991350` (candidate `4b8e1a9`
   plus `61327ec`). The owner-approved README rewrites `4565cfd` and `f6f0ed9` are also
   on main and included in this Codex worktree; preserve it.
@@ -34,17 +38,17 @@ checkpoint so another AI can continue without the previous conversation.
   review approved through a sealed local adapter, current ready result.
   One live worker invocation, no extra reviewer call or retry. The earlier
   silent stall did not recur. Receipts stay local; its STOP file is active.
-  M1.5 step 1 remains incomplete: OpenCode's GLM 5.3 call has not started;
-  codex/kimi/claude canaries also remain unrun.
+  M1.5 step 1 remains incomplete: Codex/Kimi canaries remain unrun;
+  Claude is deferred during its owner-reported limit.
   The installed 0.4.0 passed the mock run/verify/review/result rehearsal,
   including review gating and stale-result checks. The full offline gate
   passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
   branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
-  No worker is active. Next: the authorized OpenCode Go GLM 5.3 canary.
+  No worker is active. Next: quota approval for a remaining Codex/Kimi canary.
   Claude is owner-reported limited for five hours (avoid through
   22:42 +0200 on 2026-10-04, an operator interval, not a confirmed reset).
   Codex does the main implementation and reviews in-session. Other worker
-  calls beyond those two need quota approval; no separate provider reviewer call authorized.
+  calls need fresh quota approval; no separate provider reviewer call authorized.
   The owner authorized each finished checkpoint's own merge and push.
 - Public repo: https://github.com/danielmevit/frugal-flock.
 - **M1 is complete and accepted by the owner (2026-10-04)** and released as
@@ -98,8 +102,9 @@ order, one small tested checkpoint each:
    Antigravity passed in 22 seconds (run/verify/lead review/result); one
    worker call, zero extra reviewer calls, no retry. STOP is active again.
    Grok also passed in 35 seconds (one call, verify 2/2, lead review, ready
-   result). OpenCode Go (`opencode-go/glm-5.3`) is authorized next, one
-   call with no retries. The Codex lead reviews in-session; do not
+   result). OpenCode Go (`opencode-go/glm-5.3`) passed in 24 seconds, one
+   call, verify 2/2, lead review and ready result. Remaining Codex/Kimi calls
+   need quota approval. The Codex lead reviews in-session; do not
    call Claude before 22:42 +0200 on 2026-10-04 (operator interval, not a
    provider-confirmed reset). Other worker calls need approval.
    Ask before spending provider quota; no retries or fallback calls.
