@@ -187,6 +187,8 @@ with lock.open('a') as f:
     for operation in ('run','review','handoff','verify'):
         call(operation,'mock','evidence',code=1)
         check(operation+' refuses worker lock')
+    call('verify','mock','evidence','locked',code=1)
+    check('public verify argument cannot bypass held lock')
 
 # Review itself owns the lock throughout its provider call.
 marker=root/'review-started'
