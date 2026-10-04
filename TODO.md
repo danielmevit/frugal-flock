@@ -86,7 +86,8 @@ continuation after provider limits is the real differentiator. Risks:
 - Scope is large for one owner: local service, browser app, launcher,
   checkpointed cross-provider continuation. Deliver thin vertical slices
   and measure benefit before expanding (section 6).
-- 0.4.0 was verified with mock agents only; no live provider run yet.
+- At that assessment, 0.4.0 had only mock verification. Live canary
+  evidence is now recorded in section 1.5; broader dogfooding remains untested.
 - "Two failed attempts, then escalate" is only a role-card rule; the
   engine does not enforce it. Loops and wasted tokens start there.
 - Antigravity failed 2 of 2 live runs (about 55 minutes each).
@@ -117,9 +118,12 @@ order, one small tested checkpoint each:
    restored: no commit, verify 1/2 failed, no completion/exit captured. Its
    native process status remains running despite no surviving worker; result
    is not ready. Record the recovery gap; no retry or invented timeout.
-   Five live worker invocations total, no extra reviewer calls. One approved
-   Claude Sonnet 5.5/medium attempt remains despite its reported limit.
-   The Codex lead reviews here; native Codex approval needs another vendor.
+   Claude Sonnet 5.5/medium passed in 23 seconds, one commit/file, verify
+   2/2, in-session lead review and current ready result. Six worker
+   invocations total, five ready canaries, no retries/extra provider reviews.
+   All approved calls used; fixture stopped. Step 1 remains incomplete:
+   investigate interrupted-run status with mocks; any Codex rerun needs
+   fresh quota approval, and native approval needs another vendor.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
