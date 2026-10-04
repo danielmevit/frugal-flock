@@ -31,6 +31,16 @@ done
 export PATH="$AGENTTEAM_BIN_DIR:$PATH"
 frugal-flock help > "$BRAND_SANDBOX/help"
 grep -Fq 'Frugal Flock — Small plans. Big ideas.' "$BRAND_SANDBOX/help"
+# M1 evidence commands and exit contracts must stay documented in help.
+for phrase in 'frugal-flock result <w> <task>' 'frugal-flock handoff <w> <task>' \
+    'frugal-flock agents [--json]' '2 INCOMPLETE' 'VERDICT: REQUEST-CHANGES' \
+    'NOT a backup' 'Python 3 (standard library only)' 'trusted_host' 'skip-worktree'; do
+  grep -Fq -- "$phrase" "$BRAND_SANDBOX/help" || fail "help no longer mentions: $phrase"
+done
+# A fake project tree lets completion offer real worker and task names.
+mkdir -p "$BRAND_SANDBOX/project/wt/w1" "$BRAND_SANDBOX/project/coord/tasks"
+: > "$BRAND_SANDBOX/project/coord/tasks/T1.md"
+: > "$BRAND_SANDBOX/project/coord/tasks/TEMPLATE.md"
 for entry in frugal-flock frgl-flc agentteam; do
   [ -x "$AGENTTEAM_BIN_DIR/$entry" ] || fail "$entry is not executable"
   [ "$AGENTTEAM_BIN_DIR/$entry" -ef "$AGENTTEAM_BIN_DIR/agentteam" ] \
@@ -54,7 +64,7 @@ for entry in frugal-flock frgl-flc agentteam; do
 
   [ -f "$AGENTTEAM_COMPLETION_DIR/$entry" ] || fail "$entry completion missing"
   # Start fresh for each completion file to also exercise lazy loading by name.
-  bash -euo pipefail -s -- "$entry" <<'COMPLETION_TEST'
+  bash -euo pipefail -s -- "$entry" "$BRAND_SANDBOX/project" <<'COMPLETION_TEST'
 entry=$1
 source "$AGENTTEAM_COMPLETION_DIR/$entry"
 registration=$(complete -p "$entry")
@@ -66,15 +76,51 @@ COMP_WORDS=("$entry" '') COMP_CWORD=1
 [ "${#COMPREPLY[@]}" -gt 20 ]
 for candidate in "${COMPREPLY[@]}"; do
   # Each offered command must occur in the installed dispatch table.
-  grep -Eq "^  ${candidate}(\)|\|)" "$AGENTTEAM_BIN_DIR/agentteam"
+  grep -Eq "^  ([a-z-]+\|)*${candidate}(\)|\|)" "$AGENTTEAM_BIN_DIR/agentteam"
 done
 COMP_WORDS=("$entry" ver) COMP_CWORD=1
 "$function_name"
 [ "${COMPREPLY[*]}" = 'verify version' ]
+COMP_WORDS=("$entry" resul) COMP_CWORD=1
+"$function_name"
+[ "${COMPREPLY[*]}" = 'result' ]
+COMP_WORDS=("$entry" hand) COMP_CWORD=1
+"$function_name"
+[ "${COMPREPLY[*]}" = 'handoff' ]
+COMP_WORDS=("$entry" agents '') COMP_CWORD=2
+"$function_name"
+[ "${COMPREPLY[*]}" = '--json' ]
+cd "$2"
+for command in verify result handoff review; do
+  COMPREPLY=(); COMP_WORDS=("$entry" "$command" '') COMP_CWORD=2
+  "$function_name"
+  [ "${COMPREPLY[*]}" = 'w1' ]
+  COMPREPLY=(); COMP_WORDS=("$entry" "$command" w1 '') COMP_CWORD=3
+  "$function_name"
+  [ "${COMPREPLY[*]}" = 'T1' ]
+done
+# Only review takes a third argument (the reviewer agent).
+for command in verify result handoff; do
+  COMPREPLY=(); COMP_WORDS=("$entry" "$command" w1 T1 '') COMP_CWORD=4
+  "$function_name"
+  [ "${#COMPREPLY[@]}" -eq 0 ]
+done
+COMPREPLY=(); COMP_WORDS=("$entry" review w1 T1 '') COMP_CWORD=4
+"$function_name"
+[ "${COMPREPLY[*]}" = 'mock' ]
 COMPLETION_TEST
 done
 
 cmp "$REPO_DIR/docs/PROTOCOL.md" "$AGENTTEAM_CONF_DIR/templates/PROTOCOL.md"
+
+# doctor reports the Python 3 dependency of the evidence helper.
+git init -q -b dev "$BRAND_SANDBOX/doctor/repo"
+git -C "$BRAND_SANDBOX/doctor/repo" -c user.email=brand@test.invalid -c user.name=brand \
+  commit -q --allow-empty -m init
+(cd "$BRAND_SANDBOX/doctor/repo" && frugal-flock init mock) > "$BRAND_SANDBOX/doctor-init" 2>&1
+(cd "$BRAND_SANDBOX/doctor/repo" && frugal-flock doctor) > "$BRAND_SANDBOX/doctor-out" 2>&1 \
+  || fail "doctor reported errors: $(cat "$BRAND_SANDBOX/doctor-out")"
+grep -Fq 'ok    python3 found' "$BRAND_SANDBOX/doctor-out" || fail 'doctor no longer checks python3'
 [ ! -e "$AGENTTEAM_BIN_DIR/flock" ] && [ ! -L "$AGENTTEAM_BIN_DIR/flock" ]
 [ "$(command -v flock)" = "$FLOCK_PATH" ] || fail 'Linux flock was shadowed'
 [ "$(sha256sum "$FLOCK_PATH")" = "$FLOCK_HASH" ] || fail 'Linux flock was modified'

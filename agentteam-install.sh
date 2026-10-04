@@ -1563,6 +1563,11 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
                             || ok "no STOP file (runs allowed)"
   [ -f "$conf" ] && ok "agents.conf found: $conf" \
                  || err "no agents.conf at $conf — every run will fail"
+  # the evidence helper is Python 3 (standard library only); without it these
+  # commands refuse before any provider starts
+  command -v python3 >/dev/null 2>&1 \
+    && ok "python3 found (run, verify, review, smoke, agents, result, handoff)" \
+    || err "python3 not found — run, verify, review, smoke, agents, result and handoff need Python 3 (standard library only)"
 
   # base branch exists where the main repo can see it
   if [ -d "$main_dir/.git" ] || [ -f "$main_dir/.git" ]; then
@@ -1979,27 +1984,54 @@ setup / health
                                      (default: codex antigravity opencode grok)
                                      refuses while secret-looking files are
                                      tracked; installs worker-branch guard hooks
-  frugal-flock agents                   list agents: binary found? on/off?
+  frugal-flock agents [--json]          list agents: binary found? on/off? Local
+                                     only: never signs in, probes quota or runs
+                                     a configured command. --json: schema 1,
+                                     binary present true/false/null, bench,
+                                     authentication + capacity "unknown",
+                                     execution_boundary "trusted_host"
   frugal-flock smoke                    one tiny live call per agent, from a
                                      neutral dir — run after every CLI update
   frugal-flock selftest                 rehearse the whole loop with mock agents
                                      in a throwaway sandbox — zero quota
   frugal-flock doctor                   preflight a project: base branch, agent
-                                     binaries, worktree health, stale state,
-                                     disk — catch what would waste a run
+                                     binaries, python3, worktree health, stale
+                                     state, disk — catch what would waste a run
 
 work
   frugal-flock run [-b] <w> <task>      run coord/tasks/<task>.md in w's worktree
-                                     (-b = background; one run per worker)
+                                     (-b = background; one run per worker);
+                                     a failed worker keeps its own exit code
   frugal-flock tail [task]              follow a run's live log (default: newest)
   frugal-flock kill <task>              stop a background run (whole session)
   frugal-flock report <task> [lines]    read a task's report (default: last 60)
   frugal-flock verify <w> <task>        machine gate: diff vs the task's "- path"
                                      scope lines + run its "$ " Validate lines
-                                     + commit sanity; verdict into the report
+                                     + commit sanity; verdict into the report.
+                                     exit 0 PASS, 1 FAIL, 2 INCOMPLETE (no scope
+                                     or no Validate lines; there is no waiver)
   frugal-flock diff <w> [--stat]        review a worker's changes vs base branch
   frugal-flock review <w> <task> [agent]  a DIFFERENT vendor reviews the task
-                                     order + diff; VERDICT line + report block
+                                     order + committed diff. Needs a current
+                                     verify PASS and clean, committed, text-only
+                                     material up to 300000 bytes (else refused,
+                                     never clipped). Reviewer stdout needs one
+                                     standalone line: VERDICT: APPROVE or
+                                     VERDICT: REQUEST-CHANGES. exit 0 approve,
+                                     1 changes requested or reviewer failure,
+                                     2 unknown, incomplete or stale
+  frugal-flock result <w> <task>        structured result from coord/results,
+                                     rechecked against the current worktree:
+                                     stale, ready_for_human_review (never human
+                                     acceptance). JSON-only stdout, no provider
+                                     call; exit 2 if missing, malformed or the
+                                     worktree state is unsupported
+  frugal-flock handoff <w> <task>       write a NEW same-checkout context packet
+                                     under coord/handoffs for the next AI:
+                                     task, result, revision, changed files and
+                                     HANDOFF.md. Context only, NOT a backup:
+                                     uncommitted work stays in the worktree.
+                                     Refuses a locked or running worker
   frugal-flock sync [w]                 after merges: bring base into worker
                                      branches (ff/merge; skips dirty/running)
 
@@ -2032,6 +2064,15 @@ Config: ~/.config/agentteam/agents.conf (project override: coord/agents.conf).
 Compatibility: all AGENTTEAM_* variables and existing state paths are retained.
 Linux flock is required for locking; it is never a product alias.
 Base branch: coord/base. Machine history: coord/reports/ledger.jsonl.
+Python 3 (standard library only) is required by run, verify, review, smoke,
+agents, result and handoff (race and sabotage call run).
+Execution boundary: trusted_host. Agent commands may have host-level access;
+worktrees and temporary directories are not OS sandboxes.
+Unsupported worktree states fail closed with exit 2: assume-unchanged or
+skip-worktree index flags (verify, review, handoff); FIFOs, devices, sockets,
+nested repositories, submodules (run, verify, review, result, handoff). If one
+appears during a run, run keeps the worker's real exit, marks the result
+post_run_snapshot=failed (stale, never ready) and returns nonzero.
 Env: AGENTTEAM_TIMEOUT (3600s)  AGENTTEAM_VERIFY_TIMEOUT (900s)
      AGENTTEAM_REVIEW_TIMEOUT (900s)  AGENTTEAM_ALLOW_SECRETS=1 (init override)
      AGENTTEAM_AUTO_OFF=1 (bench 5h when a FAILED run mentions usage limits)
@@ -2628,7 +2669,7 @@ cat > "$COMP_DIR/agentteam" <<'COMPLETION_EOF'
 _agentteam() {
   local cur cmd root d cmds
   cur="${COMP_WORDS[COMP_CWORD]}"
-  cmds="new init run verify diff sync review race sabotage score doctor tail kill report status agents off on smoke selftest stop resume version help"
+  cmds="new init run verify result handoff diff sync review race sabotage score doctor tail kill report status agents off on smoke selftest stop resume version help"
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ); return
   fi
@@ -2648,10 +2689,15 @@ _agentteam() {
       if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "-b $workers" -- "$cur") )
       elif [ "${COMP_WORDS[2]}" = "-b" ] && [ "$COMP_CWORD" -eq 3 ]; then COMPREPLY=( $(compgen -W "$workers" -- "$cur") )
       else COMPREPLY=( $(compgen -W "$tasks" -- "$cur") ); fi;;
-    verify|review)
+    verify|result|handoff)
+      if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "$workers" -- "$cur") )
+      elif [ "$COMP_CWORD" -eq 3 ]; then COMPREPLY=( $(compgen -W "$tasks" -- "$cur") ); fi;;
+    review)
       if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "$workers" -- "$cur") )
       elif [ "$COMP_CWORD" -eq 3 ]; then COMPREPLY=( $(compgen -W "$tasks" -- "$cur") )
-      else COMPREPLY=( $(compgen -W "$agents" -- "$cur") ); fi;;
+      elif [ "$COMP_CWORD" -eq 4 ]; then COMPREPLY=( $(compgen -W "$agents" -- "$cur") ); fi;;
+    agents)
+      if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "--json" -- "$cur") ); fi;;
     diff|sync) COMPREPLY=( $(compgen -W "$workers" -- "$cur") );;
     sabotage)  COMPREPLY=( $(compgen -W "--all $workers" -- "$cur") );;
     race)
