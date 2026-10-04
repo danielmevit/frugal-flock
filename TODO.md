@@ -111,10 +111,13 @@ order, one small tested checkpoint each:
    the earlier silent stall did not recur. One worker call, no retry.
    Grok also passed in 35 seconds, one worker call, 2/2 checks and lead review.
    OpenCode Go `opencode-go/glm-5.3` passed in 24 seconds, with the same
-   checks and in-session lead review. Three live worker calls total.
-   Claude is limited for five hours; the Codex lead does code review and
-   implementation. Codex and Kimi canaries still need quota approval;
-   no further worker call is authorized yet.
+   checks and in-session lead review.
+   Kimi (`opencode-go/kimi-k3`) also passed in 45 seconds with the same checks.
+   Four live worker calls total; no retries or extra reviewer calls.
+   The owner approved all remaining canaries in one go, including one
+   Claude Sonnet 5.5/medium attempt despite its reported five-hour limit.
+   Codex and Claude calls are next; the Codex lead reviews here. Native
+   Codex approval requires a different vendor and may remain pending.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits

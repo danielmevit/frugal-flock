@@ -10,6 +10,22 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Owner resumed M1.5 on 2026-10-04: “do all in one go” approves one
+  remaining Kimi and Codex worker invocation each; no retries or separate
+  provider reviewer calls. He additionally explicitly approved one Claude
+  test with a simpler model and medium/high effort despite its earlier limit.
+  Selected Claude Sonnet 5.5 (`claude-sonnet-5-5`), medium; installed CLI
+  help and official docs confirm the flags. Kimi's native model is
+  `opencode-go/kimi-k3`, using current `--auto` instead of the obsolete
+  native permission flag, with global settings unchanged. The throwaway
+  fixture's missing agent entries were repaired locally; doctor now passes
+  with only intentional STOP. Codex reviews here; its own worker cannot
+  receive native approval from the same vendor and may retain pending review.
+  Kimi K3 passed in 45 seconds: throwaway `6e98e46`, one commit/file,
+  scope OK, 2/2 checks, complete diff approved here, sealed local review,
+  current ready result. Worker invocations total four; zero extra provider
+  reviewer calls. STOP active. Next: publish this Kimi checkpoint, then
+  Codex and Claude sequentially, 180 seconds each, no retries.
 - Current owner request: AGPL-3.0-only for the public release, with optional
   separate paid agreements for proprietary use. The owner explicitly chose
   true open source on 2026-10-04 after being told compliant commercial forks
@@ -34,7 +50,7 @@ checkpoint so another AI can continue without the previous conversation.
   interrupted run is retained in quality-check.log and the append-only agent
   log. This is one owner-authorized licensing integration; find its merge
   on main's first-parent history. Source checkpoint complete; next work is
-  the remaining M1.5 canaries, which need fresh quota approval.
+  the remaining M1.5 canaries; Codex/Claude now have one call each approved.
   Global installed 0.4.0 and all canary evidence remain unchanged; no quota call.
 - Antigravity live evidence is committed at `13e70e9` on `agent/codex` in
   `wt/codex`, merged and pushed as `0426f0c`.
@@ -51,9 +67,9 @@ checkpoint so another AI can continue without the previous conversation.
 - OpenCode Go `opencode-go/glm-5.3` passed in 24 seconds, throwaway commit
   `2b847ac`. Runtime model confirmed, scope OK, 2/2 checks, complete diff
   approved by this Codex session through the sealed local adapter, current
-  ready result. Total worker calls: three; no extra reviewer calls, retries
+  ready result. Worker calls at that checkpoint: three; no extra reviewer calls, retries
   or Claude calls. Fixture stopped. This checkpoint was merged/pushed as
-  `7761737`. Any remaining Codex/Kimi canary needs new quota approval.
+  `7761737`. Codex and Claude each now have one approved call; no retries.
   Its source evidence candidate is `17c4959` on `agent/codex`.
 - M1.5 preparation is merged and pushed as `d991350` (candidate `4b8e1a9`
   plus `61327ec`). The owner-approved README rewrites `4565cfd` and `f6f0ed9` are also
@@ -65,16 +81,18 @@ checkpoint so another AI can continue without the previous conversation.
   review approved through a sealed local adapter, current ready result.
   One live worker invocation, no extra reviewer call or retry. The earlier
   silent stall did not recur. Receipts stay local; its STOP file is active.
-  M1.5 step 1 remains incomplete: Codex/Kimi canaries remain unrun;
-  Claude is deferred during its owner-reported limit.
+  M1.5 step 1 remains incomplete: Codex and Claude canaries remain unrun.
+  Kimi K3 has passed; both remaining calls are authorized, including one
+  explicit Sonnet 5.5/medium Claude exception to the earlier deferral.
   The installed 0.4.0 passed the mock run/verify/review/result rehearsal,
   including review gating and stale-result checks. The full offline gate
   passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
   branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
-  No worker is active. Current next task: remaining M1.5 canaries after quota approval.
-  Remaining Codex/Kimi canaries still need quota approval.
+  No worker is active. Current next task: Codex, then Claude, after publishing Kimi evidence.
+  Codex and Claude each have one approved attempt; other calls need approval.
   Claude is owner-reported limited for five hours (avoid through
   22:42 +0200 on 2026-10-04, an operator interval, not a confirmed reset).
+  The owner explicitly permits this one Sonnet 5.5/medium Claude canary.
   Codex does the main implementation and reviews in-session. Other worker
   calls need fresh quota approval; no separate provider reviewer call authorized.
   The owner authorized each finished checkpoint's own merge and push.
@@ -132,9 +150,11 @@ order, one small tested checkpoint each:
    Grok also passed in 35 seconds (one call, verify 2/2, lead review, ready
    result). OpenCode Go (`opencode-go/glm-5.3`) passed in 24 seconds, one
    call, verify 2/2, lead review and ready result. Remaining Codex/Kimi calls
-   need quota approval. The Codex lead reviews in-session; do not
-   call Claude before 22:42 +0200 on 2026-10-04 (operator interval, not a
-   provider-confirmed reset). Other worker calls need approval.
+   now have owner-approved one-shot attempts, and Kimi K3 passed in 45s.
+   Claude's one approved attempt uses Sonnet 5.5/medium despite the earlier
+   limit. Other Claude calls remain deferred until 22:42 +0200 on 2026-10-04
+   (operator interval, not a provider-confirmed reset). No retries or extra
+   provider reviewers; native Codex review must use a different vendor.
    Ask before spending provider quota; no retries or fallback calls.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
