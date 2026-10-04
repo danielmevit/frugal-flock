@@ -411,7 +411,7 @@ Equivalent manual form, if you want to see the raw output:
 
 ```bash
 claude -p "say ok"; codex exec "say ok"; agy -p "say ok" --dangerously-skip-permissions
-opencode run "say ok" --dangerously-skip-permissions; grok -p "say ok" --always-approve
+opencode run "say ok" --auto; grok -p "say ok" --always-approve
 ```
 
 If one fails with a usage/flag dump: `<binary> --help`, find the renamed

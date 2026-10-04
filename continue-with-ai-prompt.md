@@ -10,6 +10,28 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- OpenCode compatibility complete, 2026-10-04 by Codex (`gpt-6.1-sol`,
+  xhigh), wt/codex on agent/codex includes main `64160c5`: current --auto
+  fresh default/examples, diagnostic for direct legacy profiles, no rewrites.
+  Three offline behavior checks passed: native dispatch+verify, no-call
+  doctor warning, reinstall preserves profile/model. Standalone packaging,
+  aliases/completion/protocol, ShellCheck/syntax/full docs and whitespace
+  passed. Receipts: tmp/m15-opencode-20261004/. No paid call/global change.
+  Publishing separately. M1.5 step 4 observed (installed 0.4.0 kept intact),
+  step 5's Antigravity canary passed; broad reliability still unknown.
+  Next: original mock prototype source, then prepare one tiny GLM 5.3
+  keyboard enhancement for installed-release dogfood. Ask fresh quota first.
+
+- Watch published as its own merge `64160c5` (candidate `11e7af8`),
+  2026-10-04 by Codex (`gpt-6.1-sol`, xhigh), main clean/current before
+  integration, own worktree synced. Preparing the next tiny compatibility
+  checkpoint: fresh OpenCode defaults/examples use --auto; doctor warns on
+  direct legacy entries without calls or profile edits. Native help and two
+  live Go canaries already confirm the flag. Focused offline dispatch,
+  verification, diagnostic/preservation, ShellCheck/packaging/docs next.
+  No fresh quota or global settings change. Next: publish compatibility,
+  then the original M2 sample prototype already tested in private scratch.
+
 - M1.5 step 3 complete, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
   wt/codex on agent/codex includes main `959fb0c`: watch own-source checks
   passed (26 focused mock cases, standalone packaging/aliases/completion,

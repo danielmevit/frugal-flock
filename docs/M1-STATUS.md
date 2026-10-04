@@ -38,7 +38,11 @@ docs lint passed. It observed all six recorded canaries with unchanged
 coordination hashes and no provider calls. The observation labels unheld
 running evidence as completion unknown without altering native evidence;
 current readiness remains the responsibility of result.
-Next: OpenCode default compatibility, then the mock prototype. The owner asked
+The OpenCode fresh-install compatibility follow-up passed offline native
+dispatch/verify, no-call legacy diagnostic, profile preservation, packaging,
+ShellCheck/syntax/docs. Current native help and passing Go canaries confirm
+--auto; existing profiles are never automatically rewritten.
+Next: publish the mock prototype and prepare one bounded dogfood task. The owner asked
 to keep progressing through the roadmap; further provider calls need approval.
 
 Separate licensing checkpoint, owner-selected on 2026-10-04:

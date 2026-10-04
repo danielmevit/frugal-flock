@@ -137,10 +137,18 @@ order, one small tested checkpoint each:
    Observed all six recorded canaries without changing coordination hashes
    or calling providers. [Usage and JSON contract](docs/WATCH-USAGE.md).
    Current readiness still requires `result`; capacity stays unknown.
+   Stability follow-up: fresh OpenCode source defaults/examples now use
+   --auto, confirmed by current native help and Go canaries. Offline native
+   dispatch/verify, no-call legacy diagnostic and reinstall preservation
+   passed; packaging/ShellCheck/docs passed. Existing profiles stay untouched.
 4. The flock runs on the installed release while it builds the next
    version in the repo; reinstall only at deliberate releases.
+   Observed 2026-10-04: installed 0.4.0 executable/global agents.conf hashes
+   unchanged through all stability work. New features are source-only.
 5. Bench Antigravity for dogfooding until it passes the canary (2 of 2
    earlier live runs failed). The owner requested its inclusion in step 1.
+   Canary passed in 22s; local diagnostics currently show enabled, with
+   authentication/capacity unknown. Broader dogfooding remains unproven.
 Then dogfood on M2 (the mock-data prototype): one worker plus a reviewer,
 owner merges; widen after a few clean cycles.
 
