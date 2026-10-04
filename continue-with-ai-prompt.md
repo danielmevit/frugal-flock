@@ -10,6 +10,19 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Access recovery checkpoint, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh):
+  the owner restored unrestricted execution after the session sandbox failed
+  on a `.aws` symlink rule and excluded this workspace from writable roots.
+  Shell commands now work. Main is `9fadc8a`, with the Kimi merge published;
+  installed 0.4.0 and global agents.conf hashes are unchanged. Recovered
+  evidence shows a fifth worker invocation: Codex (`gpt-6.1-sol`, high)
+  already started before interruption. No completion, exit or reliable
+  duration captured; unchanged clean baseline, zero commits, verify 1/2
+  failed. Native process still says running despite no surviving worker;
+  result not ready. Preserve this interrupted-run recovery gap, no retry.
+  Fixture STOP active. Next: publish this evidence checkpoint, then the
+  single unused approved Claude Sonnet 5.5/medium canary, 180 seconds cap.
+  No separate provider reviewer call; root reviews any valid diff here.
 - Owner resumed M1.5 on 2026-10-04: “do all in one go” approves one
   remaining Kimi and Codex worker invocation each; no retries or separate
   provider reviewer calls. He additionally explicitly approved one Claude
@@ -23,9 +36,10 @@ checkpoint so another AI can continue without the previous conversation.
   receive native approval from the same vendor and may retain pending review.
   Kimi K3 passed in 45 seconds: throwaway `6e98e46`, one commit/file,
   scope OK, 2/2 checks, complete diff approved here, sealed local review,
-  current ready result. Worker invocations total four; zero extra provider
-  reviewer calls. STOP active. Next: publish this Kimi checkpoint, then
-  Codex and Claude sequentially, 180 seconds each, no retries.
+  current ready result. Worker invocations were four at Kimi's
+  checkpoint; now five including interrupted Codex above. Zero extra
+  provider reviewers. Kimi was merged/pushed as `9fadc8a`; own worktree
+  includes it. Only Claude's one unused call remains; no retries.
 - Current owner request: AGPL-3.0-only for the public release, with optional
   separate paid agreements for proprietary use. The owner explicitly chose
   true open source on 2026-10-04 after being told compliant commercial forks
@@ -50,7 +64,7 @@ checkpoint so another AI can continue without the previous conversation.
   interrupted run is retained in quality-check.log and the append-only agent
   log. This is one owner-authorized licensing integration; find its merge
   on main's first-parent history. Source checkpoint complete; next work is
-  the remaining M1.5 canaries; Codex/Claude now have one call each approved.
+  the remaining M1.5 canary: Claude has one unused call approved.
   Global installed 0.4.0 and all canary evidence remain unchanged; no quota call.
 - Antigravity live evidence is committed at `13e70e9` on `agent/codex` in
   `wt/codex`, merged and pushed as `0426f0c`.
@@ -69,7 +83,7 @@ checkpoint so another AI can continue without the previous conversation.
   approved by this Codex session through the sealed local adapter, current
   ready result. Worker calls at that checkpoint: three; no extra reviewer calls, retries
   or Claude calls. Fixture stopped. This checkpoint was merged/pushed as
-  `7761737`. Codex and Claude each now have one approved call; no retries.
+  `7761737`. Codex was subsequently interrupted; Claude has one unused approved call.
   Its source evidence candidate is `17c4959` on `agent/codex`.
 - M1.5 preparation is merged and pushed as `d991350` (candidate `4b8e1a9`
   plus `61327ec`). The owner-approved README rewrites `4565cfd` and `f6f0ed9` are also
@@ -81,15 +95,15 @@ checkpoint so another AI can continue without the previous conversation.
   review approved through a sealed local adapter, current ready result.
   One live worker invocation, no extra reviewer call or retry. The earlier
   silent stall did not recur. Receipts stay local; its STOP file is active.
-  M1.5 step 1 remains incomplete: Codex and Claude canaries remain unrun.
-  Kimi K3 has passed; both remaining calls are authorized, including one
-  explicit Sonnet 5.5/medium Claude exception to the earlier deferral.
+  M1.5 step 1 remains incomplete: Codex was interrupted without a completed
+  change; Claude remains unrun with one explicitly approved Sonnet 5.5/
+  medium exception to its earlier deferral. Kimi K3 has passed.
   The installed 0.4.0 passed the mock run/verify/review/result rehearsal,
   including review gating and stale-result checks. The full offline gate
   passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
   branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
-  No worker is active. Current next task: Codex, then Claude, after publishing Kimi evidence.
-  Codex and Claude each have one approved attempt; other calls need approval.
+  No worker is active. Next: Claude after publishing interrupted Codex evidence.
+  Claude has one unused approved attempt; other calls need approval.
   Claude is owner-reported limited for five hours (avoid through
   22:42 +0200 on 2026-10-04, an operator interval, not a confirmed reset).
   The owner explicitly permits this one Sonnet 5.5/medium Claude canary.
@@ -149,8 +163,10 @@ order, one small tested checkpoint each:
    worker call, zero extra reviewer calls, no retry. STOP is active again.
    Grok also passed in 35 seconds (one call, verify 2/2, lead review, ready
    result). OpenCode Go (`opencode-go/glm-5.3`) passed in 24 seconds, one
-   call, verify 2/2, lead review and ready result. Remaining Codex/Kimi calls
-   now have owner-approved one-shot attempts, and Kimi K3 passed in 45s.
+   call, verify 2/2, lead review and ready result. Kimi K3 passed in 45s.
+   Codex's already-started invocation was interrupted: unchanged baseline,
+   verify 1/2 failed, exit unknown, native process still running but not ready.
+   No retry; preserve the interrupted-run recovery finding.
    Claude's one approved attempt uses Sonnet 5.5/medium despite the earlier
    limit. Other Claude calls remain deferred until 22:42 +0200 on 2026-10-04
    (operator interval, not a provider-confirmed reset). No retries or extra

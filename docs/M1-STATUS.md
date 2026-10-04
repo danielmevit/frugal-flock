@@ -13,8 +13,12 @@ M1.5 step 1 has an isolated canary prepared on `agent/codex` by Codex
 (`gpt-6.1-sol`, xhigh), 2026-10-04. The installed 0.4.0 passed the offline
 mock rehearsal. Antigravity passed in 22 seconds, Grok in 35 seconds and
 OpenCode Go GLM 5.3 in 24 seconds and Kimi K3 in 45 seconds. Step 1 is not
-complete: Codex and Claude canaries remain unrun but are now authorized.
-Claude's one attempt uses Sonnet 5.5/medium under an explicit owner override
+complete: Codex's recovered invocation was interrupted with no completion,
+exit or duration captured; clean unchanged baseline, zero commits, verify
+1/2 failed. The native result retains process running despite no surviving
+worker, but is not ready; record the recovery gap without rewriting evidence.
+No retry. Claude's one approved attempt remains next, using Sonnet 5.5/medium
+under an explicit owner override
 of its earlier deferral. Antigravity was explicitly
 requested by the owner. See [the canary checkpoint](M1.5-LIVE-CANARY.md).
 The owner reports Claude is limited for the next five hours; this Codex
@@ -22,7 +26,10 @@ session handles code review and implementation. No further Claude call
 beyond that one attempt is authorized.
 All four runs, verify (2/2 each), in-session reviews through sealed local
 adapters and current results passed. Four worker invocations, no extra
-reviewer calls. The fixture is stopped; the remaining two calls are next.
+reviewer calls for those passes. Including interrupted Codex, the count is
+five worker invocations, no additional provider reviewers. Execution access
+is restored, global configuration/runtime unchanged, fixture stopped;
+Claude is the only unused approved call.
 
 Separate licensing checkpoint, owner-selected on 2026-10-04:
 AGPL-3.0-only with copyright Daniel Mitev and public attribution Daniel
