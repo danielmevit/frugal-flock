@@ -227,8 +227,11 @@ still require explicit quota approval. Optional --open-browser now opens the
 bound read-only URL with a manual fallback; eleven focused checks passed.
 The [manual draft storage foundation](docs/PLAN-DRAFTS.md) is implemented
 and passed eight checks: persisted immutable records/content hashes, no
-native tasks or approval/dispatch. It is not wired to the browser yet.
-Next: one protected opt-in create/read API, then its small browser form.
+native tasks or approval/dispatch. A protected --enable-plan-drafts API now
+adds only manual create/read, exact Origin/Host/session checks and bounded
+JSON. Eight API checks, eleven existing HTTP checks, default browser journey
+and actual restart/persistence/token rotation passed. No real-project draft
+or provider call. Next: its small opt-in browser form; default stays read-only.
 
 
 Package a launcher that starts the service and opens the browser. Specify

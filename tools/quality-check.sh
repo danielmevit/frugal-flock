@@ -27,6 +27,7 @@ python3 tests/frugal-flock-watch.py
 python3 tests/frugal-flock-opencode.py
 python3 -B bridge/tests/server_test.py
 python3 -B bridge/tests/plan_store_test.py
+python3 -B bridge/tests/plan_api_test.py
 bash tests/agentteam-probes.sh
 bash tests/frugal-flock-branding.sh
 bash tools/check-docs.sh

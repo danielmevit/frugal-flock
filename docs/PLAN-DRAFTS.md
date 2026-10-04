@@ -2,8 +2,9 @@
 
 The owner waived the two-person feedback prerequisite on 2026-10-04;
 proceed with judgment/automated checks. This small slice implements only
-storage for a manually entered draft, before the protected HTTP/UI step.
-The current Activity service remains read-only. No provider quota is used.
+storage for a manually entered draft, now with a protected opt-in HTTP API.
+Default Activity mode remains read-only; the browser form is the next step.
+No provider quota is used.
 
 PlanStore in bridge/plan_store.py takes one real enclosing workspace and
 creates coord/ui-plans/. It creates and reads immutable schema-1 records:
@@ -38,18 +39,50 @@ checks wrote only disposable workspace tmp fixtures. Receipts stay local
 under tmp/bridge-plan-drafts/receipts/. The routine quality gate includes
 the stdlib store suite, with no new runtime dependency or global install.
 
-## One next task: protected create/read API
+## Protected opt-in create/read API (2026-10-05)
 
-Add only explicit opt-in manual-draft mode to the existing loopback preview.
-Default mode stays read-only. A same-origin session token and exact Origin/
-Host checks must protect create; reject wrong methods/types, oversized body,
-unknown fields and caller-selected filesystem paths. The configured project
-is fixed by startup. GET of a validated opaque ID returns that draft/hash.
-The UI must call it a manual draft, state where it is saved, and make clear
-that saving does not start an AI or consume provider quota.
+Start the server with --enable-plan-drafts to enable only manual-draft
+storage in the fixed startup project. Default startup neither constructs
+PlanStore nor creates its directory. GET /api/session returns schema 1,
+manual_drafts true/false and a random token only in enabled mode. Host must
+match the bound address; any Origin must match. No CORS permission is given.
 
-No approve/start/retry/merge endpoint belongs in that task. Native task
-compilation must later prevent user text from becoming Allowed scope or
-Validate lines. Durable job execution must separately freeze task/revision,
-require explicit provider approval, preserve native exit/result dimensions,
-and recover unknown completion without automatic duplicate dispatch.
+POST /api/plans requires an exact same-origin Origin and one matching
+X-Frugal-Flock-Session header. It accepts only application/json with one
+request field, explicit nonambiguous Content-Length at most 32 KiB, no
+Transfer-Encoding, valid UTF-8/JSON and no duplicate JSON fields. Body reads
+have a five-second deadline. A complete valid save returns 201 and the
+immutable draft/hash. Unknown keys, invalid types, whitespace/overlong
+requests, path selectors or partial bodies fail without saving a record.
+
+GET /api/plans/ID requires the token and a validated opaque ID. Missing
+records return 404; corrupted/unavailable storage returns 503 with no raw
+paths, request contents or forged approvals. Restart rotates session tokens;
+saved drafts remain readable using the new token. HTTP responses are no-store.
+There is no automatic request retry, AI generation, approval, job, native task
+publication, provider dispatch or merge endpoint. Saving is not quota approval.
+
+Eight HTTP API checks passed: save/read/reopen as literal data, default
+read-only, Origin/Host/session refusal, JSON/type/size/duplicate-field rejection,
+body framing/missing length/premature EOF, method/path/ID refusal, nonleaking
+storage failures/corruption and old token refusal. Eleven existing HTTP/
+observer/browser-opening cases passed. The default Chromium journey passed
+and confirmed no draft directory creation. An actual opt-in CLI restart
+saved one draft, reopened identical content/hash and refused the previous
+token. All API test writes were workspace-local fixtures; no real-project
+plan or provider call. Receipts: workspace tmp/bridge-plan-api/receipts/.
+
+## One next task: manual browser form
+
+Add a small opt-in-only manual request form and explicit Save draft action.
+Show literal stored text, draft ID/hash, and a way to reopen by ID. State
+that it is saved in this selected project's coordination and cannot start
+an AI or approve provider quota. Fetch the capability/token at startup,
+keep it in memory, and recover from a restarted server by asking for a new
+session before the user explicitly saves again. Never auto-repeat a POST
+when its outcome is unknown. Default mode remains read-only.
+
+Native task compilation must later prevent user text from becoming Allowed
+scope or Validate lines. Durable job execution must separately freeze task/
+revision, require explicit provider approval, preserve native exit/result
+states and recover unknown completion without automatic duplicate dispatch.
