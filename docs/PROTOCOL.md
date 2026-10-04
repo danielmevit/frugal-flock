@@ -80,8 +80,11 @@ commits=<n> files=<n> insertions=<n> deletions=<n> uncommitted=<n>
 
 Verify block (appended by `frugal-flock verify`):
 `### verify <ts> — worker=<w> scope=<OK|VIOLATION|UNCHECKED>
-validate=<passed>/<run> empty=<0|1> verdict=<PASS|FAIL>` plus out-of-scope
-paths and per-command results.
+validate=<passed>/<run> empty=<0|1> verdict=<PASS|FAIL|INCOMPLETE>` plus
+out-of-scope paths, individual reasons, and per-command results. PASS exits
+0 only with scope and at least one passing Validate command, with existing
+safeguards satisfied. Missing scope/checks exits 2 (INCOMPLETE); actual
+failures take precedence and exit nonzero, normally 1. No waiver is provided.
 
 Ledger events (`coord/reports/ledger.jsonl`, one JSON object per line):
 
@@ -178,7 +181,9 @@ Environment: `AGENTTEAM_TIMEOUT` (seconds, default 3600) caps each run;
 `AGENTTEAM_AUTO_OFF=1` auto-benches an agent 5h when a FAILED run's log
 matches limit-language patterns (suppressed when the task text itself
 mentions limits and the run succeeded). `AGENTTEAM_AUTO_VERIFY=1` makes
-every run append its own verify verdict after finishing.
+every run append its own verify verdict after finishing. If the worker
+succeeds but verification fails or is incomplete, run returns the
+verification's nonzero exit; a failed worker retains its own exit code.
 `AGENTTEAM_AUTO_SYNC=1` fast-forwards a worker onto the base branch
 before a run when the worktree is clean, so it never builds against
 stale code (otherwise `run` warns and leaves it to the operator).

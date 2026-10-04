@@ -26,7 +26,7 @@ cat > "$BIN_DIR/agentteam" <<'AGENTTEAM_BIN_EOF'
 #   PROJECT/coord/    board.md, base, docs/, tasks/, reports/, blockers.md, STOP
 set -euo pipefail
 
-AGENTTEAM_VERSION="0.3.1"
+AGENTTEAM_VERSION="0.4.0"
 CONF_DIR="${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}"
 CONF_FILE="$CONF_DIR/agents.conf"
 TPL_DIR="$CONF_DIR/templates"
@@ -515,14 +515,16 @@ cmd_run() {
   else
     echo "exit=$rc duration=${dur}s — report: $report"
   fi
+  local verify_rc=0
   if [ "${AGENTTEAM_AUTO_VERIFY:-0}" = "1" ]; then
     exec 9>&-   # release the worker lock so verify can probe it
-    cmd_verify "$worker" "$task" || true
+    cmd_verify "$worker" "$task" || verify_rc=$?
     echo "next: frugal-flock diff $worker"
   else
     echo "next: frugal-flock verify $worker $task   then: frugal-flock diff $worker"
   fi
-  return "$rc"
+  [ "$rc" -eq 0 ] || return "$rc"
+  return "$verify_rc"
 }
 
 # ---------------------------------------------------------------- verify
@@ -554,7 +556,7 @@ cmd_verify() {
   # recorded when it was dispatched: if the yardstick moved, the verdict is
   # meaningless, so fail closed.
   local tampered=0 run_sha cur_sha
-  run_sha=$(grep -o 'task_sha=[0-9a-f]*' "$root/coord/reports/$task.md" 2>/dev/null | tail -1 | cut -d= -f2)
+  run_sha=$(grep -o 'task_sha=[0-9a-f]*' "$root/coord/reports/$task.md" 2>/dev/null | tail -1 | cut -d= -f2 || true)
   cur_sha=$(task_sha "$tf")
   [ -n "$run_sha" ] && [ "$run_sha" != "$cur_sha" ] && tampered=1
 
@@ -610,6 +612,16 @@ cmd_verify() {
 
   local verdict="PASS" ret=0
   if [ "$scope" = "VIOLATION" ] || [ "$vfail" -gt 0 ] || [ "$empty" = 1 ] || [ "$tampered" = 1 ]; then verdict="FAIL"; ret=1; fi
+  local reasons=""
+  [ "$scope" != "UNCHECKED" ] || reasons="missing_scope"
+  [ "$vrun" -gt 0 ] || reasons="${reasons:+$reasons,}missing_validate"
+  [ "$scope" != "VIOLATION" ] || reasons="${reasons:+$reasons,}scope_violation"
+  [ "$vfail" -eq 0 ] || reasons="${reasons:+$reasons,}check_failed"
+  [ "$empty" != 1 ] || reasons="${reasons:+$reasons,}empty_work"
+  [ "$tampered" != 1 ] || reasons="${reasons:+$reasons,}task_tampered"
+  if [ "$ret" = 0 ] && { [ "$scope" = "UNCHECKED" ] || [ "$vrun" = 0 ]; }; then
+    verdict="INCOMPLETE"; ret=2
+  fi
 
   local pcount; pcount=$(printf '%s\n' "$changed" | grep -c .) || true
   echo "== verify $worker / $task =="
@@ -624,10 +636,12 @@ cmd_verify() {
   [ "$empty" = 1 ] && echo "!! EMPTY — no commits and no uncommitted changes: no-op or overclaim"
   [ "$tampered" = 1 ] && echo "!! TAMPERED — the task file changed after the run; the scope enforced here is not the scope that was dispatched"
   echo "verdict  : $verdict"
+  [ -z "$reasons" ] || echo "reasons  : $reasons"
 
   {
     echo
     echo "### verify $(date -Is) — worker=$worker scope=$scope validate=$((vrun-vfail))/$vrun empty=$empty verdict=$verdict"
+    [ -z "$reasons" ] || echo "reasons: $reasons"
     [ "$tampered" = 1 ] && echo "!! task file changed since the run — the scope being enforced is not the scope that was dispatched"
     [ -n "$viol" ] && { echo "out-of-scope:"; printf '%s' "$viol" | sed 's/^/  /'; }
     [ -n "$vout" ] && printf '%s' "$vout"
@@ -1403,8 +1417,8 @@ n/a
 SUMMARY
 ST_T4_EOF
   bash -c '"$0" run mock T4-mock >/dev/null 2>&1' "$0" || true
-  st_chk "verify exits 0 on a no-Validate task" \
-    bash -c '"$0" verify mock T4-mock >/dev/null 2>&1' "$0"
+  st_chk "verify is INCOMPLETE on a no-Validate task" \
+    bash -c 'out=$("$0" verify mock T4-mock 2>&1); rc=$?; [ "$rc" -eq 2 ] && printf "%s" "$out" | grep -q INCOMPLETE' "$0"
 
   cat > ../coord/tasks/T5-noop.md <<'ST_T5_EOF'
 # Task T5 — worker: noop
@@ -1559,7 +1573,7 @@ Base branch: coord/base. Machine history: coord/reports/ledger.jsonl.
 Env: AGENTTEAM_TIMEOUT (3600s)  AGENTTEAM_VERIFY_TIMEOUT (900s)
      AGENTTEAM_REVIEW_TIMEOUT (900s)  AGENTTEAM_ALLOW_SECRETS=1 (init override)
      AGENTTEAM_AUTO_OFF=1 (bench 5h when a FAILED run mentions usage limits)
-     AGENTTEAM_AUTO_VERIFY=1 (every run appends its verify verdict itself)
+     AGENTTEAM_AUTO_VERIFY=1 (append verify verdict; propagate failed/incomplete checks)
      AGENTTEAM_AUTO_SYNC=1 (fast-forward a stale worker onto base before a run)
 HELP
 }
@@ -1947,8 +1961,11 @@ commits=<n> files=<n> insertions=<n> deletions=<n> uncommitted=<n>
 
 Verify block (appended by `frugal-flock verify`):
 `### verify <ts> — worker=<w> scope=<OK|VIOLATION|UNCHECKED>
-validate=<passed>/<run> empty=<0|1> verdict=<PASS|FAIL>` plus out-of-scope
-paths and per-command results.
+validate=<passed>/<run> empty=<0|1> verdict=<PASS|FAIL|INCOMPLETE>` plus
+out-of-scope paths, individual reasons, and per-command results. PASS exits
+0 only with scope and at least one passing Validate command, with existing
+safeguards satisfied. Missing scope/checks exits 2 (INCOMPLETE); actual
+failures take precedence and exit nonzero, normally 1. No waiver is provided.
 
 Ledger events (`coord/reports/ledger.jsonl`, one JSON object per line):
 
@@ -2045,7 +2062,9 @@ Environment: `AGENTTEAM_TIMEOUT` (seconds, default 3600) caps each run;
 `AGENTTEAM_AUTO_OFF=1` auto-benches an agent 5h when a FAILED run's log
 matches limit-language patterns (suppressed when the task text itself
 mentions limits and the run succeeded). `AGENTTEAM_AUTO_VERIFY=1` makes
-every run append its own verify verdict after finishing.
+every run append its own verify verdict after finishing. If the worker
+succeeds but verification fails or is incomplete, run returns the
+verification's nonzero exit; a failed worker retains its own exit code.
 `AGENTTEAM_AUTO_SYNC=1` fast-forwards a worker onto the base branch
 before a run when the worktree is clean, so it never builds against
 stale code (otherwise `run` warns and leaves it to the operator).
