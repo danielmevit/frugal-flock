@@ -17,19 +17,20 @@ complete: Codex's recovered invocation was interrupted with no completion,
 exit or duration captured; clean unchanged baseline, zero commits, verify
 1/2 failed. The native result retains process running despite no surviving
 worker, but is not ready; record the recovery gap without rewriting evidence.
-No retry. Claude's one approved attempt remains next, using Sonnet 5.5/medium
-under an explicit owner override
-of its earlier deferral. Antigravity was explicitly
-requested by the owner. See [the canary checkpoint](M1.5-LIVE-CANARY.md).
-The owner reports Claude is limited for the next five hours; this Codex
-session handles code review and implementation. No further Claude call
-beyond that one attempt is authorized.
-All four runs, verify (2/2 each), in-session reviews through sealed local
-adapters and current results passed. Four worker invocations, no extra
-reviewer calls for those passes. Including interrupted Codex, the count is
-five worker invocations, no additional provider reviewers. Execution access
-is restored, global configuration/runtime unchanged, fixture stopped;
-Claude is the only unused approved call.
+No retry. Claude's owner-approved Sonnet 5.5/medium exception passed in
+23 seconds, one commit/file, scope OK, verify 2/2 and complete diff approved
+here by Codex, through the sealed local review adapter. Its native JSON
+confirms Sonnet 5.5; result current/ready, human pending, integration not
+attempted. This does not establish that its earlier Opus limit cleared.
+See [the canary checkpoint](M1.5-LIVE-CANARY.md). This Codex session handles
+code review and implementation; no further Claude call is authorized.
+All five successful canaries passed run, verify 2/2, in-session review and
+current result. Including interrupted Codex, six worker invocations total,
+zero additional provider reviewers/retries; all approved attempts used.
+Execution access restored, global agent configuration/runtime unchanged,
+all six local agent entries restored, fixture stopped, no worker active.
+Next: investigate interrupted-run status using mocks. Any Codex rerun needs
+fresh quota approval; native review needs a different vendor.
 
 Separate licensing checkpoint, owner-selected on 2026-10-04:
 AGPL-3.0-only with copyright Daniel Mitev and public attribution Daniel

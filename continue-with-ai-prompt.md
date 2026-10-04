@@ -10,6 +10,21 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Claude canary, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh): explicit
+  Claude Sonnet 5.5 (`claude-sonnet-5-5`), medium, passed in 23 seconds.
+  Native JSON confirms Sonnet; throwaway commit `4163ce4`, one file/commit,
+  exact marker, clean branch, scope OK, verify 2/2. Full task/diff inspected
+  here, approved with no findings and transported through the sealed local
+  adapter; native review exit 0, current ready result, human pending,
+  integration not attempted. Local agent entries restored; global native
+  agents.conf/installed 0.4.0 hashes unchanged. Six worker invocations total,
+  zero additional provider reviewers, no retries; all approved calls used.
+  Five ready canaries; Codex remains interrupted, zero commits/verify 1/2,
+  native process still running despite no surviving worker. M1.5 step 1 is
+  incomplete. Fixture STOP active, no worker active. Next: publish this
+  Claude evidence checkpoint, then investigate interrupted-run status with
+  mocks. Any Codex rerun needs fresh quota approval; native review needs a
+  different vendor. Sonnet success does not prove the Opus limit cleared.
 - Access recovery checkpoint, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh):
   the owner restored unrestricted execution after the session sandbox failed
   on a `.aws` symlink rule and excluded this workspace from writable roots.
@@ -20,9 +35,9 @@ checkpoint so another AI can continue without the previous conversation.
   duration captured; unchanged clean baseline, zero commits, verify 1/2
   failed. Native process still says running despite no surviving worker;
   result not ready. Preserve this interrupted-run recovery gap, no retry.
-  Fixture STOP active. Next: publish this evidence checkpoint, then the
-  single unused approved Claude Sonnet 5.5/medium canary, 180 seconds cap.
-  No separate provider reviewer call; root reviews any valid diff here.
+  Fixture STOP active. Codex evidence merged/pushed as `aadc005`. Next:
+  Claude's single approved Sonnet 5.5/medium canary subsequently passed above.
+  The interrupted-run status gap is the remaining local finding.
 - Owner resumed M1.5 on 2026-10-04: “do all in one go” approves one
   remaining Kimi and Codex worker invocation each; no retries or separate
   provider reviewer calls. He additionally explicitly approved one Claude
@@ -39,7 +54,7 @@ checkpoint so another AI can continue without the previous conversation.
   current ready result. Worker invocations were four at Kimi's
   checkpoint; now five including interrupted Codex above. Zero extra
   provider reviewers. Kimi was merged/pushed as `9fadc8a`; own worktree
-  includes it. Only Claude's one unused call remains; no retries.
+  includes it. Claude subsequently passed; all approved calls now used.
 - Current owner request: AGPL-3.0-only for the public release, with optional
   separate paid agreements for proprietary use. The owner explicitly chose
   true open source on 2026-10-04 after being told compliant commercial forks
@@ -64,7 +79,7 @@ checkpoint so another AI can continue without the previous conversation.
   interrupted run is retained in quality-check.log and the append-only agent
   log. This is one owner-authorized licensing integration; find its merge
   on main's first-parent history. Source checkpoint complete; next work is
-  the remaining M1.5 canary: Claude has one unused call approved.
+  M1.5 canary follow-up: all six attempts used, five passed, Codex interrupted.
   Global installed 0.4.0 and all canary evidence remain unchanged; no quota call.
 - Antigravity live evidence is committed at `13e70e9` on `agent/codex` in
   `wt/codex`, merged and pushed as `0426f0c`.
@@ -83,7 +98,7 @@ checkpoint so another AI can continue without the previous conversation.
   approved by this Codex session through the sealed local adapter, current
   ready result. Worker calls at that checkpoint: three; no extra reviewer calls, retries
   or Claude calls. Fixture stopped. This checkpoint was merged/pushed as
-  `7761737`. Codex was subsequently interrupted; Claude has one unused approved call.
+  `7761737`. Codex was subsequently interrupted; Claude subsequently passed.
   Its source evidence candidate is `17c4959` on `agent/codex`.
 - M1.5 preparation is merged and pushed as `d991350` (candidate `4b8e1a9`
   plus `61327ec`). The owner-approved README rewrites `4565cfd` and `f6f0ed9` are also
@@ -96,14 +111,14 @@ checkpoint so another AI can continue without the previous conversation.
   One live worker invocation, no extra reviewer call or retry. The earlier
   silent stall did not recur. Receipts stay local; its STOP file is active.
   M1.5 step 1 remains incomplete: Codex was interrupted without a completed
-  change; Claude remains unrun with one explicitly approved Sonnet 5.5/
-  medium exception to its earlier deferral. Kimi K3 has passed.
+  change; Claude Sonnet 5.5/medium passed its explicitly approved exception
+  in 23 seconds. Kimi K3 has passed.
   The installed 0.4.0 passed the mock run/verify/review/result rehearsal,
   including review gating and stale-result checks. The full offline gate
   passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
   branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
-  No worker is active. Next: Claude after publishing interrupted Codex evidence.
-  Claude has one unused approved attempt; other calls need approval.
+  No worker is active. All approved calls used; future calls need approval.
+  Next: publish Claude evidence, then investigate interrupted status with mocks.
   Claude is owner-reported limited for five hours (avoid through
   22:42 +0200 on 2026-10-04, an operator interval, not a confirmed reset).
   The owner explicitly permits this one Sonnet 5.5/medium Claude canary.
@@ -167,10 +182,14 @@ order, one small tested checkpoint each:
    Codex's already-started invocation was interrupted: unchanged baseline,
    verify 1/2 failed, exit unknown, native process still running but not ready.
    No retry; preserve the interrupted-run recovery finding.
-   Claude's one approved attempt uses Sonnet 5.5/medium despite the earlier
-   limit. Other Claude calls remain deferred until 22:42 +0200 on 2026-10-04
-   (operator interval, not a provider-confirmed reset). No retries or extra
-   provider reviewers; native Codex review must use a different vendor.
+   Claude's one approved Sonnet 5.5/medium attempt passed in 23 seconds,
+   full canary including lead review/current ready result. Six worker
+   invocations total; five passed, Codex interrupted. All approved calls
+   used; no retries or extra provider reviewers. Investigate the orphaned
+   running status using mocks; any Codex rerun needs fresh quota approval.
+   Native Codex review must use a different vendor. Other Claude calls
+   remain deferred until 22:42 +0200 on 2026-10-04 (operator interval,
+   not a provider-confirmed reset); Sonnet success does not clear the limit.
    Ask before spending provider quota; no retries or fallback calls.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
