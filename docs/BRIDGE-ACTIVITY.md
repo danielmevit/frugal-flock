@@ -15,12 +15,15 @@ top-level data, and never relays raw stdout/stderr errors. Invalid/nonzero/
 timed-out observations return 503 without stale data. The browser polls at
 two seconds; failure clears old task/tool/event displays.
 
-Only GET of the root, two assets and /api/activity is allowed. The server
+Default mode allows only GET of the root, two assets, /api/activity and
+the /api/session capability document. The server
 binds loopback 127.0.0.1, chooses an unused port by default, checks Host and
 any Origin header against its actual origin, supplies no CORS permission,
 and sends no-store, nosniff and a same-origin content policy. No route can
 select another project, engine, path, command or provider. Non-GET methods
-are refused. There are no dispatch, approval, retry or merge actions.
+are refused by default. An explicit --enable-plan-drafts option now adds
+only protected manual create/read under the [draft contract](PLAN-DRAFTS.md).
+There are no dispatch, approval, retry or merge actions.
 The fixed engine is trusted local code, not an isolated command sandbox.
 
 ## Disposable source build
@@ -55,7 +58,8 @@ fields. The preview displays recent events in a disclosure as text.
 
 The server is an observation process, not an atomic transaction across all
 coordination files. Production packaging, folder selection, sign-in/setup,
-a durable queue and mutating operations remain separate tasks. The owner
+a durable queue and execution operations remain separate tasks. The manual
+draft create/read API is an explicit opt-in, with no provider dispatch. The owner
 waived the two-person feedback prerequisite on 2026-10-04; no sessions exist.
 The next slices use judgment/automated checks while retaining run/quota
 approval and truthful evidence. Choose one bounded next task.

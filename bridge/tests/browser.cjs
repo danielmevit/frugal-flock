@@ -201,6 +201,7 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
         path: path.join(process.env.M2_SCREENSHOTS, "activity-mobile.png"),
         fullPage: true,
       });
+    assert.deepEqual(fs.readdirSync(path.join(fixture, "coord")), ["snapshot.json"]);
     assert.deepEqual(problems, []);
     assert.ok(
       requests.every(

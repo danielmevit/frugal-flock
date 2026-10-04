@@ -5,10 +5,31 @@ helper where the project stands. Open the **Prompt to paste** section below,
 copy the text inside the box, and paste it into that AI. If it cannot open
 GitHub, attach this file and the handoff documents it names.
 
-Living checkpoint, updated 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh). Update this file with EVERY small
+Living checkpoint, updated 2026-10-05 by Codex (`gpt-6.1-sol`, xhigh). Update this file with EVERY small
 checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
+
+- Protected manual draft API complete 2026-10-05 by Codex (`gpt-6.1-sol`,
+  xhigh), based on `7c6be5a`: explicit --enable-plan-drafts, exact Host/
+  Origin, random session token, strict bounded UTF-8 JSON/body framing/IDs,
+  no native task/approval/dispatch. Default remains read-only. Eight API
+  checks passed, eleven existing HTTP/opening checks passed, default browser
+  journey passed with no draft directory, and actual opt-in CLI restart
+  recovered identical draft/hash and refused old token. Scratch fixtures
+  only, no real-project write/provider call/global change. UI form is next.
+  Next: publish API separately, prepare one tiny manual browser-form worker
+  with exact tool paths; ask fresh quota before any provider invocation.
+  Feedback gate waived by owner; provider approval/evidence gates remain.
+
+- Draft storage candidate `93e8034` published as own merge `7c6be5a`;
+  main clean/current and own branch synced. Preparing protected opt-in
+  create/read API only: fixed project, exact Origin/Host, session token,
+  strict bounded JSON and opaque IDs. Default is read-only; no UI form,
+  native task compilation, run/quota approval consumption or provider call.
+  API source draft needs focused auth/body/persistence/default-mode tests.
+  Next: verify/publish API separately, then prepare one tiny browser-form task
+  with explicit local tool paths before asking any new provider quota.
 
 - Manual plan-draft store complete in source, 2026-10-05 by Codex
   (`gpt-6.1-sol`, xhigh), based on main `4747000` (waiver merge, source

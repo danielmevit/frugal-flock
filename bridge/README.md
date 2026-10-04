@@ -28,10 +28,11 @@ browser opener does not block observations. Ctrl-C stops the service. The defaul
 Refresh button. A failed observation clears the old display and says activity
 is unavailable. Refreshing the page performs only another observation.
 
-Only the three static assets and `GET /api/activity` are served. The server
+Default mode serves the three static assets, `GET /api/activity` and a
+same-origin capability document at `GET /api/session`. The server
 binds 127.0.0.1; Host must match its actual address, and an Origin header
 must match that same origin. No cross-origin access, request-selected folder,
-engine, command, task, or mutation endpoint exists. The fixed owner-selected
+engine, command or task exists. Default mode has no mutation endpoint. The fixed owner-selected
 engine runs on the trusted host; this is not an OS sandbox or a packaged
 launcher. Project data is sensitive to anyone with local account access.
 No remote exposure, global reinstall, native credential access, or release
@@ -51,6 +52,7 @@ explicit run/quota approval. This preview still has no live controls.
 ```bash
 python3 -B bridge/tests/server_test.py
 python3 -B bridge/tests/plan_store_test.py
+python3 -B bridge/tests/plan_api_test.py
 node --check bridge/activity.js
 node --check bridge/tests/browser.cjs
 ```
@@ -77,9 +79,19 @@ AGPL-3.0-only; see LICENSE and NOTICE for attribution/origin terms. No warranty.
 ## Manual plan-draft foundation
 
 plan_store.py supplies durable immutable manual drafts in the selected
-workspace's coord/ui-plans/. It is not wired to HTTP or the browser yet;
-the current service remains read-only. Each complete draft has an opaque
+workspace's coord/ui-plans/. Default mode stays read-only. Optional --enable-plan-drafts exposes only
+protected manual create/read endpoints; the browser form is still the next
+step. Each complete draft has an opaque
 ID, creation time, request text, draft state and a hash of its saved bytes.
 It contains no AI-generated plan, approval, native task or job. Text is
 stored literally and never interpreted as a command. See the
 [bounded contract](../docs/PLAN-DRAFTS.md).
+
+For manual-draft API mode, add --enable-plan-drafts at startup. This creates
+coord/ui-plans/ in that fixed workspace. GET /api/session supplies a fresh
+session token; POST /api/plans requires that token in X-Frugal-Flock-Session,
+an exact same-origin Origin header, and JSON with only the request field.
+GET /api/plans/ID requires the same token. Saving returns draft state and a
+content hash; no AI-generated plan, native task, approval or execution occurs.
+Restart rotates the token; saved drafts remain readable under the new session.
+The mode does not automatically open a browser or dispatch providers.
