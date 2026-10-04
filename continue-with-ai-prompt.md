@@ -11,9 +11,9 @@ checkpoint so another AI can continue without the previous conversation.
 ## Current checkpoint
 
 - Public repo: https://github.com/danielmevit/frugal-flock.
-- **All five M1 items are implemented, merged into main and published
-  (2026-10-04). M1 waits for the owner's acceptance.** Runtime 0.4.0 is not
-  an accepted release until then. The owner's global install is still 0.3.1.
+- **M1 is complete and accepted by the owner (2026-10-04).** All five items
+  are merged into main and published. Runtime 0.4.0; no release tag yet.
+  The owner's global install is still 0.3.1 until the owner reinstalls.
 - Work was done by Claude Code (Claude Opus 5.5) as lead plus three
   parallel Claude subagents, each in its own worktree. Every step is its own
   revertable merge on main: `fade423`, `45803c1`, `ce3d57f`, `ec5fdee`,
@@ -24,8 +24,8 @@ checkpoint so another AI can continue without the previous conversation.
   the frozen worker scope. Full quality-check on that tree: 40/40
   selftests, 16 + 78 + 23 quality checks, 14 probes held, branding,
   ShellCheck, docs lint. No live provider was called.
-- Open, non-blocking: findings F1 and F2 and the not-mock-testable rows in
-  [M1-ACCEPTANCE-AUDIT.md](docs/M1-ACCEPTANCE-AUDIT.md).
+- After acceptance, audit findings F1 and F2 were fixed with regressions;
+  see [M1-ACCEPTANCE-AUDIT.md](docs/M1-ACCEPTANCE-AUDIT.md).
 - No worker is active. Older `agent/*` branches are history.
 - Everything stays under `/mnt/d/Vibe Coding/_vm/frugal-flock`: `repo/`,
   `wt/`, `coord/`, `artifacts/`, `tmp/`. Read
@@ -45,17 +45,17 @@ WORKSPACE-RULES.md and the frozen docs/QUALITY-M1-CONTRACT.md. Follow the
 applicable MASTER.md/WORKER.md lead-versus-worker rules. Use CodeGraph only
 if .codegraph exists; do not create an index unasked.
 
-State: all five M1 items are implemented and merged into main; M1 waits
-for the owner's acceptance. Do not rebuild finished work. Locally the main
+State: M1 is complete, merged into main and accepted by the owner. Do not
+rebuild finished work. Locally the main
 folder is /mnt/d/Vibe Coding/_vm/frugal-flock/repo and worktrees are under
 ../wt. ALL project-owned work stays inside the enclosing frugal-flock
 folder; use its tmp directory for checks. Installed tools and credentials
 stay in their system locations; never copy credentials.
 
-NEXT: ask the owner whether M1 is accepted, including the documentation-
-only scope result of the final gate. Do not start UI or M2 work before an
-explicit acceptance and request. Optional follow-ups the owner may choose:
-F1/F2 from the audit, installing 0.4.0 globally, a live provider run.
+NEXT: wait for the owner's direction. Candidates the owner may choose:
+reinstall 0.4.0 globally (affects every project using the agentteam
+command), a small live provider smoke run, a v0.4.0 release tag, or M2
+(the mock-data UI prototype in TODO.md). Do not start M2 unasked.
 
 Say what you will do, then work in SMALL checkpoints: targeted tests,
 exact diff review, named-path commit, then a dated entry at the top of

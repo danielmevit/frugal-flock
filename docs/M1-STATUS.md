@@ -2,10 +2,11 @@
 
 ## Status
 
-**All five M1 items are implemented, merged into main and published.
-M1 now waits for the owner's acceptance.** It is not an accepted release
-until the owner says so. The runtime prints 0.4.0; the global tool
-installed on the owner's machine is still 0.3.1 and was not replaced.
+**M1 is complete: all five items are implemented, merged into main and
+published, and the owner accepted M1 on 2026-10-04**, including the
+documentation-only scope result of the final gate. The runtime prints
+0.4.0. No release tag exists yet, and the global tool installed on the
+owner's machine is still 0.3.1 until the owner chooses to reinstall.
 
 Frozen requirements: [QUALITY-M1-CONTRACT.md](QUALITY-M1-CONTRACT.md)
 at `e230ad4`. Clause-by-clause evidence:
@@ -123,20 +124,22 @@ temporary install; see the final gate section above.
 
 ## Open findings and limits
 
-None of these block the contract as written; the owner may want them later.
+None of these block the contract. After acceptance, at the owner's request,
+the audit findings were fixed (see the audit for regressions):
 
-- **Owner acceptance** of M1 is the one remaining step.
-- F1 (minor): `verify` with an unavailable base exits 2, not the usual 1,
-  because the snapshot fails first. It never passes and records nothing.
-- F2 (cosmetic): a handoff killed mid-publication leaves a `.pending-*`
-  scratch folder. Nothing partial is published; the folder can be deleted.
-- Not mock-testable: a kill during the result-file write (atomic rename
-  checked by reading the code), and real accounts or global configuration.
+- F1, fixed: `verify` with an unavailable base now exits 1 (FAIL), checked
+  before the snapshot; it still records nothing.
+- F2, fixed: the next handoff removes `.pending-*` scratch left by an
+  interrupted handoff, and the next locked result write removes `.result-*`
+  scratch left by a killed writer.
+- Not mock-testable: real accounts or global configuration. A kill during
+  the result-file write is covered only by the atomic rename and the sweep.
 - `agents` reports `unknown` (not "missing") for wrappers such as
   `bash -c`, pipes or `$(...)` in the program word, by design.
-- Installing 0.4.0 globally and any live provider run are owner decisions.
+- Installing 0.4.0 globally, a live provider run and a release tag are
+  owner decisions.
 
-Do not start UI or M2 work until the owner accepts M1.
+M2 (the UI prototype, see TODO) may start when the owner asks for it.
 
 ## Boundaries
 

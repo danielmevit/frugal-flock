@@ -9,18 +9,19 @@ The owner subsequently requested **quality before UX**. The bounded
 E4 warnings, and a manual E6 context packet. Track implementation evidence
 in [M1 status](M1-STATUS.md); assignment alone does not close a finding.
 
-2026-10-04 checkpoint: worker branch `agent/codex` at `80feafb` contains
-strict verification, exit propagation, structured evidence, review parsing,
-honest availability, and manual context packets. It is not merged into
-main or accepted as complete. Hidden-index-flag handling, post-run snapshot
-failure finalization, coverage, and documentation need follow-up; see
-[the continuation report](SESSION-HANDOFF-2026-10-04.md). E4 OS isolation
-and full E6 automatic checkpointed migration remain future work.
+2026-10-04 update: M1 is merged into main and was accepted by the owner
+the same day. It resolves E1 to E3 with regression tests, makes E5
+diagnostics honest (`agents --json`: capacity and sign-in unknown), adds
+`trusted_host` warnings for E4, and adds a manual same-checkout context
+packet (`handoff`) for E6. See [M1 status](M1-STATUS.md) and the
+[acceptance audit](M1-ACCEPTANCE-AUDIT.md). E4 OS isolation and full E6
+automatic checkpointed migration remain future work.
 
 ## E1. Missing evidence can still receive PASS
 
-Status: open; must be resolved before a UI treats verification as permission
-to apply changes.
+Status: resolved by M1 (accepted 2026-10-04). Missing scope or Validate
+lines are INCOMPLETE (exit 2), never PASS. Originally: must be resolved
+before a UI treats verification as permission to apply changes.
 
 In `cmd_verify`, no scope patterns produce `UNCHECKED`. No validation
 commands leave both counters at zero. Neither condition alone changes
@@ -40,7 +41,8 @@ intentionally, not accidentally. Any future waiver needs a separate contract.
 
 ## E2. Worker exit and verification outcome are different
 
-Status: open.
+Status: resolved by M1 (accepted 2026-10-04). Process and validation states
+are stored separately, and run keeps the worker's own nonzero exit.
 
 With automatic verification enabled, `cmd_run` invokes `cmd_verify` with
 `|| true`, then returns the worker process's original exit code. A worker
@@ -58,7 +60,8 @@ and a client refresh.
 
 ## E3. A reviewer finishing does not mean approval
 
-Status: open.
+Status: resolved by M1 (accepted 2026-10-04). Exactly one standalone verdict
+line counts; anything else is unknown, and review exits 0/1/2.
 
 `cmd_review` asks for an APPROVE or REQUEST-CHANGES line, but records and
 returns the review process's exit code without parsing that decision.
@@ -95,7 +98,8 @@ an arbitrary shell endpoint or copy provider tokens into browser storage.
 
 ## E5. Availability is not a universal quota reading
 
-Status: current limitation; model honestly in the UI.
+Status: current limitation; model honestly in the UI. Since M1,
+`agents --json` reports sign-in and capacity as unknown instead of guessing.
 
 The engine provides binary detection, manual/timed benching, and optional
 failed-run limit-message detection. These are not proof of a valid login
@@ -111,7 +115,8 @@ from free local diagnostics.
 
 ## E6. Reliable cross-provider continuation is still product work
 
-Status: planned, not implemented as an automatic flow.
+Status: planned, not implemented as an automatic flow. Since M1,
+`handoff` writes a manual same-checkout context packet (not a backup).
 
 Task files, worktrees, reports, and availability controls are useful
 ingredients. They do not by themselves implement a durable checkpoint,
@@ -142,7 +147,8 @@ E1–E6 or production-grade security.
 
 ## Order of work
 
-Complete and verify M1 before starting the mock-data UX prototype. Its
+M1 is complete and accepted (2026-10-04); the mock-data UX prototype may
+follow when the owner asks for it. Its
 frozen contract covers exact candidate/base revisions, task text, and
 dirty/untracked worktree contents. Full E4 OS isolation and full E6 automatic
 checkpointed migration remain separate work. A manual same-checkout context
