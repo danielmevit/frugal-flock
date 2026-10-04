@@ -28,7 +28,7 @@ browser opener does not block observations. Ctrl-C stops the service. The defaul
 Refresh button. A failed observation clears the old display and says activity
 is unavailable. Refreshing the page performs only another observation.
 
-Default mode serves the three static assets, `GET /api/activity` and a
+Default mode serves the four static assets, `GET /api/activity` and a
 same-origin capability document at `GET /api/session`. The server
 binds 127.0.0.1; Host must match its actual address, and an Origin header
 must match that same origin. No cross-origin access, request-selected folder,
@@ -54,6 +54,7 @@ python3 -B bridge/tests/server_test.py
 python3 -B bridge/tests/plan_store_test.py
 python3 -B bridge/tests/plan_api_test.py
 node --check bridge/activity.js
+node --check bridge/drafts.js
 node --check bridge/tests/browser.cjs
 ```
 
@@ -63,6 +64,7 @@ Optional browser checks use the same workspace-local Playwright tooling as
 
 ```bash
 node bridge/tests/browser.cjs
+node bridge/tests/drafts_browser.cjs
 ```
 
 The browser check launches only a loopback test server and a strict local
@@ -80,8 +82,8 @@ AGPL-3.0-only; see LICENSE and NOTICE for attribution/origin terms. No warranty.
 
 plan_store.py supplies durable immutable manual drafts in the selected
 workspace's coord/ui-plans/. Default mode stays read-only. Optional --enable-plan-drafts exposes only
-protected manual create/read endpoints; the browser form is still the next
-step. Each complete draft has an opaque
+protected manual create/read endpoints and the manual browser form. Saving
+only stores literal text; no AI plan or worker starts. Each complete draft has an opaque
 ID, creation time, request text, draft state and a hash of its saved bytes.
 It contains no AI-generated plan, approval, native task or job. Text is
 stored literally and never interpreted as a command. See the
@@ -95,3 +97,12 @@ GET /api/plans/ID requires the same token. Saving returns draft state and a
 content hash; no AI-generated plan, native task, approval or execution occurs.
 Restart rotates the token; saved drafts remain readable under the new session.
 The mode does not automatically open a browser or dispatch providers.
+
+In enabled mode the browser shows Save draft and Reopen draft. Empty or
+whitespace requests are rejected. Saving displays the literal text and puts
+only its opaque ID in the URL fragment; reloading safely reopens by ID with
+a new session. The token stays in memory. Repeated submit events produce
+one save, and a failed save/session refresh keeps typed text without an
+automatic retry. Draft text is not backed up until the server confirms a
+save; refreshing after an unconfirmed save can lose unsaved input. No extra
+provider worker was used for this UI source step.

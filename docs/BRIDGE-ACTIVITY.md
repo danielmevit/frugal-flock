@@ -15,7 +15,7 @@ top-level data, and never relays raw stdout/stderr errors. Invalid/nonzero/
 timed-out observations return 503 without stale data. The browser polls at
 two seconds; failure clears old task/tool/event displays.
 
-Default mode allows only GET of the root, two assets, /api/activity and
+Default mode allows only GET of the root, three assets, /api/activity and
 the /api/session capability document. The server
 binds loopback 127.0.0.1, chooses an unused port by default, checks Host and
 any Origin header against its actual origin, supplies no CORS permission,

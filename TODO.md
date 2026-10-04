@@ -231,7 +231,10 @@ native tasks or approval/dispatch. A protected --enable-plan-drafts API now
 adds only manual create/read, exact Origin/Host/session checks and bounded
 JSON. Eight API checks, eleven existing HTTP checks, default browser journey
 and actual restart/persistence/token rotation passed. No real-project draft
-or provider call. Next: its small opt-in browser form; default stays read-only.
+or provider call. The opt-in Save/reopen form now passes both default/manual
+browser journeys, duplicate-submit and failed-session/save/no-retry checks.
+Default stays read-only; no AI plan generation, worker/queue or merge control.
+Next: one tiny live code dogfood enhancement, with fresh quota approval.
 
 
 Package a launcher that starts the service and opens the browser. Specify
