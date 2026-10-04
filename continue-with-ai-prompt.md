@@ -18,7 +18,8 @@ checkpoint so another AI can continue without the previous conversation.
   Installed model registry confirms `opencode-go/glm-5.3`. Run sequentially,
   180 seconds each, no retries; this Codex session reviews both without
   additional provider calls. Global provider configuration stays unchanged.
-- Grok passed in 35 seconds: throwaway commit `868036f`, scope OK, 2/2
+- Grok evidence candidate: `2203b3b` on `agent/codex`. Grok passed in
+  35 seconds: throwaway commit `868036f`, scope OK, 2/2
   checks, in-session Codex review approved and a current ready result.
   Total live worker calls: two (Antigravity and Grok); no extra reviewer
   calls, retries or Claude calls. Fixture stopped. Next: publish this Grok
@@ -33,7 +34,8 @@ checkpoint so another AI can continue without the previous conversation.
   review approved through a sealed local adapter, current ready result.
   One live worker invocation, no extra reviewer call or retry. The earlier
   silent stall did not recur. Receipts stay local; its STOP file is active.
-  M1.5 step 1 remains incomplete: the other canaries have not run.
+  M1.5 step 1 remains incomplete: OpenCode's GLM 5.3 call has not started;
+  codex/kimi/claude canaries also remain unrun.
   The installed 0.4.0 passed the mock run/verify/review/result rehearsal,
   including review gating and stale-result checks. The full offline gate
   passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
