@@ -50,6 +50,7 @@ explicit run/quota approval. This preview still has no live controls.
 
 ```bash
 python3 -B bridge/tests/server_test.py
+python3 -B bridge/tests/plan_store_test.py
 node --check bridge/activity.js
 node --check bridge/tests/browser.cjs
 ```
@@ -72,3 +73,13 @@ refusal before observation, assets and unavailable responses.
 Copyright (C) 2026 Daniel Mitev; public attribution Daniel Mevit
 (@danielmevit). Original: [Frugal Flock](https://github.com/danielmevit/frugal-flock).
 AGPL-3.0-only; see LICENSE and NOTICE for attribution/origin terms. No warranty.
+
+## Manual plan-draft foundation
+
+plan_store.py supplies durable immutable manual drafts in the selected
+workspace's coord/ui-plans/. It is not wired to HTTP or the browser yet;
+the current service remains read-only. Each complete draft has an opaque
+ID, creation time, request text, draft state and a hash of its saved bytes.
+It contains no AI-generated plan, approval, native task or job. Text is
+stored literally and never interpreted as a command. See the
+[bounded contract](../docs/PLAN-DRAFTS.md).

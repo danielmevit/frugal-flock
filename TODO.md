@@ -225,6 +225,10 @@ Folder selection/launcher/setup, durable queue and live controls are not
 implemented. The owner waived the two-user feedback gate; provider calls
 still require explicit quota approval. Optional --open-browser now opens the
 bound read-only URL with a manual fallback; eleven focused checks passed.
+The [manual draft storage foundation](docs/PLAN-DRAFTS.md) is implemented
+and passed eight checks: persisted immutable records/content hashes, no
+native tasks or approval/dispatch. It is not wired to the browser yet.
+Next: one protected opt-in create/read API, then its small browser form.
 
 
 Package a launcher that starts the service and opens the browser. Specify
