@@ -37,6 +37,379 @@ LIMIT_RE='rate.?limit|usage limit|limit (reached|exceeded)|quota|too many reques
 
 die() { echo "frugal-flock: $*" >&2; exit 1; }
 
+# One embedded runtime; Python uses only its standard library and never a shell.
+quality() {
+  command -v python3 >/dev/null || die "Python 3 is required before run/review/smoke"
+  python3 - "$@" <<'QUALITY_PY'
+import datetime, hashlib, json, os, re, shlex, shutil, stat, subprocess, sys, tempfile, time
+
+def fail(message):
+    raise ValueError(message)
+
+def git(wt, *args):
+    p = subprocess.run(['git', '-C', wt, *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if p.returncode:
+        fail('git failed: ' + p.stderr.decode(errors='replace').strip())
+    return p.stdout
+
+def ident(value):
+    if not value or value in ('.', '..') or '..' in value or value.startswith('-') or any(c.isspace() or ord(c) < 32 or c in '/\\' for c in value):
+        fail('invalid worker/task ID')
+
+def safe(root, *parts):
+    # Refuse symlink components, even links that currently point within root.
+    root = os.path.abspath(root)
+    p = root
+    for part in parts:
+        for component in part.split('/'):
+            if component in ('', '.', '..'):
+                fail('invalid coordination path')
+            p = os.path.join(p, component)
+            if os.path.islink(p):
+                fail('symlink refused: ' + p)
+    if os.path.realpath(root) != root:
+        fail('symlink in project root')
+    return p
+
+def regular(path):
+    # NONBLOCK and fstat also close the file-type race before a FIFO read.
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as f:
+        if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+            fail('unsupported file type: ' + path)
+        return f.read()
+
+def stamp():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+def locations(root, worker, task):
+    ident(worker); ident(task)
+    return (safe(root, 'wt', worker), safe(root, 'coord', 'tasks', task + '.md'),
+            safe(root, 'coord', 'results', worker, task + '.json'))
+
+def inventory(wt):
+    index = git(wt, 'ls-files', '--stage', '-z')
+    tracked = set()
+    for row in index.split(b'\0'):
+        if not row:
+            continue
+        meta, name = row.split(b'\t', 1)
+        if meta.startswith(b'160000 '):
+            fail('submodules are unsupported for revision evidence')
+        tracked.add(os.fsdecode(name))
+    seen = set()
+    def walk(directory, prefix=''):
+        entries = sorted(os.scandir(directory), key=lambda x: x.name)
+        names = [prefix + e.name for e in entries if prefix or e.name != '.git']
+        if names:
+            p = subprocess.run(['git', '-C', wt, 'check-ignore', '--no-index', '-z', '--stdin'],
+                               input=b'\0'.join(os.fsencode(n) for n in names) + b'\0',
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if p.returncode not in (0, 1):
+                fail('cannot determine ignored paths')
+            ignored = set(os.fsdecode(n) for n in p.stdout.split(b'\0') if n)
+        else:
+            ignored = set()
+        for e in entries:
+            name = prefix + e.name
+            if not prefix and e.name == '.git':
+                continue
+            has_tracked = name in tracked or any(n.startswith(name + '/') for n in tracked)
+            if name in ignored and not has_tracked:
+                continue
+            mode = e.stat(follow_symlinks=False).st_mode
+            if stat.S_ISDIR(mode):
+                if os.path.lexists(os.path.join(e.path, '.git')):
+                    fail('nested repositories are unsupported: ' + name)
+                yield from walk(e.path, name + '/')
+            else:
+                seen.add(name)
+                if stat.S_ISREG(mode):
+                    data = regular(e.path)
+                    kind = 'file'
+                elif stat.S_ISLNK(mode):
+                    data = os.fsencode(os.readlink(e.path))
+                    kind = 'symlink'
+                else:
+                    fail('unsupported file type (FIFO/device/socket): ' + name)
+                yield (name, kind, stat.S_IMODE(mode), hashlib.sha256(data).hexdigest())
+    rows = list(walk(wt))
+    for name in tracked - seen:
+        # A tracked path hidden below a replaced symlink/directory cannot be read safely.
+        rows.append((name, 'absent', 0, ''))
+    return index, sorted(rows)
+
+def snapshot(root, worker, task):
+    wt, tf, _ = locations(root, worker, task)
+    basepath = safe(root, 'coord', 'base')
+    base = regular(basepath).decode().strip() if os.path.exists(basepath) else 'main'
+    index, rows = inventory(wt)
+    h = hashlib.sha256(index + b'\0' + json.dumps(rows, ensure_ascii=True).encode()).hexdigest()
+    return dict(candidate_commit=git(wt, 'rev-parse', '--verify', 'HEAD^{commit}').decode().strip(),
+                base_commit=git(wt, 'rev-parse', '--verify', base + '^{commit}').decode().strip(),
+                task_sha256=hashlib.sha256(regular(tf)).hexdigest(), worktree_sha256=h)
+
+def revision(rev):
+    return (isinstance(rev, dict) and set(rev) == {'candidate_commit','base_commit','task_sha256','worktree_sha256'}
+            and all(isinstance(v, str) and re.fullmatch('[0-9a-f]{40,64}', v) for v in rev.values()))
+
+def fresh(worker, task):
+    return dict(schema_version=1, worker=worker, task=task, updated_at=stamp(), revision=None,
+                process=dict(state='not_run', exit_code=None, revision=None),
+                validation=dict(state='not_run', scope='UNCHECKED', checks_run=0, checks_failed=0, reasons=[], revision=None),
+                review=dict(state='not_run', reviewer=None, process_exit_code=None, revision=None, reasons=[], material_complete=False),
+                human=dict(state='pending'), integration=dict(state='not_attempted'), stale=False, ready_for_human_review=False)
+
+def valid_document(d, worker, task):
+    if not isinstance(d, dict) or d.get('schema_version') != 1 or d.get('worker') != worker or d.get('task') != task:
+        fail('malformed result identity/schema')
+    if not isinstance(d.get('updated_at'), str) or not revision(d.get('revision')):
+        fail('malformed result revision/date')
+    for name, states in [('process', ('not_run','running','succeeded','failed')), ('validation', ('not_run','passed','failed','incomplete')), ('review', ('not_run','approved','changes_requested','unknown','failed'))]:
+        s = d.get(name)
+        if not isinstance(s, dict) or s.get('state') not in states or (s.get('revision') is not None and not revision(s['revision'])):
+            fail('malformed result section: ' + name)
+        if s['state'] not in ('not_run',) and not revision(s.get('revision')):
+            fail('missing evidence revision: ' + name)
+    p, v, r = d['process'], d['validation'], d['review']
+    for code in (p.get('exit_code'), r.get('process_exit_code')):
+        if code is not None and (type(code) is not int or code < 0):
+            fail('malformed process exit')
+    if p['state'] == 'succeeded' and p.get('exit_code') != 0:
+        fail('inconsistent successful process')
+    if p['state'] in ('not_run','running') and p.get('exit_code') is not None:
+        fail('inconsistent unknown process exit')
+    if p['state'] == 'failed' and p.get('exit_code') == 0:
+        fail('inconsistent failed process')
+    if v.get('scope') not in ('OK','VIOLATION','UNCHECKED') or any(type(v.get(k)) is not int or v[k] < 0 for k in ('checks_run','checks_failed')) or v['checks_failed'] > v['checks_run']:
+        fail('malformed validation counts/scope')
+    for s in (v, r):
+        if not isinstance(s.get('reasons'), list) or any(not isinstance(x,str) for x in s['reasons']):
+            fail('malformed reasons')
+    if v['state'] == 'passed' and (v['scope'] != 'OK' or v['checks_run'] < 1 or v['checks_failed'] or v['reasons']):
+        fail('inconsistent passed validation')
+    if type(r.get('material_complete')) is not bool:
+        fail('malformed review material state')
+    if r['state'] in ('approved','changes_requested') and (r.get('process_exit_code') != 0 or not r['material_complete'] or not isinstance(r.get('reviewer'), str) or not r['reviewer'] or r['reasons']):
+        fail('inconsistent review decision')
+    if r['state'] == 'failed' and r.get('process_exit_code') in (None, 0):
+        fail('inconsistent failed reviewer')
+    if d.get('human') != {'state':'pending'} or d.get('integration') != {'state':'not_attempted'} or any(type(d.get(k)) is not bool for k in ('stale','ready_for_human_review')):
+        fail('malformed acceptance state')
+    return d
+
+def load(root, worker, task, missing=False):
+    path = locations(root, worker, task)[2]
+    if not os.path.exists(path):
+        if missing:
+            return fresh(worker, task)
+        fail('no persisted result; old reports are not trusted structured evidence')
+    return valid_document(json.loads(regular(path)), worker, task)
+
+def current(d, rev):
+    evidence = [d.get('revision')] + [d[s].get('revision') for s in ('process','validation','review') if d[s]['state'] != 'not_run']
+    d['stale'] = any(r is not None and r != rev for r in evidence)
+    d['ready_for_human_review'] = not d['stale'] and all(d[s]['state'] == state and d[s]['revision'] == rev for s,state in [('process','succeeded'),('validation','passed'),('review','approved')])
+    d['current_revision'] = rev
+    return d
+
+def atomic(path, d):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, temp = tempfile.mkstemp(prefix='.result-', dir=os.path.dirname(path))
+    try:
+        with os.fdopen(fd,'w') as f:
+            json.dump(d, f, indent=2, ensure_ascii=True); f.write('\n'); f.flush(); os.fsync(f.fileno())
+        os.replace(temp, path)
+    finally:
+        if os.path.exists(temp): os.unlink(temp)
+
+def update(root, worker, task, operation, encoded, *args):
+    rev = json.loads(encoded)
+    if not revision(rev): fail('invalid revision')
+    d = load(root, worker, task, missing=True)
+    if operation == 'start':
+        d = fresh(worker, task)
+        d['process'] = dict(state='running', exit_code=None, revision=rev)
+    elif operation == 'end':
+        code = int(args[0]); d['process'] = dict(state='succeeded' if code == 0 else 'failed', exit_code=code, revision=rev)
+    elif operation == 'validation':
+        state,scope,ran,failed,reasons = args
+        d['validation'] = dict(state=state, scope=scope, checks_run=int(ran), checks_failed=int(failed), reasons=reasons.split(',') if reasons else [], revision=rev)
+        # A repeated check invalidates an earlier review, even at the same revision.
+        d['review'] = fresh(worker, task)['review']
+    elif operation == 'review':
+        state,reviewer,code,complete,reasons = args
+        d['review'] = dict(state=state, reviewer=reviewer or None, process_exit_code=int(code) if code else None,
+                           material_complete=complete == 'yes', reasons=reasons.split(',') if reasons else [], revision=rev)
+    else: fail('unknown update operation')
+    d['revision'] = rev; d['updated_at'] = stamp()
+    current(d, snapshot(root, worker, task))
+    valid_document(d, worker, task)
+    atomic(locations(root,worker,task)[2], d)
+
+def changed(root, worker, task):
+    wt,_,_ = locations(root,worker,task)
+    rev = snapshot(root,worker,task)
+    committed = git(wt, 'diff', '--no-ext-diff', '--name-only', '--no-renames', '-z', rev['base_commit'] + '...HEAD')
+    staged = git(wt, 'diff', '--cached', '--no-ext-diff', '--name-only', '--no-renames', '-z')
+    unstaged = git(wt, 'diff', '--no-ext-diff', '--name-only', '--no-renames', '-z')
+    untracked = git(wt,'ls-files','--others','--exclude-standard','-z')
+    return {k:sorted(set(os.fsdecode(x) for x in v.split(b'\0') if x)) for k,v in [('committed',committed),('staged',staged),('unstaged',unstaged),('untracked',untracked)]}
+
+def gate(root,worker,task):
+    d=current(load(root,worker,task), snapshot(root,worker,task))
+    v=d['validation']
+    if v['state'] != 'passed' or v['revision'] != d['current_revision']:
+        fail('review requires current passed validation; run verify')
+
+def material(root,worker,task):
+    wt,tf,_=locations(root,worker,task)
+    ch=changed(root,worker,task)
+    if any(ch[k] for k in ('staged','unstaged','untracked')):
+        fail('incomplete review material: commit all staged, unstaged and untracked work before review')
+    rev=snapshot(root,worker,task)
+    # Diff all changes against the base, without external diff drivers or text conversion.
+    args=(rev['base_commit'] + '...HEAD',)
+    if b'\n-\t-' in b'\n'+git(wt,'diff','--numstat',*args):
+        fail('incomplete review material: binary changes require manual inspection')
+    diff=git(wt,'diff','--no-ext-diff','--no-textconv','--no-renames',*args)
+    data=b'TASK ORDER\n'+regular(tf)+b'\nFULL COMMITTED DIFF\n'+diff
+    if len(data)>300000: fail('incomplete review material: exceeds 300000 bytes; nothing was clipped or reviewed')
+    try: data.decode('utf-8')
+    except UnicodeDecodeError: fail('incomplete review material: non-UTF-8 data')
+    sys.stdout.buffer.write(data+b'\nEnd with exactly one standalone line: VERDICT: APPROVE or VERDICT: REQUEST-CHANGES\n')
+
+def verdict(path):
+    lines=regular(path).decode('utf-8',errors='replace').splitlines()
+    markers=[line for line in lines if re.search(r'(?i)\bverdict\s*:',line)]
+    decisions={'VERDICT: APPROVE':'approved','VERDICT: REQUEST-CHANGES':'changes_requested'}
+    print(decisions.get(markers[0],'unknown') if len(markers)==1 else 'unknown')
+
+def agents(conf,offdir,mode):
+    output=[]
+    for line in regular(conf).decode().splitlines():
+        if not line or line.startswith('#') or '=' not in line: continue
+        name,cmd=line.split('=',1); ident(name)
+        binary=None; present=None
+        try:
+            tokens=shlex.split(cmd)
+            assignments=[]
+            while tokens and re.match(r'^[A-Za-z_][A-Za-z_0-9]*=',tokens[0]): assignments.append(tokens.pop(0))
+            if tokens and tokens[0]=='env':
+                tokens.pop(0)
+                if tokens and tokens[0]=='--': tokens.pop(0)
+                while tokens and re.match(r'^[A-Za-z_][A-Za-z_0-9]*=',tokens[0]): assignments.append(tokens.pop(0))
+            if tokens: binary=tokens[0]
+            ambiguous=(not binary or any(c in cmd for c in '$`|;&<>()\n') or any(a.startswith('PATH=') for a in assignments)
+                       or (binary and (binary.startswith('-') or os.path.basename(binary) in ('sh','bash','dash','zsh','ksh','env','timeout','nohup','setsid','sudo','exec','command'))))
+            if not ambiguous: present=shutil.which(binary) is not None
+        except ValueError: pass
+        retry=None; benched=False
+        marker=os.path.join(offdir,name)
+        if os.path.lexists(marker):
+            raw=regular(marker).decode().strip(); benched=True
+            if raw.isdigit(): retry=int(raw); benched=retry>time.time()
+        output.append(dict(name=name,binary=dict(value=binary,present=present),bench=dict(off=benched,operator_retry_at=retry),authentication='unknown',capacity='unknown',execution_boundary='trusted_host'))
+    if mode=='--json': print(json.dumps(dict(schema_version=1,agents=output),indent=2))
+    else:
+        print('Local diagnostics only: installed does not mean usable. Authentication/capacity unknown.')
+        print('Execution boundary: trusted_host. No sign-in or quota probe performed.')
+        for a in output:
+            b=a['bench']; bench='OFF' if b['off'] else 'on'
+            if b['operator_retry_at'] is not None: bench+=' (operator retry epoch '+str(b['operator_retry_at'])+'; not a provider reset)'
+            print(a['name']+': installed='+{True:'yes',False:'no',None:'unknown'}[a['binary']['present']]+'; '+bench)
+
+def handoff(root,worker,task):
+    before=snapshot(root,worker,task)
+    wt,tf,_=locations(root,worker,task)
+    d=current(load(root,worker,task,missing=True),before)
+    ch=changed(root,worker,task)
+    parent=safe(root,'coord','handoffs',worker,task)
+    os.makedirs(parent,exist_ok=True)
+    tmp=tempfile.mkdtemp(prefix='.pending-',dir=parent)
+    final=os.path.join(parent,stamp().replace(':','-')+'-'+os.path.basename(tmp)[9:])
+    try:
+        atomic(os.path.join(tmp,'result.json'),d)
+        atomic(os.path.join(tmp,'revision.json'),before)
+        atomic(os.path.join(tmp,'changed-files.json'),ch)
+        with open(os.path.join(tmp,'task.md'),'xb') as f: f.write(regular(tf))
+        v=d['validation']; r=d['review']; p=d['process']
+        summary=json.dumps(ch,ensure_ascii=True,indent=2)
+        text=f'''# Same-checkout AI handoff: {worker} / {task}
+
+This local packet is context and evidence, NOT a backup, automatic restore,
+or provider migration. Continue in the same existing checkout: {wt}
+Uncommitted and untracked contents remain ONLY in that source worktree;
+this packet does not preserve them. No replacement provider was invoked.
+Review task.md for sensitive information before sharing this packet.
+Credentials, agents.conf, ignored files, raw logs and home folders are not copied.
+
+## Completed checks and current state
+
+Process: {p['state']} (exit {p['exit_code']}).
+Validation: {v['state']}, scope {v['scope']}, {v['checks_run']} run / {v['checks_failed']} failed.
+Review: {r['state']} (reviewer {r['reviewer']}, exit {r['process_exit_code']}).
+Human: pending. Integration: not_attempted.
+Stale: {d['stale']}. Ready for human review: {d['ready_for_human_review']}.
+
+## Outstanding issues
+
+Validation reasons: {v['reasons']}. Review reasons: {r['reasons']}.
+Unknown/not_run evidence is missing; a running process without a held lock
+may have been interrupted. Ready means only ready for human inspection.
+
+## Changed paths (contents remain in the original checkout)
+
+```json
+{summary}
+```
+
+## Next safe actions
+
+Read task.md and result.json. Run `frugal-flock result {worker} {task}`
+from the project. Recheck old evidence after new edits or a move to another
+machine: run verify, then review once validation passes. Commit remaining
+work before review. Only the owner decides acceptance and integration.
+'''
+        with open(os.path.join(tmp,'HANDOFF.md'),'x') as f: f.write(text)
+        if snapshot(root,worker,task)!=before: fail('candidate changed during handoff; packet not published')
+        if os.path.lexists(final): fail('handoff name collision')
+        os.rename(tmp,final)
+        print(final)
+        print('Review local task text for sensitive information before sharing. Context only; source work remains in '+wt,file=sys.stderr)
+    finally:
+        if os.path.isdir(tmp): shutil.rmtree(tmp)
+
+try:
+    cmd,*a=sys.argv[1:]
+    if cmd=='preflight': pass
+    elif cmd=='snapshot': print(json.dumps(snapshot(*a),sort_keys=True,separators=(',',':')))
+    elif cmd=='update': update(*a)
+    elif cmd=='gate': gate(*a)
+    elif cmd=='result': print(json.dumps(current(load(*a),snapshot(*a)),indent=2))
+    elif cmd=='changed':
+        ch=changed(*a)
+        sys.stdout.buffer.write(b''.join(os.fsencode(p)+b'\0' for p in sorted(set(sum(ch.values(),[])))))
+    elif cmd=='material': material(*a)
+    elif cmd=='verdict': verdict(*a)
+    elif cmd=='agents': agents(*a)
+    elif cmd=='handoff': handoff(*a)
+    elif cmd=='paths':
+        locations(*a)
+        for part in ('.locks','reports','results','handoffs'): safe(a[0],'coord',part)
+        safe(a[0],'coord','.locks',a[1]+'.lock')
+    else: fail('unknown quality command')
+except (ValueError,OSError,KeyError,TypeError) as exc:
+    print('frugal-flock quality: '+str(exc),file=sys.stderr)
+    sys.exit(2)
+QUALITY_PY
+}
+
+host_warning() {
+  quality preflight || return $?
+  echo 'Execution boundary: trusted_host — configured commands may have host-level access. Worktrees and temporary directories are not OS sandboxes.' >&2
+}
+
 # Worker and task ids address files under wt/ and coord/; keep them simple
 # names so they cannot escape those directories.
 check_id() { # $1=value $2=what it is
@@ -384,6 +757,8 @@ cmd_run() {
   conf=$(conf_for_root "$root")
   cmdline=$(agent_cmd "$agent" "$conf") || die "no agents.conf entry for '$agent' in $conf"
   base=$(get_base "$root")
+  quality paths "$root" "$worker" "$task" || return $?
+  host_warning || return $?
 
   mkdir -p "$root/coord/.locks"
   local report="$root/coord/reports/$task.md"
@@ -448,6 +823,9 @@ cmd_run() {
   # own task file mid-run would otherwise have the doctored version recorded,
   # and verify would compare the tampered file against itself.
   local task_fp; task_fp=$(task_sha "$tf")
+  local revision_before revision_after
+  revision_before=$(quality snapshot "$root" "$worker" "$task") || return $?
+  quality update "$root" "$worker" "$task" start "$revision_before" || return $?
   export TASKFILE="$tf"
   # NB: 'wall' further down is the quota-wall flag — this clock value is
   # 'wallsec' so the two never collide.
@@ -461,6 +839,8 @@ cmd_run() {
   [ "$dur" -lt 0 ] && dur=0            # clock source changed mid-run
   # a big gap between the two means the machine slept while the run was open
   [ $(( wallsec - dur )) -gt 60 ] && suspended=1
+  revision_after=$(quality snapshot "$root" "$worker" "$task") || return $?
+  quality update "$root" "$worker" "$task" end "$revision_after" "$rc" || return $?
 
   # receipts for the verdict line + ledger
   local commits files ins dels unc
@@ -517,8 +897,8 @@ cmd_run() {
   fi
   local verify_rc=0
   if [ "${AGENTTEAM_AUTO_VERIFY:-0}" = "1" ]; then
-    exec 9>&-   # release the worker lock so verify can probe it
-    cmd_verify "$worker" "$task" || verify_rc=$?
+    # Keep the same lock across automatic validation; no new run may intervene.
+    cmd_verify "$worker" "$task" locked || verify_rc=$?
     echo "next: frugal-flock diff $worker"
   else
     echo "next: frugal-flock verify $worker $task   then: frugal-flock diff $worker"
@@ -536,14 +916,19 @@ cmd_verify() {
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
   local wt="$root/wt/$worker";           [ -d "$wt" ] || die "no worktree: $wt"
+  quality paths "$root" "$worker" "$task" || return $?
   # Hold the worker's lock for the whole check, don't just probe it: probing
   # left the exclusion one-sided, so a run could start while verify was still
   # part-way through the Validate commands and the verdict would describe a
   # worktree that had already moved.
   mkdir -p "$root/coord/.locks"
-  exec 9>>"$root/coord/.locks/$worker.lock"
-  flock -n 9 || die "worker '$worker' is mid-run — verify when it finishes"
+  if [ "${3:-}" != locked ]; then
+    exec 9>>"$root/coord/.locks/$worker.lock"
+    flock -n 9 || die "worker '$worker' is mid-run — verify when it finishes"
+  fi
   local base; base=$(get_base "$root")
+  local revision_before revision_after
+  revision_before=$(quality snapshot "$root" "$worker" "$task") || return $?
 
   # Fail closed on a base that isn't there. Errors used to be swallowed, so a
   # single stale word in coord/base made the committed diff invisible and the
@@ -560,14 +945,16 @@ cmd_verify() {
   cur_sha=$(task_sha "$tf")
   [ -n "$run_sha" ] && [ "$run_sha" != "$cur_sha" ] && tampered=1
 
-  local changed commits
+  local changed commits changed_file
   # --no-renames so a rename is seen as delete+add and BOTH paths get scoped:
   # otherwise `git mv out-of-scope in-scope` laundered files past the gate.
   # core.quotePath=false so non-ASCII paths aren't C-quoted into a false
   # VIOLATION. Renames in porcelain output are split onto two lines.
-  changed=$( { git -C "$wt" -c core.quotePath=false diff --name-only --no-renames "$base...HEAD" 2>/dev/null || true;
-               git -C "$wt" -c core.quotePath=false status --porcelain=v1 2>/dev/null \
-                 | cut -c4- | sed 's/ -> /\n/; s:/$::'; } | sort -u )
+  changed_file=$(mktemp)
+  if ! quality changed "$root" "$worker" "$task" > "$changed_file"; then
+    rm -f "$changed_file"; return 2
+  fi
+  changed=$(tr '\0' '\n' < "$changed_file")
   commits=$(git -C "$wt" rev-list --count "$base..HEAD" 2>/dev/null || echo 0)
 
   # scope: every "- path" line under "## Allowed scope" is an enforced pattern
@@ -580,12 +967,13 @@ cmd_verify() {
   if [ ${#pats[@]} -eq 0 ]; then
     scope="UNCHECKED"
   else
-    while IFS= read -r line; do
+    while IFS= read -r -d '' line; do
       [ -n "$line" ] || continue
       scope_allowed "$line" "${pats[@]}" || viol="$viol$line"$'\n'
-    done <<< "$changed"
+    done < "$changed_file"
     [ -z "$viol" ] || scope="VIOLATION"
   fi
+  rm -f "$changed_file"
 
   # validate: every "$ cmd" line under "## Validate" must exit 0, run in wt
   local vrun=0 vfail=0 vout="" cmd out rc
@@ -622,6 +1010,15 @@ cmd_verify() {
   if [ "$ret" = 0 ] && { [ "$scope" = "UNCHECKED" ] || [ "$vrun" = 0 ]; }; then
     verdict="INCOMPLETE"; ret=2
   fi
+
+  revision_after=$(quality snapshot "$root" "$worker" "$task") || return $?
+  if [ "$revision_before" != "$revision_after" ]; then
+    reasons="${reasons:+$reasons,}candidate_changed_during_validation"
+    if [ "$ret" = 0 ]; then verdict="INCOMPLETE"; ret=2; fi
+  fi
+  local validation_state
+  case "$verdict" in PASS) validation_state=passed;; FAIL) validation_state=failed;; *) validation_state=incomplete;; esac
+  quality update "$root" "$worker" "$task" validation "$revision_before" "$validation_state" "$scope" "$vrun" "$vfail" "$reasons" || return $?
 
   local pcount; pcount=$(printf '%s\n' "$changed" | grep -c .) || true
   echo "== verify $worker / $task =="
@@ -756,26 +1153,15 @@ cmd_status() {
 cmd_agents() {
   local root conf; root=$(find_root 2>/dev/null || true)
   if [ -n "${root:-}" ]; then conf=$(conf_for_root "$root"); else conf="$CONF_FILE"; fi
-  echo "config: $conf"
-  local line name cmd bin state
-  while IFS= read -r line; do
-    case "$line" in ''|'#'*) continue;; esac
-    name="${line%%=*}"; cmd="${line#*=}"; bin="${cmd%% *}"
-    if is_off "$name"; then state="OFF ($(off_desc "$name"))"
-    else state="on"; fi
-    if command -v "$bin" >/dev/null 2>&1; then
-      printf '  %-12s OK       %-4s %s\n' "$name" "$state" ""
-    else
-      printf '  %-12s MISSING  %-4s binary "%s" not on PATH\n' "$name" "$state" "$bin"
-    fi
-  done < "$conf"
+  quality agents "$conf" "$OFF_DIR" "${1:-human}"
 }
 
 cmd_smoke() { # one tiny live call per configured agent — the post-update ritual
+  host_warning || return $?
   local root conf; root=$(find_root 2>/dev/null || true)
   if [ -n "${root:-}" ]; then conf=$(conf_for_root "$root"); else conf="$CONF_FILE"; fi
   local tf nd; tf=$(mktemp); printf 'Reply with exactly: ok\n' > "$tf"
-  nd=$(mktemp -d)   # neutral dir: no repo, no role cards, nothing to touch
+  nd=$(mktemp -d)   # neutral working directory; configured commands still have host access
   local line name cmd rc out
   while IFS= read -r line; do
     case "$line" in ''|'#'*) continue;; esac
@@ -806,7 +1192,13 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
   local wt="$root/wt/$worker";           [ -d "$wt" ] || die "no worktree: $wt"
-  local base; base=$(get_base "$root")
+  quality paths "$root" "$worker" "$task" || return $?
+  mkdir -p "$root/coord/.locks"
+  exec 9>>"$root/coord/.locks/$worker.lock"
+  flock -n 9 || die "worker '$worker' is busy — review refused"
+  quality gate "$root" "$worker" "$task" || return 2
+  local before after state=unknown ret=2 reasons="" complete=no
+  before=$(quality snapshot "$root" "$worker" "$task") || return 2
   local author="${worker%%-*}" conf; conf=$(conf_for_root "$root")
 
   if [ -z "$reviewer" ]; then
@@ -821,39 +1213,65 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
     done < "$conf"
   fi
   [ -n "$reviewer" ] || die "no available reviewer (all benched or missing) — name one: frugal-flock review $worker $task <agent>"
+  check_id "$reviewer" reviewer
+  is_off "$reviewer" && die "reviewer '$reviewer' is benched"
   [ "$reviewer" != "$author" ] || die "reviewer must be a different vendor than the author agent '$author'"
   local rcmd; rcmd=$(agent_cmd "$reviewer" "$conf") || die "no agents.conf entry for reviewer '$reviewer'"
 
-  local pf; pf=$(mktemp)
-  {
-    if [ -f "$TPL_DIR/REVIEW.md" ]; then cat "$TPL_DIR/REVIEW.md"
-    else printf 'You are an independent code reviewer from a different AI vendor. Judge only the material below. End with "VERDICT: APPROVE" or "VERDICT: REQUEST-CHANGES".\n'; fi
-    printf '\n===== TASK ORDER (%s) =====\n' "$task"
-    cat "$tf"
-    printf '\n===== DIFF committed vs %s =====\n' "$base"
-    git -C "$wt" diff "$base...HEAD" 2>/dev/null | head -c 200000 || true
-    printf '\n===== UNCOMMITTED =====\n'
-    git -C "$wt" diff HEAD 2>/dev/null | head -c 100000 || true
-    printf '\n===== END OF MATERIAL =====\nRemember: end with exactly one line "VERDICT: APPROVE" or "VERDICT: REQUEST-CHANGES".\n'
-  } > "$pf"
-
-  local nd out rc=0
-  nd=$(mktemp -d)   # reviewer works blind from the prompt — no repo access
+  local pf nd stdout stderr rc=0
+  nd=$(mktemp -d)
+  pf="$nd/material.md"; stdout="$nd/stdout"; stderr="$nd/stderr"
+  if ! quality material "$root" "$worker" "$task" > "$pf"; then
+    quality update "$root" "$worker" "$task" review "$before" unknown "$reviewer" "" no incomplete_material || return 2
+    rm -rf "$nd"; return 2
+  fi
+  complete=yes
+  host_warning || return $?
   echo "[review] $reviewer reviewing $worker's '$task' (timeout ${AGENTTEAM_REVIEW_TIMEOUT:-900}s)"
-  out=$( cd "$nd" && TASKFILE="$pf" timeout "${AGENTTEAM_REVIEW_TIMEOUT:-900}" bash -c "$rcmd" </dev/null 2>&1 ) || rc=$?
-  printf '%s\n' "$out"
-
+  ( cd "$nd" && TASKFILE="$pf" timeout "${AGENTTEAM_REVIEW_TIMEOUT:-900}" bash -c "$rcmd" </dev/null ) > "$stdout" 2> "$stderr" || rc=$?
+  cat "$stdout"
+  state=$(quality verdict "$stdout") || state=unknown
+  if [ "$rc" -ne 0 ]; then state=failed; ret=1; reasons=reviewer_process_failed
+  else
+    case "$state" in approved) ret=0;; changes_requested) ret=1;; *) ret=2; reasons=unknown_verdict;; esac
+  fi
+  after=$(quality snapshot "$root" "$worker" "$task") || { rm -rf "$nd"; return 2; }
+  if [ "$before" != "$after" ]; then
+    reasons="${reasons:+$reasons,}candidate_changed_during_review"
+    if [ "$rc" = 0 ]; then state=unknown; ret=2; fi
+  fi
+  quality update "$root" "$worker" "$task" review "$before" "$state" "$reviewer" "$rc" "$complete" "$reasons" || return 2
+  # Preserve separate raw streams locally; stderr can never supply a verdict.
+  local raw
+  raw=$(mktemp -d "$root/coord/reports/$task.review.XXXXXXXX")
+  mv "$stdout" "$raw/stdout.log"
+  mv "$stderr" "$raw/stderr.log"
   {
     echo
-    echo "### review $(date -Is) — reviewer=$reviewer author=$worker exit=$rc"
+    echo "### review $(date -Is) — reviewer=$reviewer author=$worker exit=$rc decision=$state"
+    echo "raw output: $raw; reasons: $reasons"
     echo '~~~'
-    printf '%s\n' "$out" | tail -n 80
+    tail -n 80 "$raw/stdout.log"
     echo '~~~'
   } >> "$root/coord/reports/$task.md"
   ledger_add "$root" "$(printf '{"event":"review","ts":"%s","task":"%s","worker":"%s","reviewer":"%s","exit":%d}' \
     "$(date -Is)" "$task" "$worker" "$reviewer" "$rc")"
-  rm -rf "$nd" "$pf"
-  return "$rc"
+  rm -rf "$nd"
+  return "$ret"
+}
+
+cmd_evidence() {
+  local operation="$1" worker="${2:-}" task="${3:-}" root
+  check_id "$worker" worker; check_id "$task" task
+  task="${task%.md}"
+  root=$(find_root) || die "not inside a Frugal Flock project"
+  quality paths "$root" "$worker" "$task" || return $?
+  if [ "$operation" = handoff ]; then
+    mkdir -p "$root/coord/.locks"
+    exec 9>>"$root/coord/.locks/$worker.lock"
+    flock -n 9 || die "worker '$worker' is locked/running — handoff refused"
+  fi
+  quality "$operation" "$root" "$worker" "$task"
 }
 
 # ------------------------------------------------------------------ race
@@ -1582,6 +2000,7 @@ case "${1:-help}" in
   init)     shift; cmd_init "$@";;
   run)      shift; cmd_run "$@";;
   verify)   shift; cmd_verify "$@";;
+  result|handoff) cmd_evidence "$@";;
   diff)     shift; cmd_diff "$@";;
   sync)     shift; cmd_sync "$@";;
   report)   shift; cmd_report "$@";;
