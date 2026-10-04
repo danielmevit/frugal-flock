@@ -10,7 +10,7 @@ from pathlib import Path
 import subprocess
 import threading
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location('activity_server', Path(__file__).parents[1] / 'server.py')
 server = importlib.util.module_from_spec(spec)
@@ -141,6 +141,54 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(code, 503)
         self.assertEqual(json.loads(body), dict(schema_version=1, error='activity_unavailable'))
         self.assertNotIn(b'observed_at', body)
+
+
+
+class PreviewLaunchTests(unittest.TestCase):
+    def test_default_does_not_open_browser(self):
+        preview = Mock(origin='http://127.0.0.1:12345')
+        with patch.object(server.webbrowser, 'open') as opener, patch('builtins.print'):
+            server.serve_preview(preview)
+        opener.assert_not_called()
+        preview.serve_forever.assert_called_once_with()
+        preview.server_close.assert_called_once_with()
+
+    def test_opt_in_opens_only_fixed_bound_origin(self):
+        preview = Mock(origin='http://127.0.0.1:12345')
+        opened = threading.Event()
+        def opener(origin, new):
+            self.assertEqual(origin, preview.origin)
+            self.assertEqual(new, 2)
+            opened.set()
+            return True
+        preview.serve_forever.side_effect = lambda: self.assertTrue(opened.wait(1))
+        with patch.object(server.webbrowser, 'open', side_effect=opener) as launch, patch('builtins.print'):
+            server.serve_preview(preview, open_browser=True)
+        launch.assert_called_once_with(preview.origin, new=2)
+        preview.server_close.assert_called_once_with()
+
+    def test_browser_failures_leave_manual_url(self):
+        for exception in (None, server.webbrowser.Error('unconfigured browser'), OSError('missing browser')):
+            with self.subTest(exception=exception):
+                with patch.object(server.webbrowser, 'open', return_value=False, side_effect=exception), patch('builtins.print') as output:
+                    server.open_preview('http://127.0.0.1:12345')
+                self.assertIn('Open http://127.0.0.1:12345 manually', output.call_args.args[0])
+
+    def test_slow_opener_does_not_block_service_or_shutdown(self):
+        preview = Mock(origin='http://127.0.0.1:12345')
+        started, release = threading.Event(), threading.Event()
+        def slow_opener(*args, **kwargs):
+            started.set()
+            release.wait(2)
+            return True
+        try:
+            with patch.object(server.webbrowser, 'open', side_effect=slow_opener), patch('builtins.print'):
+                preview.serve_forever.side_effect = lambda: self.assertTrue(started.wait(1))
+                server.serve_preview(preview, open_browser=True)
+                self.assertFalse(release.is_set())
+                preview.server_close.assert_called_once_with()
+        finally:
+            release.set()
 
 
 if __name__ == '__main__':

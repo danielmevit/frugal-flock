@@ -10,6 +10,28 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Optional preview browser opening implemented by Codex (`gpt-6.1-sol`,
+  xhigh), based on actual Activity merge `41f5b77` (candidate `40e18e9`).
+  --open-browser is opt-in, uses only the already-bound loopback URL, leaves
+  a manual URL on failure, and does not block the service. Eleven HTTP/
+  observer/opening checks passed; browser opener mocked, no desktop launch.
+  The earlier local log entry mistyped the Activity merge as 0208238; actual
+  merge is 41f5b77. Tracked reference corrected; append-only log retained.
+  Owner explicitly waived the two-person feedback gate: no sessions exist,
+  use judgment/automated checks. Record that decision in current docs next;
+  do not fabricate feedback or assume new provider quota. Live controls still
+  absent from this preview. Next: publish convenience, then waiver/first
+  bounded control contract as a separate checkpoint.
+
+- Read-only Activity candidate `40e18e9` published as its own merge
+  `41f5b77`; main clean/current and own branch synced. Preparing one small
+  follow-up: opt-in --open-browser for the bound loopback preview, manual
+  URL fallback and nonblocking desktop opening. Tests mock the opener;
+  no actual desktop browser/provider launch or global change is intended.
+  Two real feedback sessions remain pending (question asked asynchronously).
+  Next: verify this convenience and publish separately; keep live controls
+  gated on actual feedback. No fresh provider quota authorized.
+
 - First read-only Activity bridge complete in source, 2026-10-04 by Codex
   (`gpt-6.1-sol`, xhigh), based on `cdcfad0`: fixed loopback watch JSON GET,
   original browser view, no dispatch/coordination writes. Seven stdlib HTTP

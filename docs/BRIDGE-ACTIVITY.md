@@ -77,3 +77,13 @@ review approved. All 36 observed coordination-file hashes were unchanged.
 The installed v0.4.0 executable and global profile hashes also remained
 unchanged. No provider invocation occurred during bridge checks. Receipts
 and screenshots stay local under workspace tmp/m2-bridge-20261004/.
+
+## Optional browser opening
+
+The source server accepts --open-browser to request the default browser for
+its already-bound loopback origin. It remains off by default. Failed or
+missing browser configuration leaves the printed URL available and the
+read-only service running; desktop opening happens on a daemon thread so a
+slow opener does not delay the service. No real desktop browser is launched
+by the automated tests. This convenience does not provide folder selection,
+engine/provider installation or sign-in, a packaged launcher, or durable jobs.

@@ -20,7 +20,10 @@ python3 -B bridge/server.py --project /path/to/frugal-flock \
 ```
 
 The command prints its `http://127.0.0.1:PORT` address. Open that address in
-a browser; Ctrl-C stops the service. The default port is selected by the OS;
+a browser, or add `--open-browser` to request opening it automatically.
+Opening is opt-in; if the machine has no configured browser (including some
+WSL setups), the service keeps running and prints the manual URL. A slow
+browser opener does not block observations. Ctrl-C stops the service. The default port is selected by the OS;
 `--port` can select a local port. The page polls every two seconds and has a
 Refresh button. A failed observation clears the old display and says activity
 is unavailable. Refreshing the page performs only another observation.
