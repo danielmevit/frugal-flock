@@ -15,7 +15,7 @@ checkpoint so another AI can continue without the previous conversation.
   (`agent/codex` at `80feafb`), published 2026-10-04. Runtime prints 0.4.0,
   but it is not an accepted release. **M1 is NOT complete.**
 - Newest work: branch `agent/claude` in `wt/claude`, by Claude Code (Claude
-  Opus 5.5) on 2026-10-04. Not merged; the owner merges. It contains
+  Opus 5.5) on 2026-10-04, merged into main at the owner's request. It has
   `e9bfb1a` (M1 item 1, hidden index flags), `38f6cf6` (flaky CodeGraph
   selftest) and `9d48b76` (M1 item 2, post-run snapshot failure), followed
   by a docs checkpoint.
@@ -48,7 +48,7 @@ Use CodeGraph only if .codegraph exists; do not create an index unasked.
 
 State: main is 5d70223 (FF-QUALITY merged by the owner, M1 NOT complete).
 agent/claude, by Claude Code (Claude Opus 5.5), adds fixes for M1 items 1
-and 2 plus a selftest race fix and docs; it is not merged. Fetch and
+and 2 plus a selftest race fix and docs, merged into main. Fetch and
 inspect the actual state; do not reset work or rebuild completed fixes.
 Locally the main folder is /mnt/d/Vibe Coding/_vm/frugal-flock/repo and
 worktrees are under ../wt. ALL project-owned work stays inside the

@@ -10,7 +10,8 @@ and published them. That merge is not M1 acceptance. The runtime prints
 Frozen requirements: [QUALITY-M1-CONTRACT.md](QUALITY-M1-CONTRACT.md)
 at `e230ad4`. Current work: branch `agent/claude` in `../wt/claude`,
 relative to the main `repo/` checkout. It was made by Claude Code (Claude
-Opus 5.5) on 2026-10-04, branched from main `5d70223`, and is NOT merged:
+Opus 5.5) on 2026-10-04, branched from main `5d70223`. At the owner's
+request it was merged into main the same day:
 
 - `e9bfb1a`: item 1 below (hidden index flags) fixed, with regressions.
 - `38f6cf6`: the flaky CodeGraph selftest fixed; the full runner passes.
@@ -37,8 +38,8 @@ git diff main...agent/claude --stat
 git diff main...agent/claude -- agentteam-install.sh tests/
 ```
 
-Continue on top of `agent/claude`, or start from main once the owner has
-merged it. Review the real diff, not just the report. Never reset a dirty
+Start from main, which contains `agent/claude`. Check the local agent log
+for newer branches first. Review the real diff, not just the report. Never reset a dirty
 worktree or restart an interrupted implementation from scratch.
 
 ## First increment — independently checked
