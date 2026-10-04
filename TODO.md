@@ -206,6 +206,9 @@ journey is useful and understandable.
 ## 7. Make public participation easier
 
 - Choose and add a license before describing the project as open source.
+  Owner requested liability limits and preserved original credit on
+  2026-10-04. AGPL-3.0-only draft is prepared locally; AGPL versus Apache
+  choice and copyright holder are pending. No license published yet.
 - Add concise contribution and issue-reporting guidance.
 - Collect onboarding feedback from both new builders and experienced
   users; keep the README's basic path separate from optional deep dives.

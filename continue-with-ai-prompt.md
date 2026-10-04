@@ -10,6 +10,14 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Current owner request: add a license with warranty/liability limits and
+  preserved original credit. Compared official AGPLv3/Apache 2.0 terms;
+  recommend AGPL-3.0-only if covered derivatives must stay open. A review
+  draft (official LICENSE text, NOTICE and README section) is local at
+  `tmp/license-candidates/`. License choice and copyright holder are pending;
+  draft holder is Daniel Mevit. No license has been applied or published.
+  Next: receive the owner's license choice, then implement and publish that
+  separate checkpoint. Preserve all canary evidence; no further quota call.
 - Antigravity live evidence is committed at `13e70e9` on `agent/codex` in
   `wt/codex`, merged and pushed as `0426f0c`.
 - Codex worktree synced with main `81b587c`; read and preserve the owner's
@@ -26,8 +34,8 @@ checkpoint so another AI can continue without the previous conversation.
   `2b847ac`. Runtime model confirmed, scope OK, 2/2 checks, complete diff
   approved by this Codex session through the sealed local adapter, current
   ready result. Total worker calls: three; no extra reviewer calls, retries
-  or Claude calls. Fixture stopped. Next: publish this checkpoint, then
-  obtain quota approval before any remaining Codex/Kimi canary.
+  or Claude calls. Fixture stopped. This checkpoint was merged/pushed as
+  `7761737`. Any remaining Codex/Kimi canary needs new quota approval.
   Its source evidence candidate is `17c4959` on `agent/codex`.
 - M1.5 preparation is merged and pushed as `d991350` (candidate `4b8e1a9`
   plus `61327ec`). The owner-approved README rewrites `4565cfd` and `f6f0ed9` are also
@@ -45,7 +53,8 @@ checkpoint so another AI can continue without the previous conversation.
   including review gating and stale-result checks. The full offline gate
   passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
   branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
-  No worker is active. Next: quota approval for a remaining Codex/Kimi canary.
+  No worker is active. Current next task: the owner's licensing choice.
+  Remaining Codex/Kimi canaries still need quota approval.
   Claude is owner-reported limited for five hours (avoid through
   22:42 +0200 on 2026-10-04, an operator interval, not a confirmed reset).
   Codex does the main implementation and reviews in-session. Other worker
