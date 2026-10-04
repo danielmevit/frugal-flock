@@ -149,3 +149,50 @@ footer {
     transition: none !important;
   }
 }
+
+#manual-drafts label {
+  display: block;
+  font-size: 13px;
+  margin: 12px 0 6px;
+}
+#manual-drafts textarea,
+#manual-drafts input {
+  width: 100%;
+  font: inherit;
+  border: 1px solid #eaeaea;
+  background: #fff;
+  border-radius: 5px;
+  padding: 10px 12px;
+}
+#manual-drafts textarea {
+  resize: vertical;
+  margin-bottom: 10px;
+}
+.draft-reopen {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.draft-reopen input {
+  min-width: 0;
+}
+.draft-reopen button {
+  flex-shrink: 0;
+}
+#draft-status {
+  font-size: 13px;
+}
+#draft-status.error {
+  color: #9f2f2d;
+}
+#draft-reference {
+  overflow-wrap: anywhere;
+}
+#draft-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}

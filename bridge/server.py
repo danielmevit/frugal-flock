@@ -133,6 +133,7 @@ class ActivityHandler(BaseHTTPRequestHandler):
             return self.respond(200,json.dumps(snapshot,ensure_ascii=True).encode())
         routes = {'/':('index.html','text/html; charset=utf-8'),
                   '/activity.js':('activity.js','text/javascript; charset=utf-8'),
+                  '/drafts.js':('drafts.js','text/javascript; charset=utf-8'),
                   '/activity.css':('activity.css','text/css; charset=utf-8')}
         if self.path not in routes: return self.error_response(404,'not_found')
         name,content_type = routes[self.path]

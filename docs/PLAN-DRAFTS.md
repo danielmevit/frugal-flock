@@ -3,7 +3,8 @@
 The owner waived the two-person feedback prerequisite on 2026-10-04;
 proceed with judgment/automated checks. This small slice implements only
 storage for a manually entered draft, now with a protected opt-in HTTP API.
-Default Activity mode remains read-only; the browser form is the next step.
+Default Activity mode remains read-only; opt-in mode now has a manual
+browser form.
 No provider quota is used.
 
 PlanStore in bridge/plan_store.py takes one real enclosing workspace and
@@ -72,17 +73,41 @@ saved one draft, reopened identical content/hash and refused the previous
 token. All API test writes were workspace-local fixtures; no real-project
 plan or provider call. Receipts: workspace tmp/bridge-plan-api/receipts/.
 
-## One next task: manual browser form
+## Manual browser form (2026-10-05)
 
-Add a small opt-in-only manual request form and explicit Save draft action.
-Show literal stored text, draft ID/hash, and a way to reopen by ID. State
-that it is saved in this selected project's coordination and cannot start
-an AI or approve provider quota. Fetch the capability/token at startup,
-keep it in memory, and recover from a restarted server by asking for a new
-session before the user explicitly saves again. Never auto-repeat a POST
-when its outcome is unknown. Default mode remains read-only.
+The form appears only when /api/session says manual drafts are enabled.
+Saving displays literal text and a disclosed ID/hash, with explicit wording
+that no AI planning, worker start or quota approval occurs. Reopen reads by
+validated ID. The URL fragment holds only the last saved/read opaque ID;
+a page reload fetches a new in-memory session token and safely reads that
+record. No token or request text is put in the URL or browser local storage.
+
+Empty/whitespace input is rejected. A shared busy guard stops duplicate
+submission. Session refusal refreshes the capability/token and asks the user
+to explicitly try again; a disabled capability hides the form and restores
+the read-only notice. Failed/unknown saves preserve typed text in the page
+and never automatically repeat POST. That text is not a durable backup:
+refreshing before a confirmed save may lose it. Missing/unavailable reads
+hide the old result instead of claiming a current draft.
+
+Both Chromium journeys passed: default read-only/no draft directory and
+opt-in create/reopen/reload, duplicate submission, escaped literal text,
+missing ID, stale session, unknown save with no retry, explicit resave,
+mode disable, mobile layout and no external requests/page errors. Eleven
+HTTP/asset/observer/opening cases passed, plus JS/Python syntax and docs
+checks. Screenshots were inspected; fixtures and receipts remain local
+under workspace tmp/bridge-plan-ui/. No provider call or actual-project draft
+was created. Native runtime and global profile hashes remained unchanged.
+
+## One next task
+
+Prepare one tiny installed-release dogfood code enhancement with exact
+workspace-local tool paths and a narrow file scope. Ask fresh provider quota
+before any native worker launch; the previous approved worker calls are used.
+Root reviews here with no paid reviewer and preserves native failure evidence.
 
 Native task compilation must later prevent user text from becoming Allowed
 scope or Validate lines. Durable job execution must separately freeze task/
 revision, require explicit provider approval, preserve native exit/result
 states and recover unknown completion without automatic duplicate dispatch.
+The current UI has no plan generation, approve/start/retry/merge operation.

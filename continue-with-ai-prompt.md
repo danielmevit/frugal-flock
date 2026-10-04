@@ -10,6 +10,29 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Manual draft browser form complete 2026-10-05 by Codex (`gpt-6.1-sol`,
+  xhigh), based on API merge `4104409` (candidate `d48f209`). Opt-in only,
+  save/reopen, literal text and ID/hash, fresh in-memory session on reload,
+  no duplicate/automatic POST, typed-text preservation after unknown save,
+  restored read-only notice if mode is disabled. Both default/manual browser
+  journeys and eleven HTTP/asset/opening cases passed; screenshots inspected.
+  Fixture-only drafts; no provider call/global change/real-project draft.
+  Last confirmed saved opaque ID is in URL fragment; unsaved text is not
+  durable and can be lost by refresh. No AI-generated plan, task compilation,
+  run/retry/merge or durable job execution exists. User feedback gate waived.
+  Next: publish separately, prepare a tiny manual-draft keyboard dogfood
+  worker with exact local tools, then ask fresh quota before launching.
+
+- Protected manual API candidate `d48f209` published as own merge `4104409`;
+  main clean/current, push/sync passed. Eight API HTTP cases, eleven existing
+  HTTP/opening cases, default browser/no draft directory and actual opt-in
+  restart/read/hash/old-token refusal passed. Syntax/docs/gate ShellCheck/
+  whitespace passed; no real-project draft/provider/global change.
+  Next: implement the opt-in manual browser form locally; keep provider quota
+  untouched. Earlier idea of another worker is preparation only, never launch
+  without fresh approval. Default stays read-only; save is not AI planning,
+  task publication, quota approval or worker dispatch.
+
 - Protected manual draft API complete 2026-10-05 by Codex (`gpt-6.1-sol`,
   xhigh), based on `7c6be5a`: explicit --enable-plan-drafts, exact Host/
   Origin, random session token, strict bounded UTF-8 JSON/body framing/IDs,
