@@ -106,8 +106,10 @@ order, one small tested checkpoint each:
 1. Live canary: a throwaway repo, one tiny task per agent through run,
    verify, review and result. Tiny tasks only; it uses provider quota.
    Offline preparation is recorded in [the canary checkpoint](docs/M1.5-LIVE-CANARY.md).
-   Quota approval is pending. Include Antigravity at the owner's explicit
+   The first Antigravity worker call is authorized. Include it at the owner's explicit
    2026-10-04 request to check whether its earlier error persists.
+   Claude is limited for five hours; the Codex lead does code review and
+   implementation. Other worker calls still need quota approval.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits

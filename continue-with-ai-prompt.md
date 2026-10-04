@@ -5,11 +5,25 @@ helper where the project stands. Open the **Prompt to paste** section below,
 copy the text inside the box, and paste it into that AI. If it cannot open
 GitHub, attach this file and the handoff documents it names.
 
-Living checkpoint, updated 2026-10-04 by Claude Code (Claude Opus 5.5). Update this file with EVERY small
+Living checkpoint, updated 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh). Update this file with EVERY small
 checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- M1.5 step 1 preparation is on `agent/codex` in `wt/codex` at `4b8e1a9`.
+  [Canary plan and evidence](docs/M1.5-LIVE-CANARY.md). The isolated live
+  fixture is `tmp/m15-canary-20261004/live/`, with all six workers including
+  Antigravity at the owner's explicit request. Its STOP file is active;
+  **no provider quota has been spent and live testing is not complete**.
+  The installed 0.4.0 passed the mock run/verify/review/result rehearsal,
+  including review gating and stale-result checks. The full offline gate
+  passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
+  branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
+  No worker is active. Next: run the authorized first Antigravity worker
+  cycle, then this Codex session reviews the code. No extra reviewer call.
+  Claude is owner-reported limited for the next five hours; Codex does the
+  main implementation and review work. Other worker calls need quota approval.
+  The owner authorized each finished checkpoint's own merge and push.
 - Public repo: https://github.com/danielmevit/frugal-flock.
 - **M1 is complete and accepted by the owner (2026-10-04)** and released as
   v0.4.0 (tag and GitHub release; notes in [CHANGELOG.md](CHANGELOG.md)).
@@ -56,13 +70,21 @@ NEXT: the M1.5 stability phase, approved by the owner on 2026-10-04, in this
 order, one small tested checkpoint each:
 1. Live canary: a throwaway repo, one tiny task per agent through run,
    verify, review and result. Tiny tasks only; it uses provider quota.
+   Preparation is on agent/codex at 4b8e1a9; read docs/M1.5-LIVE-CANARY.md.
+   The fixture is tmp/m15-canary-20261004/live; all six workers are ready,
+   including Antigravity at the owner's request to recheck its earlier error.
+   STOP is active; the first Antigravity worker call is authorized. No live
+   call yet. The Codex lead reviews in-session; do not call Claude for the
+   next five hours (owner-reported limit). Other worker calls need approval.
+   Ask before spending provider quota; no retries or fallback calls.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
    as they happen; it later becomes the app's Activity view.
 4. The flock runs on the installed release while it builds the next
    version in the repo; reinstall only at deliberate releases.
-5. Bench Antigravity until it passes the canary (2 of 2 live runs failed).
+5. Bench Antigravity for dogfooding until it passes the canary (2 of 2
+   earlier live runs failed). Include it in step 1 as the owner requested.
 Then dogfood on M2 (the mock-data prototype): one worker plus a reviewer,
 owner merges; widen after a few clean cycles.
 
