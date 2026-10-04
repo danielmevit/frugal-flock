@@ -2534,6 +2534,12 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
     && ok "python3 found (run, verify, review, smoke, agents, result, handoff)" \
     || err "python3 not found — run, verify, review, smoke, agents, result and handoff need Python 3 (standard library only)"
 
+  # Local compatibility hint only: do not execute provider commands or alter
+  # an existing user's profile/model to fix a renamed flag.
+  if grep -Eq '^[^#=]+=[[:space:]]*opencode[[:space:]]+run[[:space:]].*--dangerously-skip-permissions' "$conf" 2>/dev/null; then
+    warn "legacy OpenCode permission flag in agents.conf — check 'opencode run --help'; current canaries use --auto. Existing settings preserved"
+  fi
+
   # base branch exists where the main repo can see it
   if [ -d "$main_dir/.git" ] || [ -f "$main_dir/.git" ]; then
     git -C "$main_dir" rev-parse -q --verify "$base" >/dev/null 2>&1 \
@@ -3136,10 +3142,10 @@ codex=codex exec --sandbox danger-full-access --skip-git-repo-check "$(cat "$TAS
 antigravity=agy -p "$(cat "$TASKFILE")" --dangerously-skip-permissions --print-timeout 55m
 
 # OpenCode (Go plan or Copilot login). Verified on a live install
-# 2026-07-17: --dangerously-skip-permissions replaced the older --auto.
+# 2026-10-04: run --help advertises --auto; the old permission flag is absent.
 # NOTE: for `opencode run`, -p means password, NOT prompt — task text is
 # passed as a plain argument. Model if needed: opencode models, then -m.
-opencode=opencode run --dangerously-skip-permissions "$(cat "$TASKFILE")"
+opencode=opencode run --auto "$(cat "$TASKFILE")"
 
 # Grok Build (SuperGrok / X Premium+; early beta — flags may change).
 # Note: CodeGraph has no Grok wiring — Grok uses `codegraph explore` via shell.

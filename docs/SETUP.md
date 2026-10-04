@@ -213,8 +213,16 @@ one line per agent, `$TASKFILE` holds the task path, command runs inside
 the worker's worktree.
 
 ```text
-opencode=opencode run --dangerously-skip-permissions -m opencode/<model> "$(cat "$TASKFILE")"
+opencode=opencode run --auto -m opencode-go/glm-5.3 "$(cat "$TASKFILE")"
 ```
+
+Current installed OpenCode help (checked 2026-10-04) advertises `--auto`;
+the older permission flag is absent. GLM 5.3 and Kimi K3 canaries used it.
+Fresh source installs use `--auto`; reinstalls keep existing profiles and
+model choices. Check `opencode run --help` and edit only your OpenCode
+entries if needed. Doctor flags direct entries with the legacy option
+without executing commands; shell wrappers may need manual inspection.
+Global configuration is not automatically migrated.
 
 Two workers on one engine: `frugal-flock init codex-2` (prefix before the dash
 picks the agent). Timeout: `AGENTTEAM_TIMEOUT=7200 frugal-flock run ...`.
