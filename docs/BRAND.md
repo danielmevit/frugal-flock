@@ -35,12 +35,11 @@ title and these topics consistent when the product description changes:
   workspace: Claude Code, Codex, Grok, Antigravity and OpenCode (Kimi) work
   as a lead and subagents, each in its own copy of your project, with
   checked results and you approving every merge."
-- Topics (GitHub allows 20), centred on orchestrating AIs and subagents,
-  with only the two highest-traffic tool names: ai-orchestration,
-  agent-orchestration, llm-orchestration, multi-agent, multi-agent-systems,
-  subagents, ai-agents, agentic-ai, agentic-workflow, agentic-coding,
-  ai-coding-agents, coding-agents, multi-model, multi-llm,
-  ai-collaboration, ai-workflow, human-in-the-loop, llm, claude-code, codex.
+- Topics: 10 precise tags, not the maximum of 20. Each must describe what
+  Frugal Flock does; generic filler (llm, ai-workflow) and jargon
+  (human-in-the-loop) dilute it: ai-orchestration, agent-orchestration,
+  multi-agent, subagents, ai-agents, coding-agents, agentic-coding,
+  multi-llm, claude-code, codex.
 
 Do not use `flock` as an executable name. It is the Linux locking utility
 used by the orchestration engine.
