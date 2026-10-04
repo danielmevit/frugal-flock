@@ -10,6 +10,19 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- M2 prototype published as own merge `5d40d68` (candidate `0cfaa3f`),
+  2026-10-04 by Codex (`gpt-6.1-sol`, xhigh). Main/own worktree clean/synced.
+  Prepared one tiny dogfood task: Ctrl/Command+Enter submits the current
+  demo form once, preserves plain Enter and validation, with browser checks.
+  Clean new wt/opencode-m2, agent/opencode-m2; old worktrees untouched.
+  Native installed 0.4.0, temporary local config pins opencode-go/glm-5.3/max,
+  one worker invocation/180s/no retries, root Codex reviews here with no
+  paid reviewer. Manifest in tmp/m2-keyboard-20261004: approval pending,
+  zero invocations. Local preflight binary present/auth/capacity unknown;
+  no sign-in/quota probe. Source contract in docs/M2-DOGFOOD-PLAN.md.
+  Next: fresh quota answer before launch; continue independent read-only
+  bridge preparation meanwhile. Two new-user feedback sessions still needed.
+
 - First M2 prototype source complete, 2026-10-04 by Codex (`gpt-6.1-sol`,
   xhigh), wt/codex on agent/codex based on main `8532f56`: original static
   HTML/CSS/JS, all five connected sample moments, no runtime dependency.
