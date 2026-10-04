@@ -247,6 +247,27 @@ call('verify','mock','evidence',code=2)
 check('result symlink refused',not (outside/'result.json').exists())
 result.unlink(); result.write_text(good)
 
+# A failed post-run snapshot keeps the worker's real exit, report and ledger line.
+(root/'coord/tasks/snapfail.md').write_text(original_task)
+snap=root/'coord/results/mock/snapfail.json'
+ledger=root/'coord/reports/ledger.jsonl'
+for code in (7, 0):
+    conf.write_text(f"mock=bash -c 'echo snap >> hello.txt; git add hello.txt; git commit -qm snap; mkfifo pipe; exit {code}'\n")
+    p=call('run','mock','snapfail',code=code or 2,env={'AGENTTEAM_AUTO_VERIFY':'1'})
+    d=json.loads(snap.read_text())
+    check(f'snapshot failure keeps worker exit {code}',d['process']['exit_code']==code
+          and d['process']['state']==('failed' if code else 'succeeded') and d['process']['post_run_snapshot']=='failed'
+          and d['stale'] and not d['ready_for_human_review'] and 'post-run snapshot failed' in p.stderr)
+    last=json.loads(ledger.read_text().splitlines()[-1])
+    check(f'snapshot failure still writes report and ledger ({code})',last['event']=='run' and last['task']=='snapfail'
+          and last['exit']==code and last['snapshot_failed']==1
+          and f'exit={code}' in (root/'coord/reports/snapfail.md').read_text().split('## run ')[-1])
+    call('result','mock','snapfail',code=2)
+    (wt/'pipe').unlink()
+    d=data('snapfail')
+    check(f'unbound process evidence stays stale after cleanup ({code})',d['stale'] and not d['ready_for_human_review'])
+configuration()
+
 # Availability never executes even hostile configured commands.
 marker=root/'availability-executed'
 configuration(extra='literal=LANG="en US" env X=1 /usr/bin/true\nmissing=env X=1 /no/such/binary\n'
