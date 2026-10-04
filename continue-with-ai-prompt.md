@@ -10,6 +10,18 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Owner steering 2026-10-05: implementing milestones WITH Frugal Flock
+  is the main goal, not canaries followed by direct root implementation.
+  Root acknowledged the drift after GLM failed; direct code stays labeled
+  honestly. Manual UI candidate `e68cf54` published as own merge `0158039`;
+  both browser journeys/eleven HTTP cases/syntax/docs passed; no provider.
+  Frozen next actual milestone: durable waiting-job JobStore library/tests,
+  no executor/UI/native tasks, through installed 0.4.0 run/verify/review/result.
+  See DOGFOOD-WORKFLOW and JOB-QUEUE-STORE. Prepare two model-specific clean
+  worker options, then ask approval for ONE worker/180s/no retries, root
+  full review here/no paid reviewer. No new quota authorization yet.
+  Next: publish prep contract, freeze task/base/worktrees and ask quota.
+
 - Manual draft browser form complete 2026-10-05 by Codex (`gpt-6.1-sol`,
   xhigh), based on API merge `4104409` (candidate `d48f209`). Opt-in only,
   save/reopen, literal text and ID/hash, fresh in-memory session on reload,

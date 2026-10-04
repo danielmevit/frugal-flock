@@ -234,7 +234,10 @@ and actual restart/persistence/token rotation passed. No real-project draft
 or provider call. The opt-in Save/reopen form now passes both default/manual
 browser journeys, duplicate-submit and failed-session/save/no-retry checks.
 Default stays read-only; no AI plan generation, worker/queue or merge control.
-Next: one tiny live code dogfood enhancement, with fresh quota approval.
+The owner reiterated the main build-with-the-flock goal on 2026-10-05.
+The next [waiting-job queue slice](docs/JOB-QUEUE-STORE.md) must use the
+[native dogfood cadence](docs/DOGFOOD-WORKFLOW.md), with a fresh quota-approved
+worker and root review here. Earlier direct root code is not worker success.
 
 
 Package a launcher that starts the service and opens the browser. Specify
