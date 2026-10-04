@@ -9,6 +9,14 @@ wt/codex on agent/codex; source baseline c94e21c before the closing merge.
 
 ## Current checkpoint
 
+2026-10-05, wt/opencode-queue on agent/opencode-queue: JOB-QUEUE-STORE-2
+implemented the durable waiting-job library (bridge/job_store.py with stdlib
+bridge/tests/job_store_test.py) per docs/JOB-QUEUE-STORE.md — idempotent
+enqueue against a fresh PlanStore draft hash check, restart-identical and
+concurrency-safe records, fail-closed schema/corruption/nonregular storage,
+no dispatch/executor/approval. Own suite and plan_store_test pass; docs lint
+clean. Lead review, owner acceptance and integration into main are pending.
+
 The owner asked to bench this session and continue with Claude. Local
 coord/STOP is set, native status reports no active workers, and both prepared
 queue options are marked benched_not_launched/deferred_by_owner, ZERO worker
