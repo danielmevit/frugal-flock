@@ -47,3 +47,22 @@ Root Codex (`gpt-6.1-sol`, xhigh) finished the keyboard enhancement here.
 Both shortcuts, required/trimmed validation, ignored keys and the full browser
 journey passed, as did all four state tests and JS syntax. That local finish
 is a source change; the failed native worker remains a failed dogfood attempt.
+
+## Separate Claude documentation cycle
+
+The owner then approved one Claude Opus 5.5/high invocation for a separate
+small feedback-guide task. Native model usage confirmed claude-opus-5-5;
+installed v0.4.0 returned exit 0 in 83 seconds. Candidate eaf24e6 changed
+three allowed documentation files in one clean commit. Native verify passed
+2/2 checks; root Codex inspected the complete task/diff and approved here.
+A local adapter bound that decision to the exact review-material hash,
+with no additional provider reviewer call. The native result was current
+and ready for human review before integration; human acceptance was pending,
+integration not attempted. The dated receipt remains local under
+workspace tmp/m2-claude-feedback-20261004/.
+
+Root integrated the guide and clarified that Stop is observed on a second
+pass while work is running. Two blank session records are preparation,
+not feedback evidence. This successful documentation cycle does not
+change the GLM keyboard failure or prove broader code-worker reliability.
+There were two worker invocations total in this window and no retries.

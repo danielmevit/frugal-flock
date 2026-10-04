@@ -10,6 +10,16 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Keyboard source candidate `92d7898` published separately as merge
+  `5a9b037`; main clean/current and own branch synced before integrating
+  Claude's feedback guide. Reviewed Claude candidate `eaf24e6` cherry-picked
+  as `bf6b70f`, retaining both handoff histories. Root clarified Stop on a
+  second running pass and updated dogfood evidence/roadmap. No sessions run.
+  Native pre-integration Claude evidence is current/ready/approved; after
+  main moves, use result again rather than assuming old readiness persists.
+  Installed 0.4.0/global profiles intact. No more provider calls authorized.
+  Next: publish this guide as a separate merge, then test read-only bridge.
+
 - M2 keyboard locally finished 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh)
   on agent/codex based on `9b3c74b`: Ctrl/Command+Enter goes through existing
   requestSubmit validation once; Enter stays a newline. Browser checks cover
@@ -31,6 +41,13 @@ checkpoint so another AI can continue without the previous conversation.
   retries) for a disjoint two-user feedback guide in wt/claude-m2. Root
   reviews here with zero paid reviewers. Bridge remains a disjoint draft.
   Next: launch Claude once, verify GLM failure, finish keyboard locally.
+
+- M2 user-test guide drafted 2026-10-04 by Claude (`claude-opus-5-5`, high),
+  wt/claude-m2 on agent/claude-m2: docs/M2-USER-TEST.md with neutral
+  prompts for all five moments, Stop/restart and narrow-screen checks,
+  understanding checks and two blank session records. Docs only; no
+  sessions run, no provider call, no runtime change. Root Codex reviews.
+  Next: owner runs two real sessions; M2 gates stay pending.
 
 - M2 prototype published as own merge `5d40d68` (candidate `0cfaa3f`),
   2026-10-04 by Codex (`gpt-6.1-sol`, xhigh). Main/own worktree clean/synced.

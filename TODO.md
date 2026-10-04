@@ -180,9 +180,13 @@ Four state tests and the full Chromium browser journey passed, including
 explicit replacement/apply, revision invalidation, Stop, focus, escaped text,
 mobile inspector collapse and no external requests/page errors. Refresh
 restarts the demo; no real provider, checkpoint or project action occurs.
-Two new-user feedback sessions remain pending. Installed-release flock
-use on one tiny prototype enhancement is prepared next; fresh quota needed.
-Do not claim M2 acceptance or wire live execution before those gates.
+Two new-user feedback sessions remain pending; the [facilitator guide](docs/M2-USER-TEST.md)
+has two blank records. Installed-release dogfood: GLM's one keyboard worker
+hit its 180s limit with zero work, preserved as failed; root finished locally
+and the browser/state checks passed. Claude Opus 5.5/high's separate guide
+cycle passed in 83s with 2/2 validation and in-session root review. No retries
+or paid reviewer. [Evidence and limits](docs/M2-DOGFOOD-PLAN.md).
+Do not claim M2 acceptance or wire live execution before real feedback.
 
 ## M1 acceptance details — trustworthy results
 
