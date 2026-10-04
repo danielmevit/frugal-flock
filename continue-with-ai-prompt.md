@@ -10,6 +10,16 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- M1.5 step 2 draft, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
+  wt/codex on agent/codex based on main `6e16947`: loop brake implemented
+  in source, 18 focused mock checks passed. Covers real exit preservation,
+  failure deduplication, task-wide history, one retry grant, validation and
+  interrupted failures, corrupt state, concurrency and zero provider calls
+  after refusal. Syntax and whitespace passed. Documentation preparation
+  initially expected two template anchors but found one; corrected that
+  assertion before the frozen full gate. No global install/config changes
+  or paid calls. Next: full gate, own merge/push, then step 3 watch.
+
 - M1.5 step 1 complete, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh):
   owner-approved Codex retest passed in 26s using native gpt-6.1-sol/high,
   throwaway `93c4cc9`, one file/commit, clean branch, scope OK, verify 2/2.
@@ -20,7 +30,8 @@ checkpoint so another AI can continue without the previous conversation.
   no automatic retries. Original Codex interruption preserved under
   live/receipts/codex/attempt-1; retest under attempt-2. Fixture STOP, no
   active worker; installed runtime/global config hashes unchanged. Source
-  includes main `090cfd3`; every finished step gets its own merge/push.
+  canary completion merged/pushed as `6e16947`; every finished step gets
+  its own merge/push.
   The owner asked to continue the list without stopping. Next: M1.5 step 2,
   engine loop brake, then watch, using local mocks/source builds. Further
   provider calls need fresh quota approval. Keep the recorded interruption

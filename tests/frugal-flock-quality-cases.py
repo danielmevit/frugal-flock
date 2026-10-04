@@ -23,6 +23,14 @@ count = 0
 
 
 def call(*args, code=0, env=None):
+    # These M1 fixtures intentionally rerun old failure scenarios. The test
+    # operator grants each blocked invocation; the separate brake suite must
+    # prove that unapproved invocations cannot reach a mock provider.
+    if args and args[0] == 'run':
+        retry_file = root / 'coord/retries' / args[2] / 'state.json'
+        if retry_file.exists() and json.loads(retry_file.read_text())['failed_attempts'] >= 2:
+            grant = subprocess.run([at, 'allow-retry', args[2]], capture_output=True, text=True)
+            assert grant.returncode == 0, grant.stderr
     p = subprocess.run([at, *args], capture_output=True, text=True,
                        env=dict(os.environ, **(env or {})))
     assert p.returncode == code, (args, p.returncode, code, p.stdout, p.stderr)

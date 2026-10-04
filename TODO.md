@@ -125,6 +125,10 @@ order, one small tested checkpoint each:
    recorded for a separate fix; readiness correctly fails closed.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
+   Source implementation is under verification on agent/codex: one counted
+   failure per started attempt, shared across workers, one explicit owner
+   grant via `allow-retry`. All 18 focused mock checks passed; the frozen
+   full gate is next. Installed 0.4.0 remains unchanged.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
    as they happen; it later becomes the app's Activity view.
 4. The flock runs on the installed release while it builds the next
