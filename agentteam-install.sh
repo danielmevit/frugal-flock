@@ -2395,6 +2395,9 @@ Frugal Flock coordinates one interactive LEAD session and N headless WORKER
 runs from different AI CLIs (claude, codex, agy/antigravity, grok,
 opencode) on one shared git repository. Isolation is per-worker git
 worktrees. Coordination is plain files. Integration is human-gated merges.
+Execution boundary: `trusted_host`. Configured agent commands run with the
+owner's host access; worktrees and temporary directories are coordination
+mechanisms, not OS sandboxes.
 
 Roles:
 - OWNER (human): approves plans, reads diffs, merges to base, releases.
@@ -2421,6 +2424,9 @@ Layout relative to project root:
 | `coord/reports/<task>.md` | Append-only run history per task | Frugal Flock tooling |
 | `coord/reports/<task>.log` | Latest run's full output (overwritten) | Frugal Flock tooling |
 | `coord/reports/ledger.jsonl` | Append-only machine ledger: one JSON object per event | Frugal Flock tooling |
+| `coord/reports/<task>.review.*/` | Raw reviewer stdout and stderr, one folder per review | Frugal Flock tooling |
+| `coord/results/<w>/<task>.json` | Structured result (schema 1), replaced atomically under the worker lock | Frugal Flock tooling |
+| `coord/handoffs/<w>/<task>/` | One new context packet per `handoff`; earlier packets are kept | Frugal Flock tooling |
 | `coord/blockers.md` | Blocker notes | anyone, APPEND only |
 | `coord/STOP` | If present: all new runs refused | OWNER |
 
@@ -2449,7 +2455,8 @@ branch is recorded as a ledger `merge` event (post-merge hook).
 Report run-block (appended to `coord/reports/<task>.md` per run):
 
 ```text
-## run <ISO8601 timestamp> — worker=<worker> agent=<agent> exit=<int> duration=<int>s
+## run <ISO8601 timestamp> — worker=<worker> agent=<agent> exit=<int> duration=<int>s task_sha=<sha256>
+[!! post-run snapshot failed — exit=<int> recorded; structured result unbound and not ready]
 ### git status (branch, staged/unstaged)
 <porcelain v1 output>
 ### committed diffstat vs <base>
@@ -2470,18 +2477,76 @@ out-of-scope paths, individual reasons, and per-command results. PASS exits
 0 only with scope and at least one passing Validate command, with existing
 safeguards satisfied. Missing scope/checks exits 2 (INCOMPLETE); actual
 failures take precedence and exit nonzero, normally 1. No waiver is provided.
+Index entries flagged assume-unchanged or skip-worktree make verify exit 2
+before any verdict, because Git diff/status would omit their edits.
 
 Ledger events (`coord/reports/ledger.jsonl`, one JSON object per line):
 
 ```text
 {"event":"run","ts":…,"task":…,"worker":…,"agent":…,"exit":n,"duration_s":n,
- "wall_s":n,"suspended":0|1,
+ "wall_s":n,"suspended":0|1,"snapshot_failed":0|1,
  "commits":n,"files":n,"insertions":n,"deletions":n,"uncommitted":n,"wall":0|1}
 {"event":"verify","ts":…,"task":…,"worker":…,"scope":"OK|VIOLATION|UNCHECKED",
  "validate_run":n,"validate_failed":n,"commits":n,"empty":0|1,"verdict":…}
 {"event":"review","ts":…,"task":…,"worker":…,"reviewer":…,"exit":n}
 {"event":"race","ts":…,"task":…,"workers":"w1 w2 …"}
 {"event":"merge","ts":…,"worker":…,"subject":"<merge commit subject>"}
+```
+
+Structured result (`coord/results/<w>/<task>.json`, Python 3 stdlib helper):
+
+```text
+schema_version 1, worker, task, updated_at, current_revision
+revision    candidate_commit, base_commit, task_sha256, worktree_sha256
+            (index + tracked + nonignored untracked contents, not just names)
+process     state not_run|running|succeeded|failed, exit_code, revision
+            [post_run_snapshot: "failed" — always stale, never ready]
+validation  state not_run|passed|failed|incomplete, scope, checks_run,
+            checks_failed, reasons, revision
+review      state not_run|approved|changes_requested|unknown|failed,
+            reviewer, process_exit_code, material_complete, reasons, revision
+human       {"state": "pending"}        integration {"state": "not_attempted"}
+stale, ready_for_human_review
+```
+
+Every section records the revision it was produced at. A new run resets
+validation and review; a new verify resets review. `stale` is true when any
+evidence revision differs from the current one (commit, base, task file,
+index, tracked or nonignored untracked content). `ready_for_human_review`
+needs a succeeded process, passed validation and approved review, all at the
+current revision and not stale. It is never human acceptance or permission
+to integrate. `frugal-flock result` prints this JSON only, recomputed against
+the current worktree; a missing or malformed file fails closed (exit 2), and
+old report text is never backfilled as structured evidence.
+
+Review gate: `frugal-flock review` needs current passed validation. Its
+material is the task file plus the full committed diff against base. It is
+refused (exit 2, review recorded `unknown`, `material_complete` false) for
+staged, unstaged or untracked work, binary changes, non-UTF-8 data, more than
+300000 bytes, or flagged index entries; nothing is ever clipped. The
+reviewer's stdout must hold exactly one standalone `VERDICT: APPROVE` or
+`VERDICT: REQUEST-CHANGES` line; stderr never counts. Exits: 0 approved;
+1 changes requested or reviewer process failure (timeout is 124); 2 unknown
+verdict, incomplete material, stale evidence, or a candidate that changed
+during the review.
+
+Handoff packet: `coord/handoffs/<w>/<task>/<timestamp>-<id>/` holds
+`task.md`, `result.json`, `revision.json`, `changed-files.json` and
+`HANDOFF.md`, published by an atomic rename. It is refused while the worker
+lock is held, and is not published if the candidate changes meanwhile. It is
+context for the same checkout, NOT a backup, restore or provider migration:
+uncommitted and untracked contents stay in the source worktree. Credentials,
+agents.conf, ignored files and raw logs are never copied; task text may be
+sensitive, so review a packet before sharing it.
+
+Availability (`frugal-flock agents --json`, local only, never executes a
+configured command or probes sign-in or quota):
+
+```text
+{"schema_version":1,"agents":[{"name":…,"binary":{"value":…,
+ "present":true|false|null},"bench":{"off":…,"operator_retry_at":…},
+ "authentication":"unknown","capacity":"unknown",
+ "execution_boundary":"trusted_host"}]}
 ```
 
 Task file schema (LEAD writes; template at `coord/tasks/TEMPLATE.md`):
@@ -2510,14 +2575,17 @@ agent is an official CLI running under its own subscription LOGIN
 ```text
 frugal-flock init [w1 w2 ...]     scaffold worktrees + coord (idempotent);
                                secrets preflight; guard hooks
-frugal-flock agents               list agents: binary present, on/off state
+frugal-flock agents [--json]      list agents: binary present, on/off state;
+                               --json = schema 1, local only (see §3)
 frugal-flock smoke                one tiny live call per agent from a neutral
-                               dir; OK / WARN (reply lacks "ok") / FAIL
+                               dir (still trusted_host); OK / WARN (reply
+                               lacks "ok") / FAIL
 frugal-flock selftest             full-loop rehearsal in a sandbox repo with
                                mock agents; zero quota; nonzero on failure
 frugal-flock run [-b] <w> <task>  execute coord/tasks/<task>.md as worker <w>
                                in wt/<w>; -b = background; per-worker lock;
-                               writes report+log+ledger
+                               writes report+log+ledger+structured result;
+                               a failed worker's own exit code wins
 frugal-flock tail [task]          follow a run's live log (default: newest)
 frugal-flock kill <task>          terminate a background run (whole session,
                                including the agent under `timeout`)
@@ -2527,13 +2595,22 @@ frugal-flock version              installed tool version + config path
 frugal-flock verify <w> <task>    machine gate assist: diff vs the task's
                                "- path" scope lines + run its "$ " Validate
                                lines in the worktree + commit sanity;
-                               appends verify block; nonzero exit on
-                               violation / validate failure / empty diff
+                               appends verify block and records validation;
+                               exit 0 PASS, 1 FAIL (violation, failed check,
+                               empty diff, tampered task), 2 INCOMPLETE (no
+                               scope or no Validate lines) or unsupported
+                               worktree state
 frugal-flock diff <w> [--stat]    changes on agent/<w> vs base: committed and
                                uncommitted, separately
 frugal-flock review <w> <task> [agent]  cross-vendor review: a DIFFERENT agent
-                               judges task order + diff from a neutral dir;
-                               ends VERDICT: APPROVE|REQUEST-CHANGES
+                               judges task order + committed diff from a
+                               neutral dir; gated and parsed as in §3;
+                               exit 0 approved, 1 changes/failure, 2 unknown
+frugal-flock result <w> <task>    structured result JSON on stdout only; no
+                               provider call; exit 2 if missing, malformed or
+                               the worktree state is unsupported
+frugal-flock handoff <w> <task>   new same-checkout context packet under
+                               coord/handoffs (see §3); not a backup
 frugal-flock sync [w]             bring base's merged work into worker
                                branches (ff when fully merged, merge
                                otherwise; skips dirty/running; aborts and
@@ -2547,8 +2624,8 @@ frugal-flock score [root]         per-worker scorecard from ledger.jsonl:
                                runs, ok/fail, walls, verify rate, merges,
                                avg duration
 frugal-flock doctor               preflight the project: base branch present,
-                               agent binaries, worktree health, stale
-                               pidfiles, disk headroom; nonzero on error
+                               agent binaries, python3, worktree health,
+                               stale pidfiles, disk headroom; nonzero on error
 frugal-flock new <url> [name] [w...]  bootstrap a project: clone -> dev branch
                                -> init -> copy $CONF/playbooks/*.md into
                                coord/docs/
@@ -2572,7 +2649,12 @@ verification's nonzero exit; a failed worker retains its own exit code.
 `AGENTTEAM_AUTO_SYNC=1` fast-forwards a worker onto the base branch
 before a run when the worktree is clean, so it never builds against
 stale code (otherwise `run` warns and leaves it to the operator).
-`AGENTTEAM_ALLOW_SECRETS=1` overrides the init secrets preflight. Agent
+`AGENTTEAM_ALLOW_SECRETS=1` overrides the init secrets preflight. Python 3
+(standard library only, nothing downloaded) is required by run, verify,
+review, smoke, agents, result and handoff. Unsupported worktree states fail
+closed with exit 2: assume-unchanged or skip-worktree index flags (verify,
+review, handoff); FIFOs, devices, sockets, nested repositories and submodules
+(run, verify, review, result, handoff). Agent
 invocation templates live in `~/.config/agentteam/agents.conf` (project
 override: `coord/agents.conf`).
 
@@ -2600,8 +2682,9 @@ when assigning tasks.
    sections.
 6. LEAD verifies, machine first: `frugal-flock verify` (scope + Validate +
    commit sanity), then reads the report and `frugal-flock diff`; for risky
-   diffs also `frugal-flock review`. Reports are claims; diffs, verify
-   verdicts and logs are ground truth.
+   diffs also `frugal-flock review`. `frugal-flock result` shows whether that
+   evidence is still current. Reports are claims; diffs, verify verdicts and
+   logs are ground truth.
 7. OWNER merges accepted branches into base (`git merge --no-ff`).
    Acceptance gate: verify PASS, clean build, tests green, smoke run,
    changelog fragment where the repo keeps a changelog. After the merge
@@ -2636,6 +2719,15 @@ when assigning tasks.
       fragments in changelog.d/, rolled up at release by LEAD/OWNER.
 - I12 A run that claims success with an empty diff (no commits, no
       uncommitted changes) is treated as FAILED.
+- I13 `ready_for_human_review` is never human acceptance or permission to
+      merge; only OWNER accepts and integrates.
+- I14 Evidence is bound to a revision. After any change to commit, base,
+      task file or worktree content, earlier verify/review results are
+      stale: verify again, then review again.
+- I15 A handoff packet is context for the same checkout, not a backup,
+      restore or provider migration.
+- I16 Worktrees are not sandboxes. The execution boundary is the trusted
+      host.
 
 ## 7. FAILURE PROTOCOL
 
@@ -2645,6 +2737,11 @@ when assigning tasks.
 | Limit language in output (rate/usage limit, quota, resets at) | LEAD suggests `frugal-flock off <agent> 5h` (weekly: 7d) and reroutes. |
 | Validate commands fail | Do not claim success. Report failure + hypothesis. |
 | `frugal-flock verify` reports SCOPE VIOLATION | Reject the branch; LEAD re-briefs with corrected scope; a violating diff is never merged as-is. |
+| `frugal-flock verify` reports INCOMPLETE (exit 2) | The task has no scope or no Validate lines: LEAD adds them. There is no waiver. |
+| Unsupported worktree state (flagged index entries, FIFO, device, socket, nested repository, submodule) | Clear it (`git update-index --no-assume-unchanged --no-skip-worktree`, `git sparse-checkout disable`, or remove the file), then rerun the command. |
+| Run reports "post-run snapshot failed" | The worker's real exit is recorded but the result stays stale. Fix the worktree, then run the task again. |
+| `frugal-flock result` shows stale evidence | Verify again, then review again. Never reuse old evidence. |
+| Review refused as incomplete material | Commit all work. Binary, non-UTF-8 or oversized changes need manual inspection. |
 | Worker lock busy ("already running a task") | Wait or `frugal-flock status`; abort a stray background run with `frugal-flock kill <task>`. |
 | Stale index.lock after a killed run | Cleared automatically at the next `frugal-flock run`; if git still complains, remove `<gitdir>/index.lock` by hand. |
 | Blocked on missing contract/file | I2/I6: flag, don't fix; wait. |
