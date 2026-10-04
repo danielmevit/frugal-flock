@@ -29,8 +29,12 @@ current result. Including interrupted Codex, six worker invocations total,
 zero additional provider reviewers/retries; all approved attempts used.
 Execution access restored, global agent configuration/runtime unchanged,
 all six local agent entries restored, fixture stopped, no worker active.
-Next: investigate interrupted-run status using mocks. Any Codex rerun needs
-fresh quota approval; native review needs a different vendor.
+The interruption finding is now reproduced with one local mock and zero
+provider calls: native result retains running/null exit after the runner
+ends, while readiness remains false and handoff warns of interruption.
+Neither source runtime nor live result was rewritten. Next: a tested activity
+observation fix; any Codex rerun needs fresh quota approval and native review
+needs a different vendor.
 
 Separate licensing checkpoint, owner-selected on 2026-10-04:
 AGPL-3.0-only with copyright Daniel Mitev and public attribution Daniel

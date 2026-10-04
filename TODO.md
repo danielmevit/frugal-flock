@@ -122,8 +122,11 @@ order, one small tested checkpoint each:
    2/2, in-session lead review and current ready result. Six worker
    invocations total, five ready canaries, no retries/extra provider reviews.
    All approved calls used; fixture stopped. Step 1 remains incomplete:
-   investigate interrupted-run status with mocks; any Codex rerun needs
-   fresh quota approval, and native approval needs another vendor.
+   interruption status is reproduced with one local mock/zero provider
+   calls. Readiness stays false and handoff warns of interruption; the
+   activity label remains running after its worker lock is free. Fix/test
+   that observation without inventing exits. Any Codex rerun needs fresh
+   quota approval, and native approval needs another vendor.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
