@@ -10,6 +10,32 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Current owner request: AGPL-3.0-only for the public release, with optional
+  separate paid agreements for proprietary use. The owner explicitly chose
+  true open source on 2026-10-04 after being told compliant commercial forks
+  may be sold without paying him. Copyright holder: Daniel Mitev; public
+  attribution: Daniel Mevit (@danielmevit). Full unmodified GNU text in
+  LICENSE; section 7(b)/(c) attribution/origin terms in NOTICE and referenced
+  by source headers. The owner clarified credit applies to copies and
+  variants of Frugal Flock itself, not independent projects made with it.
+  Preserve the tool name, Daniel's credit and original URL in covered
+  material or appropriate legal notices; mark variants and do not
+  misrepresent origin. The self-contained
+  installer bundles both under the config directory's legal/ folder;
+  `frugal-flock license` prints them. README and [licensing guidance](docs/LICENSING.md)
+  explain notices/source obligations, lawful sales, independently developed
+  projects, legal limits and separately agreed proprietary permissions.
+  Licensing source candidate: `b83f767` on agent/codex in wt/codex.
+  Full frozen-source quality gate passed: 40/40 selftests, 16 + 78 + 26
+  regressions, 14 probes held, standalone legal-file packaging and all
+  three aliases, ShellCheck, installer syntax and full docs lint. Official
+  LICENSE hash and embedded legal-file equality verified; whitespace clean.
+  Log: tmp/license-checkpoint-20261004/quality-check-frozen.log. The first
+  interrupted run is retained in quality-check.log and the append-only agent
+  log. This is one owner-authorized licensing integration; find its merge
+  on main's first-parent history. Source checkpoint complete; next work is
+  the remaining M1.5 canaries, which need fresh quota approval.
+  Global installed 0.4.0 and all canary evidence remain unchanged; no quota call.
 - Antigravity live evidence is committed at `13e70e9` on `agent/codex` in
   `wt/codex`, merged and pushed as `0426f0c`.
 - Codex worktree synced with main `81b587c`; read and preserve the owner's
@@ -26,8 +52,8 @@ checkpoint so another AI can continue without the previous conversation.
   `2b847ac`. Runtime model confirmed, scope OK, 2/2 checks, complete diff
   approved by this Codex session through the sealed local adapter, current
   ready result. Total worker calls: three; no extra reviewer calls, retries
-  or Claude calls. Fixture stopped. Next: publish this checkpoint, then
-  obtain quota approval before any remaining Codex/Kimi canary.
+  or Claude calls. Fixture stopped. This checkpoint was merged/pushed as
+  `7761737`. Any remaining Codex/Kimi canary needs new quota approval.
   Its source evidence candidate is `17c4959` on `agent/codex`.
 - M1.5 preparation is merged and pushed as `d991350` (candidate `4b8e1a9`
   plus `61327ec`). The owner-approved README rewrites `4565cfd` and `f6f0ed9` are also
@@ -45,7 +71,8 @@ checkpoint so another AI can continue without the previous conversation.
   including review gating and stale-result checks. The full offline gate
   passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
   branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
-  No worker is active. Next: quota approval for a remaining Codex/Kimi canary.
+  No worker is active. Current next task: remaining M1.5 canaries after quota approval.
+  Remaining Codex/Kimi canaries still need quota approval.
   Claude is owner-reported limited for five hours (avoid through
   22:42 +0200 on 2026-10-04, an operator interval, not a confirmed reset).
   Codex does the main implementation and reviews in-session. Other worker

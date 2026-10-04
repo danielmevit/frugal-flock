@@ -230,6 +230,26 @@ Continuing this project with another AI? Paste the prompt from
 [workspace rules](WORKSPACE-RULES.md). The [M1 status](docs/M1-STATUS.md)
 and [findings index](docs/RESEARCH-FINDINGS.md) hold the details.
 
+## License
+
+Frugal Flock is licensed under **AGPL-3.0-only**, with attribution and origin
+terms under sections 7(b) and 7(c). Copyright (C) 2026
+**Daniel Mitev**, publicly **Daniel Mevit (@danielmevit)**. See
+[LICENSE](LICENSE) and [NOTICE](NOTICE), or run `frugal-flock license`.
+
+Commercial use and compliant forks are allowed. Covered redistributed
+derivatives must preserve the **Frugal Flock** name and original author
+credit in the reused material or appropriate legal notices, identify
+modified versions, and meet the license's
+source-sharing requirements; modified network versions must offer source
+to their remote users. Merely using the tool to build an independent
+project does not place that project under AGPL.
+
+Companies seeking permissions for proprietary integration can request a
+separate paid agreement. The software comes without warranty, and liability
+limits apply subject to applicable law. Read the
+[licensing and commercial-use guide](docs/LICENSING.md) for details.
+
 ## Keywords
 
 The idea in one line: **AI coding tools from different companies, linked
