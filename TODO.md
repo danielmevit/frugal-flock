@@ -109,9 +109,11 @@ order, one small tested checkpoint each:
    Antigravity passed its first canary in 22 seconds on 2026-10-04;
    the earlier silent stall did not recur. One worker call, no retry.
    Grok also passed in 35 seconds, one worker call, 2/2 checks and lead review.
+   OpenCode Go `opencode-go/glm-5.3` passed in 24 seconds, with the same
+   checks and in-session lead review. Three live worker calls total.
    Claude is limited for five hours; the Codex lead does code review and
-   implementation. Next authorized worker: OpenCode Go with
-   `opencode-go/glm-5.3`, one call, no retry.
+   implementation. Codex and Kimi canaries still need quota approval;
+   no further worker call is authorized yet.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
