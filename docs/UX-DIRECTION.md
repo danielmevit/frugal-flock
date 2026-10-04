@@ -4,8 +4,12 @@ Small plans. Big ideas.
 
 ## Status and intended user
 
-This is the first UX proposal. Frugal Flock currently ships a command-line
-engine; the screens and interactions below are not yet implemented.
+Frugal Flock ships a command-line engine. An original
+[mock-data prototype](../prototype/README.md) now covers one connected
+sample journey: project/tool, plan approval, question/progress, a named
+replacement after a simulated limit, and separate checks/review/acceptance.
+It has no real provider connection or project writes. Live interactions
+below remain proposed; two new-user feedback sessions are still needed.
 
 Owner priority update: finish and independently verify the
 [M1 quality contract](QUALITY-M1-CONTRACT.md) before starting these screens.

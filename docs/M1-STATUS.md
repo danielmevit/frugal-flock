@@ -45,6 +45,14 @@ ShellCheck/syntax/docs. Current native help and passing Go canaries confirm
 Next: publish the mock prototype and prepare one bounded dogfood task. The owner asked
 to keep progressing through the roadmap; further provider calls need approval.
 
+The first original [M2 sample prototype](../prototype/README.md) passed
+four state tests and a full Chromium browser journey: explicit plan/recovery/
+acceptance, approval invalidation, Stop, focus, escaped text and narrow
+inspector collapse, no external requests/page errors. This is sample data
+only with no project writes or provider connections. M2 acceptance is
+pending two new-user sessions and one bounded installed-release dogfood
+cycle, which needs fresh quota approval.
+
 Separate licensing checkpoint, owner-selected on 2026-10-04:
 AGPL-3.0-only with copyright Daniel Mitev and public attribution Daniel
 Mevit (@danielmevit). Section 7(b)/(c) attribution/origin terms preserve
