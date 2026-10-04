@@ -43,7 +43,7 @@ first. Give a hint only if they are still stuck, and record it as
 | 3 | Follow work/answer question | "Follow what is happening. If something needs your input, respond." |
 | 4 | Simulated limit/replacement | "Something has changed with the work. Explain what happened, and decide how to continue." (Expected: they notice the simulated limit and explicitly choose the named Grok replacement.) |
 | 5 | Review/request changes or apply | "Decide whether the result is good enough. Either ask for changes or apply it to the demo." |
-| + | Stop/restart | "Imagine you need to stop this right now. Do that, then tell me what you think was kept." Refresh afterwards to restart if needed. |
+| + | Stop/restart | Start a second pass: "Begin another small change. Before the work finishes, imagine you need to stop. Do that, then tell me what you think was kept." Observe whether they can propose and approve a new plan; refresh only after this observation. |
 | + | Narrow screen (optional) | Narrow the window or use a phone. "Find the details about the current work." |
 
 ## Understanding checks (3 minutes)

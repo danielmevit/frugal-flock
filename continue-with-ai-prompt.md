@@ -10,6 +10,16 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Keyboard source candidate `92d7898` published separately as merge
+  `5a9b037`; main clean/current and own branch synced before integrating
+  Claude's feedback guide. Reviewed Claude candidate `eaf24e6` cherry-picked
+  as `bf6b70f`, retaining both handoff histories. Root clarified Stop on a
+  second running pass and updated dogfood evidence/roadmap. No sessions run.
+  Native pre-integration Claude evidence is current/ready/approved; after
+  main moves, use result again rather than assuming old readiness persists.
+  Installed 0.4.0/global profiles intact. No more provider calls authorized.
+  Next: publish this guide as a separate merge, then test read-only bridge.
+
 - M2 keyboard locally finished 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh)
   on agent/codex based on `9b3c74b`: Ctrl/Command+Enter goes through existing
   requestSubmit validation once; Enter stays a newline. Browser checks cover
