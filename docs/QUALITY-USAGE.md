@@ -150,7 +150,8 @@ configured commands run with host-level access.
 
 `verify WORKER TASK` holds the worker lock for the whole check, so it
 refuses a worker that is mid-run (exit 1). If the base branch named in
-`coord/base` does not exist, it refuses to judge anything and exits 2.
+`coord/base` does not exist, it refuses to judge anything and exits 1
+(FAIL) before taking any snapshot; it records nothing.
 
 | Exit | Verdict | When |
 |---|---|---|
@@ -237,7 +238,8 @@ the packet before sharing it. Nothing is uploaded and no replacement
 provider is called.
 
 The packet is built in a hidden `.pending-` folder and renamed into place
-only if the revision did not change meanwhile. Earlier packets are never
+only if the revision did not change meanwhile. A `.pending-` folder left
+by an interrupted handoff is removed by the next handoff for that task. Earlier packets are never
 modified. Symlinked coordination paths and invalid IDs are refused. The
 helper's refusals (a changed candidate, a malformed result, an
 unsupported worktree state) exit 2. Old evidence must be rechecked after

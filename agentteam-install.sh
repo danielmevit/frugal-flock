@@ -215,8 +215,16 @@ def current(d, rev):
     d['current_revision'] = rev
     return d
 
+def sweep(directory, prefix):
+    # Callers hold the worker lock, so scratch left here is from a killed writer.
+    for name in os.listdir(directory):
+        stale = os.path.join(directory, name)
+        if name.startswith(prefix) and not os.path.islink(stale):
+            shutil.rmtree(stale) if os.path.isdir(stale) else os.unlink(stale)
+
 def atomic(path, d):
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    sweep(os.path.dirname(path), '.result-')
     fd, temp = tempfile.mkstemp(prefix='.result-', dir=os.path.dirname(path))
     try:
         with os.fdopen(fd,'w') as f:
@@ -359,6 +367,7 @@ def handoff(root,worker,task):
     ch=changed(root,worker,task)
     parent=safe(root,'coord','handoffs',worker,task)
     os.makedirs(parent,exist_ok=True)
+    sweep(parent,'.pending-')   # an interrupted handoff never published these
     tmp=tempfile.mkdtemp(prefix='.pending-',dir=parent)
     final=os.path.join(parent,stamp().replace(':','-')+'-'+os.path.basename(tmp)[9:])
     try:
@@ -979,14 +988,15 @@ cmd_verify() {
     flock -n 9 || die "worker '$worker' is mid-run — verify when it finishes"
   fi
   local base; base=$(get_base "$root")
-  local revision_before revision_after
-  revision_before=$(quality snapshot "$root" "$worker" "$task") || return $?
-
   # Fail closed on a base that isn't there. Errors used to be swallowed, so a
   # single stale word in coord/base made the committed diff invisible and the
-  # gate reported PASS with no evidence at all.
+  # gate reported PASS with no evidence at all. Check it before the snapshot
+  # (which also needs the base): a missing base is a FAIL (exit 1), not an
+  # incomplete result.
   git -C "$wt" rev-parse -q --verify "$base" >/dev/null 2>&1 \
     || die "base branch '$base' does not exist — verify cannot judge anything against it (fix coord/base)"
+  local revision_before revision_after
+  revision_before=$(quality snapshot "$root" "$worker" "$task") || return $?
 
   # PROTOCOL §2 makes coord/tasks LEAD-only, but nothing physically stops a
   # worker rewriting its own orders. Compare the task file against the sha
