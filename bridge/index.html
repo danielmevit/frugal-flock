@@ -1,0 +1,51 @@
+<!doctype html>
+<!-- Frugal Flock — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
+     https://github.com/danielmevit/frugal-flock
+     SPDX-License-Identifier: AGPL-3.0-only; see LICENSE and NOTICE. No warranty. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Frugal Flock · local activity</title>
+    <link rel="stylesheet" href="activity.css" />
+    <script defer src="activity.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="brand">Frugal Flock</p>
+          <h1>Local activity</h1>
+        </div>
+        <button id="refresh" type="button">Refresh</button>
+      </header>
+      <p class="notice">
+        Read-only preview. Recorded decisions are separate from current
+        readiness and your acceptance.
+      </p>
+      <p id="status" role="status" aria-live="polite">
+        Loading local activity…
+      </p>
+      <section aria-labelledby="tasks-title">
+        <h2 id="tasks-title">Recorded tasks</h2>
+        <div id="tasks"></div>
+      </section>
+      <section aria-labelledby="limits-title">
+        <h2 id="limits-title">Tools and operator limits</h2>
+        <div id="limits"></div>
+      </section>
+      <details>
+        <summary>Recent recorded events and warnings</summary>
+        <pre id="events"></pre>
+      </details>
+      <p class="small">
+        This preview has no run, review, retry, approve or merge actions.
+        Authentication and provider capacity are unknown. Use the CLI result
+        command to recheck current readiness.
+      </p>
+      <footer>
+        Frugal Flock · Daniel Mitev · @danielmevit · AGPL-3.0-only
+      </footer>
+    </main>
+  </body>
+</html>

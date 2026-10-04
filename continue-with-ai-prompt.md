@@ -10,6 +10,29 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- First read-only Activity bridge complete in source, 2026-10-04 by Codex
+  (`gpt-6.1-sol`, xhigh), based on `cdcfad0`: fixed loopback watch JSON GET,
+  original browser view, no dispatch/coordination writes. Seven stdlib HTTP
+  checks and browser failure/unknown-completion/escaping/refresh/recovery/
+  mobile/same-origin checks passed; real-project HTTP 200 showed preserved
+  GLM failed/124 and Claude succeeded/approved. All 36 coordination-file
+  hashes unchanged; installed 0.4.0/global profile hashes unchanged. Source
+  watch build is disposable under tmp/m2-bridge-20261004/runtime, not a
+  global reinstall/release. Screenshots inspected; syntax/docs/gate wiring
+  checked before publishing separately. Browser tests remain optional tooling.
+  Two real user sessions pending before live UI execution. No fresh quota.
+  Next: publish this read-only slice; specify a small read-only launcher step.
+
+- Claude feedback-guide step published separately as merge `cdcfad0`
+  (reviewed native `eaf24e6`, integrated `bf6b70f` + `eee5043`), after
+  main clean/current ancestry checks; own worktree synced. Full integrated
+  docs/whitespace passed. Keyboard merge remains `5a9b037`. Both successful
+  source checkpoints pushed; original GLM timeout preserved. No active
+  provider or additional quota authorization. Two real user sessions pending.
+  Next: finish one read-only Activity bridge slice using source watch,
+  meaningful offline HTTP/browser checks and an actual read-only snapshot.
+  Loopback preview only; installed 0.4.0/native profiles remain unchanged.
+
 - Keyboard source candidate `92d7898` published separately as merge
   `5a9b037`; main clean/current and own branch synced before integrating
   Claude's feedback guide. Reviewed Claude candidate `eaf24e6` cherry-picked

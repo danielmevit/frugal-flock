@@ -1,0 +1,230 @@
+// Frugal Flock — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
+// https://github.com/danielmevit/frugal-flock
+// SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawn } = require("node:child_process");
+const { once } = require("node:events");
+const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
+(async () => {
+  assert.ok(
+    process.env.TMPDIR,
+    "Set TMPDIR to workspace-local tmp before running browser checks",
+  );
+  const fixture = fs.mkdtempSync(
+    path.join(process.env.TMPDIR, "activity-browser-"),
+  );
+  for (const name of ["repo", "coord", "wt"])
+    fs.mkdirSync(path.join(fixture, name));
+  const snapshotFile = path.join(fixture, "coord", "snapshot.json");
+  const document = {
+    schema_version: 1,
+    observed_at: "2026-10-04T21:00:00Z",
+    stopped: true,
+    agents: [
+      {
+        name: "OpenCode Go",
+        binary: { value: "opencode", present: true },
+        bench: { off: true, operator_retry_at: 12345 },
+        authentication: "unknown",
+        capacity: "unknown",
+        execution_boundary: "trusted_host",
+      },
+    ],
+    results: [
+      {
+        worker: "opencode-m2",
+        task: "<img src=x onerror=alert(1)>",
+        recorded_at: "2026-10-04T21:00:00Z",
+        activity: "failed",
+        worker_lock: "free",
+        process: { state: "failed", exit_code: 124 },
+        validation: { state: "failed", checks_run: 5, checks_failed: 0 },
+        review: { state: "not_run", reviewer: null },
+      },
+    ],
+    retries: [
+      {
+        task: "keyboard",
+        failed_attempts: 2,
+        blocked: true,
+        retry_granted: false,
+      },
+    ],
+    recent_events: [
+      {
+        event: "run",
+        worker: "opencode-m2",
+        exit: 124,
+        limit_signal: "runner_log_pattern",
+      },
+    ],
+    warnings: [],
+    evidence: "recorded; use result to recheck revision and readiness",
+  };
+  fs.writeFileSync(snapshotFile, JSON.stringify(document));
+  const engine = path.join(fixture, "watch-fixture");
+  fs.writeFileSync(
+    engine,
+    `#!/usr/bin/env python3\nimport sys\nfrom pathlib import Path\nassert sys.argv[1:] == ['watch','--once','--json'], 'only read-only observation allowed'\nsys.stdout.buffer.write((Path(__file__).parent/'coord/snapshot.json').read_bytes())\n`,
+    { mode: 0o755 },
+  );
+  const child = spawn(
+    "python3",
+    [
+      "-B",
+      path.resolve(__dirname, "../server.py"),
+      "--project",
+      fixture,
+      "--engine",
+      engine,
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr = (stderr + chunk.toString()).slice(-2000);
+  });
+  let browser, context;
+  const problems = [],
+    requests = [];
+  try {
+    const origin = await new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("Activity server startup timed out: " + stderr)),
+        10000,
+      );
+      child.once("error", (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.once("exit", (code) => {
+        clearTimeout(timer);
+        reject(new Error("Activity server exited " + code + ": " + stderr));
+      });
+      child.stdout.on("data", (chunk) => {
+        const match = chunk.toString().match(/http:\/\/127\.0\.0\.1:\d+/);
+        if (match) {
+          clearTimeout(timer);
+          resolve(match[0]);
+        }
+      });
+    });
+    browser = await chromium.launch(
+      process.env.M2_CHROMIUM_PATH
+        ? { executablePath: process.env.M2_CHROMIUM_PATH }
+        : {},
+    );
+    context = await browser.newContext({
+      viewport: { width: 1440, height: 1000 },
+      reducedMotion: "reduce",
+    });
+    const page = await context.newPage();
+    page.on("pageerror", (error) => problems.push(error.message));
+    page.on("request", (request) =>
+      requests.push({ url: request.url(), method: request.method() }),
+    );
+    await page.goto(origin);
+    await page.waitForFunction(() =>
+      document.getElementById("status").textContent.includes("STOP active"),
+    );
+    assert.ok(
+      (await page.locator("#tasks").textContent()).includes(
+        "Process failed · exit 124",
+      ),
+    );
+    assert.ok(
+      (await page.locator("#tasks").textContent()).includes("<img src=x"),
+    );
+    assert.equal(await page.locator("#tasks img").count(), 0);
+    assert.ok(
+      (await page.locator("#limits").textContent()).includes(
+        "authentication unknown · capacity unknown",
+      ),
+    );
+    assert.ok(
+      (await page.locator("#limits").textContent()).includes(
+        "not a provider reset",
+      ),
+    );
+    assert.ok(
+      (await page.locator("#limits").textContent()).includes("BLOCKED"),
+    );
+    assert.equal(await page.getByRole("button").count(), 1);
+    assert.equal(
+      await page.getByRole("button", { name: "Refresh", exact: true }).count(),
+      1,
+    );
+    const before = fs.readFileSync(snapshotFile);
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    assert.deepEqual(fs.readFileSync(snapshotFile), before);
+    if (process.env.M2_SCREENSHOTS) {
+      fs.mkdirSync(process.env.M2_SCREENSHOTS, { recursive: true });
+      await page.screenshot({
+        path: path.join(process.env.M2_SCREENSHOTS, "activity-failed.png"),
+        fullPage: true,
+      });
+    }
+    fs.writeFileSync(snapshotFile, "broken observation");
+    await page.waitForFunction(() =>
+      document.getElementById("status").textContent.includes("unavailable"),
+    );
+    assert.equal(await page.locator("#tasks").textContent(), "");
+    assert.equal(await page.locator("#limits").textContent(), "");
+    assert.equal(await page.locator("#events").textContent(), "");
+    document.stopped = false;
+    document.results[0].activity = "completion_unknown";
+    document.results[0].process = { state: "running", exit_code: null };
+    fs.writeFileSync(snapshotFile, JSON.stringify(document));
+    await page.waitForFunction(() =>
+      document.getElementById("status").textContent.includes("STOP clear"),
+    );
+    assert.ok(
+      (await page.locator("#tasks").textContent()).includes(
+        "Process running · exit unknown",
+      ),
+    );
+    assert.ok(
+      (await page.locator("#tasks").textContent()).includes(
+        "Detached processes are not ruled out",
+      ),
+    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    );
+    if (process.env.M2_SCREENSHOTS)
+      await page.screenshot({
+        path: path.join(process.env.M2_SCREENSHOTS, "activity-mobile.png"),
+        fullPage: true,
+      });
+    assert.deepEqual(problems, []);
+    assert.ok(
+      requests.every(
+        (request) =>
+          request.url.startsWith(origin + "/") && request.method === "GET",
+      ),
+    );
+    console.log(
+      "Activity browser: recorded failure, unknown completion, escaped text, cache/refresh read-only, unavailable/recovery, narrow layout and same-origin GET-only requests passed",
+    );
+    console.log("Fixture retained: " + fixture);
+  } finally {
+    if (context) await context.close();
+    if (browser) await browser.close();
+    if (child.exitCode === null) {
+      child.kill("SIGINT");
+      await Promise.race([
+        once(child, "exit"),
+        new Promise((resolve) => setTimeout(resolve, 2000)),
+      ]);
+      if (child.exitCode === null) child.kill("SIGKILL");
+    }
+  }
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

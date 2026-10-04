@@ -1,0 +1,151 @@
+/* Frugal Flock — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
+   https://github.com/danielmevit/frugal-flock
+   SPDX-License-Identifier: AGPL-3.0-only; see LICENSE and NOTICE. No warranty. */
+:root {
+  color-scheme: light;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  color: #252824;
+  background: #f7f6f3;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  line-height: 1.6;
+}
+main {
+  max-width: 1100px;
+  margin: auto;
+  padding: 36px 28px;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+.brand {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+h1 {
+  font-family: Georgia, serif;
+  font-weight: 400;
+  font-size: 38px;
+  line-height: 1.2;
+  letter-spacing: -1px;
+  margin: 8px 0 24px;
+}
+h2 {
+  font-size: 16px;
+  margin: 0 0 14px;
+}
+button {
+  font: inherit;
+  border: 1px solid #eaeaea;
+  background: #fff;
+  border-radius: 5px;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+button:hover {
+  background: #edf3ec;
+}
+:focus-visible {
+  outline: 2px solid #346538;
+  outline-offset: 4px;
+}
+.notice,
+.small {
+  color: #686762;
+  font-size: 13px;
+}
+.notice {
+  border-bottom: 1px solid #eaeaea;
+  padding-bottom: 22px;
+}
+#status {
+  font-size: 13px;
+  color: #346538;
+  margin: 24px 0;
+}
+#status.error {
+  color: #9f2f2d;
+}
+section {
+  margin: 32px 0;
+}
+.row {
+  border-top: 1px solid #eaeaea;
+  padding: 16px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr);
+  gap: 20px;
+}
+.row strong {
+  display: block;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.row p {
+  font-size: 13px;
+  margin: 4px 0;
+  color: #686762;
+}
+.row .data {
+  font-size: 13px;
+}
+.chip {
+  display: inline-block;
+  border-radius: 4px;
+  background: #edf3ec;
+  color: #346538;
+  font-size: 12px;
+  padding: 2px 7px;
+  margin: 0 5px 5px 0;
+}
+.chip.warn {
+  background: #fbf3db;
+  color: #805908;
+}
+pre {
+  background: #fff;
+  border: 1px solid #eaeaea;
+  border-radius: 8px;
+  padding: 18px;
+  font-size: 11px;
+  overflow: auto;
+  line-height: 1.7;
+}
+summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #686762;
+}
+footer {
+  font-size: 11px;
+  color: #686762;
+  border-top: 1px solid #eaeaea;
+  padding-top: 20px;
+  margin-top: 36px;
+}
+@media (max-width: 650px) {
+  main {
+    padding: 26px 20px;
+  }
+  .row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  h1 {
+    font-size: 32px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
