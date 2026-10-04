@@ -32,6 +32,13 @@ checkpoint so another AI can continue without the previous conversation.
   reviews here with zero paid reviewers. Bridge remains a disjoint draft.
   Next: launch Claude once, verify GLM failure, finish keyboard locally.
 
+- M2 user-test guide drafted 2026-10-04 by Claude (`claude-opus-5-5`, high),
+  wt/claude-m2 on agent/claude-m2: docs/M2-USER-TEST.md with neutral
+  prompts for all five moments, Stop/restart and narrow-screen checks,
+  understanding checks and two blank session records. Docs only; no
+  sessions run, no provider call, no runtime change. Root Codex reviews.
+  Next: owner runs two real sessions; M2 gates stay pending.
+
 - M2 prototype published as own merge `5d40d68` (candidate `0cfaa3f`),
   2026-10-04 by Codex (`gpt-6.1-sol`, xhigh). Main/own worktree clean/synced.
   Prepared one tiny dogfood task: Ctrl/Command+Enter submits the current
