@@ -71,6 +71,34 @@ accepted M1 on 2026-10-04. M2 starts when the owner asks for it.
 - Keep old configuration paths, environment overrides, and command
   compatibility. Existing local clone folders need not be renamed.
 
+## Near-term roadmap (owner-approved 2026-10-04)
+
+Goal: build the Frugal Flock app WITH Frugal Flock (dogfooding) and watch
+its behaviour live, so build progress, bugs and errors are visible as they
+happen. Only after a stability phase, so the team does not burn tokens in
+bug loops.
+
+Assessment of the plan (lead review, Claude Opus 5.5, 2026-10-04): the plan
+is sound and on the right path. Reliability first was right, the honesty
+rules (no invented quota, no sandbox claims) are right, and clean
+continuation after provider limits is the real differentiator. Risks:
+
+- Scope is large for one owner: local service, browser app, launcher,
+  checkpointed cross-provider continuation. Deliver thin vertical slices
+  and measure benefit before expanding (section 6).
+- 0.4.0 was verified with mock agents only; no live provider run yet.
+- "Two failed attempts, then escalate" is only a role-card rule; the
+  engine does not enforce it. Loops and wasted tokens start there.
+- Antigravity failed 2 of 2 live runs (about 55 minutes each).
+- Checkpointed handoff (save and move partial work) is the hardest piece;
+  the M1 handoff packet is context only.
+- The repository is public but has no license yet (section 7).
+
+Order: M1.5 below, then M2 built by the flock itself (mock-data prototype,
+one worker plus a reviewer, owner merges, widen after a few clean cycles),
+then the read-only local bridge (section 4), whose first view grows out of
+`frugal-flock watch`, then capacity-aware handoff (section 5).
+
 ## 1.5 M1.5 — stability before dogfooding
 
 Do the M1.5 stability phase, approved by the owner on 2026-10-04, in this
