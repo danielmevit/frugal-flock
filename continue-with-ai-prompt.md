@@ -11,9 +11,9 @@ checkpoint so another AI can continue without the previous conversation.
 ## Current checkpoint
 
 - Public repo: https://github.com/danielmevit/frugal-flock.
-- **M1 is complete and accepted by the owner (2026-10-04).** All five items
-  are merged into main and published. Runtime 0.4.0; no release tag yet.
-  The owner's global install is still 0.3.1 until the owner reinstalls.
+- **M1 is complete and accepted by the owner (2026-10-04)** and released as
+  v0.4.0 (tag and GitHub release; notes in [CHANGELOG.md](CHANGELOG.md)).
+  0.4.0 is installed globally; the 0.3.1 files are backed up locally.
 - Work was done by Claude Code (Claude Opus 5.5) as lead plus three
   parallel Claude subagents, each in its own worktree. Every step is its own
   revertable merge on main: `fade423`, `45803c1`, `ce3d57f`, `ec5fdee`,
@@ -52,10 +52,10 @@ folder is /mnt/d/Vibe Coding/_vm/frugal-flock/repo and worktrees are under
 folder; use its tmp directory for checks. Installed tools and credentials
 stay in their system locations; never copy credentials.
 
-NEXT: wait for the owner's direction. Candidates the owner may choose:
-reinstall 0.4.0 globally (affects every project using the agentteam
-command), a small live provider smoke run, a v0.4.0 release tag, or M2
-(the mock-data UI prototype in TODO.md). Do not start M2 unasked.
+NEXT: wait for the owner's direction. Before using Frugal Flock to build
+its own UI, the owner wants a stable version: prove the live loop with real
+providers on a throwaway repo first (see M1-STATUS). Do not start M2
+unasked.
 
 Say what you will do, then work in SMALL checkpoints: targeted tests,
 exact diff review, named-path commit, then a dated entry at the top of

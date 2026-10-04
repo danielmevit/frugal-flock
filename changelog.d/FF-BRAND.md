@@ -1,1 +1,0 @@
-Rename the product to Frugal Flock — Small plans. Big ideas. Add canonical `frugal-flock` and short `frgl-flc` commands and completion, retaining the `agentteam` installer, command, environment overrides and state paths.

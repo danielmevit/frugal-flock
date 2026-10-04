@@ -4,9 +4,10 @@
 
 **M1 is complete: all five items are implemented, merged into main and
 published, and the owner accepted M1 on 2026-10-04**, including the
-documentation-only scope result of the final gate. The runtime prints
-0.4.0. No release tag exists yet, and the global tool installed on the
-owner's machine is still 0.3.1 until the owner chooses to reinstall.
+documentation-only scope result of the final gate. It is released as
+**v0.4.0** (see [CHANGELOG.md](../CHANGELOG.md)) and installed globally on
+the owner's machine, with the 0.3.1 files backed up in the local
+workspace's `artifacts/backups/`.
 
 Frozen requirements: [QUALITY-M1-CONTRACT.md](QUALITY-M1-CONTRACT.md)
 at `e230ad4`. Clause-by-clause evidence:
@@ -136,8 +137,8 @@ the audit findings were fixed (see the audit for regressions):
   the result-file write is covered only by the atomic rename and the sweep.
 - `agents` reports `unknown` (not "missing") for wrappers such as
   `bash -c`, pipes or `$(...)` in the program word, by design.
-- Installing 0.4.0 globally, a live provider run and a release tag are
-  owner decisions.
+- A live provider run is still an owner decision; every check so far uses
+  mock agents.
 
 M2 (the UI prototype, see TODO) may start when the owner asks for it.
 
