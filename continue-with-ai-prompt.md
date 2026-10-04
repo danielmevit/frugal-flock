@@ -10,19 +10,28 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
-- M1.5 step 1 preparation is on `agent/codex` in `wt/codex` at `4b8e1a9`.
+- Antigravity live evidence is committed at `13e70e9` on `agent/codex` in
+  `wt/codex`; the checkpoint is ready for its own merge and push.
+- M1.5 preparation is merged and pushed as `d991350` (candidate `4b8e1a9`
+  plus `61327ec`). The owner-approved README rewrites `4565cfd` and `f6f0ed9` are also
+  on main and included in this Codex worktree; preserve it.
   [Canary plan and evidence](docs/M1.5-LIVE-CANARY.md). The isolated live
   fixture is `tmp/m15-canary-20261004/live/`, with all six workers including
-  Antigravity at the owner's explicit request. Its STOP file is active;
-  **no provider quota has been spent and live testing is not complete**.
+  Antigravity at the owner's explicit request. **Antigravity passed in
+  22 seconds**, one commit `66793a1`, verify 2/2, this session's Codex code
+  review approved through a sealed local adapter, current ready result.
+  One live worker invocation, no extra reviewer call or retry. The earlier
+  silent stall did not recur. Receipts stay local; its STOP file is active.
+  M1.5 step 1 remains incomplete: the other canaries have not run.
   The installed 0.4.0 passed the mock run/verify/review/result rehearsal,
   including review gating and stale-result checks. The full offline gate
   passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
   branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
-  No worker is active. Next: run the authorized first Antigravity worker
-  cycle, then this Codex session reviews the code. No extra reviewer call.
-  Claude is owner-reported limited for the next five hours; Codex does the
-  main implementation and review work. Other worker calls need quota approval.
+  No worker is active. Next: obtain quota approval for the prepared Grok
+  canary. Claude is owner-reported limited for five hours (avoid through
+  22:42 +0200 on 2026-10-04, an operator interval, not a confirmed reset).
+  Codex does the main implementation and reviews in-session. Other worker
+  calls need quota approval; no separate provider reviewer call authorized.
   The owner authorized each finished checkpoint's own merge and push.
 - Public repo: https://github.com/danielmevit/frugal-flock.
 - **M1 is complete and accepted by the owner (2026-10-04)** and released as
@@ -70,12 +79,14 @@ NEXT: the M1.5 stability phase, approved by the owner on 2026-10-04, in this
 order, one small tested checkpoint each:
 1. Live canary: a throwaway repo, one tiny task per agent through run,
    verify, review and result. Tiny tasks only; it uses provider quota.
-   Preparation is on agent/codex at 4b8e1a9; read docs/M1.5-LIVE-CANARY.md.
+   Preparation was merged/pushed as d991350; read docs/M1.5-LIVE-CANARY.md.
    The fixture is tmp/m15-canary-20261004/live; all six workers are ready,
    including Antigravity at the owner's request to recheck its earlier error.
-   STOP is active; the first Antigravity worker call is authorized. No live
-   call yet. The Codex lead reviews in-session; do not call Claude for the
-   next five hours (owner-reported limit). Other worker calls need approval.
+   Antigravity passed in 22 seconds (run/verify/lead review/result); one
+   worker call, zero extra reviewer calls, no retry. STOP is active again.
+   Next: quota approval for Grok. The Codex lead reviews in-session; do not
+   call Claude before 22:42 +0200 on 2026-10-04 (operator interval, not a
+   provider-confirmed reset). Other worker calls need approval.
    Ask before spending provider quota; no retries or fallback calls.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
