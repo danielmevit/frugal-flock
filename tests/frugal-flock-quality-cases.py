@@ -105,8 +105,25 @@ hello.write_text(original)
 git('update-index','--assume-unchanged','hello.txt')
 hello.write_text(original+'hidden edit\n')
 check('assume-unchanged content is hashed',data()['stale'])
+# Git diff/status skip flagged paths, so scope and review would miss the edit.
+p=call('verify','mock','evidence',code=2)
+check('assume-unchanged edit refused by verify','assume-unchanged/skip-worktree' in p.stderr and 'hello.txt' in p.stderr)
+call('handoff','mock','evidence',code=2)
+check('assume-unchanged edit refused by handoff')
 hello.write_text(original)
 git('update-index','--no-assume-unchanged','hello.txt')
+git('update-index','--skip-worktree','hello.txt')
+hello.write_text(original+'hidden edit\n')
+call('verify','mock','evidence',code=2)
+check('skip-worktree edit refused by verify')
+hello.write_text(original)
+git('update-index','--no-skip-worktree','hello.txt')
+ready()
+# A flag alone leaves the hash current, but review cannot prove complete material.
+git('update-index','--skip-worktree','hello.txt')
+call('review','mock','evidence','rev',code=2)
+check('flagged index refuses review material',data()['review']['state']=='unknown' and not data()['review']['material_complete'])
+git('update-index','--no-skip-worktree','hello.txt')
 special=wt/'space " quote\\ tab\tline\nž.txt'
 special.write_text('one')
 check('JSON-special untracked filename',data()['stale'])
@@ -229,6 +246,27 @@ result.unlink(); result.symlink_to(outside/'result.json')
 call('verify','mock','evidence',code=2)
 check('result symlink refused',not (outside/'result.json').exists())
 result.unlink(); result.write_text(good)
+
+# A failed post-run snapshot keeps the worker's real exit, report and ledger line.
+(root/'coord/tasks/snapfail.md').write_text(original_task)
+snap=root/'coord/results/mock/snapfail.json'
+ledger=root/'coord/reports/ledger.jsonl'
+for code in (7, 0):
+    conf.write_text(f"mock=bash -c 'echo snap >> hello.txt; git add hello.txt; git commit -qm snap; mkfifo pipe; exit {code}'\n")
+    p=call('run','mock','snapfail',code=code or 2,env={'AGENTTEAM_AUTO_VERIFY':'1'})
+    d=json.loads(snap.read_text())
+    check(f'snapshot failure keeps worker exit {code}',d['process']['exit_code']==code
+          and d['process']['state']==('failed' if code else 'succeeded') and d['process']['post_run_snapshot']=='failed'
+          and d['stale'] and not d['ready_for_human_review'] and 'post-run snapshot failed' in p.stderr)
+    last=json.loads(ledger.read_text().splitlines()[-1])
+    check(f'snapshot failure still writes report and ledger ({code})',last['event']=='run' and last['task']=='snapfail'
+          and last['exit']==code and last['snapshot_failed']==1
+          and f'exit={code}' in (root/'coord/reports/snapfail.md').read_text().split('## run ')[-1])
+    call('result','mock','snapfail',code=2)
+    (wt/'pipe').unlink()
+    d=data('snapfail')
+    check(f'unbound process evidence stays stale after cleanup ({code})',d['stale'] and not d['ready_for_human_review'])
+configuration()
 
 # Availability never executes even hostile configured commands.
 marker=root/'availability-executed'

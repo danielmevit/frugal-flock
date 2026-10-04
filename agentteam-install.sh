@@ -181,6 +181,8 @@ def valid_document(d, worker, task):
         fail('inconsistent unknown process exit')
     if p['state'] == 'failed' and p.get('exit_code') == 0:
         fail('inconsistent failed process')
+    if 'post_run_snapshot' in p and (p['post_run_snapshot'] != 'failed' or p['state'] not in ('succeeded','failed')):
+        fail('inconsistent post-run snapshot state')
     if v.get('scope') not in ('OK','VIOLATION','UNCHECKED') or any(type(v.get(k)) is not int or v[k] < 0 for k in ('checks_run','checks_failed')) or v['checks_failed'] > v['checks_run']:
         fail('malformed validation counts/scope')
     for s in (v, r):
@@ -208,7 +210,7 @@ def load(root, worker, task, missing=False):
 
 def current(d, rev):
     evidence = [d.get('revision')] + [d[s].get('revision') for s in ('process','validation','review') if d[s]['state'] != 'not_run']
-    d['stale'] = any(r is not None and r != rev for r in evidence)
+    d['stale'] = any(r is not None and r != rev for r in evidence) or d['process'].get('post_run_snapshot') == 'failed'
     d['ready_for_human_review'] = not d['stale'] and all(d[s]['state'] == state and d[s]['revision'] == rev for s,state in [('process','succeeded'),('validation','passed'),('review','approved')])
     d['current_revision'] = rev
     return d
@@ -230,8 +232,17 @@ def update(root, worker, task, operation, encoded, *args):
     if operation == 'start':
         d = fresh(worker, task)
         d['process'] = dict(state='running', exit_code=None, revision=rev)
-    elif operation == 'end':
+    elif operation in ('end', 'end-unbound'):
         code = int(args[0]); d['process'] = dict(state='succeeded' if code == 0 else 'failed', exit_code=code, revision=rev)
+        if operation == 'end-unbound':
+            # The post-run snapshot failed: keep the real exit, bound to the last
+            # known (pre-run) revision, and never let it count as current evidence.
+            d['process']['post_run_snapshot'] = 'failed'
+            d['revision'] = rev; d['updated_at'] = stamp()
+            d.update(stale=True, ready_for_human_review=False, current_revision=None)
+            valid_document(d, worker, task)
+            atomic(locations(root,worker,task)[2], d)
+            return
     elif operation == 'validation':
         state,scope,ran,failed,reasons = args
         d['validation'] = dict(state=state, scope=scope, checks_run=int(ran), checks_failed=int(failed), reasons=reasons.split(',') if reasons else [], revision=rev)
@@ -247,13 +258,28 @@ def update(root, worker, task, operation, encoded, *args):
     valid_document(d, worker, task)
     atomic(locations(root,worker,task)[2], d)
 
+def hidden(wt):
+    # assume-unchanged (lowercase tag) and skip-worktree (S/s) entries make git
+    # diff/status skip real edits; scope and review material would then omit
+    # work the snapshot still hashes. Refuse rather than claim complete paths.
+    rows = git(wt, 'ls-files', '-v', '-z').split(b'\0')
+    flagged = sorted(os.fsdecode(r[2:]) for r in rows if r and (r[:1].islower() or r[:1] == b'S'))
+    if flagged:
+        fail('unsupported assume-unchanged/skip-worktree index flags hide edits from scope and review: '
+             + ', '.join(flagged[:5]) + (' (+%d more)' % (len(flagged) - 5) if len(flagged) > 5 else '')
+             + '; clear them with git update-index --no-assume-unchanged --no-skip-worktree, '
+             + 'or git sparse-checkout disable')
+
 def changed(root, worker, task):
     wt,_,_ = locations(root,worker,task)
     rev = snapshot(root,worker,task)
-    committed = git(wt, 'diff', '--no-ext-diff', '--name-only', '--no-renames', '-z', rev['base_commit'] + '...HEAD')
-    staged = git(wt, 'diff', '--cached', '--no-ext-diff', '--name-only', '--no-renames', '-z')
-    unstaged = git(wt, 'diff', '--no-ext-diff', '--name-only', '--no-renames', '-z')
-    untracked = git(wt,'ls-files','--others','--exclude-standard','-z')
+    hidden(wt)
+    # A configured fsmonitor hook could also report edited paths as unchanged.
+    q = ('-c', 'core.fsmonitor=false')
+    committed = git(wt, *q, 'diff', '--no-ext-diff', '--name-only', '--no-renames', '-z', rev['base_commit'] + '...HEAD')
+    staged = git(wt, *q, 'diff', '--cached', '--no-ext-diff', '--name-only', '--no-renames', '-z')
+    unstaged = git(wt, *q, 'diff', '--no-ext-diff', '--name-only', '--no-renames', '-z')
+    untracked = git(wt, *q, 'ls-files','--others','--exclude-standard','-z')
     return {k:sorted(set(os.fsdecode(x) for x in v.split(b'\0') if x)) for k,v in [('committed',committed),('staged',staged),('unstaged',unstaged),('untracked',untracked)]}
 
 def gate(root,worker,task):
@@ -841,8 +867,18 @@ cmd_run() {
   [ "$dur" -lt 0 ] && dur=0            # clock source changed mid-run
   # a big gap between the two means the machine slept while the run was open
   [ $(( wallsec - dur )) -gt 60 ] && suspended=1
-  revision_after=$(quality snapshot "$root" "$worker" "$task") || return $?
-  quality update "$root" "$worker" "$task" end "$revision_after" "$rc" || return $?
+  # A failed snapshot (e.g. the worker left a FIFO) must not lose the worker's
+  # real exit, its report or its ledger line: record what is known, mark the
+  # evidence unbound, and finish the receipts before returning nonzero.
+  local snap_failed=0 record_failed=0
+  if revision_after=$(quality snapshot "$root" "$worker" "$task"); then
+    quality update "$root" "$worker" "$task" end "$revision_after" "$rc" || record_failed=1
+  else
+    snap_failed=1
+    quality update "$root" "$worker" "$task" end-unbound "$revision_before" "$rc" || record_failed=1
+    echo "!! post-run snapshot failed — exit=$rc is recorded, but the result is not bound to the current worktree and is not ready; fix the worktree, then run again" >&2
+  fi
+  [ "$record_failed" = 0 ] || echo "!! could not persist the structured result for '$task' — see the error above" >&2
 
   # receipts for the verdict line + ledger
   local commits files ins dels unc
@@ -857,6 +893,7 @@ cmd_run() {
     echo "## run $(date -Is) — worker=$worker agent=$agent exit=$rc duration=${dur}s task_sha=$task_fp"
     [ "$suspended" = 1 ] && echo "!! machine slept mid-run: ${wallsec}s wall clock, ${dur}s actually working" \
                                  "— don't leave background runs open overnight"
+    [ "$snap_failed" = 1 ] && echo "!! post-run snapshot failed — exit=$rc recorded; structured result unbound and not ready"
     echo
     echo "### git status (branch, staged/unstaged)"
     git -C "$wt" status --porcelain=v1 -b
@@ -889,8 +926,8 @@ cmd_run() {
     fi
   fi
 
-  ledger_add "$root" "$(printf '{"event":"run","ts":"%s","task":"%s","worker":"%s","agent":"%s","exit":%d,"duration_s":%d,"wall_s":%d,"suspended":%d,"commits":%d,"files":%d,"insertions":%d,"deletions":%d,"uncommitted":%d,"wall":%d}' \
-    "$(date -Is)" "$task" "$worker" "$agent" "$rc" "$dur" "$wallsec" "$suspended" "$commits" "$files" "$ins" "$dels" "$unc" "$wall")"
+  ledger_add "$root" "$(printf '{"event":"run","ts":"%s","task":"%s","worker":"%s","agent":"%s","exit":%d,"duration_s":%d,"wall_s":%d,"suspended":%d,"snapshot_failed":%d,"commits":%d,"files":%d,"insertions":%d,"deletions":%d,"uncommitted":%d,"wall":%d}' \
+    "$(date -Is)" "$task" "$worker" "$agent" "$rc" "$dur" "$wallsec" "$suspended" "$snap_failed" "$commits" "$files" "$ins" "$dels" "$unc" "$wall")"
 
   if [ "$suspended" = 1 ]; then
     echo "exit=$rc duration=${dur}s (machine slept — ${wallsec}s wall) — report: $report"
@@ -898,7 +935,9 @@ cmd_run() {
     echo "exit=$rc duration=${dur}s — report: $report"
   fi
   local verify_rc=0
-  if [ "${AGENTTEAM_AUTO_VERIFY:-0}" = "1" ]; then
+  if [ "$snap_failed" = 1 ] || [ "$record_failed" = 1 ]; then
+    verify_rc=2   # no trustworthy revision to verify against
+  elif [ "${AGENTTEAM_AUTO_VERIFY:-0}" = "1" ]; then
     # Keep the same lock across automatic validation; no new run may intervene.
     cmd_verify "$worker" "$task" locked || verify_rc=$?
     echo "next: frugal-flock diff $worker"
@@ -1663,7 +1702,10 @@ ST_CG_EOF
     skip)      sleep 1
                [ ! -s "$CG_LOG" ] && [ ! -d "$d/p/wt/mock/.codegraph" ] \
                  && ! printf '%s' "$out" | grep -qi codegraph ;;
-    background) grep -q '^call ' "$CG_LOG" \
+    background) # detached means init can return before the indexer starts;
+               # on a slow /mnt/ drive that gap made this check flaky
+               for _ in $(seq 50); do grep -q '^call ' "$CG_LOG" && break; sleep 0.2; done
+               grep -q '^call ' "$CG_LOG" \
                  && printf '%s' "$out" | grep -qi 'codegraph.*background' ;;
     timebox)   # the indexer must be gone, not merely quiet: waiting for the
                # 45s fake to finish would "pass" with no time-box at all

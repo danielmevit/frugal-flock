@@ -2,49 +2,45 @@
 
 ## Status
 
-In progress, **not accepted or merged**. The public shipped CLI baseline
-is 0.3.1. Do not advertise the planned 0.4.0 changes as shipped until the
-implementation is independently verified and integrated by the owner.
+In progress, **not accepted**. On 2026-10-04 the owner merged the four
+FF-QUALITY commits (`agent/codex` at `80feafb`) into main as `5d70223`
+and published them. That merge is not M1 acceptance. The runtime prints
+0.4.0, but that is not an accepted release; the accepted baseline is 0.3.1.
 
 Frozen requirements: [QUALITY-M1-CONTRACT.md](QUALITY-M1-CONTRACT.md)
-at `e230ad4`. The current implementation target is `agent/codex` in
-`../wt/codex`, relative to the main `repo/` checkout. Its four saved quality
-commits end at **`80feafb15049411238b864cace7077af3f43376b`**.
-These existing commits were fast-forwarded into Codex's checkout without
-changing the implementation or merging it into main. The former branch
-and `FF-QUALITY-kimi` task/reports are historical records, not the current
-worker assignment.
+at `e230ad4`. Current work: branch `agent/claude` in `../wt/claude`,
+relative to the main `repo/` checkout. It was made by Claude Code (Claude
+Opus 5.5) on 2026-10-04, branched from main `5d70223`. At the owner's
+request it was merged into main the same day:
 
-The checkout is clean and no implementation worker is active. The owner
-has limited the current work to project-state cleanup and handoff docs.
-Do not dispatch or resume implementation until explicitly requested.
-This is **work in progress, not an accepted 0.4.0 release**. See the
-[final continuation report](SESSION-HANDOFF-2026-10-04.md) for the exact
-code/document branches, known blockers, and next actions.
+- `e9bfb1a`: item 1 below (hidden index flags) fixed, with regressions.
+- `38f6cf6`: the flaky CodeGraph selftest fixed; the full runner passes.
+- `9d48b76`: item 2 below (post-run snapshot failure) fixed, with regressions.
+- The docs checkpoint after these: this file, the usage doc, the changelog
+  fragment, the continuation prompt and the agent-log rule.
+
+Every agent reads the local `../coord/AGENT-LOG.md` first and adds a dated
+entry after each checkpoint. See [WORKSPACE-RULES.md](../WORKSPACE-RULES.md).
+The former `agent/codex` and `agent/kimi` branches are historical.
 
 ## Resume locally
 
 ```bash
-agentteam status
-git -C ../wt/codex status --short --branch
-git -C ../wt/codex log -4 --oneline
+cat ../coord/AGENT-LOG.md
+git -C ../wt/claude status --short --branch
+git log --oneline main..agent/claude
 ```
 
-Inspect the saved candidate without changing either checkout:
+Inspect the current work without changing either checkout:
 
 ```bash
-git diff main...agent/codex --stat
-git diff main...agent/codex -- agentteam-install.sh tests/ tools/quality-check.sh
+git diff main...agent/claude --stat
+git diff main...agent/claude -- agentteam-install.sh tests/
 ```
 
-When implementation is authorized again, the lead should prepare a bounded
-Codex task preserving the frozen scope and validation requirements. Do not
-rewrite the historical task or dispatch a worker just to complete this handoff.
-Use the candidate checks in the [continuation report](SESSION-HANDOFF-2026-10-04.md).
-
-Review the real diff, not just the report. A failure needs a bounded repair
-task; preserve the original contract and all partial work. Never reset a
-dirty worktree or restart an interrupted implementation from scratch.
+Start from main, which contains `agent/claude`. Check the local agent log
+for newer branches first. Review the real diff, not just the report. Never reset a dirty
+worktree or restart an interrupted implementation from scratch.
 
 ## First increment — independently checked
 
@@ -84,35 +80,50 @@ The exact next small task and checkpoint-maintenance rule are in the root
   bypass a held worker lock.
 
 These are implemented candidates, not claims of complete reliability.
-The initial `docs/QUALITY-USAGE.md` on the worker branch still describes
-only the first increment and needs updating for the newer commands.
+`docs/QUALITY-USAGE.md` was later updated in part; see item 4 below.
+
+## Claude checkpoints, 2026-10-04
+
+Results from `../wt/claude` at `9d48b76`, run by Claude Code (Claude Opus
+5.5) with TMPDIR set to the workspace `tmp/` folder:
+
+- `bash tests/frugal-flock-quality.sh`: 16 basic + 75 contract checks
+  passed (11 new: 5 for item 1, 6 for item 2).
+- Each new regression failed on the unfixed code: verify reported PASS
+  over an assume-unchanged edit, and run returned 2 instead of the
+  worker's real exit 7 after a FIFO broke the post-run snapshot.
+- `bash tools/quality-check.sh`: all checks passed: 40/40 selftests, 14
+  adversarial probes held, branding/aliases/protocol identity, installed
+  runtime ShellCheck, installer syntax and docs lint. Before `38f6cf6` it
+  stopped at the CodeGraph selftest race, on main as well.
+- `git diff --check`: clean.
+
+No live provider was called. The native frozen `agentteam verify` gate was
+not rerun: the installed global tool is still 0.3.1 and was left alone.
 
 ## Remaining before M1 can be accepted
 
-1. Fix the hidden-index-flag gap: snapshots hash actual tracked contents,
-   but Git's diff/status-derived scope and review material can omit edits
-   under assume-unchanged/skip-worktree flags. Reject unsupported flags
-   conservatively or prove complete material/scope; add regressions.
-2. Repair/audit run finalization when the post-run snapshot fails: the
-   current early return can lose the actual worker exit and leave persisted
-   process state running. Preserve truthful failed-process evidence without
-   manufacturing a fresh revision; add a nonzero-worker/snapshot-failure test.
+1. DONE on `agent/claude` (`e9bfb1a`): the hidden-index-flag gap. Verify,
+   review and handoff refuse assume-unchanged/skip-worktree flags, and
+   changed() disables fsmonitor.
+2. DONE on `agent/claude` (`9d48b76`): post-run snapshot failure. Run keeps
+   the real exit, report and ledger, and marks the result unbound and stale.
 3. Expand missing acceptance coverage, especially binary/oversized review
-   material, interrupted packet publication, and full contract edge cases.
-4. Update help/completion, Python dependency/setup instructions, result
-   schema and command docs, changed review exits/constraints, operational
-   protocol copies, and affected Word manuals. Changelog also needs the
-   later increment description.
-5. Run all gates again, inspect the exact final diff, and obtain owner
-   acceptance/integration before claiming M1 complete or starting live UX.
+   material, interrupted packet publication, and a systematic audit
+   against every frozen contract clause.
+4. Update help/completion for `result`, `handoff` and `agents --json`,
+   Python dependency/setup instructions, result schema and command docs,
+   changed review exits/constraints, operational protocol copies, and
+   affected Word manuals. `docs/QUALITY-USAGE.md` and the changelog
+   fragment now cover items 1 and 2 but are otherwise incomplete.
+5. Run all gates again, including the native frozen verify gate, inspect
+   the exact final diff, and obtain owner acceptance/integration before
+   claiming M1 complete or starting live UX.
 
-Do not repeat the completed rename, research, or first increment. Continue
-from this saved branch and preserve its changes. The runtime now embeds its
-own helper; the older scratch prototype is now kept locally in
-`artifacts/legacy-prototypes/agentteam-quality.py` under the enclosing
-workspace. It is obsolete and must not replace the embedded helper.
-A fresh clone needs no private logs,
-temporary helper, or original conversation.
+Do not repeat the completed rename, research, or first increment. The
+runtime embeds its own helper; the older scratch prototype in
+`artifacts/legacy-prototypes/agentteam-quality.py` is obsolete and must
+not replace it. A fresh clone needs no private logs or old conversation.
 
 ## Boundaries
 
