@@ -281,4 +281,19 @@ check('availability authentication/capacity unknown',all(a['authentication']=='u
 call('off','literal','5m')
 a={a['name']:a for a in json.loads(call('agents','--json').stdout)['agents']}['literal']
 check('operator retry recorded honestly',a['bench']['off'] and a['bench']['operator_retry_at']>time.time() and 'not a provider reset' in call('agents').stdout)
+# Every shipped line passes "$(cat "$TASKFILE")": quoted arguments must not hide
+# the program, while operators or expansion in the program word stay unknown.
+configuration(extra='shipped=FOO="$HOME/x" /usr/bin/true -p "$(cat "$TASKFILE")" --model m\n'
+                    'chained=/usr/bin/true; /usr/bin/false\npiped=/usr/bin/true | tee out\n'
+                    'expanded=$(echo /usr/bin/true) arg\nvariable=$HOME/bin/tool -p x\n')
+mapping={a['name']:a for a in json.loads(call('agents','--json').stdout)['agents']}
+check('quoted shell syntax in arguments still resolves the program',mapping['shipped']['binary']['present'] is True
+      and 'shipped: installed=yes' in call('agents').stdout)
+check('operators or expansion in the program stay unknown',all(mapping[n]['binary']['present'] is None for n in ('chained','piped','expanded','variable')))
+conf.write_text('mock=FOO="a b" /usr/bin/true -p "$(cat "$TASKFILE")"\nnoop=/no/such/binary\n')
+out=subprocess.run([at,'doctor'],capture_output=True,text=True)
+out=out.stdout+out.stderr
+check('doctor accepts env-prefixed agent lines but flags a missing binary',
+      "agent 'mock' binary not on PATH" not in out and "agent 'noop' binary not on PATH" in out)
+configuration()
 print(f'quality contract regressions: {count} passed')

@@ -39,7 +39,7 @@ die() { echo "frugal-flock: $*" >&2; exit 1; }
 
 # One embedded runtime; Python uses only its standard library and never a shell.
 quality() {
-  command -v python3 >/dev/null || die "Python 3 is required before run/review/smoke"
+  command -v python3 >/dev/null || die "Python 3 is required before run/verify/review/smoke/agents/result/handoff"
   python3 - "$@" <<'QUALITY_PY'
 import datetime, hashlib, json, os, re, shlex, shutil, stat, subprocess, sys, tempfile, time
 
@@ -320,7 +320,12 @@ def agents(conf,offdir,mode):
         name,cmd=line.split('=',1); ident(name)
         binary=None; present=None
         try:
-            tokens=shlex.split(cmd)
+            # Quoted arguments may hold shell syntax (every shipped line passes
+            # "$(cat "$TASKFILE")"); only unquoted operators, or expansion in the
+            # program word itself, make the program that runs ambiguous.
+            lex=shlex.shlex(cmd,posix=True,punctuation_chars=True); lex.whitespace_split=True
+            tokens=list(lex)
+            operator=any(all(c in '();<>|&' for c in t) for t in tokens if t)
             assignments=[]
             while tokens and re.match(r'^[A-Za-z_][A-Za-z_0-9]*=',tokens[0]): assignments.append(tokens.pop(0))
             if tokens and tokens[0]=='env':
@@ -328,7 +333,7 @@ def agents(conf,offdir,mode):
                 if tokens and tokens[0]=='--': tokens.pop(0)
                 while tokens and re.match(r'^[A-Za-z_][A-Za-z_0-9]*=',tokens[0]): assignments.append(tokens.pop(0))
             if tokens: binary=tokens[0]
-            ambiguous=(not binary or any(c in cmd for c in '$`|;&<>()\n') or any(a.startswith('PATH=') for a in assignments)
+            ambiguous=(not binary or operator or any(c in binary for c in '$`') or any(a.startswith('PATH=') for a in assignments)
                        or (binary and (binary.startswith('-') or os.path.basename(binary) in ('sh','bash','dash','zsh','ksh','env','timeout','nohup','setsid','sudo','exec','command'))))
             if not ambiguous: present=shutil.which(binary) is not None
         except ValueError: pass
@@ -478,6 +483,12 @@ agent_cmd() {
   line=$(grep -E "^${agent}=" "$conf" 2>/dev/null | head -1 || true)
   [ -n "$line" ] || return 1
   printf '%s\n' "${line#*=}"
+}
+
+agent_present() { # $1=agent $2=conf -> yes / no / unknown; never executes the command
+  quality agents "$2" "$OFF_DIR" --json 2>/dev/null | python3 -c 'import json, sys
+a = {x["name"]: x["binary"]["present"] for x in json.load(sys.stdin)["agents"]}
+print({True: "yes", False: "no"}.get(a.get(sys.argv[1]), "unknown"))' "$1" 2>/dev/null || echo unknown
 }
 
 ledger_add() { # $1=root  $2=one JSON object — the machine twin of reports/*.md
@@ -1243,13 +1254,13 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
   local author="${worker%%-*}" conf; conf=$(conf_for_root "$root")
 
   if [ -z "$reviewer" ]; then
-    local line name cmdw
+    local line name
     while IFS= read -r line; do
       case "$line" in ''|'#'*) continue;; esac
-      name="${line%%=*}"; cmdw="${line#*=}"
+      name="${line%%=*}"
       [ "$name" = "$author" ] && continue
       is_off "$name" && continue
-      command -v "${cmdw%% *}" >/dev/null 2>&1 || continue
+      [ "$(agent_present "$name" "$conf")" != no ] || continue
       reviewer="$name"; break
     done < "$conf"
   fi
@@ -1592,7 +1603,8 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
     [ "$dirty" -gt 0 ] && warn "worker '$w' has $dirty uncommitted file(s) in its worktree"
     if ! agent_cmd "$agent" "$conf" >/dev/null 2>&1; then
       err "worker '$w': no agents.conf line for agent '$agent' — its runs will fail"
-    elif ! command -v "$(agent_cmd "$agent" "$conf" | awk '{print $1}')" >/dev/null 2>&1; then
+    elif [ "$(agent_present "$agent" "$conf")" = no ]; then
+      # same parser as 'agents': env assignments and quoted arguments are fine
       warn "worker '$w': agent '$agent' binary not on PATH (benched-equivalent)"
     fi
   done
