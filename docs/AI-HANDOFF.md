@@ -5,6 +5,13 @@ previous conversation, one particular model, or private coordination logs.
 If the next AI cannot access GitHub, attach this file and the documents
 listed in its reading order.
 
+Latest checkpoint: read [the 2026-10-04 continuation report](SESSION-HANDOFF-2026-10-04.md)
+first. Main contains planning/reporting; implementation is on `agent/kimi`
+at `80feafb15049411238b864cace7077af3f43376b`, not merged. The report's
+short prompt supersedes any older prototype-first prompt.
+For subsequent sessions use [FRUGAL-FLOCK-NEXT-AI.md](../FRUGAL-FLOCK-NEXT-AI.md),
+the living prompt that must be refreshed after every small checkpoint.
+
 ## Current baseline
 
 - Public repository: https://github.com/danielmevit/frugal-flock
@@ -89,7 +96,11 @@ and this docs/AI-HANDOFF.md. Do not assume the historical Claude research
 contains current provider pricing, permissions, or product facts.
 
 My next requested milestone is M1 QUALITY, before UX. Respect the frozen
-contract at e230ad4. Check task FF-QUALITY-kimi and branch agent/kimi if
+contract at e230ad4. Read docs/SESSION-HANDOFF-2026-10-04.md from main.
+The saved implementation is on agent/kimi at 80feafb, not main; do not
+rebuild its completed features. Fix the report's known correctness gaps
+and documentation/test omissions before claiming M1 done.
+Check task FF-QUALITY-kimi and branch agent/kimi if
 available locally. If the worker is running, do not sync/reset its checkout
 or launch a duplicate writer. Preserve partial edits and commits. A fresh
 clone must not assume missing implementation branches were merged: inspect
@@ -129,6 +140,9 @@ engine as a separate implementation. M1 improves the existing embedded
 runtime. Full OS isolation, the local bridge, durable jobs, and automatic
 provider recovery remain separate work. A manual context packet is not a
 backup of uncommitted files or shared conversation memory.
+The owner also endorsed capacity-aware task sizing and clean continuation
+after usage limits. Read docs/CAPACITY-AWARE-CONTINUATION.md from main.
+It remains a later proposal, not a universal quota API or shipped scheduler.
 
 Meet the exact QUALITY-M1-CONTRACT acceptance criteria. Run the relevant
 regression checks without spending provider quota or changing the global

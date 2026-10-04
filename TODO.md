@@ -2,6 +2,11 @@
 
 Small plans. Big ideas.
 
+Checkpoint rule: one bounded correction at a time; test, commit, then
+update [FRUGAL-FLOCK-NEXT-AI.md](FRUGAL-FLOCK-NEXT-AI.md) with the exact
+candidate SHA, evidence, blockers, active workers and one next task.
+The local main folder is now `/mnt/d/Vibe Coding/_vm/frugal-flock`.
+
 ## Current handoff
 
 - Name and tagline approved by the owner.
@@ -47,6 +52,12 @@ mock-only regressions and independent source review before owner integration.
 This is not full OS isolation, a dirty-file backup, automatic provider
 migration, or automatic merging. Keep those limitations visible. Stop at
 a verified, handoff-ready checkpoint before starting the UI.
+
+Implementation checkpoint is `80feafb` on `agent/kimi`; it now includes
+structured evidence, gated review, local availability and manual context
+packets as well as strict verification. Full M1 is still incomplete.
+Start with [the exact continuation report](docs/SESSION-HANDOFF-2026-10-04.md)
+and repair its known correctness/documentation gaps before UI work.
 
 ### Clean-clone baseline check
 
@@ -104,6 +115,11 @@ folder selection, missing-engine setup, provider installation/sign-in,
 and failure recovery before claiming a command-free first use.
 
 ## 5. Build reliable provider handoff
+
+The owner endorsed [capacity-aware task sizing and clean continuation](docs/CAPACITY-AWARE-CONTINUATION.md).
+Preserve this design for a later milestone: periodic supported readings or
+manual input, conservative scheduling, and tested recovery checkpoints.
+M1's context packet is not a backup of uncommitted files.
 
 After a run stops, capture committed and uncommitted work, task context,
 completed checks, and unfinished work. Let the user select another

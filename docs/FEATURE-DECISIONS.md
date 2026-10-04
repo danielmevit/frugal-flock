@@ -21,3 +21,9 @@ controls, preserved checkpoints, and guided provider replacement. Defer
 automatic consensus, accounts/hosted services, an infinite workflow canvas,
 and silent model routing. They do not yet justify their complexity for a
 person working with basic plans.
+
+The owner particularly endorsed clean continuation after provider limits.
+The proposed next layer is [capacity-aware task sizing and continuation](CAPACITY-AWARE-CONTINUATION.md):
+supported usage readings or manual input, conservative scheduling, and
+tested checkpoints. This is design work, not a shipped capability or a
+change to M1's frozen scope.

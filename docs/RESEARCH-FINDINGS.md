@@ -21,6 +21,7 @@ separate reusable documents. They are now linked below.
 | F10 — Related workflow types | Explain supervisor/worker, parallel, sequential, writer/reviewer, races, and continuation; distinguish unsupported consensus and quota pooling. | [Plain-language workflows](AI-TEAM-WORKFLOWS.md) |
 | F11 — Useful competitor ideas | Adopt evidence packages and separate result states in M1; defer expensive councils and cloud services. Original implementation only. | [Feature decisions](FEATURE-DECISIONS.md) |
 | F12 — Visual reference | Toolcraft-inspired working area and compact inspector, without copying source/templates/assets. UI follows M1. | [Toolcraft reference](TOOLCRAFT-REFERENCE.md) |
+| F13 — Capacity-aware continuation | Owner-endorsed direction: choose finishable tasks based on honest capacity signals and preserve work before limits. Proposed, not implemented. | [Continuation design](CAPACITY-AWARE-CONTINUATION.md) |
 
 ## Current state
 
