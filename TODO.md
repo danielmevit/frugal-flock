@@ -108,8 +108,10 @@ order, one small tested checkpoint each:
    Offline preparation is recorded in [the canary checkpoint](docs/M1.5-LIVE-CANARY.md).
    Antigravity passed its first canary in 22 seconds on 2026-10-04;
    the earlier silent stall did not recur. One worker call, no retry.
+   Grok also passed in 35 seconds, one worker call, 2/2 checks and lead review.
    Claude is limited for five hours; the Codex lead does code review and
-   implementation. Next proposed worker: Grok, pending quota approval.
+   implementation. Next authorized worker: OpenCode Go with
+   `opencode-go/glm-5.3`, one call, no retry.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
