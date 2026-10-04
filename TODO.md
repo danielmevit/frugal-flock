@@ -57,11 +57,12 @@ This is not full OS isolation, a dirty-file backup, automatic provider
 migration, or automatic merging. Keep those limitations visible. Stop at
 a verified, handoff-ready checkpoint before starting the UI.
 
-Implementation checkpoint is `80feafb` on `agent/codex`; it now includes
-structured evidence, gated review, local availability and manual context
-packets as well as strict verification. Full M1 is still incomplete.
-Start with [the exact continuation report](docs/SESSION-HANDOFF-2026-10-04.md)
-and repair its known correctness/documentation gaps before UI work.
+All five M1 items are implemented and merged into main as of 2026-10-04:
+strict verification, structured evidence, gated review, local availability,
+manual context packets, both correctness fixes, the acceptance-coverage
+audit, and updated help, protocol, docs and Word manuals. The final gate
+results are in [the current checkpoint](docs/M1-STATUS.md). M1 now waits
+for the owner's acceptance; do not start UI work before it.
 
 ### Clean-clone baseline check
 

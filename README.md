@@ -263,8 +263,9 @@ what is saved, what is unfinished, and where to continue. The
 [build handoff](docs/AI-HANDOFF.md) provides additional context.
 The [workspace rules](WORKSPACE-RULES.md) explain where project files belong:
 one enclosing Frugal Flock folder, including its working copies and reports.
-The [latest checkpoint report](docs/SESSION-HANDOFF-2026-10-04.md) identifies
-the unmerged implementation branch, verified work, and remaining blockers.
+The [M1 status](docs/M1-STATUS.md) lists what is merged, the verified
+results and what still needs the owner. The
+[2026-10-04 report](docs/SESSION-HANDOFF-2026-10-04.md) records the earlier state.
 The [findings index](docs/RESEARCH-FINDINGS.md) connects the competitor
 comparison, technical review, product decisions, and unfinished work.
 
