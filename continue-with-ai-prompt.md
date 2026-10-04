@@ -4,10 +4,34 @@ Open the repo in your new AI session and paste the Prompt to paste below.
 Read the local agent log first; this file gives the current checkpoint.
 Earlier checkpoint notes remain in Git history and the append-only local log.
 
-Living checkpoint, updated 2026-10-05 by Codex (gpt-6.1-sol, xhigh),
-wt/codex on agent/codex; source baseline c94e21c before the closing merge.
+Living checkpoint, updated 2026-10-05 01:25 +0200 by Claude Code lead
+(claude-opus-5-5), wt/claude-lead on agent/claude-lead, main f857d84.
+The Codex closing notes below remain accurate except where this update
+supersedes them.
 
 ## Current checkpoint
+
+Claude is now the lead. The JobStore slice ran through the flock once:
+task JOB-QUEUE-STORE-2-opencode-queue (reissued from the benched
+JOB-QUEUE-STORE task, base f857d84, Claude lead review) on wt/opencode-queue,
+one owner-approved OpenCode Go GLM 5.3/max invocation, 600 seconds, no
+retries. The worker committed a complete candidate, 77faa8f, then hit the
+deadline before writing its log entry: process exit 124 (failed). Native
+verify PASS (scope OK, 4/4 checks). The lead read the full task and diff,
+probed it in workspace-local scratch and REQUESTED CHANGES through the
+material-bound local review adapter (no provider reviewer): concurrent
+first open of a new database fails for 7 of 8 openers, an interrupted
+initialization leaves a 0-byte database refused forever, a failed COMMIT
+leaves an open transaction, and the create race on a new key is untested.
+The create race itself is correct (1 row in 6 of 6 lead trials). Native
+result: process failed, validation passed, review changes_requested, not
+ready. Nothing was merged. Receipts: tmp/job-queue-dogfood/opencode-r2.
+
+ONE next task now: the bounded finishing task
+coord/tasks/JOB-QUEUE-STORE-2b-opencode-queue.md (same worker and branch,
+from 77faa8f), one GLM 5.3/max invocation, 600 seconds, no retries. It
+needs a FRESH owner quota approval; the first grant is used. STOP is
+lifted for this cycle; re-set it when benching.
 
 The owner asked to bench this session and continue with Claude. Local
 coord/STOP is set, native status reports no active workers, and both prepared
@@ -45,7 +69,7 @@ merge SHAs, tests, local receipts, native failure/success evidence and tools.
 The [older handoff](docs/SESSION-HANDOFF-2026-10-04.md) describes an earlier
 state and remains unchanged; do not treat its old NEXT as current.
 
-ONE next task: implement only the durable waiting-job library/tests in
+Original next task (now in progress, see above): implement only the durable waiting-job library/tests in
 [JOB-QUEUE-STORE](docs/JOB-QUEUE-STORE.md), through
 [the native dogfood workflow](docs/DOGFOOD-WORKFLOW.md). The main goal is
 building Frugal Flock WITH Frugal Flock, testing it while implementing it.
