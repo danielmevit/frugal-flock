@@ -61,3 +61,4 @@ expect 0 'automatic success' env AGENTTEAM_AUTO_VERIFY=1 "$QUALITY_AT" run mock 
 task process-fail '- hello.txt' '$ true'
 expect 7 'worker failure preserved' env MOCK_EXIT=7 AGENTTEAM_AUTO_VERIFY=1 "$QUALITY_AT" run mock process-fail
 echo "quality regressions: $QUALITY_OK passed"
+python3 "$QUALITY_REPO/tests/frugal-flock-quality-cases.py"
