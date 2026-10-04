@@ -9,7 +9,7 @@ The GLM keyboard timeout stays failed; the Claude guide cycle stays successful.
 
 For each next implementation slice:
 
-1. Root freezes one tiny task/interface and prepares a clean worker worktree
+1. The lead freezes one tiny task/interface and prepares a clean worker worktree
    under wt/ from current main. Put exact local test/tool paths in the task;
    prohibit dependency discovery/broad filesystem searches. Native auth and
    provider capacity stay unknown until a real approved invocation.
@@ -22,9 +22,12 @@ For each next implementation slice:
    Diagnose, preserve and propose one bounded finishing task through the flock.
 5. Run native verify against the frozen task/current candidate. If it fails,
    keep the failure and fix via the same controlled task/review process.
-6. Root Codex reads the full task and diff and reviews here. There is no extra
-   paid reviewer. Any native review adapter only transports the actual decision,
-   bound to the exact material hash; it is never called a provider review.
+6. The current lead reads the full task and diff and reviews in-session.
+   There is no extra paid reviewer. Bind any local decision transport to the
+   exact material hash and actual reviewer/model; never call it a provider
+   review. Preserve the native different-agent gate: when Claude is lead,
+   choose a different-provider implementation worker for this arrangement.
+   Same-provider review must not claim independent different-provider approval.
 7. Recheck native result and retain a pre-integration receipt. Distinguish
    process, validation, review, human acceptance and integration. Source main
    changes can make the old native result stale; do not assume readiness persists.
@@ -32,13 +35,16 @@ For each next implementation slice:
    the owner's standing authorization. Include current main first; preserve
    old worker branches, append dated exact-model log entries and update handoff.
 
-Root focuses on task design, review, testing, diagnosis and integration.
+The lead focuses on task design, review, testing, diagnosis and integration.
 Direct source fixes must be identified explicitly and bounded, and must not
 silently replace this implementation cadence. The owner's waiver of two
 user-feedback sessions removes that prerequisite only; quota approval and
 truthful native evidence remain required. No real user sessions are claimed.
 
 Next concrete task: [durable waiting-job records](JOB-QUEUE-STORE.md), one
-native worker, 180 seconds, no retries; root review with no paid reviewer.
-The queue library will not dispatch anything by itself. Provider budget for
-that worker is pending fresh owner approval.
+native worker, 180 seconds, no retries; current-lead review with no paid reviewer.
+The queue library will not dispatch anything by itself. On 2026-10-05 the
+owner benched this session to continue with Claude. Project STOP is set;
+both prepared options have zero calls, and the pending quota question is
+superseded. Read [the closing handoff](SESSION-HANDOFF-2026-10-05.md), refresh
+main/task/actual reviewer, and obtain fresh approval before resuming a run.

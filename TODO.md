@@ -8,10 +8,17 @@ candidate SHA, evidence, blockers, active workers and one next task.
 All project-owned work stays inside `/mnt/d/Vibe Coding/_vm/frugal-flock`.
 The main checkout is its `repo/` folder; workers use `wt/NAME/`.
 Follow [the standing workspace rules](WORKSPACE-RULES.md).
-Current owner request: the M1.5 stability phase below, then M2.
+Current owner request (2026-10-05): bench this session and hand off to Claude.
+Initial M1.5 source work is complete; broader app work continues from the
+[closing handoff](docs/SESSION-HANDOFF-2026-10-05.md).
 
 ## Current handoff
 
+- Session benched by the owner on 2026-10-05; project STOP is set and no
+  native worker is active. Both next-job options have zero calls. Refresh
+  latest main/task/reviewer identity and obtain fresh quota approval before
+  resuming. Next implementation: waiting-job JobStore library/tests through
+  the installed Frugal Flock pipeline, with Claude as the new lead.
 - Name and tagline approved by the owner.
 - Canonical CLI: `frugal-flock`; short CLI: `frgl-flc`; compatibility CLI:
   `agentteam`. The Linux `flock` utility must remain untouched.
@@ -87,7 +94,8 @@ continuation after provider limits is the real differentiator. Risks:
   checkpointed cross-provider continuation. Deliver thin vertical slices
   and measure benefit before expanding (section 6).
 - At that assessment, 0.4.0 had only mock verification. Live canary
-  evidence is now recorded in section 1.5; broader dogfooding remains untested.
+  evidence is now recorded in section 1.5; limited real M2 cycles are recorded
+  below, while broader dogfood reliability remains unproven.
 - At that assessment, the loop brake was only a role-card rule. It is now
   implemented and mock-tested in unreleased source (section 1.5).
 - Antigravity failed 2 of 2 live runs (about 55 minutes each).
@@ -237,7 +245,9 @@ Default stays read-only; no AI plan generation, worker/queue or merge control.
 The owner reiterated the main build-with-the-flock goal on 2026-10-05.
 The next [waiting-job queue slice](docs/JOB-QUEUE-STORE.md) must use the
 [native dogfood cadence](docs/DOGFOOD-WORKFLOW.md), with a fresh quota-approved
-worker and root review here. Earlier direct root code is not worker success.
+worker and the current lead's in-session review. Earlier direct root code
+is not worker success. The owner benched this session; refresh prepared
+options from latest main and follow the closing handoff before a new run.
 
 
 Package a launcher that starts the service and opens the browser. Specify

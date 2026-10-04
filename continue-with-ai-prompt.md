@@ -1,578 +1,124 @@
 # Copy this prompt to continue with another AI
 
-When you change AI tools or start a new chat, this file tells your next
-helper where the project stands. Open the **Prompt to paste** section below,
-copy the text inside the box, and paste it into that AI. If it cannot open
-GitHub, attach this file and the handoff documents it names.
+Open the repo in your new AI session and paste the Prompt to paste below.
+Read the local agent log first; this file gives the current checkpoint.
+Earlier checkpoint notes remain in Git history and the append-only local log.
 
-Living checkpoint, updated 2026-10-05 by Codex (`gpt-6.1-sol`, xhigh). Update this file with EVERY small
-checkpoint so another AI can continue without the previous conversation.
+Living checkpoint, updated 2026-10-05 by Codex (gpt-6.1-sol, xhigh),
+wt/codex on agent/codex; source baseline c94e21c before the closing merge.
 
 ## Current checkpoint
 
-- Native dogfood contract candidate `9a615e8` published as separate merge
-  `402f538`; main pushed and own branch synced. Clean worker options are
-  prepared under wt/claude-queue and wt/opencode-queue, preserving historical
-  workers. Next source implementation is ONLY bridge/job_store.py and its
-  stdlib tests plus handoff/changelog, following JOB-QUEUE-STORE. The owner
-  chooses ONE worker: Claude Opus 5.5/high (recommended after guide success)
-  or OpenCode Go GLM 5.3/max. One invocation, 180 seconds, no retries, root
-  review here/no paid reviewer. Exact task/base hashes and local wrapper
-  config live under tmp/job-queue-dogfood; freeze against current main after
-  this preparation checkpoint. Installed 0.4.0/global profiles untouched;
-  queue code not started, fresh quota approval still pending. Next: ask the
-  quota question, then launch only the explicitly approved native worker.
+The owner asked to bench this session and continue with Claude. Local
+coord/STOP is set, native status reports no active workers, and both prepared
+queue options are marked benched_not_launched/deferred_by_owner, ZERO worker
+or reviewer calls. The preceding quota question is superseded. No provider
+call, global install, profile or credential change occurred during closing.
+The finished handoff is published as its own no-ff main merge; inspect current
+main and the latest local agent-log entry for the final merge SHA.
 
-- Owner steering 2026-10-05: implementing milestones WITH Frugal Flock
-  is the main goal, not canaries followed by direct root implementation.
-  Root acknowledged the drift after GLM failed; direct code stays labeled
-  honestly. Manual UI candidate `e68cf54` published as own merge `0158039`;
-  both browser journeys/eleven HTTP cases/syntax/docs passed; no provider.
-  Frozen next actual milestone: durable waiting-job JobStore library/tests,
-  no executor/UI/native tasks, through installed 0.4.0 run/verify/review/result.
-  See DOGFOOD-WORKFLOW and JOB-QUEUE-STORE. Prepare two model-specific clean
-  worker options, then ask approval for ONE worker/180s/no retries, root
-  full review here/no paid reviewer. No new quota authorization yet.
-  Next: publish prep contract, freeze task/base/worktrees and ask quota.
+- M1 is complete/accepted/released; globally installed Frugal Flock remains
+  v0.4.0. All five initial M1.5 items are complete in published source:
+  six canaries, loop brake, watch, installed-release dogfood discipline,
+  and Antigravity canary. The earlier Antigravity stall did not recur in
+  its 22s canary; broader reliability remains unproven.
+- M2's original mock prototype/keyboard behavior, read-only Activity bridge,
+  optional opening, immutable manual draft store, protected opt-in API and
+  Save/reopen form are published and passed their focused tests. Default
+  bridge is read-only; opt-in saving stores literal drafts. The broader app
+  still lacks job execution, live controls and checkpointed provider handoff.
+- Actual M2 dogfood: GLM keyboard call failed exit 124/180s/zero changes;
+  root finished directly. Claude Opus 5.5/high docs guide succeeded in 83s,
+  verify 2/2 plus in-session Codex review; current receipt captured before
+  integration. Preserve failures and do not call direct root code worker
+  success. Canaries used seven worker calls/one live Grok reviewer; both
+  later M2 worker grants were used. No new quota grant exists.
+- Owner explicitly waived two new-user sessions because testers are absent.
+  No sessions occurred; quota/evidence gates still apply. Each finished
+  tiny step's own main merge/push has standing owner authorization.
+- AGPL-3.0-only/NOTICE are published. Author Daniel Mitev; public Daniel
+  Mevit (@danielmevit); required Frugal Flock origin notices. Preserve the
+  owner's README/BRAND updates and all existing worker histories.
 
-- Manual draft browser form complete 2026-10-05 by Codex (`gpt-6.1-sol`,
-  xhigh), based on API merge `4104409` (candidate `d48f209`). Opt-in only,
-  save/reopen, literal text and ID/hash, fresh in-memory session on reload,
-  no duplicate/automatic POST, typed-text preservation after unknown save,
-  restored read-only notice if mode is disabled. Both default/manual browser
-  journeys and eleven HTTP/asset/opening cases passed; screenshots inspected.
-  Fixture-only drafts; no provider call/global change/real-project draft.
-  Last confirmed saved opaque ID is in URL fragment; unsaved text is not
-  durable and can be lost by refresh. No AI-generated plan, task compilation,
-  run/retry/merge or durable job execution exists. User feedback gate waived.
-  Next: publish separately, prepare a tiny manual-draft keyboard dogfood
-  worker with exact local tools, then ask fresh quota before launching.
+Read [the closing handoff](docs/SESSION-HANDOFF-2026-10-05.md) for source
+merge SHAs, tests, local receipts, native failure/success evidence and tools.
+The [older handoff](docs/SESSION-HANDOFF-2026-10-04.md) describes an earlier
+state and remains unchanged; do not treat its old NEXT as current.
 
-- Protected manual API candidate `d48f209` published as own merge `4104409`;
-  main clean/current, push/sync passed. Eight API HTTP cases, eleven existing
-  HTTP/opening cases, default browser/no draft directory and actual opt-in
-  restart/read/hash/old-token refusal passed. Syntax/docs/gate ShellCheck/
-  whitespace passed; no real-project draft/provider/global change.
-  Next: implement the opt-in manual browser form locally; keep provider quota
-  untouched. Earlier idea of another worker is preparation only, never launch
-  without fresh approval. Default stays read-only; save is not AI planning,
-  task publication, quota approval or worker dispatch.
+ONE next task: implement only the durable waiting-job library/tests in
+[JOB-QUEUE-STORE](docs/JOB-QUEUE-STORE.md), through
+[the native dogfood workflow](docs/DOGFOOD-WORKFLOW.md). The main goal is
+building Frugal Flock WITH Frugal Flock, testing it while implementing it.
+Root acknowledged drifting into direct code and must not repeat that cadence.
 
-- Protected manual draft API complete 2026-10-05 by Codex (`gpt-6.1-sol`,
-  xhigh), based on `7c6be5a`: explicit --enable-plan-drafts, exact Host/
-  Origin, random session token, strict bounded UTF-8 JSON/body framing/IDs,
-  no native task/approval/dispatch. Default remains read-only. Eight API
-  checks passed, eleven existing HTTP/opening checks passed, default browser
-  journey passed with no draft directory, and actual opt-in CLI restart
-  recovered identical draft/hash and refused old token. Scratch fixtures
-  only, no real-project write/provider call/global change. UI form is next.
-  Next: publish API separately, prepare one tiny manual browser-form worker
-  with exact tool paths; ask fresh quota before any provider invocation.
-  Feedback gate waived by owner; provider approval/evidence gates remain.
-
-- Draft storage candidate `93e8034` published as own merge `7c6be5a`;
-  main clean/current and own branch synced. Preparing protected opt-in
-  create/read API only: fixed project, exact Origin/Host, session token,
-  strict bounded JSON and opaque IDs. Default is read-only; no UI form,
-  native task compilation, run/quota approval consumption or provider call.
-  API source draft needs focused auth/body/persistence/default-mode tests.
-  Next: verify/publish API separately, then prepare one tiny browser-form task
-  with explicit local tool paths before asking any new provider quota.
-
-- Manual plan-draft store complete in source, 2026-10-05 by Codex
-  (`gpt-6.1-sol`, xhigh), based on main `4747000` (waiver merge, source
-  `b8b44a3`). Immutable literal JSON drafts/opaque IDs/UTC times/content
-  hashes; exclusive atomic publication/fsync, bounded no-follow reads.
-  Eight stdlib cases passed, including restart, shell-looking text as data,
-  malformed/forged records, symlink/FIFO refusal, no overwrite and 20
-  concurrent writes. Fixtures only; no real-project draft/provider call.
-  Activity server stays read-only; storage is not HTTP/UI wired. Next:
-  publish storage separately, then protected opt-in create/read API only.
-  No native task compilation, approval, dispatch or merge in that API step.
-  Feedback gate explicitly waived; further provider quota still requires
-  approval. Installed 0.4.0 and global configuration remain unchanged.
-
-- Owner decision 2026-10-04: no two testers are available, so explicitly
-  waive the two-person feedback prerequisite and proceed using judgment and
-  automated checks. No sessions are fabricated; optional blank guide stays.
-  Current roadmap/prototype/UX/dogfood/bridge/status docs now reflect this
-  decision. Provider quota still requires approval; previous two worker
-  calls are exhausted. M1.5 initial five-item list complete in source;
-  installed v0.4.0 is preserved. Broader roadmap still needs live controls,
-  durable jobs and checkpointed provider handoff. Optional opening candidate
-  `396cd78` published as own merge `2b9bb32`; eleven focused tests and the
-  actual default-startup browser journey passed. Global profiles unchanged.
-  Next: freeze and implement one durable manual plan-draft store slice;
-  no provider/HTTP dispatch or task publication in that first slice.
-
-- Optional preview browser opening implemented by Codex (`gpt-6.1-sol`,
-  xhigh), based on actual Activity merge `41f5b77` (candidate `40e18e9`).
-  --open-browser is opt-in, uses only the already-bound loopback URL, leaves
-  a manual URL on failure, and does not block the service. Eleven HTTP/
-  observer/opening checks passed; browser opener mocked, no desktop launch.
-  The earlier local log entry mistyped the Activity merge as 0208238; actual
-  merge is 41f5b77. Tracked reference corrected; append-only log retained.
-  Owner explicitly waived the two-person feedback gate: no sessions exist,
-  use judgment/automated checks. Record that decision in current docs next;
-  do not fabricate feedback or assume new provider quota. Live controls still
-  absent from this preview. Next: publish convenience, then waiver/first
-  bounded control contract as a separate checkpoint.
-
-- Read-only Activity candidate `40e18e9` published as its own merge
-  `41f5b77`; main clean/current and own branch synced. Preparing one small
-  follow-up: opt-in --open-browser for the bound loopback preview, manual
-  URL fallback and nonblocking desktop opening. Tests mock the opener;
-  no actual desktop browser/provider launch or global change is intended.
-  Two real feedback sessions remain pending (question asked asynchronously).
-  Next: verify this convenience and publish separately; keep live controls
-  gated on actual feedback. No fresh provider quota authorized.
-
-- First read-only Activity bridge complete in source, 2026-10-04 by Codex
-  (`gpt-6.1-sol`, xhigh), based on `cdcfad0`: fixed loopback watch JSON GET,
-  original browser view, no dispatch/coordination writes. Seven stdlib HTTP
-  checks and browser failure/unknown-completion/escaping/refresh/recovery/
-  mobile/same-origin checks passed; real-project HTTP 200 showed preserved
-  GLM failed/124 and Claude succeeded/approved. All 36 coordination-file
-  hashes unchanged; installed 0.4.0/global profile hashes unchanged. Source
-  watch build is disposable under tmp/m2-bridge-20261004/runtime, not a
-  global reinstall/release. Screenshots inspected; syntax/docs/gate wiring
-  checked before publishing separately. Browser tests remain optional tooling.
-  Two real user sessions pending before live UI execution. No fresh quota.
-  Next: publish this read-only slice; specify a small read-only launcher step.
-
-- Claude feedback-guide step published separately as merge `cdcfad0`
-  (reviewed native `eaf24e6`, integrated `bf6b70f` + `eee5043`), after
-  main clean/current ancestry checks; own worktree synced. Full integrated
-  docs/whitespace passed. Keyboard merge remains `5a9b037`. Both successful
-  source checkpoints pushed; original GLM timeout preserved. No active
-  provider or additional quota authorization. Two real user sessions pending.
-  Next: finish one read-only Activity bridge slice using source watch,
-  meaningful offline HTTP/browser checks and an actual read-only snapshot.
-  Loopback preview only; installed 0.4.0/native profiles remain unchanged.
-
-- Keyboard source candidate `92d7898` published separately as merge
-  `5a9b037`; main clean/current and own branch synced before integrating
-  Claude's feedback guide. Reviewed Claude candidate `eaf24e6` cherry-picked
-  as `bf6b70f`, retaining both handoff histories. Root clarified Stop on a
-  second running pass and updated dogfood evidence/roadmap. No sessions run.
-  Native pre-integration Claude evidence is current/ready/approved; after
-  main moves, use result again rather than assuming old readiness persists.
-  Installed 0.4.0/global profiles intact. No more provider calls authorized.
-  Next: publish this guide as a separate merge, then test read-only bridge.
-
-- M2 keyboard locally finished 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh)
-  on agent/codex based on `9b3c74b`: Ctrl/Command+Enter goes through existing
-  requestSubmit validation once; Enter stays a newline. Browser checks cover
-  blank/whitespace rejection, both shortcuts, repeated/composing/unrelated/
-  outside-form keys, all three forms and the full journey. Four state tests,
-  JS syntax and whitespace passed. GLM's one 180s native call remains failed
-  exit 124/empty_work, unchanged candidate; no retry or invented success.
-  Claude Opus 5.5/high separately completed the docs-only user-test guide
-  in 83s at `eaf24e6`; verify 2/2, full in-session root review approved via
-  local hash-bound adapter/no paid reviewer, current ready before integration.
-  Two provider worker invocations this dogfood window, no retries. Two human
-  feedback sessions remain pending. Read-only bridge remains a disjoint draft.
-  Next: publish keyboard and feedback guide as separate merges, then bridge.
-
-- M2 live GLM worker ended exit 124 after 180s with no changes/commits;
-  tooling discovery used its window, no retry. Native evidence retained;
-  root will finish keyboard locally and preserve this failed dogfood outcome.
-  Owner explicitly approved ONE Claude Opus 5.5/high invocation (180s, no
-  retries) for a disjoint two-user feedback guide in wt/claude-m2. Root
-  reviews here with zero paid reviewers. Bridge remains a disjoint draft.
-  Next: launch Claude once, verify GLM failure, finish keyboard locally.
-
-- M2 user-test guide drafted 2026-10-04 by Claude (`claude-opus-5-5`, high),
-  wt/claude-m2 on agent/claude-m2: docs/M2-USER-TEST.md with neutral
-  prompts for all five moments, Stop/restart and narrow-screen checks,
-  understanding checks and two blank session records. Docs only; no
-  sessions run, no provider call, no runtime change. Root Codex reviews.
-  Next: owner runs two real sessions; M2 gates stay pending.
-
-- M2 prototype published as own merge `5d40d68` (candidate `0cfaa3f`),
-  2026-10-04 by Codex (`gpt-6.1-sol`, xhigh). Main/own worktree clean/synced.
-  Prepared one tiny dogfood task: Ctrl/Command+Enter submits the current
-  demo form once, preserves plain Enter and validation, with browser checks.
-  Clean new wt/opencode-m2, agent/opencode-m2; old worktrees untouched.
-  Native installed 0.4.0, temporary local config pins opencode-go/glm-5.3/max,
-  one worker invocation/180s/no retries, root Codex reviews here with no
-  paid reviewer. Manifest in tmp/m2-keyboard-20261004: owner approved one invocation,
-  launching now (180s/no retries; root review/no paid reviewer). Local preflight binary present/auth/capacity unknown;
-  no sign-in/quota probe. Source contract in docs/M2-DOGFOOD-PLAN.md.
-  Next: fresh quota answer before launch; continue independent read-only
-  bridge preparation meanwhile. Two new-user feedback sessions still needed.
-
-- First M2 prototype source complete, 2026-10-04 by Codex (`gpt-6.1-sol`,
-  xhigh), wt/codex on agent/codex based on main `8532f56`: original static
-  HTML/CSS/JS, all five connected sample moments, no runtime dependency.
-  Own-source syntax, four state tests and full Chromium browser journey
-  passed: explicit replacement and acceptance, revisions/Stop, focus, escaped
-  text, mobile inspector collapse, no external requests or page errors.
-  Screenshots/check receipts stay in tmp/m2-prototype-20261004/. Publishing
-  this source step separately. Real providers, project writes/checkpoints and
-  live UI integration are absent. Two new-user feedback sessions and one
-  installed-release dogfood cycle remain; do not mark M2 accepted.
-  No paid call/global change. Next: concrete tiny Ctrl+Enter enhancement task
-  and clean worker worktree, then ask one fresh GLM 5.3 quota approval
-  (180s, no retries, root Codex reviews here/no paid reviewer).
-
-- OpenCode compatibility published as own merge `8532f56`
-  (candidate `47e2de0`), 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh).
-  Own worktree synced. Moving the original M2 sample prototype into source:
-  HTML/CSS/JS, no runtime dependency, no real provider/project access. Four
-  state tests and full browser journey passed in scratch; own-source checks
-  next. Five connected moments, explicit Grok replacement/acceptance,
-  approval invalidation, Stop, focus and mobile inspector collapse.
-  Model/global runtime/config unchanged; no paid call. Next: verify and
-  publish prototype, then prepare one tiny bounded GLM 5.3 dogfood task
-  for fresh quota approval. Two new-user feedback sessions still needed.
-
-- OpenCode compatibility complete, 2026-10-04 by Codex (`gpt-6.1-sol`,
-  xhigh), wt/codex on agent/codex includes main `64160c5`: current --auto
-  fresh default/examples, diagnostic for direct legacy profiles, no rewrites.
-  Three offline behavior checks passed: native dispatch+verify, no-call
-  doctor warning, reinstall preserves profile/model. Standalone packaging,
-  aliases/completion/protocol, ShellCheck/syntax/full docs and whitespace
-  passed. Receipts: tmp/m15-opencode-20261004/. No paid call/global change.
-  Publishing separately. M1.5 step 4 observed (installed 0.4.0 kept intact),
-  step 5's Antigravity canary passed; broad reliability still unknown.
-  Next: original mock prototype source, then prepare one tiny GLM 5.3
-  keyboard enhancement for installed-release dogfood. Ask fresh quota first.
-
-- Watch published as its own merge `64160c5` (candidate `11e7af8`),
-  2026-10-04 by Codex (`gpt-6.1-sol`, xhigh), main clean/current before
-  integration, own worktree synced. Preparing the next tiny compatibility
-  checkpoint: fresh OpenCode defaults/examples use --auto; doctor warns on
-  direct legacy entries without calls or profile edits. Native help and two
-  live Go canaries already confirm the flag. Focused offline dispatch,
-  verification, diagnostic/preservation, ShellCheck/packaging/docs next.
-  No fresh quota or global settings change. Next: publish compatibility,
-  then the original M2 sample prototype already tested in private scratch.
-
-- M1.5 step 3 complete, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
-  wt/codex on agent/codex includes main `959fb0c`: watch own-source checks
-  passed (26 focused mock cases, standalone packaging/aliases/completion,
-  config/protocol equality, ShellCheck/syntax, full docs and whitespace).
-  Read-only live fixture snapshot showed all six recorded canaries passed,
-  STOP active, all coordination hashes unchanged. Global runtime/config
-  hashes unchanged; no provider call. Receipts: tmp/m15-watch-20261004/.
-  Publishing monitor separately; it observes recorded states, never claims
-  current readiness or known capacity. No evidence rewrite on interruption.
-  Next: correct fresh-install OpenCode flag to --auto and examples, retaining
-  existing user config. Then publish the original tested sample prototype;
-  M2 live dogfood needs a fresh bounded worker-quota approval.
-
-- M1.5 step 3 source draft, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
-  wt/codex on agent/codex includes main `959fb0c` (published brake). Watch
-  implements read-only local human/NDJSON activity, STOP, operator limits,
-  recorded verdicts, retries, recent starts/completions and unknown completion
-  observations. No provider probes, raw-log/task-body reads, evidence rewrite
-  or current readiness claim. Separate source draft passed 26 mock checks,
-  packaging/aliases/completion/config/protocol equality. Own-worktree checks
-  are next. Global installed 0.4.0/config unchanged; no new paid call.
-  Next: verify/publish watch as its own merge, then OpenCode `--auto` fix.
-
-- M1.5 step 2 complete, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
-  wt/codex on agent/codex source candidate `d930a87`: corrected frozen full
-  gate passed, 40 selftests, 16 + 78 + 26 existing regressions, 22 brake
-  cases, 14 probes held, packaging/aliases/completion, ShellCheck, syntax
-  and docs. No quota/global changes. First gate's protocol mismatch and
-  reassignment gap corrected. Receipt: tmp/m15-loop-brake-20261004/
-  quality-check-corrected.log. Merged/pushed as `959fb0c`; own worktree synced.
-  Watch draft is ready: 26 focused checks and packaging passed, direct
-  signal delivery, local recorded states, unknown completion on free locks,
-  no evidence rewrites or readiness/quota claims. M2 draft has four state
-  tests and the full browser journey passing; source only after stability
-  checkpoints. Next: watch publication, then the fresh-install OpenCode
-  `--auto` compatibility fix. Native help confirms --auto with no quota use.
-
-- M1.5 step 2 correction, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
-  wt/codex on agent/codex candidate `3a68a8a`: frozen full gate passed
-  40 selftests, 16 + 78 + 26 regressions, 18 brake checks and all 14 probes,
-  then failed standalone branding because docs/PROTOCOL.md differed from
-  the embedded template. Corrected both copies. Source review also found
-  interrupted starts were reconciled only on the same worker; reconcile
-  lost starts across workers while leaving held locks alone. Added four
-  focused reassignment/active-lock checks (22 total) before a new frozen
-  full gate. No provider call/global changes. A separate watch draft passed
-  24 focused mock checks after fixing CLI signal delivery; final 25-check
-  source suite includes the honest runner-pattern limit explanation.
-  Next: corrected brake full gate/publication, then watch and the stale
-  fresh-install OpenCode flag fix, each as its own merge/push.
-
-- M1.5 step 2 draft, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
-  wt/codex on agent/codex based on main `6e16947`: loop brake implemented
-  in source, 18 focused mock checks passed. Covers real exit preservation,
-  failure deduplication, task-wide history, one retry grant, validation and
-  interrupted failures, corrupt state, concurrency and zero provider calls
-  after refusal. Syntax and whitespace passed. Documentation preparation
-  initially expected two template anchors but found one; corrected that
-  assertion before the frozen full gate. No global install/config changes
-  or paid calls. Next: full gate, own merge/push, then step 3 watch.
-
-- M1.5 step 1 complete, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh):
-  owner-approved Codex retest passed in 26s using native gpt-6.1-sol/high,
-  throwaway `93c4cc9`, one file/commit, clean branch, scope OK, verify 2/2.
-  Full task/diff approved here, then the approved live Grok review passed
-  in 82s, exit 0/APPROVE, current ready result. All six latest canaries
-  ready/current; human pending/integration not attempted. Seven worker
-  invocations/one live reviewer total, one specifically approved retest,
-  no automatic retries. Original Codex interruption preserved under
-  live/receipts/codex/attempt-1; retest under attempt-2. Fixture STOP, no
-  active worker; installed runtime/global config hashes unchanged. Source
-  canary completion merged/pushed as `6e16947`; every finished step gets
-  its own merge/push.
-  The owner asked to continue the list without stopping. Next: M1.5 step 2,
-  engine loop brake, then watch, using local mocks/source builds. Further
-  provider calls need fresh quota approval. Keep the recorded interruption
-  activity-observation limitation for a separate mock-tested fix.
-
-Historical checkpoints below preserve how this state was reached; the
-newest bullet above governs readiness, quota authorization and next work.
-
-- The owner approved the pending bounded retest on 2026-10-04: one fresh
-  Codex worker invocation (180s), then one Grok review only after passed
-  validation (120s), no further retries. Root also reviews the full diff
-  here. Original interrupted Codex evidence archived under live/receipts/
-  codex/attempt-1/ before the native latest-run log is replaced. Main is
-  `090cfd3`; installed runtime/global config unchanged. Retest is next;
-  the interrupted-activity observation fix remains a separate mock task.
-- Mock diagnosis, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh): source
-  includes main `b8625c7` (passing Claude evidence, candidate `7511197`),
-  with Codex recovery published as `aadc005` and Kimi as `9fadc8a`.
-  CodeGraph returned no relevant installer code; inspected the embedded
-  quality helper and runner. A fresh workspace-local interruption fixture
-  reproduced stale running/null-exit status using the unchanged installed
-  0.4.0, one local mock invocation and zero provider calls. Killed only
-  that harness's own runner/mock groups; verify acquired the released lock,
-  exited 1/2/empty_work, result not ready. Handoff acquired the free lock
-  and published a complete packet with its existing interruption warning.
-  No runtime or live result changed; both fixtures STOP, no active worker.
-  Local receipts: tmp/m15-interruption-20261004/receipts/. Five live canaries
-  passed; six approved attempts used, Codex interrupted, no extra provider
-  reviews/retries. Fresh Codex (180s) plus conditional Grok review (120s)
-  quota approval was subsequently granted for those two bounded calls above.
-  Diagnosis is recorded for its own merge. Next: a mock-tested interruption
-  activity observation fix; preserve unknown exit and the distinction between a free
-  worker lock and the possible existence of detached processes.
-- Claude canary, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh): explicit
-  Claude Sonnet 5.5 (`claude-sonnet-5-5`), medium, passed in 23 seconds.
-  Native JSON confirms Sonnet; throwaway commit `4163ce4`, one file/commit,
-  exact marker, clean branch, scope OK, verify 2/2. Full task/diff inspected
-  here, approved with no findings and transported through the sealed local
-  adapter; native review exit 0, current ready result, human pending,
-  integration not attempted. Local agent entries restored; global native
-  agents.conf/installed 0.4.0 hashes unchanged. Six worker invocations total,
-  zero additional provider reviewers, no retries; all approved calls used.
-  Five ready canaries; Codex remains interrupted, zero commits/verify 1/2,
-  native process still running despite no surviving worker. M1.5 step 1 is
-  incomplete. Fixture STOP active, no worker active. Claude evidence merged
-  and pushed as `b8625c7`. Interruption status subsequently reproduced with mocks above. Any Codex rerun needs fresh quota approval; native review needs a
-  different vendor. Sonnet success does not prove the Opus limit cleared.
-- Access recovery checkpoint, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh):
-  the owner restored unrestricted execution after the session sandbox failed
-  on a `.aws` symlink rule and excluded this workspace from writable roots.
-  Shell commands now work. Main is `9fadc8a`, with the Kimi merge published;
-  installed 0.4.0 and global agents.conf hashes are unchanged. Recovered
-  evidence shows a fifth worker invocation: Codex (`gpt-6.1-sol`, high)
-  already started before interruption. No completion, exit or reliable
-  duration captured; unchanged clean baseline, zero commits, verify 1/2
-  failed. Native process still says running despite no surviving worker;
-  result not ready. Preserve this interrupted-run recovery gap, no retry.
-  Fixture STOP active. Codex evidence merged/pushed as `aadc005`. Next:
-  Claude's single approved Sonnet 5.5/medium canary subsequently passed above.
-  The interrupted-run status gap is the remaining local finding.
-- Owner resumed M1.5 on 2026-10-04: “do all in one go” approves one
-  remaining Kimi and Codex worker invocation each; no retries or separate
-  provider reviewer calls. He additionally explicitly approved one Claude
-  test with a simpler model and medium/high effort despite its earlier limit.
-  Selected Claude Sonnet 5.5 (`claude-sonnet-5-5`), medium; installed CLI
-  help and official docs confirm the flags. Kimi's native model is
-  `opencode-go/kimi-k3`, using current `--auto` instead of the obsolete
-  native permission flag, with global settings unchanged. The throwaway
-  fixture's missing agent entries were repaired locally; doctor now passes
-  with only intentional STOP. Codex reviews here; its own worker cannot
-  receive native approval from the same vendor and may retain pending review.
-  Kimi K3 passed in 45 seconds: throwaway `6e98e46`, one commit/file,
-  scope OK, 2/2 checks, complete diff approved here, sealed local review,
-  current ready result. Worker invocations were four at Kimi's
-  checkpoint; now five including interrupted Codex above. Zero extra
-  provider reviewers. Kimi was merged/pushed as `9fadc8a`; own worktree
-  includes it. Claude subsequently passed; all approved calls now used.
-- Current owner request: AGPL-3.0-only for the public release, with optional
-  separate paid agreements for proprietary use. The owner explicitly chose
-  true open source on 2026-10-04 after being told compliant commercial forks
-  may be sold without paying him. Copyright holder: Daniel Mitev; public
-  attribution: Daniel Mevit (@danielmevit). Full unmodified GNU text in
-  LICENSE; section 7(b)/(c) attribution/origin terms in NOTICE and referenced
-  by source headers. The owner clarified credit applies to copies and
-  variants of Frugal Flock itself, not independent projects made with it.
-  Preserve the tool name, Daniel's credit and original URL in covered
-  material or appropriate legal notices; mark variants and do not
-  misrepresent origin. The self-contained
-  installer bundles both under the config directory's legal/ folder;
-  `frugal-flock license` prints them. README and [licensing guidance](docs/LICENSING.md)
-  explain notices/source obligations, lawful sales, independently developed
-  projects, legal limits and separately agreed proprietary permissions.
-  Licensing source candidate: `b83f767` on agent/codex in wt/codex.
-  Full frozen-source quality gate passed: 40/40 selftests, 16 + 78 + 26
-  regressions, 14 probes held, standalone legal-file packaging and all
-  three aliases, ShellCheck, installer syntax and full docs lint. Official
-  LICENSE hash and embedded legal-file equality verified; whitespace clean.
-  Log: tmp/license-checkpoint-20261004/quality-check-frozen.log. The first
-  interrupted run is retained in quality-check.log and the append-only agent
-  log. This is one owner-authorized licensing integration; find its merge
-  on main's first-parent history. Source checkpoint complete; next work is
-  M1.5 canary follow-up: all six attempts used, five passed, Codex interrupted.
-  Global installed 0.4.0 and all canary evidence remain unchanged; no quota call.
-- Antigravity live evidence is committed at `13e70e9` on `agent/codex` in
-  `wt/codex`, merged and pushed as `0426f0c`.
-- Codex worktree synced with main `81b587c`; read and preserve the owner's
-  README and BRAND description/topics updates. On 2026-10-04 the owner
-  authorized one Grok canary and one OpenCode Go canary using GLM 5.3.
-  Installed model registry confirms `opencode-go/glm-5.3`. Run sequentially,
-  180 seconds each, no retries; this Codex session reviews both without
-  additional provider calls. Global provider configuration stays unchanged.
-- Grok evidence candidate: `2203b3b` on `agent/codex`. Grok passed in
-  35 seconds: throwaway commit `868036f`, scope OK, 2/2
-  checks, in-session Codex review approved and a current ready result.
-  Grok was merged/pushed as `c06f808`.
-- OpenCode Go `opencode-go/glm-5.3` passed in 24 seconds, throwaway commit
-  `2b847ac`. Runtime model confirmed, scope OK, 2/2 checks, complete diff
-  approved by this Codex session through the sealed local adapter, current
-  ready result. Worker calls at that checkpoint: three; no extra reviewer calls, retries
-  or Claude calls. Fixture stopped. This checkpoint was merged/pushed as
-  `7761737`. Codex was subsequently interrupted; Claude subsequently passed.
-  Its source evidence candidate is `17c4959` on `agent/codex`.
-- M1.5 preparation is merged and pushed as `d991350` (candidate `4b8e1a9`
-  plus `61327ec`). The owner-approved README rewrites `4565cfd` and `f6f0ed9` are also
-  on main and included in this Codex worktree; preserve it.
-  [Canary plan and evidence](docs/M1.5-LIVE-CANARY.md). The isolated live
-  fixture is `tmp/m15-canary-20261004/live/`, with all six workers including
-  Antigravity at the owner's explicit request. **Antigravity passed in
-  22 seconds**, one commit `66793a1`, verify 2/2, this session's Codex code
-  review approved through a sealed local adapter, current ready result.
-  One live worker invocation, no extra reviewer call or retry. The earlier
-  silent stall did not recur. Receipts stay local; its STOP file is active.
-  M1.5 step 1 remains incomplete: Codex was interrupted without a completed
-  change; Claude Sonnet 5.5/medium passed its explicitly approved exception
-  in 23 seconds. Kimi K3 has passed.
-  The installed 0.4.0 passed the mock run/verify/review/result rehearsal,
-  including review gating and stale-result checks. The full offline gate
-  passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
-  branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
-  No worker is active. All approved calls used; future calls need approval.
-  Claude evidence is published; mock diagnosis above records the status limitation.
-  Claude is owner-reported limited for five hours (avoid through
-  22:42 +0200 on 2026-10-04, an operator interval, not a confirmed reset).
-  The owner explicitly permits this one Sonnet 5.5/medium Claude canary.
-  Codex does the main implementation and reviews in-session. Other worker
-  calls need fresh quota approval; no separate provider reviewer call authorized.
-  The owner authorized each finished checkpoint's own merge and push.
-- Public repo: https://github.com/danielmevit/frugal-flock.
-- **M1 is complete and accepted by the owner (2026-10-04)** and released as
-  v0.4.0 (tag and GitHub release; notes in [CHANGELOG.md](CHANGELOG.md)).
-  0.4.0 is installed globally; the 0.3.1 files are backed up locally.
-- Work was done by Claude Code (Claude Opus 5.5) as lead plus three
-  parallel Claude subagents, each in its own worktree. Every step is its own
-  revertable merge on main: `fade423`, `45803c1`, `ce3d57f`, `ec5fdee`,
-  `dba78ce`, then the final status docs. Details and authors are in
-  [M1-STATUS.md](docs/M1-STATUS.md).
-- Final gate on `dba78ce`: the frozen task's 5 Validate commands all passed;
-  its scope check failed only on 15 lead-written Markdown documents outside
-  the frozen worker scope. Full quality-check on that tree: 40/40
-  selftests, 16 + 78 + 23 quality checks, 14 probes held, branding,
-  ShellCheck, docs lint. No live provider was called.
-- After acceptance, audit findings F1 and F2 were fixed with regressions;
-  see [M1-ACCEPTANCE-AUDIT.md](docs/M1-ACCEPTANCE-AUDIT.md).
-- No worker is active. Older `agent/*` branches are history.
-- Everything stays under `/mnt/d/Vibe Coding/_vm/frugal-flock`: `repo/`,
-  `wt/`, `coord/`, `artifacts/`, `tmp/`. Read
-  [WORKSPACE-RULES.md](WORKSPACE-RULES.md).
-- Agent log rule: read the local `coord/AGENT-LOG.md` first; add a dated
-  entry (agent, exact model, branch, SHA, tests, next task) after every
-  checkpoint.
+Existing clean worker options: wt/claude-queue and wt/opencode-queue,
+original frozen baseline c94e21c, local tasks/config/manifests under coord/tasks
+and tmp/job-queue-dogfood. Refresh from newest main and reissue a NEW task ID/
+manifest; preserve originals. Claude is now the lead, so update reviewer
+identity and use a different-provider worker for truthful in-session/native
+review. The prepared GLM option fits that arrangement; a Claude worker needs
+an explicitly authorized review arrangement. No adapter may invent a Codex
+review after this session ends. One invocation/180s/no retries remains the
+proposed bound, requiring fresh owner approval before resume or provider use.
 
 ## Prompt to paste
 
 ```text
-Continue Frugal Flock at https://github.com/danielmevit/frugal-flock.
-Locally, read coord/AGENT-LOG.md in the enclosing frugal-flock folder
-FIRST: newer work may be on another agent's branch. Then read, from main:
-continue-with-ai-prompt.md, docs/M1-STATUS.md, docs/M1-ACCEPTANCE-AUDIT.md,
-WORKSPACE-RULES.md and the frozen docs/QUALITY-M1-CONTRACT.md. Follow the
-applicable MASTER.md/WORKER.md lead-versus-worker rules. Use CodeGraph only
-if .codegraph exists; do not create an index unasked.
+Continue Frugal Flock in /mnt/d/Vibe Coding/_vm/frugal-flock/repo.
+You are the new Claude lead. Read ../coord/AGENT-LOG.md FIRST, then
+continue-with-ai-prompt.md, docs/SESSION-HANDOFF-2026-10-05.md,
+WORKSPACE-RULES.md, TODO.md (Near-term roadmap and section 1.5),
+docs/DOGFOOD-WORKFLOW.md and docs/JOB-QUEUE-STORE.md.
 
-State: M1 is complete, merged into main and accepted by the owner. Do not
-rebuild finished work. Locally the main
-folder is /mnt/d/Vibe Coding/_vm/frugal-flock/repo and worktrees are under
-../wt. ALL project-owned work stays inside the enclosing frugal-flock
-folder; use its tmp directory for checks. Installed tools and credentials
-stay in their system locations; never copy credentials.
+State: this session is benched. coord/STOP is deliberately set; no active
+workers; prepared queue worker/reviewer counts are zero. The old quota
+question is superseded. M1 and initial M1.5 source work are complete.
+Prototype, Activity bridge and manual draft storage/API/UI are published.
+Do not redo those steps. Installed Frugal Flock stays v0.4.0; do not
+reinstall unreleased source. Read the handoff for actual evidence and limits.
 
-NEXT: the M1.5 stability phase, approved by the owner on 2026-10-04, in this
-order, one small tested checkpoint each:
-1. Live canary: a throwaway repo, one tiny task per agent through run,
-   verify, review and result. Tiny tasks only; it uses provider quota.
-   Preparation was merged/pushed as d991350; read docs/M1.5-LIVE-CANARY.md.
-   The fixture is tmp/m15-canary-20261004/live; all six workers are ready,
-   including Antigravity at the owner's request to recheck its earlier error.
-   Antigravity passed in 22 seconds (run/verify/lead review/result); one
-   worker call, zero extra reviewer calls, no retry. STOP is active again.
-   Grok also passed in 35 seconds (one call, verify 2/2, lead review, ready
-   result). OpenCode Go (`opencode-go/glm-5.3`) passed in 24 seconds, one
-   call, verify 2/2, lead review and ready result. Kimi K3 passed in 45s.
-   Claude Sonnet 5.5/medium passed in 23 seconds. Codex's original call
-   was interrupted; its explicitly approved retest passed in 26 seconds,
-   verify 2/2, lead approval and live Grok review (82s), current ready result.
-   All six latest canaries passed: step 1 complete. Seven worker calls and
-   one live reviewer total; one specifically approved retest, no automatic
-   retries. Fixture stopped, global settings unchanged. Preserve original
-   interruption evidence and mock diagnosis of stale running activity;
-   fix that observation separately without inventing worker exits.
-   Continue step 2 (loop brake), then step 3 (watch), with mocks. No further
-   provider call currently authorized.
-   Ask before spending provider quota; no retries or fallback calls.
-2. Loop brake in the engine: a task that failed twice is refused until
-   the owner explicitly allows another attempt.
-3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
-   as they happen; it later becomes the app's Activity view.
-4. The flock runs on the installed release while it builds the next
-   version in the repo; reinstall only at deliberate releases.
-5. Bench Antigravity for dogfooding until it passes the canary (2 of 2
-   earlier live runs failed). Include it in step 1 as the owner requested.
-Then dogfood on M2 (the mock-data prototype): one worker plus a reviewer,
-owner merges; widen after a few clean cycles.
+The MAIN GOAL is implementing milestones WITH Frugal Flock: tiny frozen
+worker task -> installed native run -> verify -> your full code review ->
+result receipt -> each finished step's own no-ff merge/push. Direct lead
+implementation must not silently replace this. Failed GLM keyboard call
+stays failed; successful Claude guide does not erase it. No fabricated
+capacity/reset, acceptance, integration or different-provider review.
 
-Say what you will do, then work in SMALL checkpoints: targeted tests,
-exact diff review, named-path commit, then a dated entry at the top of
-coord/AGENT-LOG.md (agent, exact model, worktree/branch/SHA, tests
-actually run, next task) and an update of this file and M1-STATUS on your
-branch. Save progress before approaching a usage limit.
+Work in your own lead branch/worktree under ../wt (for example claude-lead),
+preserving all old worker histories. Queue worktrees have worker-only role
+cards. Use CodeGraph before locating/reading code ONLY if .codegraph already
+exists in that worktree; never create an index unasked. All project-owned
+scratch/fixtures/receipts stay inside the workspace, TMPDIR under tmp/.
+Native credentials/settings stay in system locations; do not copy secrets.
 
-Run bash tests/frugal-flock-quality.sh, bash tools/quality-check.sh,
-installer syntax, docs lint and git diff --check, with TMPDIR set to the
-workspace tmp folder. Mock providers and temporary installs only. Record
-actual results rather than reusing counts.
+ONE NEXT TASK: durable waiting-job JobStore library/tests, no executor or
+HTTP/UI wiring, according to JOB-QUEUE-STORE. Refresh a selected clean
+worker against current main and reissue a new task ID/manifest with exact
+base/task hashes and actual lead/reviewer identity. Old Claude/GLM options
+are benched historical preparation, not launch approval. For review in
+this Claude session with no extra paid reviewer, prefer a different-provider
+worker such as prepared GLM 5.3/max. Respect the native different-agent gate.
 
-Preserve frugal-flock, frgl-flc, legacy agentteam, AGENTTEAM_* variables,
-existing config paths, and Linux flock. No global installation, credential
-changes, paid fallback, merge, push or release without owner authorization.
+Ask before provider quota: one chosen worker, 180 seconds, no retries or
+paid fallback. Do not resume STOP until the owner approves continuing the
+native run. Prior quota grants are exhausted. The two-person prototype
+feedback prerequisite was explicitly waived; no user sessions happened.
 
-The owner especially values capacity-aware task sizing and safe continued
-work after provider limits. Read docs/CAPACITY-AWARE-CONTINUATION.md; it
-is future work, not a shipped scheduler. The M1 handoff is CONTEXT for the
-same checkout, not a dirty-file backup or automatic migration. Future UI
-follows UX-DIRECTION/TOOLCRAFT-REFERENCE: original components only, no
-copied Toolcraft scaffold, code or assets.
+Say what you will do, keep tasks tiny, run relevant checks and read the full
+diff. After every checkpoint update this tracked continuation and prepend
+a dated local-offset entry to the shared log with your exact model,
+worktree/branch/SHA, ACTUAL tests/state and ONE next task. Older log entries
+are append-only. Stage named paths only. Include newest main before each
+finished step's separate merge/push (standing owner authorization), so it
+can be reverted alone. New global installs/releases/auth changes need
+fresh explicit approval. Preserve canonical/short/legacy commands,
+AGENTTEAM_* compatibility, native config paths and Linux flock.
 ```
 
 ## Checkpoint discipline
 
-Do not save all progress for the end of a long session. Keep each fix
-reviewable and tested. Update this file and the local agent log whenever
-the newest branch/SHA, verification, blocker, active-worker state, or next
-task changes. Publish only when the owner authorizes it. Historical detail
-belongs in the [continuation report](docs/SESSION-HANDOFF-2026-10-04.md),
-which describes the state before the owner's merge and is kept unchanged.
+Use current main and actual local branch/receipts, not an old NEXT instruction.
+Update this file and the local log whenever branch, verification, blocker,
+active worker or next task changes. Preserve previous failures and distinguish
+process exit, validation, review, human acceptance and integration.
+Historical detail is in the dated handoffs and Git history.
