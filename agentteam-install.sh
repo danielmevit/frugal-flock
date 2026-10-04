@@ -1678,7 +1678,10 @@ ST_CG_EOF
     skip)      sleep 1
                [ ! -s "$CG_LOG" ] && [ ! -d "$d/p/wt/mock/.codegraph" ] \
                  && ! printf '%s' "$out" | grep -qi codegraph ;;
-    background) grep -q '^call ' "$CG_LOG" \
+    background) # detached means init can return before the indexer starts;
+               # on a slow /mnt/ drive that gap made this check flaky
+               for _ in $(seq 50); do grep -q '^call ' "$CG_LOG" && break; sleep 0.2; done
+               grep -q '^call ' "$CG_LOG" \
                  && printf '%s' "$out" | grep -qi 'codegraph.*background' ;;
     timebox)   # the indexer must be gone, not merely quiet: waiting for the
                # 45s fake to finish would "pass" with no time-box at all
