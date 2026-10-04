@@ -1969,6 +1969,13 @@ ST_T5_EOF
   echo
   echo "selftest: $ST_OK ok, $ST_FAIL failed"
   cd /
+  # sabotage detaches real runs (run -b); on a slow drive they can still be
+  # writing results when we delete the sandbox, and rm -rf then races them.
+  # Each holds a pidfile until its EXIT trap, so wait for those to go.
+  for _ in $(seq 120); do
+    compgen -G "$ST/proj/coord/reports/*.pid" >/dev/null || break
+    sleep 0.5
+  done
   if [ "$ST_FAIL" -eq 0 ]; then
     rm -rf "$ST"
     echo "sandbox removed — all green."
