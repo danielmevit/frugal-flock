@@ -10,6 +10,28 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- M2 keyboard locally finished 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh)
+  on agent/codex based on `9b3c74b`: Ctrl/Command+Enter goes through existing
+  requestSubmit validation once; Enter stays a newline. Browser checks cover
+  blank/whitespace rejection, both shortcuts, repeated/composing/unrelated/
+  outside-form keys, all three forms and the full journey. Four state tests,
+  JS syntax and whitespace passed. GLM's one 180s native call remains failed
+  exit 124/empty_work, unchanged candidate; no retry or invented success.
+  Claude Opus 5.5/high separately completed the docs-only user-test guide
+  in 83s at `eaf24e6`; verify 2/2, full in-session root review approved via
+  local hash-bound adapter/no paid reviewer, current ready before integration.
+  Two provider worker invocations this dogfood window, no retries. Two human
+  feedback sessions remain pending. Read-only bridge remains a disjoint draft.
+  Next: publish keyboard and feedback guide as separate merges, then bridge.
+
+- M2 live GLM worker ended exit 124 after 180s with no changes/commits;
+  tooling discovery used its window, no retry. Native evidence retained;
+  root will finish keyboard locally and preserve this failed dogfood outcome.
+  Owner explicitly approved ONE Claude Opus 5.5/high invocation (180s, no
+  retries) for a disjoint two-user feedback guide in wt/claude-m2. Root
+  reviews here with zero paid reviewers. Bridge remains a disjoint draft.
+  Next: launch Claude once, verify GLM failure, finish keyboard locally.
+
 - M2 prototype published as own merge `5d40d68` (candidate `0cfaa3f`),
   2026-10-04 by Codex (`gpt-6.1-sol`, xhigh). Main/own worktree clean/synced.
   Prepared one tiny dogfood task: Ctrl/Command+Enter submits the current
@@ -17,8 +39,8 @@ checkpoint so another AI can continue without the previous conversation.
   Clean new wt/opencode-m2, agent/opencode-m2; old worktrees untouched.
   Native installed 0.4.0, temporary local config pins opencode-go/glm-5.3/max,
   one worker invocation/180s/no retries, root Codex reviews here with no
-  paid reviewer. Manifest in tmp/m2-keyboard-20261004: approval pending,
-  zero invocations. Local preflight binary present/auth/capacity unknown;
+  paid reviewer. Manifest in tmp/m2-keyboard-20261004: owner approved one invocation,
+  launching now (180s/no retries; root review/no paid reviewer). Local preflight binary present/auth/capacity unknown;
   no sign-in/quota probe. Source contract in docs/M2-DOGFOOD-PLAN.md.
   Next: fresh quota answer before launch; continue independent read-only
   bridge preparation meanwhile. Two new-user feedback sessions still needed.

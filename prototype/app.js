@@ -35,7 +35,7 @@
   const lead = (text) =>
     `<div class="lead-message"><span class="avatar" aria-hidden="true">C</span><div><p class="message-header"><strong>Codex</strong> · sample lead</p><p class="message-text">${text}</p></div></div>`;
   const form = (action, id, label, initial, submit) =>
-    `<form data-submit="${action}"><label for="${id}">${label}</label><textarea id="${id}" name="response" required maxlength="2000">${escape(initial)}</textarea><p class="field-hint">This demo uses a fixed search scenario. Your response stays in this page.</p><div class="actions"><button type="submit" class="primary">${submit}</button></div></form>`;
+    `<form data-submit="${action}"><label for="${id}">${label}</label><textarea id="${id}" name="response" required maxlength="2000">${escape(initial)}</textarea><p class="field-hint">This demo uses a fixed search scenario. Your response stays in this page. Ctrl/Command+Enter submits; Enter adds a new line.</p><div class="actions"><button type="submit" class="primary">${submit}</button></div></form>`;
   const checks = () =>
     `<ul class="checks-list">${["Search finds matching entries", "Keyboard reaches results", "Empty queries are handled"].map((name) => `<li><span>${name}</span><span class="chip ${state.validation === "passed" ? "" : "neutral"}">${state.validation === "passed" ? "Passed" : "Pending"}</span></li>`).join("")}</ul>`;
   const evidence = () =>
@@ -172,6 +172,23 @@ Provider exit and real capacity: not observed</pre>${evidence()}</details>`;
   document.addEventListener("click", (event) => {
     const target = event.target.closest("button[data-action]");
     if (target) act(target.dataset.action, target.dataset.value || "");
+  });
+  document.addEventListener("keydown", (event) => {
+    if (
+      event.defaultPrevented ||
+      event.repeat ||
+      event.isComposing ||
+      event.key !== "Enter" ||
+      !(event.ctrlKey || event.metaKey) ||
+      event.altKey ||
+      event.shiftKey ||
+      !(event.target instanceof HTMLTextAreaElement)
+    )
+      return;
+    const form = event.target.closest("form[data-submit]");
+    if (!form) return;
+    event.preventDefault();
+    form.requestSubmit();
   });
   document.addEventListener("submit", (event) => {
     const form = event.target.closest("form[data-submit]");

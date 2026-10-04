@@ -54,10 +54,72 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
         .evaluate((e) => e === document.activeElement),
       true,
     );
-    await page
-      .getByLabel("Describe a change")
-      .fill('<img src=x onerror="alert(1)"> Search by title');
-    await click("Create plan");
+    const request = page.getByLabel("Describe a change");
+    assert.ok(
+      (await page.locator(".field-hint").textContent()).includes(
+        "Ctrl/Command+Enter",
+      ),
+    );
+    await page.evaluate(() => {
+      window.shortcutSubmits = 0;
+      document.addEventListener("submit", () => window.shortcutSubmits++);
+    });
+    // Browser required validation must reject empty text without a submit event.
+    await request.fill("");
+    await request.press("Control+Enter");
+    await heading("What would you like to build?");
+    assert.equal(await page.evaluate(() => window.shortcutSubmits), 0);
+    // Trimmed validation uses the same submit path as the visible button.
+    await request.fill("   ");
+    await request.press("Meta+Enter");
+    await heading("What would you like to build?");
+    assert.equal(await page.locator("#error").isVisible(), true);
+    assert.equal(await page.evaluate(() => window.shortcutSubmits), 1);
+    await request.fill("Search");
+    await request.press("End");
+    await request.press("Enter");
+    assert.equal(await request.inputValue(), "Search\n");
+    await heading("What would you like to build?");
+    await request.evaluate((textarea) => {
+      for (const extra of [
+        { repeat: true },
+        { isComposing: true },
+        { altKey: true },
+        { shiftKey: true },
+      ]) {
+        const event = new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: "Enter",
+          ctrlKey: true,
+          ...extra,
+        });
+        textarea.dispatchEvent(event);
+        if (event.defaultPrevented)
+          throw new Error("unrelated/repeated shortcut prevented");
+      }
+    });
+    await page.locator("#conversation-title").focus();
+    await page.keyboard.press("Control+Enter");
+    await page.evaluate(() => {
+      const textarea = document.createElement("textarea");
+      document.body.append(textarea);
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "Enter",
+        metaKey: true,
+      });
+      textarea.dispatchEvent(event);
+      textarea.remove();
+      if (event.defaultPrevented)
+        throw new Error("shortcut outside form prevented");
+    });
+    await heading("What would you like to build?");
+    assert.equal(await page.evaluate(() => window.shortcutSubmits), 1);
+    await request.fill('<img src=x onerror="alert(1)"> Search by title');
+    await request.press("Control+Enter");
+    assert.equal(await page.evaluate(() => window.shortcutSubmits), 2);
     await heading("A plan you can review.");
     assert.equal(await page.locator("#conversation-body img").count(), 0);
     assert.ok(
@@ -73,7 +135,7 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     await click("Approve and start");
     await click("Show next sample event");
     await page.getByLabel("Your answer").fill("Titles and text.");
-    await click("Send answer");
+    await page.getByLabel("Your answer").press("Meta+Enter");
     await click("Show next sample event");
     await heading("Keep the work. Choose what follows.");
     await shot("limit");
@@ -94,7 +156,7 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     await page
       .getByLabel("What should change?")
       .fill("Use a clearer empty-state message.");
-    await click("Request changes");
+    await page.getByLabel("What should change?").press("Control+Enter");
     await heading("A plan you can review.");
     assert.equal(
       await page
@@ -144,7 +206,7 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     assert.deepEqual(failures, []);
     assert.deepEqual(external, []);
     console.log(
-      "browser: full journey, explicit replacement/acceptance, revisions, Stop, focus, escaped text, narrow layout, no external requests or page errors passed",
+      "browser: full journey, Ctrl/Command+Enter once, plain Enter, required/trimmed validation, ignored repeated/composing/unrelated/outside-form keys, replacement/acceptance, revisions, Stop, focus, escaped text, narrow layout, no external requests or page errors passed",
     );
   } finally {
     await context.close();
