@@ -29,7 +29,10 @@ independent projects built using it need no credit. Source obligations apply;
 compliant commercial forks remain allowed. Optional paid proprietary
 permissions require a separate agreement. See [LICENSING.md](LICENSING.md).
 This is a source checkpoint; the installed v0.4.0 remains unchanged until
-the next deliberate release/install.
+the next deliberate release/install. Licensing candidate `b83f767` passed
+its full mock-only gate: 40 selftests, 16 + 78 + 26 regressions, 14 probes,
+standalone license packaging/aliases, ShellCheck, syntax and docs lint.
+No provider quota was used. Integration is its own owner-authorized merge.
 
 Frozen requirements: [QUALITY-M1-CONTRACT.md](QUALITY-M1-CONTRACT.md)
 at `e230ad4`. Clause-by-clause evidence:

@@ -25,12 +25,16 @@ checkpoint so another AI can continue without the previous conversation.
   `frugal-flock license` prints them. README and [licensing guidance](docs/LICENSING.md)
   explain notices/source obligations, lawful sales, independently developed
   projects, legal limits and separately agreed proprietary permissions.
-  This candidate is local on agent/codex. First quality run passed 40
-  selftests and 16 + 78 + 26 regressions, then exited 2: the lead edited the
-  shell suite's source while Bash was still reading it. Final installer and
-  suite syntax, targeted docs lint, official LICENSE hash, bundled legal
-  file equality and diff --check pass. Rerun the full gate with source held
-  fixed before publication. First log: tmp/license-checkpoint-20261004/quality-check.log.
+  Licensing source candidate: `b83f767` on agent/codex in wt/codex.
+  Full frozen-source quality gate passed: 40/40 selftests, 16 + 78 + 26
+  regressions, 14 probes held, standalone legal-file packaging and all
+  three aliases, ShellCheck, installer syntax and full docs lint. Official
+  LICENSE hash and embedded legal-file equality verified; whitespace clean.
+  Log: tmp/license-checkpoint-20261004/quality-check-frozen.log. The first
+  interrupted run is retained in quality-check.log and the append-only agent
+  log. This is one owner-authorized licensing integration; find its merge
+  on main's first-parent history. Source checkpoint complete; next work is
+  the remaining M1.5 canaries, which need fresh quota approval.
   Global installed 0.4.0 and all canary evidence remain unchanged; no quota call.
 - Antigravity live evidence is committed at `13e70e9` on `agent/codex` in
   `wt/codex`, merged and pushed as `0426f0c`.
@@ -67,7 +71,7 @@ checkpoint so another AI can continue without the previous conversation.
   including review gating and stale-result checks. The full offline gate
   passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
   branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
-  No worker is active. Current next task: finish the frozen-source licensing gate.
+  No worker is active. Current next task: remaining M1.5 canaries after quota approval.
   Remaining Codex/Kimi canaries still need quota approval.
   Claude is owner-reported limited for five hours (avoid through
   22:42 +0200 on 2026-10-04, an operator interval, not a confirmed reset).
