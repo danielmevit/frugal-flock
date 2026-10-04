@@ -5,8 +5,11 @@ Small plans. Big ideas.
 ## Name and promise
 
 The owner selected Frugal Flock as the product name and approved the
-tagline above. The product helps people build with the AI plans they can
-afford, coordinating different coding agents under human supervision.
+tagline above. Frugal Flock connects AI coding tools from different
+companies into one workspace: one AI leads, the others work as its
+subagents in separate copies of the project, and a person approves what is
+merged. The name explains it: a flock of AIs from different companies, run
+frugally on the plans people already have.
 
 The promise is to reduce the interruption and coordination work caused by
 limited plans. Provider limits still apply. More agents do not guarantee
@@ -19,10 +22,24 @@ provider's quota or conversation memory.
 |---------|------|
 | Product and window title | Frugal Flock |
 | Tagline | Small plans. Big ideas. |
+| One-sentence description (README title, GitHub) | Connect AI coding tools from different companies into one workspace |
 | Canonical terminal command | `frugal-flock` |
 | Short terminal command | `frgl-flc` |
 | Compatibility command | `agentteam` |
 | New installer entrypoint | `frugal-flock-install.sh` |
+
+GitHub repository metadata, set 2026-10-04. Keep the description, README
+title and these topics consistent when the product description changes:
+
+- Description: "Connect AI coding tools from different companies into one
+  workspace: Claude Code, Codex, Grok, Antigravity and OpenCode (Kimi) work
+  as a lead and subagents, each in its own copy of your project, with
+  checked results and you approving every merge."
+- Topics (GitHub allows 20): subagents, multi-agent, ai-agents,
+  ai-coding-agents, agentic-coding, agent-orchestration, multi-model,
+  ai-coding, vibe-coding, llm, claude-code, codex, grok, opencode,
+  antigravity, kimi, ai-coding-assistant, developer-tools, git-worktree,
+  human-in-the-loop.
 
 Do not use `flock` as an executable name. It is the Linux locking utility
 used by the orchestration engine.
