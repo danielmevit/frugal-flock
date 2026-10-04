@@ -84,6 +84,9 @@ your gate has gone soft, not that the team has become perfect.
     ├── tasks/       Work orders, one .md per task (TEMPLATE.md included).
     ├── reports/     Auto-written run reports (.md) + full raw logs (.log)
     │                + ledger.jsonl: one JSON line per run/verify/review.
+    ├── results/     One JSON result per worker and task: process, checks
+    │                and review, each bound to an exact revision.
+    ├── handoffs/    Context packets for the next AI (frugal-flock handoff).
     ├── blockers.md  "I'm stuck" notes, append-only.
     └── STOP         If this file exists, all new runs are refused.
 ```
@@ -103,15 +106,17 @@ parsing anywhere.
 |---|---|
 | `frugal-flock new <repo-url> [name] [workers...]` | The whole project bootstrap in one command: clone → dev branch → init → your playbooks copied in from `~/.config/agentteam/playbooks/`. Run it where you keep projects (e.g. `~/code`). |
 | `frugal-flock init [w1 w2 ...]` | Build workshops + office next to your clone. Run once per project, from inside the repo. Default workers: codex antigravity opencode grok. Add more anytime: `frugal-flock init claude`. |
-| `frugal-flock agents` | Roll call:each agent — binary installed? switched on/off? Run when anything seems wrong; it isolates "which agent" in seconds. |
-| `frugal-flock run <w> <task>` | Execute `coord/tasks/<task>.md` with worker `<w>` in its workshop. Blocks until done; prints exit code + report path. |
+| `frugal-flock agents [--json]` | Roll call: each agent — program installed (yes / no / unknown when the conf line uses shell syntax)? switched on/off? Local only: it never runs the agent and never checks login or quota. `--json` prints the same as machine-readable JSON. |
+| `frugal-flock run <w> <task>` | Execute `coord/tasks/<task>.md` with worker `<w>` in its workshop. Blocks until done; prints exit code + report path. Resets the task's stored result; the worker's real exit code is kept even if the post-run snapshot fails. |
 | `frugal-flock run -b <w> <task>` | Same, in the background — dispatch several at once, poll with `status`. |
 | `frugal-flock tail [task]` | Watch a run's log live (default: the newest). Ctrl-C stops watching, not the run. |
 | `frugal-flock kill <task>` | Stop a background run cleanly — kills its whole session, including the agent under `timeout`; any partial work stays uncommitted in the workshop. |
 | `frugal-flock report <task> [lines]` | Read a task's report without typing paths (default: last 60 lines of the append-only history). |
-| `frugal-flock verify <w> <task>` | The mechanical gate assist: checks the diff against the task's "- path" scope lines, re-runs its "$ " Validate commands inside the workshop, and flags empty "success" diffs. Verdict lands in the report. Run it BEFORE reading any diff. |
+| `frugal-flock verify <w> <task>` | The mechanical gate assist: checks the diff against the task's "- path" scope lines, re-runs its "$ " Validate commands inside the workshop, and flags empty "success" diffs. Verdict lands in the report and the stored result. Exit 0 = PASS, 1 = FAIL, 2 = INCOMPLETE (no scope lines, no Validate lines, or the worktree changed during the checks). Run it BEFORE reading any diff. |
 | `frugal-flock diff <w> [--stat]` | The receipts: exact changes on that worker's branch vs the base branch, committed and uncommitted separately. `--stat` = file list only (your scope check). |
-| `frugal-flock review <w> <task> [agent]` | Second opinion from a DIFFERENT vendor: it gets the task order + the diff, returns findings and a VERDICT line. Your gate, with a rival's eyes attached. |
+| `frugal-flock review <w> <task> [agent]` | Second opinion from a DIFFERENT vendor, only after a current verify PASS: it gets the task order + the full committed diff (clean worktree, text only, at most 300000 bytes) and must end with exactly one `VERDICT: APPROVE` or `VERDICT: REQUEST-CHANGES` line. Exit 0 = approved, 1 = changes requested or the reviewer failed, 2 = unknown verdict or incomplete material. Your gate, with a rival's eyes attached. |
+| `frugal-flock result <w> <task>` | The stored evidence as JSON: process, validation and review states, each bound to a revision, plus `stale` and `ready_for_human_review`. Read-only, no provider call. Exit 2 when the result is missing or malformed. |
+| `frugal-flock handoff <w> <task>` | Writes a context packet for the next AI under `coord/handoffs/` (task, result, revision, changed paths, HANDOFF.md) and prints its path. Not a backup: uncommitted work stays in the workshop. Refused while the worker runs. |
 | `frugal-flock sync [w]` | After your merges: brings the base branch into worker branches (fast-forward when fully merged, merge otherwise) so workshops build on current reality instead of drifting stale. Skips dirty or running workers; reports conflicts instead of forcing them. |
 | `frugal-flock status` | Morning briefing: benched agents, open tasks, recent reports,each workshop's branch state, anything still running. |
 | `frugal-flock off <agent> [30m\|5h\|7d]` | Quota switch: bench an agent. `5h` for a burned session window, `7d` for a weekly cap — auto-returns when the time expires. No duration = benched until `on`. |
@@ -212,6 +217,8 @@ then propose the next step. Wait for my go.
   scope breaks, failing Validate commands, and empty "success" diffs
   first, then read with its verdict in hand. Big or risky diff? Add
   `frugal-flock review` for a rival vendor's second opinion.
+  `frugal-flock result` then shows whether the run, verify and review
+  evidence all still match the current code.
 - After your merges: `frugal-flock sync` — one command and every workshop
   rebuilds on the new base instead of drifting stale.
 - Two terminals: foreman in one, YOUR gate commands (diff, tests, merge)
@@ -459,6 +466,12 @@ documented and acceptable.
 | `worker … is already running a task` | The per-worker lock: one run per workshop at a time → `frugal-flock status` to see what; stray background run: `frugal-flock kill <task>`. |
 | verify says SCOPE VIOLATION | The worker left its lane → reject the branch, re-brief with corrected scope. Never merge a violating diff as-is. |
 | verify FAIL while the report claims success | Working as designed — the report lied, the machine caught it. Trust verify. |
+| verify says INCOMPLETE (exit 2) | The task has no "- path" scope lines or no "$ " Validate lines, or the worktree changed while the checks ran → fix the task through the foreman, or rerun verify. It is never a PASS. |
+| review: "requires current passed validation" | Run verify first; any edit, commit or task change since the last PASS makes it stale. |
+| review: "incomplete review material" | Commit all staged, unstaged and untracked work; binary or oversized diffs need your own manual inspection. |
+| "unsupported assume-unchanged/skip-worktree index flags" | Those git flags hide edits from scope and review → `git update-index --no-assume-unchanged --no-skip-worktree <path>` or `git sparse-checkout disable`. |
+| run: "post-run snapshot failed" | The worker left a FIFO, socket, device, nested repo or submodule. Its exit is recorded but the result stays not ready → remove the file, run again. |
+| "Python 3 is required before run/review/smoke" | Install `python3` (standard library only, nothing else is downloaded). |
 | git complains about `index.lock` | A killed run died mid-commit → the next `frugal-flock run` clears it automatically; by hand: delete `<gitdir>/index.lock`. |
 | "name must not contain a path separator / `..`" | Safety guard on worker/task ids (they build paths under `wt/` and `coord/tasks/`) → use the bare id, e.g. `T7-codex`. |
 | init: "this repo has no commits yet" | Worktrees branch from a commit → `git commit --allow-empty -m init`, then `frugal-flock init`. |

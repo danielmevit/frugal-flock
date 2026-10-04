@@ -147,8 +147,9 @@ templates use the tools' own sign-ins rather than a shared API-key service.
   repository's history, not an isolated virtual machine.
 - **Explicit task contracts:** Markdown task files carry instructions,
   allowed file paths, validation commands, and a definition of done.
-- **Inspectable evidence:** diffs, append-only reports, live logs, and a
-  JSONL event ledger let you inspect more than an assistant's final claim.
+- **Inspectable evidence:** diffs, append-only reports, live logs, a
+  JSONL event ledger, and a revision-bound JSON result per task (`result`)
+  let you inspect more than an assistant's final claim.
 - **Cross-provider experiments:** independent reviews, competing attempts
   at a task, and rotating defect-hunting runs are available. These use
   additional provider capacity; they are optional, not the default goal.
@@ -163,6 +164,9 @@ frgl-flc help             # discover commands
 frgl-flc status           # tasks, reports, review queue, running work
 frgl-flc tail             # follow the latest run's log
 frgl-flc score            # inspect the recorded worker scorecard
+frgl-flc result codex T7  # stored run/verify/review evidence as JSON
+frgl-flc handoff codex T7 # context packet for the next AI, same checkout
+frgl-flc agents --json    # local availability; no login or quota probe
 frgl-flc off codex 5h     # your chosen retry interval, not a quota guarantee
 frgl-flc on codex         # make that provider available again
 ```
@@ -171,6 +175,9 @@ frgl-flc on codex         # make that provider available again
 Use `kill TASK_ID` for a specific background run. A successful process,
 passing checks, a reviewer's approval, and your acceptance are different
 things. Read the evidence before merging; missing checks need attention.
+`verify` exits 2 (INCOMPLETE) when a task has no scope or Validate lines,
+and `review` runs only after a current passing `verify`. See the
+[quality reference](docs/QUALITY-USAGE.md) for every exit code and field.
 
 Coordination files stay on your machine, but coding tools can send prompts
 and project content to their providers. Keep secrets out of task files and
@@ -217,13 +224,17 @@ before reinstalling; do not discard your work just to update.
 For contributors, checks that do not call live providers:
 
 ```bash
+bash tools/quality-check.sh   # everything below plus selftest and ShellCheck
+bash tests/frugal-flock-quality.sh
 bash tests/frugal-flock-branding.sh
 bash tests/agentteam-probes.sh
 bash tools/check-docs.sh
 ```
 
-CodeGraph is optional; an unindexed project stays unindexed. Pandoc is
-only needed to regenerate the Word manuals with `tools/make-docx.sh`.
+Python 3 (standard library only) is required at run time for the evidence
+commands. CodeGraph is optional; an unindexed project stays unindexed.
+Pandoc is only needed to regenerate the Word manuals with
+`tools/make-docx.sh`.
 See the [project setup playbook](docs/ai-project-setup-playbook.md) and
 [build recipe](docs/ai-full-build-recipe.md) for the development workflow.
 

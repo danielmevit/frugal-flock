@@ -38,6 +38,14 @@ frugal-flock version        # confirm what's installed
 Tab-completion (commands, workers, tasks, agents) installs automatically;
 open a new shell to pick it up.
 
+Requirements besides the AI CLIs: `git`, `flock` (util-linux, preinstalled
+on Ubuntu) and Python 3. Python is used only through its standard library,
+for the revision-bound evidence; nothing is downloaded or pip-installed.
+`run`, `verify`, `review`, `result`, `handoff`, `agents` and `smoke` look
+for `python3` first and stop with "Python 3 is required before
+run/review/smoke" before any provider starts. Check with
+`python3 --version`; on a minimal image, `sudo apt install python3`.
+
 ## 2. Log in each CLI once (interactive, one time)
 
 Headless runs reuse cached credentials. On a GUI-less VM most logins print
@@ -136,9 +144,11 @@ frugal-flock run -b grok T2-grok       # long task in background
 frugal-flock tail T2-grok              # watch a background run live
 frugal-flock kill T2-grok              # stop a background run
 frugal-flock status                    # off-agents, tasks, review queue, jobs
-frugal-flock verify codex T1-codex     # machine gate: scope + Validate + commits
+frugal-flock verify codex T1-codex     # machine gate: scope + Validate + commits (exit 0/1/2)
 frugal-flock diff codex                # the REAL diff vs dev — reports can lie
-frugal-flock review codex T1-codex     # a rival vendor reviews the diff
+frugal-flock review codex T1-codex     # a rival vendor reviews the committed diff (exit 0/1/2)
+frugal-flock result codex T1-codex     # stored evidence as JSON: ready_for_human_review?
+frugal-flock handoff codex T1-codex    # context packet for the next AI, same checkout
 frugal-flock sync                      # after merges: refresh all workshops
 frugal-flock race T5 codex grok        # bake-off: two vendors, one task, one winner
 frugal-flock sabotage opencode         # saboteur seat: failing tests vs fresh merges
@@ -158,6 +168,14 @@ verify` PASS + clean build (0 warnings where the repo enforces it) +
 tests green + smoke run + changelog fragment (`changelog.d/<ID>.md` —
 workers never edit CHANGELOG.md itself) — only then is a branch
 merge-ready. main is touched only on an explicit release.
+
+Exit codes: `verify` returns 0 for PASS, 1 for a real failure and 2 for
+INCOMPLETE evidence (no `- path` scope lines, no `$ ` Validate lines, or the
+worktree changed during the checks). `review` runs only after a current
+passed verify and returns 0 for approval, 1 for requested changes or a
+failed reviewer process, and 2 for an unknown verdict or incomplete
+material. `result` prints the stored evidence; `ready_for_human_review`
+is never your acceptance. Details: [QUALITY-USAGE.md](QUALITY-USAGE.md).
 
 If Claude Code asks approval for every Frugal Flock call, allow once in
 `repo/.claude/settings.json`:
@@ -237,6 +255,11 @@ picks the agent). Timeout: `AGENTTEAM_TIMEOUT=7200 frugal-flock run ...`.
   `--sandbox danger-full-access` for exactly this reason — don't "harden"
   it back to workspace-write, it breaks worktree commits.
 - Wrong integration branch → edit `coord/base`.
+- "Python 3 is required before run/review/smoke" → install `python3`
+  (standard library only); see §1.
+- `agents` shows `installed=unknown` → normal for conf lines that use shell
+  syntax such as `"$(cat "$TASKFILE")"`; it never runs them to find out.
+  `frugal-flock doctor` checks that each worker's program is on PATH.
 - WSL `/mnt` quirks from your GOTCHAS don't apply on the native-ext4 VM;
   if you ever move this workflow to WSL-on-Windows-drive, re-add
   `codegraph sync` after edits and `git config core.filemode false`.
