@@ -10,6 +10,32 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- M1.5 step 1 complete, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh):
+  owner-approved Codex retest passed in 26s using native gpt-6.1-sol/high,
+  throwaway `93c4cc9`, one file/commit, clean branch, scope OK, verify 2/2.
+  Full task/diff approved here, then the approved live Grok review passed
+  in 82s, exit 0/APPROVE, current ready result. All six latest canaries
+  ready/current; human pending/integration not attempted. Seven worker
+  invocations/one live reviewer total, one specifically approved retest,
+  no automatic retries. Original Codex interruption preserved under
+  live/receipts/codex/attempt-1; retest under attempt-2. Fixture STOP, no
+  active worker; installed runtime/global config hashes unchanged. Source
+  includes main `090cfd3`; every finished step gets its own merge/push.
+  The owner asked to continue the list without stopping. Next: M1.5 step 2,
+  engine loop brake, then watch, using local mocks/source builds. Further
+  provider calls need fresh quota approval. Keep the recorded interruption
+  activity-observation limitation for a separate mock-tested fix.
+
+Historical checkpoints below preserve how this state was reached; the
+newest bullet above governs readiness, quota authorization and next work.
+
+- The owner approved the pending bounded retest on 2026-10-04: one fresh
+  Codex worker invocation (180s), then one Grok review only after passed
+  validation (120s), no further retries. Root also reviews the full diff
+  here. Original interrupted Codex evidence archived under live/receipts/
+  codex/attempt-1/ before the native latest-run log is replaced. Main is
+  `090cfd3`; installed runtime/global config unchanged. Retest is next;
+  the interrupted-activity observation fix remains a separate mock task.
 - Mock diagnosis, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh): source
   includes main `b8625c7` (passing Claude evidence, candidate `7511197`),
   with Codex recovery published as `aadc005` and Kimi as `9fadc8a`.
@@ -24,7 +50,7 @@ checkpoint so another AI can continue without the previous conversation.
   Local receipts: tmp/m15-interruption-20261004/receipts/. Five live canaries
   passed; six approved attempts used, Codex interrupted, no extra provider
   reviews/retries. Fresh Codex (180s) plus conditional Grok review (120s)
-  quota approval is pending; do not run them without the owner's answer.
+  quota approval was subsequently granted for those two bounded calls above.
   Diagnosis is recorded for its own merge. Next: a mock-tested interruption
   activity observation fix; preserve unknown exit and the distinction between a free
   worker lock and the possible existence of detached processes.
@@ -196,17 +222,16 @@ order, one small tested checkpoint each:
    Grok also passed in 35 seconds (one call, verify 2/2, lead review, ready
    result). OpenCode Go (`opencode-go/glm-5.3`) passed in 24 seconds, one
    call, verify 2/2, lead review and ready result. Kimi K3 passed in 45s.
-   Codex's already-started invocation was interrupted: unchanged baseline,
-   verify 1/2 failed, exit unknown, native process still running but not ready.
-   No retry; preserve the interrupted-run recovery finding.
-   Claude's one approved Sonnet 5.5/medium attempt passed in 23 seconds,
-   full canary including lead review/current ready result. Six worker
-   invocations total; five passed, Codex interrupted. All approved calls
-   used; no retries or extra provider reviewers. Investigate the orphaned
-   running status using mocks; any Codex rerun needs fresh quota approval.
-   Native Codex review must use a different vendor. Other Claude calls
-   remain deferred until 22:42 +0200 on 2026-10-04 (operator interval,
-   not a provider-confirmed reset); Sonnet success does not clear the limit.
+   Claude Sonnet 5.5/medium passed in 23 seconds. Codex's original call
+   was interrupted; its explicitly approved retest passed in 26 seconds,
+   verify 2/2, lead approval and live Grok review (82s), current ready result.
+   All six latest canaries passed: step 1 complete. Seven worker calls and
+   one live reviewer total; one specifically approved retest, no automatic
+   retries. Fixture stopped, global settings unchanged. Preserve original
+   interruption evidence and mock diagnosis of stale running activity;
+   fix that observation separately without inventing worker exits.
+   Continue step 2 (loop brake), then step 3 (watch), with mocks. No further
+   provider call currently authorized.
    Ask before spending provider quota; no retries or fallback calls.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
