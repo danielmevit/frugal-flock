@@ -322,7 +322,8 @@ After two unsuccessful attempts on one task ID, `run` refuses another
 invocation before executing its configured provider command (exit 2).
 Changing workers does not reset the count. Failed processes, failed or
 incomplete verification, and an interrupted tracked start each count once
-per attempt; repeated verification does not add failures. Tracking starts
+per attempt; repeated verification does not add failures. Lost starts are
+reconciled across workers when the next run starts; held locks are left alone. Tracking starts
 with this source version; old reports are not retroactively inferred.
 
 Only after the owner approves another attempt, run:

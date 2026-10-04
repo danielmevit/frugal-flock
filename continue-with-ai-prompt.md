@@ -10,6 +10,20 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- M1.5 step 2 correction, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
+  wt/codex on agent/codex candidate `3a68a8a`: frozen full gate passed
+  40 selftests, 16 + 78 + 26 regressions, 18 brake checks and all 14 probes,
+  then failed standalone branding because docs/PROTOCOL.md differed from
+  the embedded template. Corrected both copies. Source review also found
+  interrupted starts were reconciled only on the same worker; reconcile
+  lost starts across workers while leaving held locks alone. Added four
+  focused reassignment/active-lock checks (22 total) before a new frozen
+  full gate. No provider call/global changes. A separate watch draft passed
+  24 focused mock checks after fixing CLI signal delivery; final 25-check
+  source suite includes the honest runner-pattern limit explanation.
+  Next: corrected brake full gate/publication, then watch and the stale
+  fresh-install OpenCode flag fix, each as its own merge/push.
+
 - M1.5 step 2 draft, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
   wt/codex on agent/codex based on main `6e16947`: loop brake implemented
   in source, 18 focused mock checks passed. Covers real exit preservation,

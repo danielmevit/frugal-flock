@@ -956,6 +956,16 @@ def atomic(path, d):
     finally:
         if os.path.exists(temp): os.unlink(temp)
 
+def observed_lock(root, worker):
+    path = safe(root, 'coord', '.locks', worker + '.lock')
+    if not os.path.exists(path): return 'free'
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as f:
+        if not stat.S_ISREG(os.fstat(f.fileno()).st_mode): fail('unsupported worker lock')
+        try: fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError: return 'held'
+    return 'free'
+
 def retry(root, task, operation, worker=''):
     """Count unsuccessful attempts once; an owner grant buys one invocation."""
     ident(task)
@@ -984,11 +994,13 @@ def retry(root, task, operation, worker=''):
                 fail('malformed retry attempt')
         attempt = state['latest'].get(worker)
         if operation == 'start':
-            # The caller holds this worker's lock: a previous unfinished start
-            # has lost its runner. Count it without inventing an exit code.
-            if attempt and attempt['pending'] and not attempt['failed']:
-                attempt.update(failed=True, pending=False)
-                state['failed_attempts'] += 1
+            # Reconcile unfinished starts across workers. A free lock means
+            # runner completion was lost, not that no detached process exists.
+            # The caller already holds its own lock, so its old start is lost.
+            for name, previous in state['latest'].items():
+                if previous['pending'] and not previous['failed'] and (name == worker or observed_lock(root, name) == 'free'):
+                    previous.update(failed=True, pending=False)
+                    state['failed_attempts'] += 1
             if state['failed_attempts'] >= 2 and not state['retry_granted']:
                 atomic(path, state)
                 fail('loop brake: task ' + task + ' has ' + str(state['failed_attempts'])

@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix='loop-brake-') as directory:
         return subprocess.run(['git',*args],cwd=repo,env=env,check=True,capture_output=True)
     git('init','-q','-b','main'); (repo/'canary.txt').write_text('pending\n')
     git('add','canary.txt'); git('commit','-qm','seed')
-    subprocess.run([at,'init','mock','mock-2'],cwd=repo,env=env,check=True,capture_output=True)
+    subprocess.run([at,'init','mock','mock-2','mock-3'],cwd=repo,env=env,check=True,capture_output=True)
     mark = root/'calls'; info = root/'mock-process.json'
     mock = root/'mock.py'
     mock.write_text('''import os,json,subprocess,time
@@ -118,10 +118,9 @@ raise SystemExit(7 if mode=='fail' else 0)
         codes=list(pool.map(compete,['mock','mock-2']))
     check('concurrent workers share a single retry grant',sorted(codes)==[2,7] and calls()==n+1)
 
-    task('interrupted')
-    for _ in range(2):
+    def interrupt(worker, name, during=None):
         if info.exists(): info.unlink()
-        proc=subprocess.Popen([at,'run','mock','interrupted'],cwd=repo,
+        proc=subprocess.Popen([at,'run',worker,name],cwd=repo,
                               env=dict(env,BRAKE_MOCK_MODE='hold'),stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
         worker_group=None
         try:
@@ -130,6 +129,7 @@ raise SystemExit(7 if mode=='fail' else 0)
             assert info.exists(),'mock did not start'
             worker_group=json.loads(info.read_text())['pgid']
             assert worker_group!=os.getpgrp()
+            if during: during()
             os.killpg(proc.pid,signal.SIGKILL)
             if worker_group!=proc.pid:
                 try: os.killpg(worker_group,signal.SIGKILL)
@@ -141,7 +141,19 @@ raise SystemExit(7 if mode=='fail' else 0)
             if worker_group is not None:
                 try: os.killpg(worker_group,signal.SIGKILL)
                 except ProcessLookupError: pass
+    task('interrupted')
+    for _ in range(2): interrupt('mock','interrupted')
     refuse('interrupted')
     check('two interrupted starts block another invocation',state('interrupted')['failed_attempts']==2)
     check('interruption counter never invents a worker exit',json.loads(call('result','mock','interrupted').stdout)['process']['exit_code'] is None)
+    task('reassigned')
+    interrupt('mock','reassigned'); interrupt('mock-2','reassigned'); refuse('reassigned','mock-3')
+    check('interrupted failures remain shared after task reassignment',state('reassigned')['failed_attempts']==2)
+    check('reassignment never invents either worker exit',all(json.loads(call('result',w,'reassigned').stdout)['process']['exit_code'] is None for w in ('mock','mock-2')))
+    task('active')
+    def while_active():
+        call('run','mock-2','active',code=7)
+        check('held active worker is not counted as interrupted',state('active')['failed_attempts']==1 and state('active')['latest']['mock']['pending'])
+    interrupt('mock','active',while_active); refuse('active','mock-3')
+    check('released interrupted worker then contributes to shared brake',state('active')['failed_attempts']==2)
     print(f'loop-brake regressions: {count} passed')

@@ -134,6 +134,17 @@ to integrate. `frugal-flock result` prints this JSON only, recomputed against
 the current worktree; a missing or malformed file fails closed (exit 2), and
 old report text is never backfilled as structured evidence.
 
+Loop brake: after two failed attempts on a task ID, `run` refuses before
+calling a provider (exit 2), shared across workers. Nonzero exits, failed or
+incomplete verification and interrupted tracked starts count once per
+attempt. Repeated verification does not add failures. Only the owner may
+use `frugal-flock allow-retry TASK` to grant one invocation; grants do not
+accumulate or erase failures. State is local in `coord/retries/TASK/`,
+locked across workers; malformed or symlink state fails closed. Tracking
+starts with this source version, without inferring historical outcomes.
+Workers must not grant themselves retries. This is trusted-host coordination,
+not an access-control boundary or provider-quota approval.
+
 Review gate: `frugal-flock review` needs current passed validation. Its
 material is the task file plus the full committed diff against base. It is
 refused (exit 2, review recorded `unknown`, `material_complete` false) for
