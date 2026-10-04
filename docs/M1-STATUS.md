@@ -12,14 +12,17 @@ workspace's `artifacts/backups/`.
 M1.5 step 1 has an isolated canary prepared on `agent/codex` by Codex
 (`gpt-6.1-sol`, xhigh), 2026-10-04. The installed 0.4.0 passed the offline
 mock rehearsal. Antigravity passed in 22 seconds, Grok in 35 seconds and
-OpenCode Go GLM 5.3 in 24 seconds. Step 1 is not complete: Codex/Kimi
-canaries remain unrun and Claude is deferred. Antigravity was explicitly
+OpenCode Go GLM 5.3 in 24 seconds and Kimi K3 in 45 seconds. Step 1 is not
+complete: Codex and Claude canaries remain unrun but are now authorized.
+Claude's one attempt uses Sonnet 5.5/medium under an explicit owner override
+of its earlier deferral. Antigravity was explicitly
 requested by the owner. See [the canary checkpoint](M1.5-LIVE-CANARY.md).
 The owner reports Claude is limited for the next five hours; this Codex
-session handles code review and implementation. Do not call Claude.
-All three runs, verify (2/2 each), in-session reviews through sealed local
-adapters and current results passed. Three worker invocations, no extra
-reviewer calls. Other canaries await quota approval. The fixture is stopped.
+session handles code review and implementation. No further Claude call
+beyond that one attempt is authorized.
+All four runs, verify (2/2 each), in-session reviews through sealed local
+adapters and current results passed. Four worker invocations, no extra
+reviewer calls. The fixture is stopped; the remaining two calls are next.
 
 Separate licensing checkpoint, owner-selected on 2026-10-04:
 AGPL-3.0-only with copyright Daniel Mitev and public attribution Daniel
