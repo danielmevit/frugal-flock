@@ -10,6 +10,19 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Manual plan-draft store complete in source, 2026-10-05 by Codex
+  (`gpt-6.1-sol`, xhigh), based on main `4747000` (waiver merge, source
+  `b8b44a3`). Immutable literal JSON drafts/opaque IDs/UTC times/content
+  hashes; exclusive atomic publication/fsync, bounded no-follow reads.
+  Eight stdlib cases passed, including restart, shell-looking text as data,
+  malformed/forged records, symlink/FIFO refusal, no overwrite and 20
+  concurrent writes. Fixtures only; no real-project draft/provider call.
+  Activity server stays read-only; storage is not HTTP/UI wired. Next:
+  publish storage separately, then protected opt-in create/read API only.
+  No native task compilation, approval, dispatch or merge in that API step.
+  Feedback gate explicitly waived; further provider quota still requires
+  approval. Installed 0.4.0 and global configuration remain unchanged.
+
 - Owner decision 2026-10-04: no two testers are available, so explicitly
   waive the two-person feedback prerequisite and proceed using judgment and
   automated checks. No sessions are fabricated; optional blank guide stays.
