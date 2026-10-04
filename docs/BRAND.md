@@ -35,11 +35,12 @@ title and these topics consistent when the product description changes:
   workspace: Claude Code, Codex, Grok, Antigravity and OpenCode (Kimi) work
   as a lead and subagents, each in its own copy of your project, with
   checked results and you approving every merge."
-- Topics (GitHub allows 20): subagents, multi-agent, ai-agents,
-  ai-coding-agents, agentic-coding, agent-orchestration, multi-model,
-  ai-coding, vibe-coding, llm, claude-code, codex, grok, opencode,
-  antigravity, kimi, ai-coding-assistant, developer-tools, git-worktree,
-  human-in-the-loop.
+- Topics (GitHub allows 20), centred on orchestrating AIs and subagents,
+  with only the two highest-traffic tool names: ai-orchestration,
+  agent-orchestration, llm-orchestration, multi-agent, multi-agent-systems,
+  subagents, ai-agents, agentic-ai, agentic-workflow, agentic-coding,
+  ai-coding-agents, coding-agents, multi-model, multi-llm,
+  ai-collaboration, ai-workflow, human-in-the-loop, llm, claude-code, codex.
 
 Do not use `flock` as an executable name. It is the Linux locking utility
 used by the orchestration engine.
