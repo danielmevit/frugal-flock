@@ -146,13 +146,13 @@ after = packets()
 pending = [n for n in after if n.startswith('.pending-')]
 check('handoff killed mid-publication publishes no partial packet',
       held and pending and {n: t for n, t in after.items() if n not in pending} == prior)
-for n in pending:
-    shutil.rmtree(parent / n)
 hold.unlink()
 packet2 = Path(call('handoff', 'mock', 'cov').stdout.strip())
 check('next handoff after an interruption is complete and unique',
       packet2.name not in prior and {f.name for f in packet2.iterdir()}
       == {'task.md', 'result.json', 'revision.json', 'changed-files.json', 'HANDOFF.md'})
+check('next handoff removes the interrupted scratch folder',
+      not [n for n in os.listdir(parent) if n.startswith('.pending-')])
 shutil.rmtree(shim)
 
 # Old PASS text in a report is never upgraded to structured evidence.
@@ -307,5 +307,18 @@ check('missing Python 3 stops run before any provider starts',
       'Python 3 is required' in p.stderr and not mark.exists())
 shutil.rmtree(farm)
 
+# A missing base is a failure (exit 1), judged before the snapshot needs it.
+base_file = root / 'coord/base'
+saved_base = base_file.read_text()
+base_file.write_text('ghost-branch\n')
+p = call('verify', 'mock', 'cov', code=1)
+check('missing base fails verify with exit 1', 'does not exist' in p.stderr)
+base_file.write_text(saved_base)
+
+# Scratch from a writer killed mid-write is swept by the next locked write.
+stale = root / 'coord/results/mock/.result-killed'
+stale.write_text('{')
+subprocess.run([at, 'verify', 'mock', 'cov'], capture_output=True, text=True)
+check('a killed writer\'s scratch result is swept on the next write', not stale.exists())
 check('no temporary result files left behind', not list((root / 'coord/results/mock').glob('.result-*')))
 print(f'quality coverage regressions: {count} passed')
