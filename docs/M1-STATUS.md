@@ -12,29 +12,22 @@ workspace's `artifacts/backups/`.
 M1.5 step 1 has an isolated canary prepared on `agent/codex` by Codex
 (`gpt-6.1-sol`, xhigh), 2026-10-04. The installed 0.4.0 passed the offline
 mock rehearsal. Antigravity passed in 22 seconds, Grok in 35 seconds and
-OpenCode Go GLM 5.3 in 24 seconds and Kimi K3 in 45 seconds. Step 1 is not
-complete: Codex's recovered invocation was interrupted with no completion,
-exit or duration captured; clean unchanged baseline, zero commits, verify
-1/2 failed. The native result retains process running despite no surviving
-worker, but is not ready; record the recovery gap without rewriting evidence.
-No retry. Claude's owner-approved Sonnet 5.5/medium exception passed in
-23 seconds, one commit/file, scope OK, verify 2/2 and complete diff approved
-here by Codex, through the sealed local review adapter. Its native JSON
-confirms Sonnet 5.5; result current/ready, human pending, integration not
-attempted. This does not establish that its earlier Opus limit cleared.
-See [the canary checkpoint](M1.5-LIVE-CANARY.md). This Codex session handles
-code review and implementation; no further Claude call is authorized.
-All five successful canaries passed run, verify 2/2, in-session review and
-current result. Including interrupted Codex, six worker invocations total,
-zero additional provider reviewers/retries; all approved attempts used.
-Execution access restored, global agent configuration/runtime unchanged,
-all six local agent entries restored, fixture stopped, no worker active.
-The interruption finding is now reproduced with one local mock and zero
-provider calls: native result retains running/null exit after the runner
-ends, while readiness remains false and handoff warns of interruption.
-Neither source runtime nor live result was rewritten. Next: a tested activity
-observation fix; any Codex rerun needs fresh quota approval and native review
-needs a different vendor.
+OpenCode Go GLM 5.3 in 24 seconds, Kimi K3 in 45 seconds and Claude
+Sonnet 5.5/medium in 23 seconds. Codex's original attempt was interrupted;
+its owner-approved retest passed in 26 seconds with one commit/file,
+verify 2/2 and lead approval. One live Grok review passed in 82 seconds,
+producing native approved/current/ready evidence. All six latest results
+are current and ready, human pending/integration not attempted. **M1.5
+step 1 is complete**, with the interruption observation limitation retained.
+See [the canary checkpoint](M1.5-LIVE-CANARY.md).
+Seven worker invocations and one live reviewer invocation total, one
+explicitly approved retest, no automatic retries. Both fixtures are stopped;
+installed runtime/global agent settings unchanged. Original interrupted
+Codex evidence is archived under attempt-1; retest under attempt-2.
+The stale running-label finding was reproduced with a local mock, zero
+provider calls; readiness fails closed and handoff warns of interruption.
+Next: M1.5 engine loop brake, then live monitor, with mocks. The owner asked
+to keep progressing through the roadmap; further provider calls need approval.
 
 Separate licensing checkpoint, owner-selected on 2026-10-04:
 AGPL-3.0-only with copyright Daniel Mitev and public attribution Daniel

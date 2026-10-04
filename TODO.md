@@ -114,19 +114,15 @@ order, one small tested checkpoint each:
    OpenCode Go `opencode-go/glm-5.3` passed in 24 seconds, with the same
    checks and in-session lead review.
    Kimi (`opencode-go/kimi-k3`) also passed in 45 seconds with the same checks.
-   Codex's interrupted invocation was recovered after execution access was
-   restored: no commit, verify 1/2 failed, no completion/exit captured. Its
-   native process status remains running despite no surviving worker; result
-   is not ready. Record the recovery gap; no retry or invented timeout.
    Claude Sonnet 5.5/medium passed in 23 seconds, one commit/file, verify
-   2/2, in-session lead review and current ready result. Six worker
-   invocations total, five ready canaries, no retries/extra provider reviews.
-   All approved calls used; fixture stopped. Step 1 remains incomplete:
-   interruption status is reproduced with one local mock/zero provider
-   calls. Readiness stays false and handoff warns of interruption; the
-   activity label remains running after its worker lock is free. Fix/test
-   that observation without inventing exits. Any Codex rerun needs fresh
-   quota approval, and native approval needs another vendor.
+   2/2, lead review and current ready result. Codex's original attempt was
+   interrupted and archived; the owner's one approved retest passed in
+   26 seconds, one commit/file, verify 2/2, lead approval and live Grok review
+   (82s), current ready result. All six canaries now passed; step 1 complete.
+   Seven worker invocations/one live reviewer; one explicitly approved
+   retest, no automatic retries. Fixture stopped, global settings unchanged.
+   The interrupted-activity label limitation is reproduced with mocks and
+   recorded for a separate fix; readiness correctly fails closed.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
