@@ -10,6 +10,8 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Antigravity live evidence is committed at `13e70e9` on `agent/codex` in
+  `wt/codex`; the checkpoint is ready for its own merge and push.
 - M1.5 preparation is merged and pushed as `d991350` (candidate `4b8e1a9`
   plus `61327ec`). The owner-approved README rewrite `4565cfd` is also
   on main and included in this Codex worktree; preserve it.
