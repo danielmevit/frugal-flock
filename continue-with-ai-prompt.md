@@ -11,7 +11,18 @@ checkpoint so another AI can continue without the previous conversation.
 ## Current checkpoint
 
 - Antigravity live evidence is committed at `13e70e9` on `agent/codex` in
-  `wt/codex`; the checkpoint is ready for its own merge and push.
+  `wt/codex`, merged and pushed as `0426f0c`.
+- Codex worktree synced with main `81b587c`; read and preserve the owner's
+  README and BRAND description/topics updates. On 2026-10-04 the owner
+  authorized one Grok canary and one OpenCode Go canary using GLM 5.3.
+  Installed model registry confirms `opencode-go/glm-5.3`. Run sequentially,
+  180 seconds each, no retries; this Codex session reviews both without
+  additional provider calls. Global provider configuration stays unchanged.
+- Grok passed in 35 seconds: throwaway commit `868036f`, scope OK, 2/2
+  checks, in-session Codex review approved and a current ready result.
+  Total live worker calls: two (Antigravity and Grok); no extra reviewer
+  calls, retries or Claude calls. Fixture stopped. Next: publish this Grok
+  checkpoint, then the authorized OpenCode Go GLM 5.3 canary.
 - M1.5 preparation is merged and pushed as `d991350` (candidate `4b8e1a9`
   plus `61327ec`). The owner-approved README rewrites `4565cfd` and `f6f0ed9` are also
   on main and included in this Codex worktree; preserve it.
@@ -27,11 +38,11 @@ checkpoint so another AI can continue without the previous conversation.
   including review gating and stale-result checks. The full offline gate
   passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
   branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
-  No worker is active. Next: obtain quota approval for the prepared Grok
-  canary. Claude is owner-reported limited for five hours (avoid through
+  No worker is active. Next: the authorized OpenCode Go GLM 5.3 canary.
+  Claude is owner-reported limited for five hours (avoid through
   22:42 +0200 on 2026-10-04, an operator interval, not a confirmed reset).
   Codex does the main implementation and reviews in-session. Other worker
-  calls need quota approval; no separate provider reviewer call authorized.
+  calls beyond those two need quota approval; no separate provider reviewer call authorized.
   The owner authorized each finished checkpoint's own merge and push.
 - Public repo: https://github.com/danielmevit/frugal-flock.
 - **M1 is complete and accepted by the owner (2026-10-04)** and released as
@@ -84,7 +95,9 @@ order, one small tested checkpoint each:
    including Antigravity at the owner's request to recheck its earlier error.
    Antigravity passed in 22 seconds (run/verify/lead review/result); one
    worker call, zero extra reviewer calls, no retry. STOP is active again.
-   Next: quota approval for Grok. The Codex lead reviews in-session; do not
+   Grok also passed in 35 seconds (one call, verify 2/2, lead review, ready
+   result). OpenCode Go (`opencode-go/glm-5.3`) is authorized next, one
+   call with no retries. The Codex lead reviews in-session; do not
    call Claude before 22:42 +0200 on 2026-10-04 (operator interval, not a
    provider-confirmed reset). Other worker calls need approval.
    Ask before spending provider quota; no retries or fallback calls.
