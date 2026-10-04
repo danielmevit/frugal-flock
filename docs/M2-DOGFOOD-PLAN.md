@@ -29,8 +29,10 @@ A temporary local config pins opencode-go/glm-5.3/max using --auto; global
 profiles/auth remain unchanged. Binary present is only local diagnostics;
 authentication and remaining capacity are unknown. The local task, manifest
 and receipts stay under coord/ and tmp/m2-keyboard-20261004/, not in Git.
-M2 acceptance still needs two new-user feedback sessions before live UI
-execution. This native CLI task does not connect the sample UI to providers.
+The owner waived the two-person feedback gate on 2026-10-04; no sessions
+have occurred. Use judgment/automated checks for the next live-control slices;
+provider quota still needs approval. This native CLI task does not connect
+the sample UI to providers.
 
 ## First keyboard attempt: preserved failure
 

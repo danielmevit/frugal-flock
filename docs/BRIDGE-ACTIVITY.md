@@ -55,9 +55,10 @@ fields. The preview displays recent events in a disclosure as text.
 
 The server is an observation process, not an atomic transaction across all
 coordination files. Production packaging, folder selection, sign-in/setup,
-a durable queue and mutating operations remain separate tasks. Two real
-new-user sessions are still pending before live UI execution. The next
-checkpoint must preserve these boundaries and choose one bounded next task.
+a durable queue and mutating operations remain separate tasks. The owner
+waived the two-person feedback prerequisite on 2026-10-04; no sessions exist.
+The next slices use judgment/automated checks while retaining run/quota
+approval and truthful evidence. Choose one bounded next task.
 
 ## Source checkpoint verification (2026-10-04)
 

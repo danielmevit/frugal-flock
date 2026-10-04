@@ -49,9 +49,15 @@ The first original [M2 sample prototype](../prototype/README.md) passed
 four state tests and a full Chromium browser journey: explicit plan/recovery/
 acceptance, approval invalidation, Stop, focus, escaped text and narrow
 inspector collapse, no external requests/page errors. This is sample data
-only with no project writes or provider connections. M2 acceptance is
-pending two new-user sessions and one bounded installed-release dogfood
-cycle, which needs fresh quota approval.
+only with no project writes or provider connections. The initial M1.5 list
+is complete in published source; installed v0.4.0 remains unchanged. The
+later GLM keyboard worker timed out unchanged; root finished locally. A
+separate Claude Opus 5.5/high guide cycle passed validation/root review.
+The read-only Activity bridge and optional browser opening are now published.
+The owner explicitly waived the two-person feedback prerequisite on
+2026-10-04; no sessions occurred. Small live-control work can proceed using
+judgment/automated checks, with provider quota approval still required.
+See [dogfood evidence](M2-DOGFOOD-PLAN.md) and [bridge contract](BRIDGE-ACTIVITY.md).
 
 Separate licensing checkpoint, owner-selected on 2026-10-04:
 AGPL-3.0-only with copyright Daniel Mitev and public attribution Daniel

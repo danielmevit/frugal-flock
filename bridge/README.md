@@ -42,7 +42,9 @@ Use CLI `result WORKER TASK` separately to recheck current readiness. A free
 worker lock with a recorded running result means completion is unknown;
 it does not rule out detached processes. Operator retry times are reminders,
 not confirmed provider reset times. Snapshots observe files independently.
-Two real new-user sessions remain required before wiring live UI execution.
+The owner waived the two-person feedback prerequisite on 2026-10-04;
+no sessions occurred. The next slices use judgment/automated checks and
+explicit run/quota approval. This preview still has no live controls.
 
 ## Checks
 
