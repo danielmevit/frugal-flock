@@ -105,13 +105,19 @@ Do the M1.5 stability phase, approved by the owner on 2026-10-04, in this
 order, one small tested checkpoint each:
 1. Live canary: a throwaway repo, one tiny task per agent through run,
    verify, review and result. Tiny tasks only; it uses provider quota.
+   Offline preparation is recorded in [the canary checkpoint](docs/M1.5-LIVE-CANARY.md).
+   The first Antigravity worker call is authorized. Include it at the owner's explicit
+   2026-10-04 request to check whether its earlier error persists.
+   Claude is limited for five hours; the Codex lead does code review and
+   implementation. Other worker calls still need quota approval.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
    as they happen; it later becomes the app's Activity view.
 4. The flock runs on the installed release while it builds the next
    version in the repo; reinstall only at deliberate releases.
-5. Bench Antigravity until it passes the canary (2 of 2 live runs failed).
+5. Bench Antigravity for dogfooding until it passes the canary (2 of 2
+   earlier live runs failed). The owner requested its inclusion in step 1.
 Then dogfood on M2 (the mock-data prototype): one worker plus a reviewer,
 owner merges; widen after a few clean cycles.
 

@@ -9,6 +9,14 @@ documentation-only scope result of the final gate. It is released as
 the owner's machine, with the 0.3.1 files backed up in the local
 workspace's `artifacts/backups/`.
 
+M1.5 step 1 has an isolated canary prepared on `agent/codex` by Codex
+(`gpt-6.1-sol`, xhigh), 2026-10-04. The installed 0.4.0 passed the offline
+mock rehearsal. The first Antigravity worker call is authorized; step 1 is not
+complete. All six agents are included, with Antigravity explicitly
+requested by the owner. See [the canary checkpoint](M1.5-LIVE-CANARY.md).
+The owner reports Claude is limited for the next five hours; this Codex
+session handles code review and implementation. Do not call Claude.
+
 Frozen requirements: [QUALITY-M1-CONTRACT.md](QUALITY-M1-CONTRACT.md)
 at `e230ad4`. Clause-by-clause evidence:
 [M1-ACCEPTANCE-AUDIT.md](M1-ACCEPTANCE-AUDIT.md).
