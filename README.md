@@ -246,9 +246,12 @@ These are planned features. Read the [UX proposal](docs/UX-DIRECTION.md)
 and [prioritized next steps](TODO.md) for their scope and order.
 The [brand notes](docs/BRAND.md) explain the name and the promise behind it.
 
-Continuing with another AI? Start with [FRUGAL-FLOCK-NEXT-AI.md](FRUGAL-FLOCK-NEXT-AI.md),
-the living prompt updated after each small checkpoint. The
+Continuing with another AI? Open [the continuation prompt](continue-with-ai-prompt.md),
+copy its prompt section, and paste it into your next AI chat. It explains
+what is saved, what is unfinished, and where to continue. The
 [build handoff](docs/AI-HANDOFF.md) provides additional context.
+The [workspace rules](WORKSPACE-RULES.md) explain where project files belong:
+one enclosing Frugal Flock folder, including its working copies and reports.
 The [latest checkpoint report](docs/SESSION-HANDOFF-2026-10-04.md) identifies
 the unmerged implementation branch, verified work, and remaining blockers.
 The [findings index](docs/RESEARCH-FINDINGS.md) connects the competitor

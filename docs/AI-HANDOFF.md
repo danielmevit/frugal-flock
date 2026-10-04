@@ -6,11 +6,15 @@ If the next AI cannot access GitHub, attach this file and the documents
 listed in its reading order.
 
 Latest checkpoint: read [the 2026-10-04 continuation report](SESSION-HANDOFF-2026-10-04.md)
-first. Main contains planning/reporting; implementation is on `agent/kimi`
+first. Main contains planning/reporting; implementation is on `agent/codex`
 at `80feafb15049411238b864cace7077af3f43376b`, not merged. The report's
-short prompt supersedes any older prototype-first prompt.
-For subsequent sessions use [FRUGAL-FLOCK-NEXT-AI.md](../FRUGAL-FLOCK-NEXT-AI.md),
-the living prompt that must be refreshed after every small checkpoint.
+historical test results do not imply milestone acceptance.
+For subsequent sessions use [the continuation prompt](../continue-with-ai-prompt.md),
+the single living prompt refreshed after every small checkpoint. Copy its
+prompt section into the next AI chat. The latest owner request is cleanup
+and handoff only; wait for explicit direction before resuming implementation.
+All project-owned files belong under one workspace, per
+[WORKSPACE-RULES.md](../WORKSPACE-RULES.md).
 
 ## Current baseline
 
@@ -77,82 +81,22 @@ turn the main interface into a wall of terminals or quota charts.
 
 ## Copy-paste prompt
 
-```text
-Continue Frugal Flock from https://github.com/danielmevit/frugal-flock.
-Use the latest main; do not restart the rename or assume prior chat memory.
+Use [continue-with-ai-prompt.md](../continue-with-ai-prompt.md). Keeping the
+copy-paste text in one place prevents older handoffs from sending the next
+AI to an obsolete branch, folder, or milestone. This document supplies
+product context and later acceptance criteria, not a second competing prompt.
 
-The idea: different AI coding agents from different companies work as a
-human-supervised team on one project. The audience includes learners,
-makers, designers, solo developers, and small teams using modest AI plans.
-Name: Frugal Flock. Tagline: Small plans. Big ideas.
+For research context, read [the findings index](RESEARCH-FINDINGS.md),
+[engine findings](ENGINE-FINDINGS.md), and [team workflows](AI-TEAM-WORKFLOWS.md).
+For later UX, use [UX direction](UX-DIRECTION.md),
+[feature decisions](FEATURE-DECISIONS.md), and
+[Toolcraft reference](TOOLCRAFT-REFERENCE.md). Build original components;
+do not import Toolcraft code, assets, templates, or its scaffold. Provider
+facts in older research may need rechecking before future product decisions.
+The [capacity-aware continuation proposal](CAPACITY-AWARE-CONTINUATION.md)
+is future work, not a shipped scheduler or universal quota API.
 
-First inspect the checkout and applicable AGENTS.md/MASTER.md/WORKER.md
-instructions. Preserve existing changes. Use CodeGraph only if this repo
-already has a .codegraph directory; do not create an index unasked.
-Read README.md, docs/RESEARCH-FINDINGS.md, research/COMPETITIVE-REVIEW.md,
-docs/ENGINE-FINDINGS.md, docs/BRAND.md, docs/UX-DIRECTION.md, TODO.md,
-docs/M1-STATUS.md, docs/QUALITY-M1-CONTRACT.md, docs/AI-TEAM-WORKFLOWS.md,
-and this docs/AI-HANDOFF.md. Do not assume the historical Claude research
-contains current provider pricing, permissions, or product facts.
-
-My next requested milestone is M1 QUALITY, before UX. Respect the frozen
-contract at e230ad4. Read docs/SESSION-HANDOFF-2026-10-04.md from main.
-The saved implementation is on agent/kimi at 80feafb, not main; do not
-rebuild its completed features. Fix the report's known correctness gaps
-and documentation/test omissions before claiming M1 done.
-Check task FF-QUALITY-kimi and branch agent/kimi if
-available locally. If the worker is running, do not sync/reset its checkout
-or launch a duplicate writer. Preserve partial edits and commits. A fresh
-clone must not assume missing implementation branches were merged: inspect
-published status and ask for missing artifacts when needed.
-Finish the contract, run its isolated mock-only tests and existing guards,
-then inspect the real diff independently. An assigned task or successful
-worker process is not proof that the acceptance criteria passed. Record
-exact commits, commands, counts, outstanding failures, and merge status in
-M1-STATUS.md. Do not claim M1 complete with unimplemented or failing clauses.
-Follow applicable approval and delegation rules before coding.
-Use a dedicated branch/worktree where required. Do not merge or push
-without my approval; the previous publication approval was not permanent.
-
-After M1 is accepted, the subsequent prototype should build one calm
-project workspace with a persistent conversation plus plan,
-activity, and review cards. Cover sample project/tool setup, describing a
-task, plan approval, progress/questions, a provider-limit interruption with
-saved-work summary and replacement choice, and review/request-changes/apply.
-Use off-white, charcoal, restrained status accents, clear system typography,
-keyboard access, visible focus, and words as well as colors for status.
-Actual provider names must stay visible. No need for generated artwork.
-Read docs/TOOLCRAFT-REFERENCE.md and docs/FEATURE-DECISIONS.md. Use Toolcraft
-only as visual/interaction inspiration; do not run its scaffold or import
-its source, assets, templates, runtime, or skills. Build original components.
-
-For that later prototype, label all sample data and simulated actions.
-Do not invoke real agents,
-collect credentials, execute shell text from the UI, touch real projects,
-or make real commits/merges through the prototype. No invented quota bars,
-silent paid fallbacks, automatic shared memory, or claims that recovery
-already works. Keep process, validation, reviewer, human, and integration
-states distinct. An unchecked or failed result cannot look ready to apply.
-
-Preserve frugal-flock, frgl-flc, legacy agentteam, AGENTTEAM_* variables,
-~/.config/agentteam, and the Linux flock utility. Do not rewrite the Bash
-engine as a separate implementation. M1 improves the existing embedded
-runtime. Full OS isolation, the local bridge, durable jobs, and automatic
-provider recovery remain separate work. A manual context packet is not a
-backup of uncommitted files or shared conversation memory.
-The owner also endorsed capacity-aware task sizing and clean continuation
-after usage limits. Read docs/CAPACITY-AWARE-CONTINUATION.md from main.
-It remains a later proposal, not a universal quota API or shipped scheduler.
-
-Meet the exact QUALITY-M1-CONTRACT acceptance criteria. Run the relevant
-regression checks without spending provider quota or changing the global
-installation/configuration. Report actual results, changed files, and
-unresolved limitations. Update TODO.md and the handoff so another AI can
-continue. Stop at the verified quality milestone, respecting owner merge
-authority, unless explicitly asked to proceed to the UI milestone.
-```
-
-## Later milestones, not included in the prompt above
+## Later milestones — not part of this handoff cleanup
 
 1. After M1 acceptance, build and test the mock-data prototype described above.
 2. Build a protected, localhost-only, read-only adapter before live controls;

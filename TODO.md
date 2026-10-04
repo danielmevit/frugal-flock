@@ -3,9 +3,13 @@
 Small plans. Big ideas.
 
 Checkpoint rule: one bounded correction at a time; test, commit, then
-update [FRUGAL-FLOCK-NEXT-AI.md](FRUGAL-FLOCK-NEXT-AI.md) with the exact
+update [the continuation prompt](continue-with-ai-prompt.md) with the exact
 candidate SHA, evidence, blockers, active workers and one next task.
-The local main folder is now `/mnt/d/Vibe Coding/_vm/frugal-flock`.
+All project-owned work stays inside `/mnt/d/Vibe Coding/_vm/frugal-flock`.
+The main checkout is its `repo/` folder; Codex works in `wt/codex/`.
+Follow [the standing workspace rules](WORKSPACE-RULES.md).
+The current owner request is project-state cleanup and handoff ONLY;
+do not resume implementation until the owner asks.
 
 ## Current handoff
 
@@ -18,7 +22,7 @@ The local main folder is now `/mnt/d/Vibe Coding/_vm/frugal-flock`.
 - Research and evidence: [Findings index](docs/RESEARCH-FINDINGS.md),
   [competitor comparison](research/COMPETITIVE-REVIEW.md), and
   [engine findings](docs/ENGINE-FINDINGS.md).
-- Continue with another AI: [copy-paste build handoff](docs/AI-HANDOFF.md).
+- Continue with another AI: [copy-paste prompt](continue-with-ai-prompt.md).
 - The rename implementation, commit
   `9314639e79dc8bb9edde151f54cfdf35837c3024`, and the UX documents are now
   integrated into `main` at the owner's explicit request. Existing Git
@@ -53,7 +57,7 @@ This is not full OS isolation, a dirty-file backup, automatic provider
 migration, or automatic merging. Keep those limitations visible. Stop at
 a verified, handoff-ready checkpoint before starting the UI.
 
-Implementation checkpoint is `80feafb` on `agent/kimi`; it now includes
+Implementation checkpoint is `80feafb` on `agent/codex`; it now includes
 structured evidence, gated review, local availability and manual context
 packets as well as strict verification. Full M1 is still incomplete.
 Start with [the exact continuation report](docs/SESSION-HANDOFF-2026-10-04.md)

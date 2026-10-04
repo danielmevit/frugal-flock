@@ -9,7 +9,7 @@ The owner subsequently requested **quality before UX**. The bounded
 E4 warnings, and a manual E6 context packet. Track implementation evidence
 in [M1 status](M1-STATUS.md); assignment alone does not close a finding.
 
-2026-10-04 checkpoint: worker branch `agent/kimi` at `80feafb` contains
+2026-10-04 checkpoint: worker branch `agent/codex` at `80feafb` contains
 strict verification, exit propagation, structured evidence, review parsing,
 honest availability, and manual context packets. It is not merged into
 main or accepted as complete. Hidden-index-flag handling, post-run snapshot

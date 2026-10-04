@@ -5,12 +5,15 @@
 Repository: https://github.com/danielmevit/frugal-flock (public).
 Brand: Frugal Flock — Small plans. Big ideas.
 
-Start future sessions with [FRUGAL-FLOCK-NEXT-AI.md](../FRUGAL-FLOCK-NEXT-AI.md).
+Start future sessions with [the continuation prompt](../continue-with-ai-prompt.md).
 The owner requested smaller checkpoints and an updated living prompt at
-each one. The next checkpoint is ONLY the hidden-index-flag fix and tests.
+each one. The latest request is project-state cleanup and handoff only.
+No implementation or new worker dispatch is authorized by this document.
+Once the owner asks to resume, the next implementation checkpoint is ONLY
+the hidden-index-flag fix and tests.
 
 **M1 is not complete or merged.** All implementation work is preserved
-on `agent/kimi`, final checkpoint
+on `agent/codex`, final implementation checkpoint
 `80feafb15049411238b864cace7077af3f43376b`. Main retains the stable 0.3.1
 runtime plus the latest docs, research, plan, and this handoff. The worker
 runtime prints 0.4.0, but no release tag or completed-release claim exists.
@@ -19,7 +22,9 @@ Do not install the candidate globally or mistake main for the candidate.
 The implementation checkout is clean and no worker remains active. The
 last worker hit its provider usage limit after committing its progress.
 No user credentials/configuration were changed and no live provider calls
-were made by tests. Nothing was merged. All previous history is retained.
+were made by tests. Nothing was merged into main. All previous history is
+retained. The saved quality commits were fast-forwarded intact into the
+Codex checkout; the former `agent/kimi` branch is historical, not active.
 
 ## What is saved
 
@@ -27,13 +32,30 @@ were made by tests. Nothing was merged. All previous history is retained.
 |---|---|
 | `e230ad4`, main ancestor | Frozen M1 quality contract. |
 | `e3bf9a1`, main ancestor | Quality-first plan, plain-language keywords/workflows, competitor feature decisions, Toolcraft reference, portable AI handoff. |
-| `9f296da`, agent/kimi | Strict missing-scope/check handling; auto-verify exit propagation; isolated check runner; updated initial operational docs/Word guide. |
-| `4b8296c`, agent/kimi | Embedded Python-stdlib revision snapshots/results, separate outcomes, gated review, availability JSON, host-access warnings, local context handoff. |
-| `ef44611`, agent/kimi | Expanded mock acceptance cases and small review-prompt/dispatch corrections. |
-| `80feafb`, agent/kimi | Regression for attempted public verify lock bypass. |
+| `9f296da`, agent/codex | Strict missing-scope/check handling; auto-verify exit propagation; isolated check runner; updated initial operational docs/Word guide. |
+| `4b8296c`, agent/codex | Embedded Python-stdlib revision snapshots/results, separate outcomes, gated review, availability JSON, host-access warnings, local context handoff. |
+| `ef44611`, agent/codex | Expanded mock acceptance cases and small review-prompt/dispatch corrections. |
+| `80feafb`, agent/codex | Regression for attempted public verify lock bypass. |
 | Latest main docs | This report, updated M1 status/prompt, and the capacity-aware continuation proposal. |
 
-## Verification
+## Documentation-only cleanup verification
+
+- All 27 root/docs Markdown files passed `bash tools/check-docs.sh`.
+- The changelog fragment and four local workspace/coordination Markdown
+  files also passed the checker. All 74 relative links in the eight current
+  handoff/navigation documents resolved; no obsolete prompt-name references
+  remained in those documents. `git diff --check` passed.
+- `git worktree list --porcelain` confirmed every registered checkout is
+  inside the enclosing Frugal Flock folder. `agentteam status` recognized
+  the moved layout, found all worker checkouts clean and reported no running jobs.
+- No runtime source changes, new task dispatches, runtime test runs, provider
+  calls, global installs, or main-branch implementation integration occurred.
+
+## Earlier implementation verification
+
+These results belong to the saved implementation before the workspace
+relocation. This documentation-only checkpoint does not rerun or extend
+the runtime test evidence and does not close any remaining M1 finding.
 
 The lead independently ran the first increment's focused tests and full
 isolated runner: 40 selftests, 16 focused regressions, 14 adversarial
@@ -85,14 +107,20 @@ confuse that addressed issue with the two unresolved findings above.
 
 ## Continuing locally or from a fresh clone
 
-Local layout: main checkout `/mnt/d/Vibe Coding/_vm/frugal-flock`, worker
-checkout `/mnt/d/Vibe Coding/_vm/wt/kimi`, coordination in `../coord`.
-Native task `FF-QUALITY-kimi` retains its frozen scope/Validate commands.
-The old native Kimi log records a timeout, not the later built-in workers'
-final result. Use commits, this report, and fresh tests as authority.
+Local workspace: `D:\Vibe Coding\_vm\frugal-flock`, or
+`/mnt/d/Vibe Coding/_vm/frugal-flock` in WSL. Its main checkout is `repo/`,
+Codex's implementation checkout is `wt/codex/`, and coordination is `coord/`.
+Private references/prototypes are in `artifacts/`; disposable project
+checks belong in `tmp/`. Read [WORKSPACE-RULES.md](../WORKSPACE-RULES.md).
+
+Native task `FF-QUALITY-kimi` and its append-only reports retain their
+historical names and frozen scope/Validate commands. The native attempt
+timed out; later built-in workers produced the saved implementation. No
+new Codex task has been dispatched. When implementation is requested,
+prepare a bounded Codex continuation without rewriting that history.
 
 For a fresh clone, read this report from main, fetch the remote branches,
-and work from `origin/agent/kimi` using the repository's worker workflow.
+and work from `origin/agent/codex` using the repository's worker workflow.
 Do not reset an existing dirty checkout. Main-only docs can be read with
 `git show origin/main:docs/M1-STATUS.md` and equivalent paths after fetching.
 No private logs or scratch files are required to resume.
@@ -100,11 +128,18 @@ No private logs or scratch files are required to resume.
 The owner requested the local app-folder rename. The former
 `agentteam-docs` folder was moved to `frugal-flock`, and `git worktree repair`
 repaired all five linked worker references. No files were deleted and the
-quality worktree remained clean. Legacy command/config names are retained.
+quality worktree remained clean. Subsequently, the Git checkout was placed
+inside `frugal-flock/repo` and all worktrees and coordination moved under
+the same enclosing workspace. All linked Git paths were repaired again.
+Legacy command/config names are retained. Local `coord/`, `artifacts/`,
+and `tmp/` are not part of the public repository; the portable handoff must
+not depend on them, and private raw logs must not be published as backup.
 
-Candidate checks, from its checkout:
+Candidate checks for the next authorized implementation session, from
+`wt/codex` (these are instructions, not results from this docs checkpoint):
 
 ```bash
+export TMPDIR="/mnt/d/Vibe Coding/_vm/frugal-flock/tmp"
 bash -n agentteam-install.sh
 bash -n frugal-flock-install.sh
 bash tests/frugal-flock-quality.sh
@@ -113,10 +148,13 @@ bash tools/check-docs.sh
 git diff --check
 ```
 
-If the local native setup exists, additionally run
-`agentteam verify kimi FF-QUALITY-kimi` from the main checkout, then read
-the real diff and appended report. Do not change the frozen task to weaken
-the gate. Passing scripted checks is not full milestone acceptance.
+On another machine, set TMPDIR to its own workspace's existing `tmp/`
+folder. If the native setup exists, also run the frozen validation gate
+for the newly prepared Codex task and inspect its appended report and real
+diff. Do not weaken the frozen scope or checks. The installed 0.3.1 tool
+has a known missing-report issue on a first verify; use a project-local
+temporary candidate install if needed, never silently replace the global
+installation. Passing scripted checks is not full milestone acceptance.
 
 ## Product direction preserved
 
@@ -141,34 +179,6 @@ the gate. Passing scripted checks is not full milestone acceptance.
 
 ## Copy-paste prompt
 
-```text
-Continue Frugal Flock at https://github.com/danielmevit/frugal-flock.
-First read FRUGAL-FLOCK-NEXT-AI.md, the continuation report and M1-STATUS from
-latest main. The implementation is NOT on main: it is on agent/kimi at
-80feafb15049411238b864cace7077af3f43376b. Fetch and inspect actual branch
-state; preserve existing changes and follow AGENTS/MASTER/WORKER rules.
-Do not restart the rename, research, or already implemented quality work.
-
-Finish M1 QUALITY before UX, following docs/QUALITY-M1-CONTRACT.md frozen
-at e230ad4. Start with the report's hidden-index-flag scope/review gap and
-post-run snapshot failure/exit preservation. Add regression tests, finish
-missing contract coverage, help/completion, schema/dependency/command docs,
-matching embedded/source protocol, changelog and affected Word manuals.
-Run the exact isolated checks listed in the report and inspect the real
-diff. Tests must use mocks, not live providers. Never claim M1 complete
-merely because existing tests pass. Record actual SHA/results and leftovers.
-
-Preserve aliases/config paths and Linux flock. No global install, credential
-changes, paid fallback, merge or release without owner authorization.
-The previous push approval applies to the completed handoff publication,
-not a standing authorization for future external changes.
-
-The owner endorsed capacity-aware task sizing and clean continuation after
-limits. Read docs/CAPACITY-AWARE-CONTINUATION.md from main; it remains a
-later milestone. M1 handoff is context for the same checkout, not a backup
-or automatic migration. Future UI follows docs/UX-DIRECTION.md and
-docs/TOOLCRAFT-REFERENCE.md: original components, no copied Toolcraft code.
-Leave a tested, committed checkpoint and an updated next-AI handoff.
-Use small single-issue checkpoints. Update FRUGAL-FLOCK-NEXT-AI.md after
-each checkpoint with its exact SHA, tests, workers, gaps and next task.
-```
+Open [continue-with-ai-prompt.md](../continue-with-ai-prompt.md), copy the
+text under **Prompt to paste**, and paste it into the next AI chat. This is
+the single current prompt; this report supplies its supporting evidence.

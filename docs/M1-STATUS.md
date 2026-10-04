@@ -7,15 +7,17 @@ is 0.3.1. Do not advertise the planned 0.4.0 changes as shipped until the
 implementation is independently verified and integrated by the owner.
 
 Frozen requirements: [QUALITY-M1-CONTRACT.md](QUALITY-M1-CONTRACT.md)
-at `e230ad4`. Local implementation: task `FF-QUALITY-kimi`, branch
-`agent/kimi`, worktree `../wt/kimi`. The native Kimi attempt hit its
-30-minute timeout (exit 124) without repository edits or commits. Its
-scratch helper was not validated and is not a shipped feature.
+at `e230ad4`. The current implementation target is `agent/codex` in
+`../wt/codex`, relative to the main `repo/` checkout. Its four saved quality
+commits end at **`80feafb15049411238b864cace7077af3f43376b`**.
+These existing commits were fast-forwarded into Codex's checkout without
+changing the implementation or merging it into main. The former branch
+and `FF-QUALITY-kimi` task/reports are historical records, not the current
+worker assignment.
 
-The built-in continuations saved four implementation commits on
-`agent/kimi`, ending at **`80feafb15049411238b864cace7077af3f43376b`**.
-The checkout is clean; the last worker hit its usage limit after saving
-the checkpoint. No implementation worker remains active at this handoff.
+The checkout is clean and no implementation worker is active. The owner
+has limited the current work to project-state cleanup and handoff docs.
+Do not dispatch or resume implementation until explicitly requested.
 This is **work in progress, not an accepted 0.4.0 release**. See the
 [final continuation report](SESSION-HANDOFF-2026-10-04.md) for the exact
 code/document branches, known blockers, and next actions.
@@ -24,18 +26,21 @@ code/document branches, known blockers, and next actions.
 
 ```bash
 agentteam status
-git -C ../wt/kimi status --short --branch
-git -C ../wt/kimi log -3 --oneline
-tail -n 25 ../coord/reports/FF-QUALITY-kimi.log
+git -C ../wt/codex status --short --branch
+git -C ../wt/codex log -4 --oneline
 ```
 
-After the worker stops, inspect its report and run the frozen task gate:
+Inspect the saved candidate without changing either checkout:
 
 ```bash
-agentteam verify kimi FF-QUALITY-kimi
-git diff main...agent/kimi --stat
-git diff main...agent/kimi -- agentteam-install.sh tests/ tools/quality-check.sh
+git diff main...agent/codex --stat
+git diff main...agent/codex -- agentteam-install.sh tests/ tools/quality-check.sh
 ```
+
+When implementation is authorized again, the lead should prepare a bounded
+Codex task preserving the frozen scope and validation requirements. Do not
+rewrite the historical task or dispatch a worker just to complete this handoff.
+Use the candidate checks in the [continuation report](SESSION-HANDOFF-2026-10-04.md).
 
 Review the real diff, not just the report. A failure needs a bounded repair
 task; preserve the original contract and all partial work. Never reset a
@@ -67,7 +72,7 @@ edge is covered. No owner integration has occurred.
 Final candidate `80feafb` also passed the native frozen gate (scope OK,
 5/5 commands). Independent focused results: 16 basic + 64 contract checks.
 The exact next small task and checkpoint-maintenance rule are in the root
-[FRUGAL-FLOCK-NEXT-AI.md](../FRUGAL-FLOCK-NEXT-AI.md).
+[continuation prompt](../continue-with-ai-prompt.md).
 
 ## Later implementation checkpoints
 
@@ -103,8 +108,10 @@ only the first increment and needs updating for the newer commands.
 
 Do not repeat the completed rename, research, or first increment. Continue
 from this saved branch and preserve its changes. The runtime now embeds its
-own helper; the older `/tmp/opencode/agentteam-quality.py` scratch prototype
-is obsolete and must not replace it. A fresh clone needs no private logs,
+own helper; the older scratch prototype is now kept locally in
+`artifacts/legacy-prototypes/agentteam-quality.py` under the enclosing
+workspace. It is obsolete and must not replace the embedded helper.
+A fresh clone needs no private logs,
 temporary helper, or original conversation.
 
 ## Boundaries
@@ -112,4 +119,5 @@ temporary helper, or original conversation.
 M1 adds dependable CLI evidence and a manual context packet. It does not
 add a GUI, automatic provider migration, full dirty-file backup, an OS
 sandbox, or automatic merging. No global installation is part of this task.
-Use [AI-HANDOFF.md](AI-HANDOFF.md) as the next-AI prompt.
+Use [the continuation prompt](../continue-with-ai-prompt.md) to start the
+next AI session; [AI-HANDOFF.md](AI-HANDOFF.md) is supporting product context.
