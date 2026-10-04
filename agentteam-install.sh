@@ -247,13 +247,28 @@ def update(root, worker, task, operation, encoded, *args):
     valid_document(d, worker, task)
     atomic(locations(root,worker,task)[2], d)
 
+def hidden(wt):
+    # assume-unchanged (lowercase tag) and skip-worktree (S/s) entries make git
+    # diff/status skip real edits; scope and review material would then omit
+    # work the snapshot still hashes. Refuse rather than claim complete paths.
+    rows = git(wt, 'ls-files', '-v', '-z').split(b'\0')
+    flagged = sorted(os.fsdecode(r[2:]) for r in rows if r and (r[:1].islower() or r[:1] == b'S'))
+    if flagged:
+        fail('unsupported assume-unchanged/skip-worktree index flags hide edits from scope and review: '
+             + ', '.join(flagged[:5]) + (' (+%d more)' % (len(flagged) - 5) if len(flagged) > 5 else '')
+             + '; clear them with git update-index --no-assume-unchanged --no-skip-worktree, '
+             + 'or git sparse-checkout disable')
+
 def changed(root, worker, task):
     wt,_,_ = locations(root,worker,task)
     rev = snapshot(root,worker,task)
-    committed = git(wt, 'diff', '--no-ext-diff', '--name-only', '--no-renames', '-z', rev['base_commit'] + '...HEAD')
-    staged = git(wt, 'diff', '--cached', '--no-ext-diff', '--name-only', '--no-renames', '-z')
-    unstaged = git(wt, 'diff', '--no-ext-diff', '--name-only', '--no-renames', '-z')
-    untracked = git(wt,'ls-files','--others','--exclude-standard','-z')
+    hidden(wt)
+    # A configured fsmonitor hook could also report edited paths as unchanged.
+    q = ('-c', 'core.fsmonitor=false')
+    committed = git(wt, *q, 'diff', '--no-ext-diff', '--name-only', '--no-renames', '-z', rev['base_commit'] + '...HEAD')
+    staged = git(wt, *q, 'diff', '--cached', '--no-ext-diff', '--name-only', '--no-renames', '-z')
+    unstaged = git(wt, *q, 'diff', '--no-ext-diff', '--name-only', '--no-renames', '-z')
+    untracked = git(wt, *q, 'ls-files','--others','--exclude-standard','-z')
     return {k:sorted(set(os.fsdecode(x) for x in v.split(b'\0') if x)) for k,v in [('committed',committed),('staged',staged),('unstaged',unstaged),('untracked',untracked)]}
 
 def gate(root,worker,task):
