@@ -210,6 +210,17 @@ validated set of operations for plans and runs, a durable job queue, and
 progress that survives browser refreshes. Keep credentials in native CLI
 authentication stores and bind control to the local machine.
 
+The first [read-only Activity preview](bridge/README.md) is implemented in
+source: one fixed watch JSON observation endpoint and original browser view,
+loopback only, no dispatch or coordination writes. Seven stdlib HTTP tests
+and browser failure/recovery/escaping/mobile checks passed. An actual project
+observation showed the preserved GLM failure and approved Claude guide,
+with all 36 coordination-file hashes unchanged. Runtime/global profile
+hashes remain unchanged. [Contract and source-build usage](docs/BRIDGE-ACTIVITY.md).
+Folder selection/launcher/setup, durable queue and live controls are not
+implemented; the two new-user sessions remain required before live execution.
+
+
 Package a launcher that starts the service and opens the browser. Specify
 folder selection, missing-engine setup, provider installation/sign-in,
 and failure recovery before claiming a command-free first use.
