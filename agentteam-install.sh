@@ -764,7 +764,7 @@ die() { echo "frugal-flock: $*" >&2; exit 1; }
 quality() {
   command -v python3 >/dev/null || die "Python 3 is required before run/verify/review/smoke/agents/result/handoff"
   python3 - "$@" <<'QUALITY_PY'
-import datetime, hashlib, json, os, re, shlex, shutil, stat, subprocess, sys, tempfile, time
+import datetime, fcntl, hashlib, json, os, re, shlex, shutil, stat, subprocess, sys, tempfile, time, uuid
 
 def fail(message):
     raise ValueError(message)
@@ -956,15 +956,83 @@ def atomic(path, d):
     finally:
         if os.path.exists(temp): os.unlink(temp)
 
+def observed_lock(root, worker):
+    path = safe(root, 'coord', '.locks', worker + '.lock')
+    if not os.path.exists(path): return 'free'
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as f:
+        if not stat.S_ISREG(os.fstat(f.fileno()).st_mode): fail('unsupported worker lock')
+        try: fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError: return 'held'
+    return 'free'
+
+def retry(root, task, operation, worker=''):
+    """Count unsuccessful attempts once; an owner grant buys one invocation."""
+    ident(task)
+    regular(safe(root, 'coord', 'tasks', task + '.md'))
+    if worker: ident(worker)
+    directory = safe(root, 'coord', 'retries', task)
+    os.makedirs(directory, exist_ok=True)
+    lockpath = safe(root, 'coord', 'retries', task, 'lock')
+    fd = os.open(lockpath, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    with os.fdopen(fd, 'r+') as lock:
+        if not stat.S_ISREG(os.fstat(lock.fileno()).st_mode): fail('unsupported retry lock')
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        path = safe(root, 'coord', 'retries', task, 'state.json')
+        state = json.loads(regular(path)) if os.path.exists(path) else dict(
+            schema_version=1, task=task, failed_attempts=0, retry_granted=False, latest={})
+        if (not isinstance(state, dict) or state.get('schema_version') != 1
+                or state.get('task') != task or type(state.get('failed_attempts')) is not int
+                or state['failed_attempts'] < 0 or type(state.get('retry_granted')) is not bool
+                or not isinstance(state.get('latest'), dict)):
+            fail('malformed retry state')
+        for name, attempt in state['latest'].items():
+            ident(name)
+            if (not isinstance(attempt, dict) or not isinstance(attempt.get('id'), str)
+                    or not re.fullmatch('[0-9a-f]{32}', attempt['id'])
+                    or any(type(attempt.get(k)) is not bool for k in ('failed', 'pending'))):
+                fail('malformed retry attempt')
+        attempt = state['latest'].get(worker)
+        if operation == 'start':
+            # Reconcile unfinished starts across workers. A free lock means
+            # runner completion was lost, not that no detached process exists.
+            # The caller already holds its own lock, so its old start is lost.
+            for name, previous in state['latest'].items():
+                if previous['pending'] and not previous['failed'] and (name == worker or observed_lock(root, name) == 'free'):
+                    previous.update(failed=True, pending=False)
+                    state['failed_attempts'] += 1
+            if state['failed_attempts'] >= 2 and not state['retry_granted']:
+                atomic(path, state)
+                fail('loop brake: task ' + task + ' has ' + str(state['failed_attempts'])
+                     + ' failed attempts; owner must grant one attempt with: frugal-flock allow-retry ' + task)
+            state['retry_granted'] = False
+            state['latest'][worker] = dict(id=uuid.uuid4().hex, failed=False, pending=True)
+        elif operation in ('end', 'fail'):
+            if not attempt: return  # no tracked invocation (e.g. verify-only work)
+            attempt['pending'] = False
+            if operation == 'fail' and not attempt['failed']:
+                attempt['failed'] = True
+                state['failed_attempts'] += 1
+        elif operation == 'allow':
+            if state['failed_attempts'] < 2: fail('task is not blocked by the loop brake')
+            state['retry_granted'] = True  # repeated grants never accumulate
+        else: fail('unknown retry operation')
+        state['updated_at'] = stamp()
+        atomic(path, state)
+        if operation == 'allow': print('One retry granted for ' + task + '; failure history preserved.')
+
 def update(root, worker, task, operation, encoded, *args):
     rev = json.loads(encoded)
     if not revision(rev): fail('invalid revision')
     d = load(root, worker, task, missing=True)
     if operation == 'start':
+        retry(root, task, 'start', worker)
         d = fresh(worker, task)
         d['process'] = dict(state='running', exit_code=None, revision=rev)
     elif operation in ('end', 'end-unbound'):
-        code = int(args[0]); d['process'] = dict(state='succeeded' if code == 0 else 'failed', exit_code=code, revision=rev)
+        code = int(args[0])
+        retry(root, task, 'fail' if code != 0 or operation == 'end-unbound' else 'end', worker)
+        d['process'] = dict(state='succeeded' if code == 0 else 'failed', exit_code=code, revision=rev)
         if operation == 'end-unbound':
             # The post-run snapshot failed: keep the real exit, bound to the last
             # known (pre-run) revision, and never let it count as current evidence.
@@ -976,6 +1044,7 @@ def update(root, worker, task, operation, encoded, *args):
             return
     elif operation == 'validation':
         state,scope,ran,failed,reasons = args
+        if state in ('failed', 'incomplete'): retry(root, task, 'fail', worker)
         d['validation'] = dict(state=state, scope=scope, checks_run=int(ran), checks_failed=int(failed), reasons=reasons.split(',') if reasons else [], revision=rev)
         # A repeated check invalidates an earlier review, even at the same revision.
         d['review'] = fresh(worker, task)['review']
@@ -1150,6 +1219,7 @@ try:
     if cmd=='preflight': pass
     elif cmd=='snapshot': print(json.dumps(snapshot(*a),sort_keys=True,separators=(',',':')))
     elif cmd=='update': update(*a)
+    elif cmd=='retry': retry(*a)
     elif cmd=='gate': gate(*a)
     elif cmd=='result': print(json.dumps(current(load(*a),snapshot(*a)),indent=2))
     elif cmd=='changed':
@@ -1589,7 +1659,6 @@ cmd_run() {
     fi
   fi
 
-  echo "[$worker <- $agent] running task '$task' (timeout ${TIMEOUT}s), log: $log"
   # Fingerprint the orders BEFORE the agent starts: a worker that rewrites its
   # own task file mid-run would otherwise have the doctored version recorded,
   # and verify would compare the tampered file against itself.
@@ -1597,6 +1666,7 @@ cmd_run() {
   local revision_before revision_after
   revision_before=$(quality snapshot "$root" "$worker" "$task") || return $?
   quality update "$root" "$worker" "$task" start "$revision_before" || return $?
+  echo "[$worker <- $agent] running task '$task' (timeout ${TIMEOUT}s), log: $log"
   export TASKFILE="$tf"
   # NB: 'wall' further down is the quota-wall flag — this clock value is
   # 'wallsec' so the two never collide.
@@ -2057,6 +2127,14 @@ cmd_evidence() {
     flock -n 9 || die "worker '$worker' is locked/running — handoff refused"
   fi
   quality "$operation" "$root" "$worker" "$task"
+}
+
+cmd_allow_retry() {
+  local task="${1:-}" root
+  [ $# -eq 1 ] || die "usage: frugal-flock allow-retry <task-id>"
+  task="${task%.md}"; check_id "$task" task
+  root=$(find_root) || die "not inside a Frugal Flock project"
+  quality retry "$root" "$task" allow
 }
 
 # ------------------------------------------------------------------ race
@@ -2757,7 +2835,10 @@ setup / health
 work
   frugal-flock run [-b] <w> <task>      run coord/tasks/<task>.md in w's worktree
                                      (-b = background; one run per worker);
-                                     a failed worker keeps its own exit code
+                                     a failed worker keeps its own exit code.
+                                     Two failed attempts block further calls
+  frugal-flock allow-retry <task>      OWNER: grant one more attempt after the
+                                     loop brake; preserves failure history
   frugal-flock tail [task]              follow a run's live log (default: newest)
   frugal-flock kill <task>              stop a background run (whole session)
   frugal-flock report <task> [lines]    read a task's report (default: last 60)
@@ -2869,6 +2950,7 @@ case "${1:-help}" in
   selftest) shift; cmd_selftest "$@";;
   stop)     shift; cmd_stop "$@";;
   resume)   shift; cmd_resume "$@";;
+  allow-retry) shift; cmd_allow_retry "$@";;
   help|-h|--help) cmd_help;;
   *) die "unknown command '${1}' (frugal-flock help)";;
 esac
@@ -3281,6 +3363,17 @@ to integrate. `frugal-flock result` prints this JSON only, recomputed against
 the current worktree; a missing or malformed file fails closed (exit 2), and
 old report text is never backfilled as structured evidence.
 
+Loop brake: after two failed attempts on a task ID, `run` refuses before
+calling a provider (exit 2), shared across workers. Nonzero exits, failed or
+incomplete verification and interrupted tracked starts count once per
+attempt. Repeated verification does not add failures. Only the owner may
+use `frugal-flock allow-retry TASK` to grant one invocation; grants do not
+accumulate or erase failures. State is local in `coord/retries/TASK/`,
+locked across workers; malformed or symlink state fails closed. Tracking
+starts with this source version, without inferring historical outcomes.
+Workers must not grant themselves retries. This is trusted-host coordination,
+not an access-control boundary or provider-quota approval.
+
 Review gate: `frugal-flock review` needs current passed validation. Its
 material is the task file plus the full committed diff against base. It is
 refused (exit 2, review recorded `unknown`, `material_complete` false) for
@@ -3534,7 +3627,7 @@ cat > "$COMP_DIR/agentteam" <<'COMPLETION_EOF'
 _agentteam() {
   local cur cmd root d cmds
   cur="${COMP_WORDS[COMP_CWORD]}"
-  cmds="new init run verify result handoff diff sync review race sabotage score doctor tail kill report status agents off on smoke selftest stop resume version license help"
+  cmds="new init run verify result handoff diff sync review race sabotage score doctor tail kill report status agents off on smoke selftest stop resume allow-retry version license help"
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ); return
   fi
@@ -3550,6 +3643,7 @@ _agentteam() {
   agents=$(sed -n 's/^\([a-zA-Z0-9_-]*\)=.*/\1/p' \
     "${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}/agents.conf" 2>/dev/null)
   case "$cmd" in
+    allow-retry) COMPREPLY=( $(compgen -W "$tasks" -- "$cur") );;
     run)
       if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "-b $workers" -- "$cur") )
       elif [ "${COMP_WORDS[2]}" = "-b" ] && [ "$COMP_CWORD" -eq 3 ]; then COMPREPLY=( $(compgen -W "$workers" -- "$cur") )

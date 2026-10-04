@@ -315,3 +315,28 @@ downloaded.
 Worktrees and temporary directories are coordination mechanisms, not OS
 sandboxes. Configured provider commands may have host-level access. Human
 acceptance and integration remain separate decisions controlled by the owner.
+
+## Loop brake (unreleased source)
+
+After two unsuccessful attempts on one task ID, `run` refuses another
+invocation before executing its configured provider command (exit 2).
+Changing workers does not reset the count. Failed processes, failed or
+incomplete verification, and an interrupted tracked start each count once
+per attempt; repeated verification does not add failures. Lost starts are
+reconciled across workers when the next run starts; held locks are left alone. Tracking starts
+with this source version; old reports are not retroactively inferred.
+
+Only after the owner approves another attempt, run:
+
+```bash
+frugal-flock allow-retry TASK
+frugal-flock run WORKER TASK
+```
+
+The grant permits one invocation, cannot accumulate, and keeps the failure
+history even if that attempt succeeds. `on` and `resume` do not clear the
+brake. Task state is local under `coord/retries/TASK/`, with a task lock so
+concurrent workers cannot consume one grant twice. Malformed or symlink
+state fails closed. This is trusted-host coordination, not an access-control
+boundary: workers must never grant their own retries or rewrite this state.
+A grant does not approve provider quota or human integration by itself.

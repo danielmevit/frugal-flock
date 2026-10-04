@@ -26,7 +26,13 @@ installed runtime/global agent settings unchanged. Original interrupted
 Codex evidence is archived under attempt-1; retest under attempt-2.
 The stale running-label finding was reproduced with a local mock, zero
 provider calls; readiness fails closed and handoff warns of interruption.
-Next: M1.5 engine loop brake, then live monitor, with mocks. The owner asked
+M1.5 step 2 source implementation at `d930a87` passed the corrected full
+quality gate: 40 selftests, 16 + 78 + 26 existing regressions, 22 loop-brake
+cases and all 14 adversarial probes, packaging/aliases/completion, ShellCheck,
+syntax and docs. The first candidate's protocol-copy mismatch was corrected;
+reassignment and active-lock interruption cases added. Installed 0.4.0 stays
+unchanged. See the [loop-brake usage](QUALITY-USAGE.md#loop-brake-unreleased-source).
+Next: M1.5 live monitor, then OpenCode default compatibility, with mocks. The owner asked
 to keep progressing through the roadmap; further provider calls need approval.
 
 Separate licensing checkpoint, owner-selected on 2026-10-04:

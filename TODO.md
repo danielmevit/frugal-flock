@@ -88,8 +88,8 @@ continuation after provider limits is the real differentiator. Risks:
   and measure benefit before expanding (section 6).
 - At that assessment, 0.4.0 had only mock verification. Live canary
   evidence is now recorded in section 1.5; broader dogfooding remains untested.
-- "Two failed attempts, then escalate" is only a role-card rule; the
-  engine does not enforce it. Loops and wasted tokens start there.
+- At that assessment, the loop brake was only a role-card rule. It is now
+  implemented and mock-tested in unreleased source (section 1.5).
 - Antigravity failed 2 of 2 live runs (about 55 minutes each).
 - Checkpointed handoff (save and move partial work) is the hardest piece;
   the M1 handoff packet is context only.
@@ -125,6 +125,11 @@ order, one small tested checkpoint each:
    recorded for a separate fix; readiness correctly fails closed.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
+   Source implementation complete at `d930a87`: one counted failure per
+   started attempt across workers, including lost starts with free locks;
+   one explicit owner grant via `allow-retry`. Full gate passed: 40 selftests,
+   120 existing regressions, 22 brake checks, 14 probes, packaging, ShellCheck
+   and docs. Installed 0.4.0 remains unchanged until a deliberate release.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
    as they happen; it later becomes the app's Activity view.
 4. The flock runs on the installed release while it builds the next
