@@ -591,18 +591,23 @@ Line by line:
   - `OK` — everything inside the lane.
   - `VIOLATION` — lists each out-of-scope path. Reject the branch.
   - `UNCHECKED` — the task had no `- ` lines, so nothing could be
-    enforced. Fix the task file next time.
+    enforced. Verification is incomplete; correct the task through the
+    lead's task process and rerun. Do not treat it as permission to merge.
 - **validate** — each `$ ` command was re-run inside the workshop. Fails
   show the exit code and the last lines of output.
 - **changes** — commit and file counts; a completely empty result is
   flagged `EMPTY` and fails.
-- **verdict** — `PASS` only if scope is not violated, no validate
-  command failed, and the run was not empty. The command's exit code
-  matches, so the foreman can script on it.
+- **verdict** — `PASS` (exit 0) requires scope, at least one Validate
+  command, every check passing, and the existing scope/tamper/empty/base
+  safeguards satisfied. Missing scope or checks is `INCOMPLETE` (exit 2).
+  Actual failures take precedence and return nonzero, normally exit 1.
+  M1 provides no waiver bypass.
 
 The verdict block is also appended to the report and the ledger. Tip: set
 `AGENTTEAM_AUTO_VERIFY=1` and every run appends its own verdict
-automatically — background work comes back pre-judged.
+automatically. A successful worker followed by failed or incomplete
+verification returns the verification's nonzero exit. A failed worker
+keeps its own exit. This is not reviewer approval or human acceptance.
 
 ### 7.5 `diff` — the receipts
 
@@ -1009,8 +1014,9 @@ machinery is fine** — the problem is an agent, a login, or a task file.
 
 | Symptom | Cause and fix |
 |---|---|
-| verify: `scope : VIOLATION` | The worker left its lane. Reject the branch (`git -C ../wt/<w> reset --hard dev`), have the foreman re-brief with corrected scope. Never merge a violating diff as-is. |
-| verify: `scope : UNCHECKED` | The task file had no `- path` lines. Nothing broke, but nothing was enforced — fix the task template habit. |
+| verify: `scope : VIOLATION` | The worker left its lane. Preserve the branch for inspection and ask the foreman for a scoped repair task. Never merge a violating diff as-is. |
+| verify: `scope : UNCHECKED` | The task had no scope lines: INCOMPLETE, exit 2 unless another failure takes precedence. Correct the task through the lead and rerun; it is not PASS. |
+| verify: no Validate commands | INCOMPLETE, exit 2 unless another failure takes precedence. Define the required check explicitly and rerun; no waiver bypass exists. |
 | verify: `EMPTY — no commits and no uncommitted changes` | The agent claimed success and did nothing. Treat as failed; re-brief sharper. |
 | verify FAIL but the report claims success | Working as designed: the report lied, the machine caught it. Trust verify. |
 | Report says done; diff shows uncommitted work | The worker forgot to commit. Commit it yourself in `wt/<w>` or rerun with a sharper "Done means". |
@@ -1101,7 +1107,7 @@ or export them in `~/.bashrc` to make them permanent.
 | `AGENTTEAM_VERIFY_TIMEOUT` | 900 | Time limit per Validate command in `verify`. |
 | `AGENTTEAM_REVIEW_TIMEOUT` | 900 | Time limit for a `review` call. |
 | `AGENTTEAM_AUTO_OFF` | off | `1` = auto-bench an agent 5h when a FAILED run mentions usage limits (suppressed when the task itself is about limits). |
-| `AGENTTEAM_AUTO_VERIFY` | off | `1` = every run appends its own verify verdict when it finishes. |
+| `AGENTTEAM_AUTO_VERIFY` | off | `1` = append verify verdict; a successful worker plus failed/incomplete checks returns nonzero. |
 | `AGENTTEAM_AUTO_SYNC` | off | `1` = fast-forward a stale worker onto the base before a run (clean worktree only). Otherwise `run` just warns. |
 | `AGENTTEAM_ALLOW_SECRETS` | off | `1` = override init's tracked-secrets refusal. Know why. |
 

@@ -1,0 +1,1 @@
+Strict verification now reports missing scope/checks as INCOMPLETE (exit 2), and automatic verification failures propagate through run. This tested increment does not yet complete the structured-results/review/handoff milestone.
