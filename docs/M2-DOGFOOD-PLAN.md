@@ -31,3 +31,19 @@ authentication and remaining capacity are unknown. The local task, manifest
 and receipts stay under coord/ and tmp/m2-keyboard-20261004/, not in Git.
 M2 acceptance still needs two new-user feedback sessions before live UI
 execution. This native CLI task does not connect the sample UI to providers.
+
+## First keyboard attempt: preserved failure
+
+The owner approved one GLM 5.3/max worker on 2026-10-04. Installed v0.4.0
+returned exit 124 at 180 seconds, with no edits or commits. Tooling discovery
+consumed the window, including a broad browser search. Native verification
+ran all five baseline checks successfully but failed overall with empty_work.
+Readiness was false. No invocation retry or additional reviewer call occurred.
+The prepared tools were already available; future orders should give their
+exact paths inline and prohibit broad searches instead of relying on inherited
+environment discovery. These native logs/results stay local and unchanged.
+
+Root Codex (`gpt-6.1-sol`, xhigh) finished the keyboard enhancement here.
+Both shortcuts, required/trimmed validation, ignored keys and the full browser
+journey passed, as did all four state tests and JS syntax. That local finish
+is a source change; the failed native worker remains a failed dogfood attempt.
