@@ -1,7 +1,11 @@
 # First durable job-queue slice: waiting for owner approval
 
 Implement this bounded code step through the installed Frugal Flock v0.4.0
-run/verify/review/result cycle. Root Codex reviews here with no paid reviewer.
+run/verify/review/result cycle. The current lead reviews in-session with no
+paid reviewer, respecting the native different-agent gate. Codex prepared the
+task; the owner benched it to continue with Claude. Prepared options have zero
+calls and must be refreshed from latest main with actual reviewer identity.
+See [the closing handoff](SESSION-HANDOFF-2026-10-05.md).
 A native worker invocation requires fresh owner quota approval. No new global
 install, release, profile or credential change is part of this task.
 

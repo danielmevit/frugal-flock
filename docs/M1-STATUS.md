@@ -16,8 +16,8 @@ OpenCode Go GLM 5.3 in 24 seconds, Kimi K3 in 45 seconds and Claude
 Sonnet 5.5/medium in 23 seconds. Codex's original attempt was interrupted;
 its owner-approved retest passed in 26 seconds with one commit/file,
 verify 2/2 and lead approval. One live Grok review passed in 82 seconds,
-producing native approved/current/ready evidence. All six latest results
-are current and ready, human pending/integration not attempted. **M1.5
+producing native approved/current/ready evidence. All six captured step-1 results
+were current and ready at that checkpoint, human pending/integration not attempted. **M1.5
 step 1 is complete**, with the interruption observation limitation retained.
 See [the canary checkpoint](M1.5-LIVE-CANARY.md).
 Seven worker invocations and one live reviewer invocation total, one
@@ -42,8 +42,11 @@ The OpenCode fresh-install compatibility follow-up passed offline native
 dispatch/verify, no-call legacy diagnostic, profile preservation, packaging,
 ShellCheck/syntax/docs. Current native help and passing Go canaries confirm
 --auto; existing profiles are never automatically rewritten.
-Next: publish the mock prototype and prepare one bounded dogfood task. The owner asked
-to keep progressing through the roadmap; further provider calls need approval.
+The mock prototype and subsequent bridge/manual-draft slices are published.
+Next implementation: [durable waiting-job records](JOB-QUEUE-STORE.md) through
+the native dogfood workflow. The owner benched this session on 2026-10-05 to
+continue with Claude. Read [the closing handoff](SESSION-HANDOFF-2026-10-05.md);
+project STOP is set, no worker is active, and fresh provider approval is required.
 
 The first original [M2 sample prototype](../prototype/README.md) passed
 four state tests and a full Chromium browser journey: explicit plan/recovery/
@@ -58,6 +61,13 @@ The owner explicitly waived the two-person feedback prerequisite on
 2026-10-04; no sessions occurred. Small live-control work can proceed using
 judgment/automated checks, with provider quota approval still required.
 See [dogfood evidence](M2-DOGFOOD-PLAN.md) and [bridge contract](BRIDGE-ACTIVITY.md).
+
+Manual draft storage, opt-in protected create/read API, and Save/reopen browser
+form are also published. Eight storage/eight API cases, eleven HTTP cases,
+default/manual browser journeys and actual restart/token rotation passed in
+workspace fixtures. Saving literal drafts does not compile/start a native task.
+Both prepared JobStore options remain benched, zero worker/reviewer calls;
+queue implementation, live controls and checkpointed provider handoff are pending.
 
 Separate licensing checkpoint, owner-selected on 2026-10-04:
 AGPL-3.0-only with copyright Daniel Mitev and public attribution Daniel
