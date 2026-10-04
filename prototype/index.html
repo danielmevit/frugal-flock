@@ -1,0 +1,91 @@
+<!doctype html>
+<!-- Frugal Flock — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
+     https://github.com/danielmevit/frugal-flock
+     SPDX-License-Identifier: AGPL-3.0-only; see LICENSE and NOTICE. No warranty. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Frugal Flock interactive prototype. Sample data only; no connected providers or project writes."
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Frugal Flock · interactive demo</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script defer src="scenario.js"></script>
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#workspace">Skip to workspace</a>
+    <header class="app-header">
+      <div class="identity">
+        <span class="brand-mark" aria-hidden="true">ff</span>
+        <div>
+          <strong>Frugal Flock</strong><span>Small plans. Big ideas.</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="demo-badge">Interactive demo · sample data</span
+        ><button class="quiet" type="button" data-action="reset">
+          Restart demo
+        </button>
+      </div>
+    </header>
+    <div class="demo-notice">
+      Explore a sample project. Tools, plans, limits and results are simulated.
+      Your files stay untouched.
+    </div>
+    <main id="workspace" tabindex="-1">
+      <div class="project-bar">
+        <div>
+          <span class="project-mark" aria-hidden="true">GJ</span>
+          <div><strong>Garden journal</strong><span>Sample project</span></div>
+        </div>
+        <span class="project-state" id="project-state">Not opened</span>
+      </div>
+      <div class="workspace-grid">
+        <section class="conversation" aria-labelledby="conversation-title">
+          <div class="section-heading">
+            <span>Workspace</span>
+            <h1 id="conversation-title" tabindex="-1">
+              One conversation. A small next step.
+            </h1>
+          </div>
+          <div id="conversation-body"></div>
+        </section>
+        <aside class="inspector" aria-label="Current plan and tools">
+          <details class="inspector-disclosure" open>
+            <summary>Task details and my flock</summary>
+            <div id="inspector-body"></div>
+          </details>
+        </aside>
+      </div>
+      <p
+        id="announcement"
+        class="sr-only"
+        aria-live="polite"
+        aria-atomic="true"
+      ></p>
+      <p id="error" tabindex="-1" role="alert" class="error-message" hidden></p>
+    </main>
+    <footer>
+      <span>Frugal Flock prototype</span
+      ><a
+        href="https://github.com/danielmevit/frugal-flock"
+        target="_blank"
+        rel="noopener noreferrer"
+        >Daniel Mitev · @danielmevit</a
+      ><span>AGPL-3.0-only · <a href="../NOTICE">Notices</a></span>
+    </footer>
+    <noscript
+      ><p class="noscript">
+        This interactive demo needs JavaScript. No tools or providers are
+        connected.
+      </p></noscript
+    >
+  </body>
+</html>

@@ -173,6 +173,17 @@ components; do not run its scaffold or import its implementation. Keep technical
 advanced controls in detail views. Test the prototype with two people who
 have not used the CLI before wiring up live execution.
 
+Prototype source is implemented in [prototype/](prototype/README.md),
+2026-10-04 by Codex (`gpt-6.1-sol`, xhigh): original HTML/CSS/JS, no runtime
+dependency, all five connected moments, sample data labeled in every state.
+Four state tests and the full Chromium browser journey passed, including
+explicit replacement/apply, revision invalidation, Stop, focus, escaped text,
+mobile inspector collapse and no external requests/page errors. Refresh
+restarts the demo; no real provider, checkpoint or project action occurs.
+Two new-user feedback sessions remain pending. Installed-release flock
+use on one tiny prototype enhancement is prepared next; fresh quota needed.
+Do not claim M2 acceptance or wire live execution before those gates.
+
 ## M1 acceptance details — trustworthy results
 
 Before starting M2, not merely before enabling live UI actions:

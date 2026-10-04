@@ -10,6 +10,31 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- First M2 prototype source complete, 2026-10-04 by Codex (`gpt-6.1-sol`,
+  xhigh), wt/codex on agent/codex based on main `8532f56`: original static
+  HTML/CSS/JS, all five connected sample moments, no runtime dependency.
+  Own-source syntax, four state tests and full Chromium browser journey
+  passed: explicit replacement and acceptance, revisions/Stop, focus, escaped
+  text, mobile inspector collapse, no external requests or page errors.
+  Screenshots/check receipts stay in tmp/m2-prototype-20261004/. Publishing
+  this source step separately. Real providers, project writes/checkpoints and
+  live UI integration are absent. Two new-user feedback sessions and one
+  installed-release dogfood cycle remain; do not mark M2 accepted.
+  No paid call/global change. Next: concrete tiny Ctrl+Enter enhancement task
+  and clean worker worktree, then ask one fresh GLM 5.3 quota approval
+  (180s, no retries, root Codex reviews here/no paid reviewer).
+
+- OpenCode compatibility published as own merge `8532f56`
+  (candidate `47e2de0`), 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh).
+  Own worktree synced. Moving the original M2 sample prototype into source:
+  HTML/CSS/JS, no runtime dependency, no real provider/project access. Four
+  state tests and full browser journey passed in scratch; own-source checks
+  next. Five connected moments, explicit Grok replacement/acceptance,
+  approval invalidation, Stop, focus and mobile inspector collapse.
+  Model/global runtime/config unchanged; no paid call. Next: verify and
+  publish prototype, then prepare one tiny bounded GLM 5.3 dogfood task
+  for fresh quota approval. Two new-user feedback sessions still needed.
+
 - OpenCode compatibility complete, 2026-10-04 by Codex (`gpt-6.1-sol`,
   xhigh), wt/codex on agent/codex includes main `64160c5`: current --auto
   fresh default/examples, diagnostic for direct legacy profiles, no rewrites.
