@@ -10,6 +10,19 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Native dogfood contract candidate `9a615e8` published as separate merge
+  `402f538`; main pushed and own branch synced. Clean worker options are
+  prepared under wt/claude-queue and wt/opencode-queue, preserving historical
+  workers. Next source implementation is ONLY bridge/job_store.py and its
+  stdlib tests plus handoff/changelog, following JOB-QUEUE-STORE. The owner
+  chooses ONE worker: Claude Opus 5.5/high (recommended after guide success)
+  or OpenCode Go GLM 5.3/max. One invocation, 180 seconds, no retries, root
+  review here/no paid reviewer. Exact task/base hashes and local wrapper
+  config live under tmp/job-queue-dogfood; freeze against current main after
+  this preparation checkpoint. Installed 0.4.0/global profiles untouched;
+  queue code not started, fresh quota approval still pending. Next: ask the
+  quota question, then launch only the explicitly approved native worker.
+
 - Owner steering 2026-10-05: implementing milestones WITH Frugal Flock
   is the main goal, not canaries followed by direct root implementation.
   Root acknowledged the drift after GLM failed; direct code stays labeled
