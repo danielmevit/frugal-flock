@@ -2,45 +2,65 @@
 
 ## Status
 
-In progress, **not accepted**. On 2026-10-04 the owner merged the four
-FF-QUALITY commits (`agent/codex` at `80feafb`) into main as `5d70223`
-and published them. That merge is not M1 acceptance. The runtime prints
-0.4.0, but that is not an accepted release; the accepted baseline is 0.3.1.
+**All five M1 items are implemented, merged into main and published.
+M1 now waits for the owner's acceptance.** It is not an accepted release
+until the owner says so. The runtime prints 0.4.0; the global tool
+installed on the owner's machine is still 0.3.1 and was not replaced.
 
 Frozen requirements: [QUALITY-M1-CONTRACT.md](QUALITY-M1-CONTRACT.md)
-at `e230ad4`. Current work: branch `agent/claude` in `../wt/claude`,
-relative to the main `repo/` checkout. It was made by Claude Code (Claude
-Opus 5.5) on 2026-10-04, branched from main `5d70223`. At the owner's
-request it was merged into main the same day:
+at `e230ad4`. Clause-by-clause evidence:
+[M1-ACCEPTANCE-AUDIT.md](M1-ACCEPTANCE-AUDIT.md).
 
-- `e9bfb1a`: item 1 below (hidden index flags) fixed, with regressions.
-- `38f6cf6`: the flaky CodeGraph selftest fixed; the full runner passes.
-- `9d48b76`: item 2 below (post-run snapshot failure) fixed, with regressions.
-- The docs checkpoint after these: this file, the usage doc, the changelog
-  fragment, the continuation prompt and the agent-log rule.
+Every step went to main as its own merge commit, so each can be reverted
+alone with `git revert -m 1` and the merge SHA:
+
+| Merge | What it brought | Made by |
+|---|---|---|
+| `5d70223` | FF-QUALITY increments from `agent/codex` (strict verify, results, review gate, availability, handoff) | Codex workers; merged at the owner's request |
+| `fade423` | Item 1 (hidden index flags), item 2 (post-run snapshot failure), CodeGraph selftest race | Claude Code, Claude Opus 5.5 |
+| `45803c1` | Item 4: help, completion, doctor, PROTOCOL copies | subagent claude-help, Claude Opus 5.5 |
+| `ce3d57f` | Item 4: QUALITY-USAGE, SETUP, README, HANDBOOK, GUIDEBOOK and its Word file, changelog | subagent claude-docs, Claude Opus 5.5 |
+| `ec5fdee` | Item 3: 23 coverage regressions and the acceptance audit | subagent claude-tests, Claude Opus 5.5 |
+| `dba78ce` | Agent binary resolution, deterministic timing tests, selftest cleanup race | Claude Code lead, Claude Opus 5.5 |
 
 Every agent reads the local `../coord/AGENT-LOG.md` first and adds a dated
 entry after each checkpoint. See [WORKSPACE-RULES.md](../WORKSPACE-RULES.md).
-The former `agent/codex` and `agent/kimi` branches are historical.
+
+## Final gate (item 5), 2026-10-04
+
+Run by Claude Code (Claude Opus 5.5) on main `dba78ce` from a temporary
+install of the candidate (the global 0.3.1 tool was not used or changed).
+The native frozen task gate `verify` for `FF-QUALITY-kimi` was run with
+base `e230ad4`, the commit that froze the contract:
+
+- Validate: **5/5 passed**: both installer syntax checks,
+  `bash tests/frugal-flock-quality.sh`, `bash tools/quality-check.sh` and
+  `bash tools/check-docs.sh`.
+- Scope: **VIOLATION, so the machine verdict is FAIL.** All 15 out-of-scope
+  paths are Markdown documents written by lead sessions, not by the
+  implementation worker: README, TODO, WORKSPACE-RULES, the continuation
+  prompt, this file, the audit, and the research, handoff and UX notes.
+  Every code, test, tool and Word file that changed is inside the frozen
+  scope. The frozen task was not edited to make the gate pass.
+- Separately, on the exact merged tree of `dba78ce`:
+  `tools/quality-check.sh` passed with 40/40 selftests, 16 + 78 + 23
+  quality checks, 14 adversarial probes held, branding and protocol
+  identity, ShellCheck and docs lint.
+
+The owner decides whether the documentation-only scope result is
+acceptable. No live provider was called by any test.
 
 ## Resume locally
 
 ```bash
 cat ../coord/AGENT-LOG.md
-git -C ../wt/claude status --short --branch
-git log --oneline main..agent/claude
+git log --first-parent --oneline -8 main
+bash tools/quality-check.sh
 ```
 
-Inspect the current work without changing either checkout:
-
-```bash
-git diff main...agent/claude --stat
-git diff main...agent/claude -- agentteam-install.sh tests/
-```
-
-Start from main, which contains `agent/claude`. Check the local agent log
-for newer branches first. Review the real diff, not just the report. Never reset a dirty
-worktree or restart an interrupted implementation from scratch.
+Main contains all M1 work. Older worker branches (`agent/codex`,
+`agent/kimi`, `agent/claude-*`) are history. Review the real diff, not
+just a report. Never reset a dirty worktree.
 
 ## First increment — independently checked
 
@@ -80,7 +100,7 @@ The exact next small task and checkpoint-maintenance rule are in the root
   bypass a held worker lock.
 
 These are implemented candidates, not claims of complete reliability.
-`docs/QUALITY-USAGE.md` was later updated in part; see item 4 below.
+`docs/QUALITY-USAGE.md` is now the complete M1 reference (merge `ce3d57f`).
 
 ## Claude checkpoints, 2026-10-04
 
@@ -98,32 +118,25 @@ Results from `../wt/claude` at `9d48b76`, run by Claude Code (Claude Opus
   stopped at the CodeGraph selftest race, on main as well.
 - `git diff --check`: clean.
 
-No live provider was called. The native frozen `agentteam verify` gate was
-not rerun: the installed global tool is still 0.3.1 and was left alone.
+No live provider was called. The native frozen gate was run later, from a
+temporary install; see the final gate section above.
 
-## Remaining before M1 can be accepted
+## Open findings and limits
 
-1. DONE on `agent/claude` (`e9bfb1a`): the hidden-index-flag gap. Verify,
-   review and handoff refuse assume-unchanged/skip-worktree flags, and
-   changed() disables fsmonitor.
-2. DONE on `agent/claude` (`9d48b76`): post-run snapshot failure. Run keeps
-   the real exit, report and ledger, and marks the result unbound and stale.
-3. Expand missing acceptance coverage, especially binary/oversized review
-   material, interrupted packet publication, and a systematic audit
-   against every frozen contract clause.
-4. Update help/completion for `result`, `handoff` and `agents --json`,
-   Python dependency/setup instructions, result schema and command docs,
-   changed review exits/constraints, operational protocol copies, and
-   affected Word manuals. `docs/QUALITY-USAGE.md` and the changelog
-   fragment now cover items 1 and 2 but are otherwise incomplete.
-5. Run all gates again, including the native frozen verify gate, inspect
-   the exact final diff, and obtain owner acceptance/integration before
-   claiming M1 complete or starting live UX.
+None of these block the contract as written; the owner may want them later.
 
-Do not repeat the completed rename, research, or first increment. The
-runtime embeds its own helper; the older scratch prototype in
-`artifacts/legacy-prototypes/agentteam-quality.py` is obsolete and must
-not replace it. A fresh clone needs no private logs or old conversation.
+- **Owner acceptance** of M1 is the one remaining step.
+- F1 (minor): `verify` with an unavailable base exits 2, not the usual 1,
+  because the snapshot fails first. It never passes and records nothing.
+- F2 (cosmetic): a handoff killed mid-publication leaves a `.pending-*`
+  scratch folder. Nothing partial is published; the folder can be deleted.
+- Not mock-testable: a kill during the result-file write (atomic rename
+  checked by reading the code), and real accounts or global configuration.
+- `agents` reports `unknown` (not "missing") for wrappers such as
+  `bash -c`, pipes or `$(...)` in the program word, by design.
+- Installing 0.4.0 globally and any live provider run are owner decisions.
+
+Do not start UI or M2 work until the owner accepts M1.
 
 ## Boundaries
 

@@ -126,8 +126,8 @@ only. Status values: covered, partial, gap, or not mock-testable.
 | Gate | Every listed case: scope, failures, auto-verify, review decisions, stale states, filenames, reload, locking, atomic packets, availability | Sections 1 to 5 above | covered |
 | Gate | Selftest, probes, branding, ShellCheck, syntax and docs lint all run | `tools/quality-check.sh` | covered |
 | Gate | Embedded and source PROTOCOL identity preserved | branding: protocol identity | covered |
-| Gate | Docs, examples and manuals updated for changed behavior | M1 item 4 (subagents `claude-help` and `claude-docs`) | outside this audit |
-| Gate | No completion claim with failing checks or unimplemented clauses | Owner acceptance in M1 item 5 | outside this audit |
+| Gate | Docs, examples and manuals updated for changed behavior | M1 item 4 (subagents `claude-help` and `claude-docs`), merged as `45803c1` and `ce3d57f` | covered |
+| Gate | No completion claim with failing checks or unimplemented clauses | M1 item 5 final gate, recorded in [M1-STATUS.md](M1-STATUS.md); owner acceptance pending | gate run; acceptance pending |
 
 ## Findings
 
