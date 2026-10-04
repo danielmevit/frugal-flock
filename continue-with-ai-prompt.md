@@ -13,7 +13,7 @@ checkpoint so another AI can continue without the previous conversation.
 - Antigravity live evidence is committed at `13e70e9` on `agent/codex` in
   `wt/codex`; the checkpoint is ready for its own merge and push.
 - M1.5 preparation is merged and pushed as `d991350` (candidate `4b8e1a9`
-  plus `61327ec`). The owner-approved README rewrite `4565cfd` is also
+  plus `61327ec`). The owner-approved README rewrites `4565cfd` and `f6f0ed9` are also
   on main and included in this Codex worktree; preserve it.
   [Canary plan and evidence](docs/M1.5-LIVE-CANARY.md). The isolated live
   fixture is `tmp/m15-canary-20261004/live/`, with all six workers including
