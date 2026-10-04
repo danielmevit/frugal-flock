@@ -210,19 +210,25 @@ check('auto-verify keeps worker exit and validation; a failed worker is never re
 
 # While the worker runs, its process state is running with an unknown exit.
 started = root / 'cov-started'
-configure(mock='touch ' + shlex.quote(str(started))
-          + '; sleep 2; echo cov >> hello.txt; git add hello.txt; git commit -qm cov')
+release = root / 'cov-release'
+# Wait for a release file, not a fixed sleep: reading the result can take
+# longer than a short sleep on a slow drive, and then the run has finished.
+configure(mock='touch ' + shlex.quote(str(started)) + '; i=0; while [ ! -e ' + shlex.quote(str(release))
+          + ' ] && [ $i -lt 1200 ]; do sleep .05; i=$((i+1)); done'
+          + '; echo cov >> hello.txt; git add hello.txt; git commit -qm cov')
 proc = subprocess.Popen([at, 'run', 'mock', 'cov'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-for _ in range(200):
+for _ in range(1200):
     if started.exists():
         break
     time.sleep(.05)
 mid = data()['process']
-proc.communicate(timeout=60)
+release.touch()
+proc.communicate(timeout=120)
 check('process is running with an unknown exit, then succeeded',
       started.exists() and mid['state'] == 'running' and mid['exit_code'] is None
       and proc.returncode == 0 and data()['process']['state'] == 'succeeded')
 started.unlink()
+release.unlink()
 configure()
 
 # Ignored files stay out of the revision hash; a tracked mode change is in it.

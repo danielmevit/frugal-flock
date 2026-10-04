@@ -208,17 +208,20 @@ with lock.open('a') as f:
     check('public verify argument cannot bypass held lock')
 
 # Review itself owns the lock throughout its provider call.
-marker=root/'review-started'
-configuration('touch "$QUALITY_MARKER"; sleep 2; printf "VERDICT: APPROVE\\n"')
+# The reviewer holds the lock until released, not for a fixed sleep: on a slow
+# drive the two refused calls below could outlast a sleep and race the lock.
+marker=root/'review-started'; release=root/'review-release'
+configuration('touch "$QUALITY_MARKER"; i=0; while [ ! -e "$QUALITY_RELEASE" ] && [ $i -lt 1200 ]; do sleep .05; i=$((i+1)); done; printf "VERDICT: APPROVE\\n"')
 review=subprocess.Popen([at,'review','mock','evidence','rev'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,
-                        env=dict(os.environ,QUALITY_MARKER=str(marker)))
-for _ in range(100):
+                        env=dict(os.environ,QUALITY_MARKER=str(marker),QUALITY_RELEASE=str(release)))
+for _ in range(1200):
     if marker.exists(): break
     time.sleep(.05)
 assert marker.exists()
 call('run','mock','evidence',code=1)
 call('handoff','mock','evidence',code=1)
-out,err=review.communicate(timeout=10)
+release.touch()
+out,err=review.communicate(timeout=120)
 check('review holds worker lock',review.returncode==0)
 configuration()
 
