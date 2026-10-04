@@ -1,33 +1,47 @@
-# Frugal Flock: your AI coding tools, working as one team
+# Frugal Flock: connect AI coding tools from different companies into one workspace
 
 **Small plans. Big ideas.**
 
-You describe what you want built. A lead AI turns it into a plan and hands
-small tasks to helper AIs. Think of them as subagents, except yours can
-come from different companies: Claude Code, Codex, Grok, Antigravity, or
-OpenCode with models such as Kimi, each running on a plan you already
-have. Every helper works in its own copy of your project, its work gets
-checked, and nothing goes into your project until you say yes.
+Frugal Flock links AI coding tools from different companies, such as
+Claude Code (Anthropic), Codex (OpenAI), Grok (xAI), Antigravity (Google)
+and OpenCode (which runs models such as Kimi), into one shared work
+environment for your project.
+
+On their own, these tools never meet. Each works in its own window, on its
+own subscription, unaware of the others. Frugal Flock gives them a common
+place to work:
+
+- **One leads, the others help.** One AI plans the work and hands out
+  tasks; the others act as its subagents, whichever company makes them.
+- **Each helper gets its own copy of the project**, so several can work at
+  the same time without overwriting each other.
+- **Tasks, results and history live in shared files**, not inside any one
+  AI's chat, so any AI can see what the others did and pick up where they
+  stopped.
+- **Every result is checked**, and only you decide what goes into the real
+  project.
+
+The name says it: a **flock** of AIs from different companies, run
+**frugally** on the plans you already have instead of one expensive one.
 
 **Available today:** a command-line tool for Linux, including Windows
 through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
 
-[How it works](#how-it-works) · [Try it free](#try-it-free-no-ai-calls) ·
+[Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
 [Under the hood](#for-the-curious-and-the-nerdy) · [What's next](#whats-next)
 
-## Why use it
+## What this makes possible
 
-- **Keep building past usage limits.** When one AI runs out of allowance
-  halfway through a project, give the next task to another instead of
-  stopping for the day.
-- **Get a second opinion.** One AI builds, a different one reviews.
-- **Stay in charge.** Every task has a clear brief, a list of files it may
-  change, and checks it must pass. You see the actual changes and decide
-  what to keep.
-- **Use what you already have.** Start with one tool and add more when
-  they help. You do not need every company's biggest plan.
+- **Use the best of each company.** Let one company's AI build a feature
+  and another company's AI review it, or give each the kind of task it
+  handles best.
+- **Keep going when one AI hits its limit.** Give the next task to an AI
+  from another company instead of stopping for the day.
+- **Run several AIs at once** on separate parts of the same project.
+- **See everything in one place:** who did what, what passed its checks,
+  and what still needs you.
 
-## How it works
+## A task, step by step
 
 Say you want to add search to a small website:
 
@@ -218,8 +232,8 @@ and [findings index](docs/RESEARCH-FINDINGS.md) hold the details.
 
 ## Keywords
 
-The idea in one line: **different AI agents working together as one team on
-your project, with a person directing them.** Working together here means
+The idea in one line: **AI coding tools from different companies, linked
+into one workspace on your project, with a person directing them.** Working together here means
 coordinated tasks and reviewed handoffs, not shared conversation memory.
 The [plain-English workflow guide](docs/AI-TEAM-WORKFLOWS.md) explains which
 patterns work today.
