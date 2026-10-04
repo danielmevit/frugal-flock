@@ -763,7 +763,10 @@ die() { echo "frugal-flock: $*" >&2; exit 1; }
 # One embedded runtime; Python uses only its standard library and never a shell.
 quality() {
   command -v python3 >/dev/null || die "Python 3 is required before run/verify/review/smoke/agents/result/handoff"
-  python3 - "$@" <<'QUALITY_PY'
+  # watch is long-lived: replace its shell so signals reach the observer.
+  local -a quality_runner=(python3)
+  [ "${1:-}" != watch ] || quality_runner=(exec python3)
+  "${quality_runner[@]}" - "$@" <<'QUALITY_PY'
 import datetime, fcntl, hashlib, json, os, re, shlex, shutil, stat, subprocess, sys, tempfile, time, uuid
 
 def fail(message):
@@ -1113,7 +1116,7 @@ def verdict(path):
     decisions={'VERDICT: APPROVE':'approved','VERDICT: REQUEST-CHANGES':'changes_requested'}
     print(decisions.get(markers[0],'unknown') if len(markers)==1 else 'unknown')
 
-def agents(conf,offdir,mode):
+def agent_data(conf,offdir):
     output=[]
     for line in regular(conf).decode().splitlines():
         if not line or line.startswith('#') or '=' not in line: continue
@@ -1143,6 +1146,10 @@ def agents(conf,offdir,mode):
             raw=regular(marker).decode().strip(); benched=True
             if raw.isdigit(): retry=int(raw); benched=retry>time.time()
         output.append(dict(name=name,binary=dict(value=binary,present=present),bench=dict(off=benched,operator_retry_at=retry),authentication='unknown',capacity='unknown',execution_boundary='trusted_host'))
+    return output
+
+def agents(conf,offdir,mode):
+    output=agent_data(conf,offdir)
     if mode=='--json': print(json.dumps(dict(schema_version=1,agents=output),indent=2))
     else:
         print('Local diagnostics only: installed does not mean usable. Authentication/capacity unknown.')
@@ -1151,6 +1158,133 @@ def agents(conf,offdir,mode):
             b=a['bench']; bench='OFF' if b['off'] else 'on'
             if b['operator_retry_at'] is not None: bench+=' (operator retry epoch '+str(b['operator_retry_at'])+'; not a provider reset)'
             print(a['name']+': installed='+{True:'yes',False:'no',None:'unknown'}[a['binary']['present']]+'; '+bench)
+
+def activity_snapshot(root, conf, offdir):
+    # Observe only local coordination data. Never walk worktree contents,
+    # run providers, rewrite evidence, create lock files or inspect raw logs.
+    out = dict(schema_version=1, stopped=os.path.exists(safe(root, 'coord', 'STOP')),
+               agents=agent_data(conf, offdir), results=[], retries=[], recent_events=[], warnings=[],
+               evidence='recorded; use result to recheck revision and readiness')
+    parent = safe(root, 'coord', 'results')
+    if os.path.isdir(parent):
+        for entry in sorted(os.scandir(parent), key=lambda e: e.name):
+            safe(root, 'coord', 'results', entry.name)
+            if not entry.is_dir(follow_symlinks=False): continue
+            worker = entry.name; ident(worker)
+            lock = observed_lock(root, worker)
+            for result in sorted(os.scandir(entry.path), key=lambda e: e.name):
+                if not result.name.endswith('.json'): continue
+                task = result.name[:-5]; ident(task)
+                try:
+                    d = load(root, worker, task)
+                except (ValueError, OSError, KeyError, TypeError):
+                    out['warnings'].append(dict(source='result', worker=worker, task=task, issue='unreadable or malformed evidence'))
+                    continue
+                p = d['process']
+                activity = ('completion_unknown' if lock == 'free' else 'running_recorded') if p['state'] == 'running' else p['state']
+                out['results'].append(dict(worker=worker, task=task, recorded_at=d.get('updated_at') if isinstance(d.get('updated_at'),str) else None,
+                    activity=activity, worker_lock=lock, process=dict(state=p['state'], exit_code=p['exit_code']),
+                    validation=dict(state=d['validation']['state'], checks_run=d['validation']['checks_run'],
+                                    checks_failed=d['validation']['checks_failed']),
+                    review=dict(state=d['review']['state'], reviewer=d['review']['reviewer'])))
+    parent = safe(root, 'coord', 'retries')
+    if os.path.isdir(parent):
+        for entry in sorted(os.scandir(parent), key=lambda e: e.name):
+            safe(root, 'coord', 'retries', entry.name)
+            if not entry.is_dir(follow_symlinks=False): continue
+            task = entry.name; ident(task)
+            path = safe(root, 'coord', 'retries', task, 'state.json')
+            if not os.path.exists(path): continue
+            try:
+                d = json.loads(regular(path))
+                if (not isinstance(d, dict) or d.get('schema_version') != 1 or d.get('task') != task
+                    or type(d.get('failed_attempts')) is not int or d['failed_attempts'] < 0
+                    or type(d.get('retry_granted')) is not bool or not isinstance(d.get('latest'), dict)):
+                    fail('malformed retry state')
+                for name, attempt in d['latest'].items():
+                    ident(name)
+                    if (not isinstance(attempt, dict) or not isinstance(attempt.get('id'), str)
+                        or not re.fullmatch('[0-9a-f]{32}', attempt['id'])
+                        or any(type(attempt.get(k)) is not bool for k in ('failed','pending'))):
+                        fail('malformed retry attempt')
+                out['retries'].append(dict(task=task, failed_attempts=d['failed_attempts'],
+                    retry_granted=d['retry_granted'], blocked=d['failed_attempts'] >= 2 and not d['retry_granted']))
+            except (ValueError, OSError, KeyError, TypeError):
+                out['warnings'].append(dict(source='retry', task=task, issue='unreadable or malformed state'))
+    path = safe(root, 'coord', 'reports', 'ledger.jsonl')
+    if os.path.exists(path):
+        # Bounded recent history, including events that complete between polls.
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as f:
+            if not stat.S_ISREG(os.fstat(f.fileno()).st_mode): fail('unsupported ledger file')
+            size = os.fstat(f.fileno()).st_size
+            start = max(0, size - 1048576); f.seek(start)
+            data = f.read(1048576)
+            if start: data = data.partition(b'\n')[2]
+        fields = {'event','ts','task','worker','agent','reviewer','exit','duration_s','wall',
+                  'verdict','scope','validate_run','validate_failed','decision'}
+        events = []
+        for line in data.split(b'\n')[:-1]:  # a writer's partial final line waits for the next poll
+            try:
+                event = json.loads(line)
+                if not isinstance(event, dict) or event.get('event') not in ('run','run_start','verify','review','race','merge'):
+                    fail('malformed ledger event')
+                item = {k: v for k,v in event.items() if k in fields and type(v) in (str,int,bool)}
+                if event['event'] == 'run' and event.get('wall') == 1: item['limit_signal'] = 'runner_log_pattern'
+                events.append(item)
+            except (ValueError, TypeError):
+                if not any(w['source'] == 'ledger' for w in out['warnings']):
+                    out['warnings'].append(dict(source='ledger', issue='malformed event omitted'))
+        out['recent_events'] = events[-20:]
+    return out
+
+def watch(root, conf, offdir, *args):
+    import argparse
+    parser = argparse.ArgumentParser(prog='frugal-flock watch', description='Read-only local activity; no provider or quota probes.')
+    parser.add_argument('--once', action='store_true', help='print one snapshot and exit')
+    parser.add_argument('--json', action='store_true', help='newline-delimited JSON snapshots')
+    parser.add_argument('--interval', type=float, default=1, help='poll seconds (0.1 through 60; default 1)')
+    options = parser.parse_args(args)
+    if not .1 <= options.interval <= 60: fail('watch interval must be between 0.1 and 60 seconds')
+    previous = None
+    def clean(value):
+        # Keep terminal controls from task IDs or ledger text inert.
+        return str(value).encode('unicode_escape').decode('ascii')
+    try:
+        while True:
+            state = activity_snapshot(root, conf, offdir)
+            encoded = json.dumps(state, sort_keys=True, ensure_ascii=True)
+            if encoded != previous:
+                state['observed_at'] = stamp()
+                if options.json:
+                    print(json.dumps(state, ensure_ascii=True), flush=True)
+                else:
+                    print('\n[' + state['observed_at'] + '] Frugal Flock activity: STOP ' + ('active' if state['stopped'] else 'clear'))
+                    print('Recorded evidence; use result to recheck revision/readiness. Authentication/capacity unknown.')
+                    for a in state['agents']:
+                        b = a['bench']
+                        retry = ' (operator retry epoch ' + str(b['operator_retry_at']) + '; not provider reset)' if b['operator_retry_at'] is not None else ''
+                        print('  agent ' + clean(a['name']) + ': ' + ('OFF' if b['off'] else 'on') + retry)
+                    for r in state['results']:
+                        p = r['process']; v = r['validation']
+                        print('  ' + clean(r['worker']) + '/' + clean(r['task']) + ': ' + r['activity']
+                              + ' (worker lock ' + r['worker_lock'] + ', exit ' + str(p['exit_code']) + ')'
+                              + '; validation ' + v['state'] + ' ' + str(v['checks_run']) + ' checks/' + str(v['checks_failed']) + ' failed'
+                              + '; review ' + r['review']['state'])
+                        if r['activity'] == 'completion_unknown':
+                            print('    No completion recorded; interruption possible. A free lock does not rule out detached processes.')
+                    for r in state['retries']:
+                        print('  task ' + clean(r['task']) + ': ' + str(r['failed_attempts']) + ' failed attempts; '
+                              + ('BLOCKED' if r['blocked'] else 'one retry granted' if r['retry_granted'] else 'brake clear'))
+                    print('  Recent ledger events (up to 20; last 1 MiB):')
+                    for e in state['recent_events']: print('    ' + json.dumps(e, ensure_ascii=True, sort_keys=True))
+                    for warning in state['warnings']: print('  WARNING ' + json.dumps(warning, ensure_ascii=True))
+                    sys.stdout.flush()
+                previous = encoded
+            if options.once: return
+            time.sleep(options.interval)
+    except (KeyboardInterrupt, BrokenPipeError):
+        return
 
 def handoff(root,worker,task):
     before=snapshot(root,worker,task)
@@ -1228,6 +1362,7 @@ try:
     elif cmd=='material': material(*a)
     elif cmd=='verdict': verdict(*a)
     elif cmd=='agents': agents(*a)
+    elif cmd=='watch': watch(*a)
     elif cmd=='handoff': handoff(*a)
     elif cmd=='paths':
         locations(*a)
@@ -1667,6 +1802,7 @@ cmd_run() {
   revision_before=$(quality snapshot "$root" "$worker" "$task") || return $?
   quality update "$root" "$worker" "$task" start "$revision_before" || return $?
   echo "[$worker <- $agent] running task '$task' (timeout ${TIMEOUT}s), log: $log"
+  ledger_add "$root" "$(printf '{"event":"run_start","ts":"%s","task":"%s","worker":"%s","agent":"%s"}' "$(date -Is)" "$task" "$worker" "$agent")"
   export TASKFILE="$tf"
   # NB: 'wall' further down is the quota-wall flag — this clock value is
   # 'wallsec' so the two never collide.
@@ -2005,6 +2141,13 @@ cmd_status() {
   [ "$any" = 1 ] || echo "  (none)"
 }
 
+cmd_watch() {
+  local root conf
+  root=$(find_root) || die "not inside a Frugal Flock project"
+  conf=$(conf_for_root "$root")
+  quality watch "$root" "$conf" "$OFF_DIR" "$@"
+}
+
 cmd_agents() {
   local root conf; root=$(find_root 2>/dev/null || true)
   if [ -n "${root:-}" ]; then conf=$(conf_for_root "$root"); else conf="$CONF_FILE"; fi
@@ -2109,8 +2252,8 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
     tail -n 80 "$raw/stdout.log"
     echo '~~~'
   } >> "$root/coord/reports/$task.md"
-  ledger_add "$root" "$(printf '{"event":"review","ts":"%s","task":"%s","worker":"%s","reviewer":"%s","exit":%d}' \
-    "$(date -Is)" "$task" "$worker" "$reviewer" "$rc")"
+  ledger_add "$root" "$(printf '{"event":"review","ts":"%s","task":"%s","worker":"%s","reviewer":"%s","exit":%d,"decision":"%s"}' \
+    "$(date -Is)" "$task" "$worker" "$reviewer" "$rc" "$state")"
   rm -rf "$nd"
   return "$ret"
 }
@@ -2888,6 +3031,11 @@ fleet plays
                                      avg duration — per worker
 
 switches
+  frugal-flock watch [--once] [--json] [--interval seconds]
+                                     read-only local activity on changes:
+                                     recorded verdicts, failures and limits.
+                                     No provider call, no current readiness
+                                     claim; Ctrl-C exits (default poll 1s)
   frugal-flock status                   off-agents, tasks, reports, review queue,
                                      running jobs
   frugal-flock off <agent> [30m|5h|7d]  quota switch: disable an agent
@@ -2938,6 +3086,7 @@ case "${1:-help}" in
   license)  cmd_license;;
   status)   shift; cmd_status "$@";;
   agents)   shift; cmd_agents "$@";;
+  watch)    shift; cmd_watch "$@";;
   off)      shift; cmd_off "$@";;
   on)       shift; cmd_on "$@";;
   smoke)    shift; cmd_smoke "$@";;
@@ -3327,12 +3476,13 @@ before any verdict, because Git diff/status would omit their edits.
 Ledger events (`coord/reports/ledger.jsonl`, one JSON object per line):
 
 ```text
+{"event":"run_start","ts":…,"task":…,"worker":…,"agent":…}
 {"event":"run","ts":…,"task":…,"worker":…,"agent":…,"exit":n,"duration_s":n,
  "wall_s":n,"suspended":0|1,"snapshot_failed":0|1,
  "commits":n,"files":n,"insertions":n,"deletions":n,"uncommitted":n,"wall":0|1}
 {"event":"verify","ts":…,"task":…,"worker":…,"scope":"OK|VIOLATION|UNCHECKED",
  "validate_run":n,"validate_failed":n,"commits":n,"empty":0|1,"verdict":…}
-{"event":"review","ts":…,"task":…,"worker":…,"reviewer":…,"exit":n}
+{"event":"review","ts":…,"task":…,"worker":…,"reviewer":…,"exit":n,"decision":…}
 {"event":"race","ts":…,"task":…,"workers":"w1 w2 …"}
 {"event":"merge","ts":…,"worker":…,"subject":"<merge commit subject>"}
 ```
@@ -3393,6 +3543,16 @@ context for the same checkout, NOT a backup, restore or provider migration:
 uncommitted and untracked contents stay in the source worktree. Credentials,
 agents.conf, ignored files and raw logs are never copied; task text may be
 sensitive, so review a packet before sharing it.
+
+Activity monitor: `frugal-flock watch [--once] [--json] [--interval seconds]`
+observes local results, worker locks, retry-brake state, STOP, agent diagnostics
+and up to 20 recent ledger events. It calls no provider, rewrites no evidence,
+and reads no raw logs or task contents. JSON snapshots emit initially and
+on changes. Decisions are recorded, not current readiness; use result to
+recheck. Running evidence with a free worker lock has completion_unknown,
+keeping its native state/null exit. A free lock does not rule out detached
+processes. Capacity/auth stay unknown; wall signals are runner log patterns,
+and operator retry times are not provider resets. See docs/WATCH-USAGE.md.
 
 Availability (`frugal-flock agents --json`, local only, never executes a
 configured command or probes sign-in or quota):
@@ -3627,7 +3787,7 @@ cat > "$COMP_DIR/agentteam" <<'COMPLETION_EOF'
 _agentteam() {
   local cur cmd root d cmds
   cur="${COMP_WORDS[COMP_CWORD]}"
-  cmds="new init run verify result handoff diff sync review race sabotage score doctor tail kill report status agents off on smoke selftest stop resume allow-retry version license help"
+  cmds="new init run verify result handoff diff sync review race sabotage score doctor tail kill report status agents watch off on smoke selftest stop resume allow-retry version license help"
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ); return
   fi
@@ -3643,6 +3803,7 @@ _agentteam() {
   agents=$(sed -n 's/^\([a-zA-Z0-9_-]*\)=.*/\1/p' \
     "${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}/agents.conf" 2>/dev/null)
   case "$cmd" in
+    watch) COMPREPLY=( $(compgen -W "--once --json --interval" -- "$cur") );;
     allow-retry) COMPREPLY=( $(compgen -W "$tasks" -- "$cur") );;
     run)
       if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "-b $workers" -- "$cur") )

@@ -10,13 +10,36 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- M1.5 step 3 complete, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
+  wt/codex on agent/codex includes main `959fb0c`: watch own-source checks
+  passed (26 focused mock cases, standalone packaging/aliases/completion,
+  config/protocol equality, ShellCheck/syntax, full docs and whitespace).
+  Read-only live fixture snapshot showed all six recorded canaries passed,
+  STOP active, all coordination hashes unchanged. Global runtime/config
+  hashes unchanged; no provider call. Receipts: tmp/m15-watch-20261004/.
+  Publishing monitor separately; it observes recorded states, never claims
+  current readiness or known capacity. No evidence rewrite on interruption.
+  Next: correct fresh-install OpenCode flag to --auto and examples, retaining
+  existing user config. Then publish the original tested sample prototype;
+  M2 live dogfood needs a fresh bounded worker-quota approval.
+
+- M1.5 step 3 source draft, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
+  wt/codex on agent/codex includes main `959fb0c` (published brake). Watch
+  implements read-only local human/NDJSON activity, STOP, operator limits,
+  recorded verdicts, retries, recent starts/completions and unknown completion
+  observations. No provider probes, raw-log/task-body reads, evidence rewrite
+  or current readiness claim. Separate source draft passed 26 mock checks,
+  packaging/aliases/completion/config/protocol equality. Own-worktree checks
+  are next. Global installed 0.4.0/config unchanged; no new paid call.
+  Next: verify/publish watch as its own merge, then OpenCode `--auto` fix.
+
 - M1.5 step 2 complete, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
   wt/codex on agent/codex source candidate `d930a87`: corrected frozen full
   gate passed, 40 selftests, 16 + 78 + 26 existing regressions, 22 brake
   cases, 14 probes held, packaging/aliases/completion, ShellCheck, syntax
   and docs. No quota/global changes. First gate's protocol mismatch and
   reassignment gap corrected. Receipt: tmp/m15-loop-brake-20261004/
-  quality-check-corrected.log. Publishing as its own merge/push.
+  quality-check-corrected.log. Merged/pushed as `959fb0c`; own worktree synced.
   Watch draft is ready: 26 focused checks and packaging passed, direct
   signal delivery, local recorded states, unknown completion on free locks,
   no evidence rewrites or readiness/quota claims. M2 draft has four state

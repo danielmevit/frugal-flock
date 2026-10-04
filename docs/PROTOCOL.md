@@ -98,12 +98,13 @@ before any verdict, because Git diff/status would omit their edits.
 Ledger events (`coord/reports/ledger.jsonl`, one JSON object per line):
 
 ```text
+{"event":"run_start","ts":…,"task":…,"worker":…,"agent":…}
 {"event":"run","ts":…,"task":…,"worker":…,"agent":…,"exit":n,"duration_s":n,
  "wall_s":n,"suspended":0|1,"snapshot_failed":0|1,
  "commits":n,"files":n,"insertions":n,"deletions":n,"uncommitted":n,"wall":0|1}
 {"event":"verify","ts":…,"task":…,"worker":…,"scope":"OK|VIOLATION|UNCHECKED",
  "validate_run":n,"validate_failed":n,"commits":n,"empty":0|1,"verdict":…}
-{"event":"review","ts":…,"task":…,"worker":…,"reviewer":…,"exit":n}
+{"event":"review","ts":…,"task":…,"worker":…,"reviewer":…,"exit":n,"decision":…}
 {"event":"race","ts":…,"task":…,"workers":"w1 w2 …"}
 {"event":"merge","ts":…,"worker":…,"subject":"<merge commit subject>"}
 ```
@@ -164,6 +165,16 @@ context for the same checkout, NOT a backup, restore or provider migration:
 uncommitted and untracked contents stay in the source worktree. Credentials,
 agents.conf, ignored files and raw logs are never copied; task text may be
 sensitive, so review a packet before sharing it.
+
+Activity monitor: `frugal-flock watch [--once] [--json] [--interval seconds]`
+observes local results, worker locks, retry-brake state, STOP, agent diagnostics
+and up to 20 recent ledger events. It calls no provider, rewrites no evidence,
+and reads no raw logs or task contents. JSON snapshots emit initially and
+on changes. Decisions are recorded, not current readiness; use result to
+recheck. Running evidence with a free worker lock has completion_unknown,
+keeping its native state/null exit. A free lock does not rule out detached
+processes. Capacity/auth stay unknown; wall signals are runner log patterns,
+and operator retry times are not provider resets. See docs/WATCH-USAGE.md.
 
 Availability (`frugal-flock agents --json`, local only, never executes a
 configured command or probes sign-in or quota):
