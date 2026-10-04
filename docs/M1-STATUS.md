@@ -32,7 +32,13 @@ cases and all 14 adversarial probes, packaging/aliases/completion, ShellCheck,
 syntax and docs. The first candidate's protocol-copy mismatch was corrected;
 reassignment and active-lock interruption cases added. Installed 0.4.0 stays
 unchanged. See the [loop-brake usage](QUALITY-USAGE.md#loop-brake-unreleased-source).
-Next: M1.5 live monitor, then OpenCode default compatibility, with mocks. The owner asked
+M1.5 step 3 source implements [watch](WATCH-USAGE.md): 26 focused mock
+checks, standalone packaging/aliases/completion, ShellCheck/syntax and full
+docs lint passed. It observed all six recorded canaries with unchanged
+coordination hashes and no provider calls. The observation labels unheld
+running evidence as completion unknown without altering native evidence;
+current readiness remains the responsibility of result.
+Next: OpenCode default compatibility, then the mock prototype. The owner asked
 to keep progressing through the roadmap; further provider calls need approval.
 
 Separate licensing checkpoint, owner-selected on 2026-10-04:

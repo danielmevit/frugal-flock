@@ -132,6 +132,11 @@ order, one small tested checkpoint each:
    and docs. Installed 0.4.0 remains unchanged until a deliberate release.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
    as they happen; it later becomes the app's Activity view.
+   Source implementation complete: 26 focused mock checks, standalone
+   packaging/aliases/completion, ShellCheck/syntax and full docs lint passed.
+   Observed all six recorded canaries without changing coordination hashes
+   or calling providers. [Usage and JSON contract](docs/WATCH-USAGE.md).
+   Current readiness still requires `result`; capacity stays unknown.
 4. The flock runs on the installed release while it builds the next
    version in the repo; reinstall only at deliberate releases.
 5. Bench Antigravity for dogfooding until it passes the canary (2 of 2
