@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Public attribution: Daniel Mevit (@danielmevit)
+# Original project: https://github.com/danielmevit/frugal-flock
+# SPDX-License-Identifier: AGPL-3.0-only
+# Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
+# See LICENSE and NOTICE; distributed without warranty.
 # Frugal Flock rename contract: entirely isolated, no providers or credentials.
 set -euo pipefail
 REPO_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -15,7 +21,12 @@ FLOCK_INODE=$(stat -Lc '%d:%i' "$FLOCK_PATH")
 
 # Old automation installs the same product. Simulate existing user configuration
 # and state before reinstalling through each entrypoint, from a different cwd.
-bash "$REPO_DIR/agentteam-install.sh" > "$BRAND_SANDBOX/install.log"
+# A standalone legacy installer must also carry the full legal files.
+mkdir -p "$BRAND_SANDBOX/standalone"
+cp "$REPO_DIR/agentteam-install.sh" "$BRAND_SANDBOX/standalone/agentteam-install.sh"
+bash "$BRAND_SANDBOX/standalone/agentteam-install.sh" > "$BRAND_SANDBOX/install.log"
+cmp "$REPO_DIR/LICENSE" "$AGENTTEAM_CONF_DIR/legal/LICENSE"
+cmp "$REPO_DIR/NOTICE" "$AGENTTEAM_CONF_DIR/legal/NOTICE"
 printf '# existing user config\nmock=bash -c "exit 0"\n' > "$AGENTTEAM_CONF_DIR/agents.conf"
 cp "$AGENTTEAM_CONF_DIR/agents.conf" "$BRAND_SANDBOX/expected.conf"
 mkdir -p "$AGENTTEAM_CONF_DIR/off" "$AGENTTEAM_CONF_DIR/playbooks"
@@ -27,14 +38,18 @@ for installer in frugal-flock-install.sh agentteam-install.sh; do
   cmp "$BRAND_SANDBOX/expected.conf" "$AGENTTEAM_CONF_DIR/agents.conf"
   grep -Fxq 'keep quota state' "$AGENTTEAM_CONF_DIR/off/existing"
   grep -Fxq 'keep playbooks' "$AGENTTEAM_CONF_DIR/playbooks/existing.md"
+  cmp "$REPO_DIR/LICENSE" "$AGENTTEAM_CONF_DIR/legal/LICENSE"
+  cmp "$REPO_DIR/NOTICE" "$AGENTTEAM_CONF_DIR/legal/NOTICE"
 done
+cat "$REPO_DIR/NOTICE" "$REPO_DIR/LICENSE" > "$BRAND_SANDBOX/expected-license"
 export PATH="$AGENTTEAM_BIN_DIR:$PATH"
 frugal-flock help > "$BRAND_SANDBOX/help"
 grep -Fq 'Frugal Flock — Small plans. Big ideas.' "$BRAND_SANDBOX/help"
 # M1 evidence commands and exit contracts must stay documented in help.
 for phrase in 'frugal-flock result <w> <task>' 'frugal-flock handoff <w> <task>' \
     'frugal-flock agents [--json]' '2 INCOMPLETE' 'VERDICT: REQUEST-CHANGES' \
-    'NOT a backup' 'Python 3 (standard library only)' 'trusted_host' 'skip-worktree'; do
+    'NOT a backup' 'Python 3 (standard library only)' 'trusted_host' 'skip-worktree' \
+    'frugal-flock license' 'Daniel Mitev' 'Daniel Mevit (@danielmevit)' 'No warranty.'; do
   grep -Fq -- "$phrase" "$BRAND_SANDBOX/help" || fail "help no longer mentions: $phrase"
 done
 # A fake project tree lets completion offer real worker and task names.
@@ -47,6 +62,8 @@ for entry in frugal-flock frgl-flc agentteam; do
     || fail "$entry does not point to the shared implementation"
   "$entry" help > "$BRAND_SANDBOX/entry-help"
   cmp "$BRAND_SANDBOX/help" "$BRAND_SANDBOX/entry-help"
+  "$entry" license > "$BRAND_SANDBOX/entry-license"
+  cmp "$BRAND_SANDBOX/expected-license" "$BRAND_SANDBOX/entry-license"
   "$entry" version > "$BRAND_SANDBOX/version"
   grep -q '^Frugal Flock ' "$BRAND_SANDBOX/version"
   grep -Fxq 'Small plans. Big ideas.' "$BRAND_SANDBOX/version"
@@ -135,4 +152,4 @@ for installer in agentteam-install.sh frugal-flock-install.sh; do
     bash "$REPO_DIR/$installer" > "$BRAND_SANDBOX/install-error" 2>&1 || rc=$?
   [ "$rc" -eq 1 ] || fail "$installer lost installation failure status ($rc)"
 done
-echo 'PASS: branding, three shared entrypoints, status propagation, completion, reinstall, protocol and Linux flock'
+echo 'PASS: branding, shared entrypoints, status propagation, completion, standalone license/credit, reinstall, protocol and Linux flock'

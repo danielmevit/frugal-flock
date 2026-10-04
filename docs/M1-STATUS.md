@@ -21,6 +21,16 @@ All three runs, verify (2/2 each), in-session reviews through sealed local
 adapters and current results passed. Three worker invocations, no extra
 reviewer calls. Other canaries await quota approval. The fixture is stopped.
 
+Separate licensing checkpoint, owner-selected on 2026-10-04:
+AGPL-3.0-only with copyright Daniel Mitev and public attribution Daniel
+Mevit (@danielmevit). Section 7(b)/(c) attribution/origin terms preserve
+the Frugal Flock name and author credit in covered copies/variants;
+independent projects built using it need no credit. Source obligations apply;
+compliant commercial forks remain allowed. Optional paid proprietary
+permissions require a separate agreement. See [LICENSING.md](LICENSING.md).
+This is a source checkpoint; the installed v0.4.0 remains unchanged until
+the next deliberate release/install.
+
 Frozen requirements: [QUALITY-M1-CONTRACT.md](QUALITY-M1-CONTRACT.md)
 at `e230ad4`. Clause-by-clause evidence:
 [M1-ACCEPTANCE-AUDIT.md](M1-ACCEPTANCE-AUDIT.md).

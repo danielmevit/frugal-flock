@@ -92,7 +92,8 @@ continuation after provider limits is the real differentiator. Risks:
 - Antigravity failed 2 of 2 live runs (about 55 minutes each).
 - Checkpointed handoff (save and move partial work) is the hardest piece;
   the M1 handoff packet is context only.
-- The repository is public but has no license yet (section 7).
+- The repository now uses AGPL-3.0-only, with required notices and optional
+  separate paid agreements for proprietary use (section 7).
 
 Order: M1.5 below, then M2 built by the flock itself (mock-data prototype,
 one worker plus a reviewer, owner merges, widen after a few clean cycles),
@@ -205,10 +206,15 @@ journey is useful and understandable.
 
 ## 7. Make public participation easier
 
-- Choose and add a license before describing the project as open source.
-  Owner requested liability limits and preserved original credit on
-  2026-10-04. AGPL-3.0-only draft is prepared locally; AGPL versus Apache
-  choice and copyright holder are pending. No license published yet.
+- License chosen and applied on 2026-10-04: AGPL-3.0-only, copyright
+  Daniel Mitev, public attribution Daniel Mevit (@danielmevit). The owner
+  explicitly chose true open source, allowing compliant commercial forks,
+  with optional paid agreements for proprietary use. Section 7(b)/(c) terms
+  preserve the Frugal Flock name/author credit and prohibit origin
+  misrepresentation in covered copies/variants. Full terms/NOTICE
+  ship with the installer; see [licensing guidance](docs/LICENSING.md).
 - Add concise contribution and issue-reporting guidance.
+- Define contributor permissions before accepting outside code if paid
+  proprietary licensing is planned; AGPL alone does not grant relicensing rights.
 - Collect onboarding feedback from both new builders and experienced
   users; keep the README's basic path separate from optional deep dives.

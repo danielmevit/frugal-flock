@@ -10,14 +10,28 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
-- Current owner request: add a license with warranty/liability limits and
-  preserved original credit. Compared official AGPLv3/Apache 2.0 terms;
-  recommend AGPL-3.0-only if covered derivatives must stay open. A review
-  draft (official LICENSE text, NOTICE and README section) is local at
-  `tmp/license-candidates/`. License choice and copyright holder are pending;
-  draft holder is Daniel Mevit. No license has been applied or published.
-  Next: receive the owner's license choice, then implement and publish that
-  separate checkpoint. Preserve all canary evidence; no further quota call.
+- Current owner request: AGPL-3.0-only for the public release, with optional
+  separate paid agreements for proprietary use. The owner explicitly chose
+  true open source on 2026-10-04 after being told compliant commercial forks
+  may be sold without paying him. Copyright holder: Daniel Mitev; public
+  attribution: Daniel Mevit (@danielmevit). Full unmodified GNU text in
+  LICENSE; section 7(b)/(c) attribution/origin terms in NOTICE and referenced
+  by source headers. The owner clarified credit applies to copies and
+  variants of Frugal Flock itself, not independent projects made with it.
+  Preserve the tool name, Daniel's credit and original URL in covered
+  material or appropriate legal notices; mark variants and do not
+  misrepresent origin. The self-contained
+  installer bundles both under the config directory's legal/ folder;
+  `frugal-flock license` prints them. README and [licensing guidance](docs/LICENSING.md)
+  explain notices/source obligations, lawful sales, independently developed
+  projects, legal limits and separately agreed proprietary permissions.
+  This candidate is local on agent/codex. First quality run passed 40
+  selftests and 16 + 78 + 26 regressions, then exited 2: the lead edited the
+  shell suite's source while Bash was still reading it. Final installer and
+  suite syntax, targeted docs lint, official LICENSE hash, bundled legal
+  file equality and diff --check pass. Rerun the full gate with source held
+  fixed before publication. First log: tmp/license-checkpoint-20261004/quality-check.log.
+  Global installed 0.4.0 and all canary evidence remain unchanged; no quota call.
 - Antigravity live evidence is committed at `13e70e9` on `agent/codex` in
   `wt/codex`, merged and pushed as `0426f0c`.
 - Codex worktree synced with main `81b587c`; read and preserve the owner's
@@ -53,7 +67,7 @@ checkpoint so another AI can continue without the previous conversation.
   including review gating and stale-result checks. The full offline gate
   passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
   branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
-  No worker is active. Current next task: the owner's licensing choice.
+  No worker is active. Current next task: finish the frozen-source licensing gate.
   Remaining Codex/Kimi canaries still need quota approval.
   Claude is owner-reported limited for five hours (avoid through
   22:42 +0200 on 2026-10-04, an operator interval, not a confirmed reset).

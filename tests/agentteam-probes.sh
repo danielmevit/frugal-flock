@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Public attribution: Daniel Mevit (@danielmevit)
+# Original project: https://github.com/danielmevit/frugal-flock
+# SPDX-License-Identifier: AGPL-3.0-only
+# Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
+# See LICENSE and NOTICE; distributed without warranty.
 # =====================================================================
 # tests/agentteam-probes.sh — adversarial probes against agentteam ITSELF
 # (SABAT-1: saboteur seat; target = the orchestration machinery, not an app).
