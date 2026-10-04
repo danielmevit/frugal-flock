@@ -28,6 +28,7 @@ checkpoint so another AI can continue without the previous conversation.
   ready result. Total worker calls: three; no extra reviewer calls, retries
   or Claude calls. Fixture stopped. Next: publish this checkpoint, then
   obtain quota approval before any remaining Codex/Kimi canary.
+  Its source evidence candidate is `17c4959` on `agent/codex`.
 - M1.5 preparation is merged and pushed as `d991350` (candidate `4b8e1a9`
   plus `61327ec`). The owner-approved README rewrites `4565cfd` and `f6f0ed9` are also
   on main and included in this Codex worktree; preserve it.
