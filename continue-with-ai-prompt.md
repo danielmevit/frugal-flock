@@ -10,6 +10,24 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Mock diagnosis, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh): source
+  includes main `b8625c7` (passing Claude evidence, candidate `7511197`),
+  with Codex recovery published as `aadc005` and Kimi as `9fadc8a`.
+  CodeGraph returned no relevant installer code; inspected the embedded
+  quality helper and runner. A fresh workspace-local interruption fixture
+  reproduced stale running/null-exit status using the unchanged installed
+  0.4.0, one local mock invocation and zero provider calls. Killed only
+  that harness's own runner/mock groups; verify acquired the released lock,
+  exited 1/2/empty_work, result not ready. Handoff acquired the free lock
+  and published a complete packet with its existing interruption warning.
+  No runtime or live result changed; both fixtures STOP, no active worker.
+  Local receipts: tmp/m15-interruption-20261004/receipts/. Five live canaries
+  passed; six approved attempts used, Codex interrupted, no extra provider
+  reviews/retries. Fresh Codex (180s) plus conditional Grok review (120s)
+  quota approval is pending; do not run them without the owner's answer.
+  Diagnosis is recorded for its own merge. Next: a mock-tested interruption
+  activity observation fix; preserve unknown exit and the distinction between a free
+  worker lock and the possible existence of detached processes.
 - Claude canary, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh): explicit
   Claude Sonnet 5.5 (`claude-sonnet-5-5`), medium, passed in 23 seconds.
   Native JSON confirms Sonnet; throwaway commit `4163ce4`, one file/commit,
@@ -21,9 +39,8 @@ checkpoint so another AI can continue without the previous conversation.
   zero additional provider reviewers, no retries; all approved calls used.
   Five ready canaries; Codex remains interrupted, zero commits/verify 1/2,
   native process still running despite no surviving worker. M1.5 step 1 is
-  incomplete. Fixture STOP active, no worker active. Next: publish this
-  Claude evidence checkpoint, then investigate interrupted-run status with
-  mocks. Any Codex rerun needs fresh quota approval; native review needs a
+  incomplete. Fixture STOP active, no worker active. Claude evidence merged
+  and pushed as `b8625c7`. Interruption status subsequently reproduced with mocks above. Any Codex rerun needs fresh quota approval; native review needs a
   different vendor. Sonnet success does not prove the Opus limit cleared.
 - Access recovery checkpoint, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh):
   the owner restored unrestricted execution after the session sandbox failed
@@ -118,7 +135,7 @@ checkpoint so another AI can continue without the previous conversation.
   passed: 40/40 selftests, 16 + 78 + 26 quality checks, 14 probes held,
   branding, ShellCheck, installer syntax and docs lint. Whitespace clean.
   No worker is active. All approved calls used; future calls need approval.
-  Next: publish Claude evidence, then investigate interrupted status with mocks.
+  Claude evidence is published; mock diagnosis above records the status limitation.
   Claude is owner-reported limited for five hours (avoid through
   22:42 +0200 on 2026-10-04, an operator interval, not a confirmed reset).
   The owner explicitly permits this one Sonnet 5.5/medium Claude canary.
