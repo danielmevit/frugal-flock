@@ -10,6 +10,20 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- M1.5 step 2 complete, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
+  wt/codex on agent/codex source candidate `d930a87`: corrected frozen full
+  gate passed, 40 selftests, 16 + 78 + 26 existing regressions, 22 brake
+  cases, 14 probes held, packaging/aliases/completion, ShellCheck, syntax
+  and docs. No quota/global changes. First gate's protocol mismatch and
+  reassignment gap corrected. Receipt: tmp/m15-loop-brake-20261004/
+  quality-check-corrected.log. Publishing as its own merge/push.
+  Watch draft is ready: 26 focused checks and packaging passed, direct
+  signal delivery, local recorded states, unknown completion on free locks,
+  no evidence rewrites or readiness/quota claims. M2 draft has four state
+  tests and the full browser journey passing; source only after stability
+  checkpoints. Next: watch publication, then the fresh-install OpenCode
+  `--auto` compatibility fix. Native help confirms --auto with no quota use.
+
 - M1.5 step 2 correction, 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh),
   wt/codex on agent/codex candidate `3a68a8a`: frozen full gate passed
   40 selftests, 16 + 78 + 26 regressions, 18 brake checks and all 14 probes,
