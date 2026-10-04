@@ -52,10 +52,19 @@ folder is /mnt/d/Vibe Coding/_vm/frugal-flock/repo and worktrees are under
 folder; use its tmp directory for checks. Installed tools and credentials
 stay in their system locations; never copy credentials.
 
-NEXT: wait for the owner's direction. Before using Frugal Flock to build
-its own UI, the owner wants a stable version: prove the live loop with real
-providers on a throwaway repo first (see M1-STATUS). Do not start M2
-unasked.
+NEXT: the M1.5 stability phase, approved by the owner on 2026-10-04, in this
+order, one small tested checkpoint each:
+1. Live canary: a throwaway repo, one tiny task per agent through run,
+   verify, review and result. Tiny tasks only; it uses provider quota.
+2. Loop brake in the engine: a task that failed twice is refused until
+   the owner explicitly allows another attempt.
+3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
+   as they happen; it later becomes the app's Activity view.
+4. The flock runs on the installed release while it builds the next
+   version in the repo; reinstall only at deliberate releases.
+5. Bench Antigravity until it passes the canary (2 of 2 live runs failed).
+Then dogfood on M2 (the mock-data prototype): one worker plus a reviewer,
+owner merges; widen after a few clean cycles.
 
 Say what you will do, then work in SMALL checkpoints: targeted tests,
 exact diff review, named-path commit, then a dated entry at the top of

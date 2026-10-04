@@ -6,10 +6,9 @@ Checkpoint rule: one bounded correction at a time; test, commit, then
 update [the continuation prompt](continue-with-ai-prompt.md) with the exact
 candidate SHA, evidence, blockers, active workers and one next task.
 All project-owned work stays inside `/mnt/d/Vibe Coding/_vm/frugal-flock`.
-The main checkout is its `repo/` folder; Codex works in `wt/codex/`.
+The main checkout is its `repo/` folder; workers use `wt/NAME/`.
 Follow [the standing workspace rules](WORKSPACE-RULES.md).
-The current owner request is project-state cleanup and handoff ONLY;
-do not resume implementation until the owner asks.
+Current owner request: the M1.5 stability phase below, then M2.
 
 ## Current handoff
 
@@ -72,7 +71,23 @@ accepted M1 on 2026-10-04. M2 starts when the owner asks for it.
 - Keep old configuration paths, environment overrides, and command
   compatibility. Existing local clone folders need not be renamed.
 
-## 2. M2 — prototype one simple project workspace after M1 acceptance
+## 1.5 M1.5 — stability before dogfooding
+
+Do the M1.5 stability phase, approved by the owner on 2026-10-04, in this
+order, one small tested checkpoint each:
+1. Live canary: a throwaway repo, one tiny task per agent through run,
+   verify, review and result. Tiny tasks only; it uses provider quota.
+2. Loop brake in the engine: a task that failed twice is refused until
+   the owner explicitly allows another attempt.
+3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
+   as they happen; it later becomes the app's Activity view.
+4. The flock runs on the installed release while it builds the next
+   version in the repo; reinstall only at deliberate releases.
+5. Bench Antigravity until it passes the canary (2 of 2 live runs failed).
+Then dogfood on M2 (the mock-data prototype): one worker plus a reviewer,
+owner merges; widen after a few clean cycles.
+
+## 2. M2 — prototype one simple project workspace after M1.5
 
 Build a clickable prototype with clearly labeled sample data. One
 conversation with the lead, with plan, progress, and review cards beside
