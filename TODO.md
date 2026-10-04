@@ -113,11 +113,13 @@ order, one small tested checkpoint each:
    OpenCode Go `opencode-go/glm-5.3` passed in 24 seconds, with the same
    checks and in-session lead review.
    Kimi (`opencode-go/kimi-k3`) also passed in 45 seconds with the same checks.
-   Four live worker calls total; no retries or extra reviewer calls.
-   The owner approved all remaining canaries in one go, including one
-   Claude Sonnet 5.5/medium attempt despite its reported five-hour limit.
-   Codex and Claude calls are next; the Codex lead reviews here. Native
-   Codex approval requires a different vendor and may remain pending.
+   Codex's interrupted invocation was recovered after execution access was
+   restored: no commit, verify 1/2 failed, no completion/exit captured. Its
+   native process status remains running despite no surviving worker; result
+   is not ready. Record the recovery gap; no retry or invented timeout.
+   Five live worker invocations total, no extra reviewer calls. One approved
+   Claude Sonnet 5.5/medium attempt remains despite its reported limit.
+   The Codex lead reviews here; native Codex approval needs another vendor.
 2. Loop brake in the engine: a task that failed twice is refused until
    the owner explicitly allows another attempt.
 3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
