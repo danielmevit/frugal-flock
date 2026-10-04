@@ -35,6 +35,25 @@ to GitHub. Do not publish raw logs, credentials, private task text or browser
 profiles merely to make a backup. Local checkpoints are not off-device
 backups; use an owner-approved backup destination when requested.
 
+## Agent log: read first, write last
+
+Owner rule, recorded 2026-10-04. It applies to every AI agent, of any vendor
+or model, lead or worker. The live log is `coord/AGENT-LOG.md` in the
+enclosing workspace. It is local, shared by every worktree, and not pushed.
+
+- Before starting, read its newest entries. The newest work may be on
+  another agent's branch and worktree. Read that branch first, build on
+  it, and never redo, reset or overwrite it.
+- Say what you are about to do, then manage the work yourself in small,
+  tested checkpoints.
+- After every checkpoint, and before stopping or hitting a usage limit,
+  add an entry at the top of the log: local date and time with UTC offset,
+  agent and exact model, worktree, branch and SHA, what changed, the tests
+  actually run with results, state, and the one next task. Also update
+  [continue-with-ai-prompt.md](continue-with-ai-prompt.md) on your branch.
+- Never edit or delete older entries. Without the local workspace (a fresh
+  clone), the continuation prompt and M1 status carry the same facts.
+
 ## Tools and credentials are different
 
 Installed CLIs, native authentication stores and shared tool-managed caches
