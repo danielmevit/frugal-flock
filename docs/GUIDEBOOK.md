@@ -7,7 +7,7 @@
 > are simple pipe tables. There is no HTML and no special syntax anywhere
 > in this document.
 
-**Covers Frugal Flock v0.3.1 · written 2026-07-19 · for the complete beginner**
+**Covers Frugal Flock v0.3.1 plus the in-progress M1 quality changes (the runtime prints 0.4.0, which is not an accepted release) · written 2026-07-19, updated 2026-10-04 · for the complete beginner**
 
 This is the one book that explains everything: what Frugal Flock is, how to
 install it, how to use every command step by step, how to fix every common
@@ -141,6 +141,8 @@ clone:
     ├── board.md     Task board. Only the foreman writes it.
     ├── tasks/       Work orders, one .md file per task (TEMPLATE.md included).
     ├── reports/     Everything the machinery records (see 3.2).
+    ├── results/     One JSON result per worker and task (see 3.2).
+    ├── handoffs/    Context packets for the next AI (see 7.10).
     ├── blockers.md  "I'm stuck" notes, append-only.
     ├── .locks/      One lock file per worker (machinery-owned; ignore).
     └── STOP         If this file exists, ALL new runs are refused.
@@ -159,6 +161,13 @@ Inside `coord/reports/` you will find, per task:
 
 Rule: for history, always read the `.md` report or the ledger — never the
 `.log`, which only remembers the latest run.
+
+Next to the reports, `coord/results/<worker>/<task>.json` holds the
+**current evidence** for one task: the worker process, the validation and
+the review, each tied to the exact revision it describes (the commit, the
+base, the task file and the files in the workshop). It is rewritten as
+the task moves along; `frugal-flock result` prints it (section 7.10).
+`coord/handoffs/` holds the context packets made by `frugal-flock handoff`.
 
 ### 3.3 The guard hooks (installed automatically)
 
@@ -183,6 +192,11 @@ untouched and tells you so.
 
 - An Ubuntu machine (a real one, a VM, or WSL).
 - `git` installed (`sudo apt install git` if missing).
+- Python 3 (`python3 --version`; `sudo apt install python3` if missing).
+  Only its standard library is used, for the evidence records — nothing is
+  downloaded. Without it, run, verify, review, result, handoff, agents and
+  smoke stop with "Python 3 is required before run/review/smoke" before
+  any AI is called.
 - Your AI subscriptions (any subset of the five works — even one).
 
 ### 4.2 Install Frugal Flock itself
@@ -517,7 +531,12 @@ fast-forward it first); cleaned any stale git lock from a previously
 killed run; then ran the codex CLI inside `wt/codex/` with the task text,
 capped at `AGENTTEAM_TIMEOUT` seconds (default 3600 = 1 hour).
 When it finished, a run block was appended to the report and one `run`
-event to the ledger.
+event to the ledger. The task's stored result (section 7.10) was reset at
+the start and now records the worker's exit code. If the workshop could
+not be fingerprinted afterwards — for example the worker left a special
+file such as a FIFO — the real exit code is still recorded, the result is
+marked as not ready, and `run` returns nonzero; remove the file and run
+again.
 
 ### 7.2 Background runs
 
@@ -601,7 +620,13 @@ Line by line:
   command, every check passing, and the existing scope/tamper/empty/base
   safeguards satisfied. Missing scope or checks is `INCOMPLETE` (exit 2).
   Actual failures take precedence and return nonzero, normally exit 1.
-  M1 provides no waiver bypass.
+  If the workshop changed while the checks ran, an otherwise passing
+  verdict becomes `INCOMPLETE` too. M1 provides no waiver bypass.
+
+If the changed files cannot be listed reliably — for example a file is
+marked with git's assume-unchanged or skip-worktree flag, which hides
+edits — verify stops with exit 2 and an error instead of a verdict. The
+outcome is also stored in the task's result (section 7.10).
 
 The verdict block is also appended to the report and the ledger. Tip: set
 `AGENTTEAM_AUTO_VERIFY=1` and every run appends its own verdict
@@ -626,13 +651,35 @@ uncommitted.
 $ frugal-flock review codex T7-codex
 ```
 
-A **different** vendor's agent receives the task order and the full diff
-in one prompt (it gets no file access) and returns findings plus a final
+A **different** vendor's agent receives the task order and the full
+committed diff in one prompt and returns findings plus a final
 `VERDICT: APPROVE` or `VERDICT: REQUEST-CHANGES`. Frugal Flock picks the
 first available non-author agent, or name one yourself as a third
 argument. Model diversity is the point: Claude reviewing Codex catches
 different mistakes than Codex reviewing itself. Use it for risky or large
 diffs; your gate still decides.
+
+The rules that keep a review honest:
+
+- **Verify first.** Review only starts after a `verify` PASS that still
+  matches the current code; otherwise it stops with exit 2.
+- **Complete material only.** Everything must be committed, the diff
+  must be text (no binary files), valid UTF-8 and at most 300000 bytes.
+  Otherwise the reviewer is not called at all — nothing is cut short and
+  sent as if it were the whole change.
+- **One clear verdict.** Only one line may mention the verdict, it must
+  read exactly `VERDICT: APPROVE` or `VERDICT: REQUEST-CHANGES` on its own,
+  and it must come from the reviewer's normal output. Anything else is an
+  unknown verdict. If the reviewer program itself fails, the review failed,
+  whatever it printed.
+- **Exit codes:** 0 = approved, 1 = changes requested or reviewer failed,
+  2 = unknown verdict, incomplete material, or code that changed meanwhile.
+
+The reviewer works from an empty temporary folder, but like every
+configured agent its command still runs with your user's access to the
+machine. Its raw output is kept under `coord/reports/`, and the decision
+goes into the task's result. An approval is evidence for you — not your
+acceptance.
 
 ### 7.7 The human gate — merging
 
@@ -674,6 +721,36 @@ $ git -C ../wt/codex reset --hard dev        # wipe the branch
 Then tell the foreman: "T7 rejected because `<reason>`. Write a sharper
 T7b." Sharper task file — never "hope it does better this time". Two
 failed attempts on the same task = the foreman must escalate to you.
+
+### 7.10 `result` and `handoff` — the evidence, and the next-AI packet
+
+```text
+$ frugal-flock result codex T7-codex       # JSON on screen; changes nothing
+$ frugal-flock handoff codex T7-codex      # writes a packet, prints its folder
+```
+
+`result` prints the task's stored evidence: the worker process
+(succeeded or failed, with its exit code), the validation (passed, failed
+or incomplete, with reasons) and the review (approved, changes requested,
+unknown or failed). Each piece remembers the exact revision it was made
+for. Change anything — a commit, the base branch, the task file, any
+file in the workshop that git does not ignore — and the old evidence is
+marked `stale`.
+`ready_for_human_review` is true only when the process succeeded,
+validation passed and the review approved, all for the code as it is
+right now. Even then the human decision stays yours: the result always
+shows your acceptance as `pending`.
+
+`handoff` writes a new folder under `coord/handoffs/` for another AI that
+will continue in the same workshop: the task text, the current result,
+the revision, the list of changed files, and a HANDOFF.md with what was
+checked, what is open and the next safe steps. It is **context, not a
+backup**: uncommitted work stays only in the workshop, and no credentials,
+`agents.conf`, raw logs or ignored files are copied. Read the packet before
+you share it — task text can be sensitive. It refuses to run while the
+worker is busy.
+
+The full field list and every exit code are in `docs/QUALITY-USAGE.md`.
 
 ---
 
@@ -730,7 +807,8 @@ then propose the next step. Wait for my go.
 
 - Dispatch long tasks with `-b`; review results in batches — two or three
   diffs in one sitting beats context-switching per task.
-- `verify` before you read any diff; `review` for the risky ones.
+- `verify` before you read any diff; `review` for the risky ones;
+  `result` to see whether all the evidence still matches the code.
 - After your merges: `sync`.
 - Two terminals: foreman in one, YOUR gate commands in the other. Never
   gate inside the foreman's window.
@@ -788,7 +866,8 @@ $ frugal-flock off codex 5h     # window burned: benched, auto-returns in 5h
 $ frugal-flock off grok 7d      # weekly cap: benched for a week
 $ frugal-flock off opencode     # benched until you say otherwise
 $ frugal-flock on codex         # manual return anytime
-$ frugal-flock agents           # shows on/OFF with the auto-return countdown
+$ frugal-flock agents           # installed? on/OFF, with your chosen retry time
+$ frugal-flock agents --json    # the same, machine-readable
 ```
 
 Facts worth knowing:
@@ -805,6 +884,12 @@ Facts worth knowing:
   limiter cannot bench a healthy agent).
 - Boring work goes to the bench-warmers; interesting work *waits* for the
   strong agents to come back.
+- `agents` is a local check only: it never runs an agent and never asks a
+  provider about login or quota, so authentication and capacity always
+  show as unknown. A bench time is the retry time you chose, not a
+  provider-confirmed reset. Conf lines that use shell syntax (the shipped
+  ones pass the task with `"$(cat "$TASKFILE")"`) show `installed=unknown`;
+  `frugal-flock doctor` checks that each worker's program exists.
 
 ---
 
@@ -840,8 +925,9 @@ One JSON object per line in `coord/reports/ledger.jsonl`:
 
 ```text
 {"event":"run", "ts":..., "task":..., "worker":..., "agent":..., "exit":0,
- "duration_s":214, "commits":1, "files":2, "insertions":65, "deletions":0,
- "uncommitted":0, "wall":0}
+ "duration_s":214, "wall_s":214, "suspended":0, "snapshot_failed":0,
+ "commits":1, "files":2, "insertions":65, "deletions":0, "uncommitted":0,
+ "wall":0}
 {"event":"verify", ..., "scope":"OK", "validate_run":2, "validate_failed":0,
  "commits":1, "empty":0, "verdict":"PASS"}
 {"event":"review", ..., "reviewer":"claude", "exit":0}
@@ -850,6 +936,9 @@ One JSON object per line in `coord/reports/ledger.jsonl`:
 ```
 
 Append-only, machine-readable, and the raw feed for any future tooling.
+`snapshot_failed` is 1 when the workshop could not be fingerprinted after
+the run (section 7.1); the review event's `exit` is the reviewer
+program's exit code, not its verdict.
 
 ---
 
@@ -983,6 +1072,7 @@ machinery is fine** — the problem is an agent, a login, or a task file.
 | `frugal-flock: command not found` | `~/.local/bin` not on PATH. `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc` |
 | `not inside a Frugal Flock project` | You are in a folder with no `coord/` + `wt/` above it. `cd` into the project's `repo/` (any subfolder works). |
 | Tab-completion doesn't work | Open a NEW terminal (completion loads per shell). Ubuntu needs the `bash-completion` package, normally preinstalled. |
+| "Python 3 is required before run/review/smoke" | Install it: `sudo apt install python3`. Only the standard library is used; nothing else is downloaded. |
 | init: "possible secrets tracked in git" | Working as intended — see section 5.3. Untrack the file, gitignore it, run init again. |
 | init warns "no agents.conf entry for agent X" | You initialized a worker whose agent has no line in `agents.conf`. Add the line or ignore the seat. |
 | init: "this repo has no commits yet" | A worktree branches from a commit, so an empty repo cannot be scaffolded. Make one commit first (`git commit --allow-empty -m "initial commit"`), then init. |
@@ -1009,6 +1099,7 @@ machinery is fine** — the problem is an agent, a login, or a task file.
 | `no task file: .../T7.md` | Task name typo, or the file is in the wrong folder. Task files live in `coord/tasks/`, and you pass the name without `.md`. |
 | Background run seems gone but no report block | It was killed (or the machine slept). The log holds whatever it printed. Rerun — tasks are rerunnable by design. |
 | git complains about `index.lock` | A killed run died mid-commit. The next `frugal-flock run` on that worker clears it automatically; manually: delete the named lock file. |
+| run: "post-run snapshot failed" | The worker left a FIFO, socket, device, nested repository or submodule in its workshop. The real exit code is recorded, but the result stays not ready. Remove the file and run again. |
 
 ### 14.5 Gate problems (verify / diff / merge)
 
@@ -1019,6 +1110,11 @@ machinery is fine** — the problem is an agent, a login, or a task file.
 | verify: no Validate commands | INCOMPLETE, exit 2 unless another failure takes precedence. Define the required check explicitly and rerun; no waiver bypass exists. |
 | verify: `EMPTY — no commits and no uncommitted changes` | The agent claimed success and did nothing. Treat as failed; re-brief sharper. |
 | verify FAIL but the report claims success | Working as designed: the report lied, the machine caught it. Trust verify. |
+| verify: `INCOMPLETE` with `candidate_changed_during_validation` | Something changed the workshop while the checks ran. Make sure nothing else writes there, then rerun verify. |
+| "unsupported assume-unchanged/skip-worktree index flags" | Those git flags hide edits from scope checks and review. Clear them (`git update-index --no-assume-unchanged --no-skip-worktree` on the named paths, or `git sparse-checkout disable`) and rerun. |
+| review: "requires current passed validation" | Run verify first. Any commit, file change or task edit since the last PASS makes that PASS stale. |
+| review: "incomplete review material" | Commit all staged, unstaged and untracked work. Binary or oversized diffs cannot be reviewed this way — inspect them yourself. |
+| review exit 2, verdict unknown | The reviewer did not end with exactly one `VERDICT: APPROVE` or `VERDICT: REQUEST-CHANGES` line. Rerun or ask another reviewer. |
 | Report says done; diff shows uncommitted work | The worker forgot to commit. Commit it yourself in `wt/<w>` or rerun with a sharper "Done means". |
 | Report says done; diff looks wrong | Normal. Reject; the foreman re-briefs. The system working. |
 | Two workers changed the same file | A scope overlap slipped through. Accept one, reject the other, fix disjointness. (Exception: a deliberate `race`.) |
@@ -1047,7 +1143,7 @@ Setup and health:
 |---|---|
 | `frugal-flock new <repo-url> [name] [workers...]` | Bootstrap a whole project: clone → dev branch → init → playbooks copied from `~/.config/agentteam/playbooks/`. |
 | `frugal-flock init [w1 w2 ...]` | Scaffold workshops + office next to your clone (default workers: codex antigravity opencode grok). Idempotent; secrets preflight; installs guard hooks. |
-| `frugal-flock agents` | Roll call: each agent — binary installed? on or benched? |
+| `frugal-flock agents [--json]` | Roll call: each agent — program installed (yes / no / unknown)? on or benched? Local only; no login or quota check. `--json` = machine-readable. |
 | `frugal-flock smoke` | One tiny live call per agent from a neutral folder; OK / WARN / FAIL per row. Run after every CLI update. |
 | `frugal-flock selftest` | Rehearse the entire loop with mock agents in a throwaway sandbox — zero quota. |
 | `frugal-flock doctor` | Preflight a project: base branch, agent binaries and config lines, worktree health, stale state, disk. Catches what would waste a run. Exits nonzero on an error. |
@@ -1062,9 +1158,11 @@ Work:
 | `frugal-flock tail [task]` | Follow a run's live log (default: newest). |
 | `frugal-flock kill <task>` | Stop a background run — the whole session, agent included. |
 | `frugal-flock report <task> [lines]` | Read a task's report (default: last 60 lines). |
-| `frugal-flock verify <w> <task>` | The mechanical gate: scope check + Validate re-run + commit sanity; verdict into report and ledger; exit code matches. |
+| `frugal-flock verify <w> <task>` | The mechanical gate: scope check + Validate re-run + commit sanity; verdict into report, ledger and result. Exit 0 PASS, 1 FAIL, 2 INCOMPLETE. |
 | `frugal-flock diff <w> [--stat]` | The receipts: committed and uncommitted changes vs the base branch. |
-| `frugal-flock review <w> <task> [agent]` | A DIFFERENT vendor reviews the task order + diff; ends `VERDICT: APPROVE` or `REQUEST-CHANGES`. |
+| `frugal-flock review <w> <task> [agent]` | After a current verify PASS, a DIFFERENT vendor reviews the task order + committed diff; ends `VERDICT: APPROVE` or `REQUEST-CHANGES`. Exit 0 approved, 1 changes or reviewer failed, 2 unknown or incomplete. |
+| `frugal-flock result <w> <task>` | Print the task's stored evidence as JSON (read-only, no AI call). |
+| `frugal-flock handoff <w> <task>` | Write a context packet for the next AI under `coord/handoffs/`; not a backup. |
 | `frugal-flock sync [w]` | Bring the base branch into worker branches after merges (fast-forward / merge / skip dirty / abort on conflict). |
 
 Fleet plays:
@@ -1160,6 +1258,7 @@ project's `coord/docs/`); these are the twelve invariants translated:
 | **foreman / lead / master** | The interactive AI session that plans and delegates. Never codes, never merges. |
 | **fragment** | A one-file changelog entry in `changelog.d/`, merged into CHANGELOG.md at release. |
 | **gate** | Your review-and-merge decision. The only way code enters the base branch. |
+| **handoff packet** | A folder written by `frugal-flock handoff` so another AI can continue in the same workshop: task, result, revision, changed files, next steps. Context, not a backup. |
 | **headless** | Running non-interactively: one prompt in, work happens, output comes back, the program exits. |
 | **hook** | A small script git runs automatically around actions (commit, push, merge). Frugal Flock installs three guards. |
 | **ledger** | `coord/reports/ledger.jsonl` — machine-readable history: one JSON line per run/verify/review/race/merge. Run timings are suspend-aware: `duration_s` counts only real working time, `wall_s` is clock time, and `suspended` marks a run the machine slept through. |
@@ -1168,10 +1267,11 @@ project's `coord/docs/`); these are the twelve invariants translated:
 | **PATH** | The list of folders your terminal searches for programs. |
 | **quota window** | A subscription's usage allowance period (commonly 5 hours, plus weekly caps). |
 | **repo / repository** | A project folder tracked by git, including its full history. |
+| **result** | `coord/results/<worker>/<task>.json` — the task's current evidence (process, validation, review), each tied to an exact revision. Printed by `frugal-flock result`. |
 | **scope** | The exhaustive list of files a task may touch — machine-enforced via the task's `- ` lines. |
 | **smoke test** | The cheapest possible "is it alive?" check — one tiny call per agent. |
 | **task file** | A self-contained work order in `coord/tasks/`, one per task. |
-| **verify** | The mechanical gate assist: scope + Validate + commit sanity. |
+| **verify** | The mechanical gate assist: scope + Validate + commit sanity. PASS, FAIL, or INCOMPLETE when evidence is missing. |
 | **wall** | A run that died against an auth or quota barrier rather than failing on the work itself. |
 | **worktree / workshop** | A full additional checkout of the same repository in its own folder, pinned to its own branch (`wt/<name>`). The isolation mechanism. |
 
@@ -1189,6 +1289,8 @@ DISPATCH              frugal-flock run -b <worker> <task>
 WATCH                 frugal-flock status | tail <task> | kill <task>
 JUDGE                 frugal-flock verify <w> <task> ; frugal-flock diff <w>
                       second opinion: frugal-flock review <w> <task>
+                      evidence: frugal-flock result <w> <task>
+HANDOFF               frugal-flock handoff <w> <task>   (context for the next AI)
 ACCEPT                git merge --no-ff agent/<w> -m "merge T7: ..." ; frugal-flock sync
 REJECT                git -C ../wt/<w> reset --hard dev  + re-brief the foreman
 QUOTA                 frugal-flock off <agent> 5h|7d ; frugal-flock on <agent>
