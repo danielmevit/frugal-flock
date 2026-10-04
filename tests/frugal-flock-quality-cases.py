@@ -208,17 +208,20 @@ with lock.open('a') as f:
     check('public verify argument cannot bypass held lock')
 
 # Review itself owns the lock throughout its provider call.
-marker=root/'review-started'
-configuration('touch "$QUALITY_MARKER"; sleep 2; printf "VERDICT: APPROVE\\n"')
+# The reviewer holds the lock until released, not for a fixed sleep: on a slow
+# drive the two refused calls below could outlast a sleep and race the lock.
+marker=root/'review-started'; release=root/'review-release'
+configuration('touch "$QUALITY_MARKER"; i=0; while [ ! -e "$QUALITY_RELEASE" ] && [ $i -lt 1200 ]; do sleep .05; i=$((i+1)); done; printf "VERDICT: APPROVE\\n"')
 review=subprocess.Popen([at,'review','mock','evidence','rev'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,
-                        env=dict(os.environ,QUALITY_MARKER=str(marker)))
-for _ in range(100):
+                        env=dict(os.environ,QUALITY_MARKER=str(marker),QUALITY_RELEASE=str(release)))
+for _ in range(1200):
     if marker.exists(): break
     time.sleep(.05)
 assert marker.exists()
 call('run','mock','evidence',code=1)
 call('handoff','mock','evidence',code=1)
-out,err=review.communicate(timeout=10)
+release.touch()
+out,err=review.communicate(timeout=120)
 check('review holds worker lock',review.returncode==0)
 configuration()
 
@@ -281,4 +284,19 @@ check('availability authentication/capacity unknown',all(a['authentication']=='u
 call('off','literal','5m')
 a={a['name']:a for a in json.loads(call('agents','--json').stdout)['agents']}['literal']
 check('operator retry recorded honestly',a['bench']['off'] and a['bench']['operator_retry_at']>time.time() and 'not a provider reset' in call('agents').stdout)
+# Every shipped line passes "$(cat "$TASKFILE")": quoted arguments must not hide
+# the program, while operators or expansion in the program word stay unknown.
+configuration(extra='shipped=FOO="$HOME/x" /usr/bin/true -p "$(cat "$TASKFILE")" --model m\n'
+                    'chained=/usr/bin/true; /usr/bin/false\npiped=/usr/bin/true | tee out\n'
+                    'expanded=$(echo /usr/bin/true) arg\nvariable=$HOME/bin/tool -p x\n')
+mapping={a['name']:a for a in json.loads(call('agents','--json').stdout)['agents']}
+check('quoted shell syntax in arguments still resolves the program',mapping['shipped']['binary']['present'] is True
+      and 'shipped: installed=yes' in call('agents').stdout)
+check('operators or expansion in the program stay unknown',all(mapping[n]['binary']['present'] is None for n in ('chained','piped','expanded','variable')))
+conf.write_text('mock=FOO="a b" /usr/bin/true -p "$(cat "$TASKFILE")"\nnoop=/no/such/binary\n')
+out=subprocess.run([at,'doctor'],capture_output=True,text=True)
+out=out.stdout+out.stderr
+check('doctor accepts env-prefixed agent lines but flags a missing binary',
+      "agent 'mock' binary not on PATH" not in out and "agent 'noop' binary not on PATH" in out)
+configuration()
 print(f'quality contract regressions: {count} passed')
