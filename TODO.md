@@ -170,8 +170,10 @@ Cover five connected moments:
 Use the calm minimal direction in the UX proposal and the
 [Toolcraft composition reference](docs/TOOLCRAFT-REFERENCE.md). Build original
 components; do not run its scaffold or import its implementation. Keep technical logs and
-advanced controls in detail views. Test the prototype with two people who
-have not used the CLI before wiring up live execution.
+advanced controls in detail views. The original plan asked two people new
+to the CLI to test the prototype before live execution. The owner explicitly
+waived that feedback gate on 2026-10-04 because no testers are available:
+use judgment and automated checks. No user sessions have taken place.
 
 Prototype source is implemented in [prototype/](prototype/README.md),
 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh): original HTML/CSS/JS, no runtime
@@ -180,13 +182,15 @@ Four state tests and the full Chromium browser journey passed, including
 explicit replacement/apply, revision invalidation, Stop, focus, escaped text,
 mobile inspector collapse and no external requests/page errors. Refresh
 restarts the demo; no real provider, checkpoint or project action occurs.
-Two new-user feedback sessions remain pending; the [facilitator guide](docs/M2-USER-TEST.md)
-has two blank records. Installed-release dogfood: GLM's one keyboard worker
+The owner waived the two-person feedback gate on 2026-10-04; the optional
+[facilitator guide](docs/M2-USER-TEST.md) retains two blank records. No
+feedback sessions are claimed. Installed-release dogfood: GLM's one keyboard worker
 hit its 180s limit with zero work, preserved as failed; root finished locally
 and the browser/state checks passed. Claude Opus 5.5/high's separate guide
 cycle passed in 83s with 2/2 validation and in-session root review. No retries
 or paid reviewer. [Evidence and limits](docs/M2-DOGFOOD-PLAN.md).
-Do not claim M2 acceptance or wire live execution before real feedback.
+Proceed to small live-control slices using judgment and automated checks.
+Explicit run/quota approval, truthful evidence and separate acceptance still apply.
 
 ## M1 acceptance details — trustworthy results
 
@@ -218,7 +222,9 @@ observation showed the preserved GLM failure and approved Claude guide,
 with all 36 coordination-file hashes unchanged. Runtime/global profile
 hashes remain unchanged. [Contract and source-build usage](docs/BRIDGE-ACTIVITY.md).
 Folder selection/launcher/setup, durable queue and live controls are not
-implemented; the two new-user sessions remain required before live execution.
+implemented. The owner waived the two-user feedback gate; provider calls
+still require explicit quota approval. Optional --open-browser now opens the
+bound read-only URL with a manual fallback; eleven focused checks passed.
 
 
 Package a launcher that starts the service and opens the browser. Specify

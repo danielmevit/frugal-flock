@@ -55,8 +55,10 @@ before the evidence passes and preserve history without inventing exits.
 
 ## Acceptance still needed
 
-Two people unfamiliar with the CLI must try it before connecting live
-execution. Ask them to create/approve a plan, respond to the question,
+The owner explicitly waived the two-person feedback gate on 2026-10-04:
+no testers are available, so proceed using judgment and automated checks.
+No user sessions have occurred. The optional guide in docs/M2-USER-TEST.md
+remains available for later feedback. When testers are available, ask them to create/approve a plan, respond to the question,
 recover using the named replacement, and request changes or apply the demo.
 Record whether they understand which work is simulated, which decisions
 are theirs, and the difference between completion, checks and acceptance.

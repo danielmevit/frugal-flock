@@ -10,6 +10,19 @@ checkpoint so another AI can continue without the previous conversation.
 
 ## Current checkpoint
 
+- Owner decision 2026-10-04: no two testers are available, so explicitly
+  waive the two-person feedback prerequisite and proceed using judgment and
+  automated checks. No sessions are fabricated; optional blank guide stays.
+  Current roadmap/prototype/UX/dogfood/bridge/status docs now reflect this
+  decision. Provider quota still requires approval; previous two worker
+  calls are exhausted. M1.5 initial five-item list complete in source;
+  installed v0.4.0 is preserved. Broader roadmap still needs live controls,
+  durable jobs and checkpointed provider handoff. Optional opening candidate
+  `396cd78` published as own merge `2b9bb32`; eleven focused tests and the
+  actual default-startup browser journey passed. Global profiles unchanged.
+  Next: freeze and implement one durable manual plan-draft store slice;
+  no provider/HTTP dispatch or task publication in that first slice.
+
 - Optional preview browser opening implemented by Codex (`gpt-6.1-sol`,
   xhigh), based on actual Activity merge `41f5b77` (candidate `40e18e9`).
   --open-browser is opt-in, uses only the already-bound loopback URL, leaves

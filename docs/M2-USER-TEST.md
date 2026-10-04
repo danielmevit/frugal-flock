@@ -122,10 +122,13 @@ Ask openly, after the tasks. Record their words, not a yes/no:
 
 ## Gate status
 
-M2 gates stay **pending**. They need two real completed sessions recorded
-here and one clean installed-release dogfood cycle under the
-[dogfood contract](M2-DOGFOOD-PLAN.md). See [TODO](../TODO.md) section 2.
-Neither this guide nor a blank record counts as a session or approval.
+The owner explicitly **waived the two-person feedback gate** on 2026-10-04
+because no testers are available, choosing judgment and automated checks.
+No sessions have been conducted; both records remain blank for optional
+future feedback. This guide does not authorize provider quota or replace
+validation, review, explicit run approval or human acceptance. Installed-release
+dogfood outcomes stay in the [contract/evidence](M2-DOGFOOD-PLAN.md).
+See [TODO](../TODO.md) section 2. A blank record is not feedback evidence.
 
 ## Next-task decision
 
