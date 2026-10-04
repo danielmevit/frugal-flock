@@ -61,8 +61,8 @@ All five M1 items are implemented and merged into main as of 2026-10-04:
 strict verification, structured evidence, gated review, local availability,
 manual context packets, both correctness fixes, the acceptance-coverage
 audit, and updated help, protocol, docs and Word manuals. The final gate
-results are in [the current checkpoint](docs/M1-STATUS.md). M1 now waits
-for the owner's acceptance; do not start UI work before it.
+results are in [the current checkpoint](docs/M1-STATUS.md). The owner
+accepted M1 on 2026-10-04. M2 starts when the owner asks for it.
 
 ### Clean-clone baseline check
 

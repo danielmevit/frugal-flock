@@ -5,14 +5,13 @@ previous conversation, one particular model, or private coordination logs.
 If the next AI cannot access GitHub, attach this file and the documents
 listed in its reading order.
 
-Latest checkpoint: read [the 2026-10-04 continuation report](SESSION-HANDOFF-2026-10-04.md)
-first. Main contains planning/reporting; implementation is on `agent/codex`
-at `80feafb15049411238b864cace7077af3f43376b`, not merged. The report's
-historical test results do not imply milestone acceptance.
+Latest state: M1 (the quality milestone) is implemented, merged into main
+and accepted by the owner on 2026-10-04; see [M1 status](M1-STATUS.md).
+The [2026-10-04 continuation report](SESSION-HANDOFF-2026-10-04.md) records
+the earlier, pre-merge state and is kept as history.
 For subsequent sessions use [the continuation prompt](../continue-with-ai-prompt.md),
 the single living prompt refreshed after every small checkpoint. Copy its
-prompt section into the next AI chat. The latest owner request is cleanup
-and handoff only; wait for explicit direction before resuming implementation.
+prompt section into the next AI chat, and read the local agent log first.
 All project-owned files belong under one workspace, per
 [WORKSPACE-RULES.md](../WORKSPACE-RULES.md).
 

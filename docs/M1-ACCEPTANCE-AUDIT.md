@@ -41,7 +41,7 @@ only. Status values: covered, partial, gap, or not mock-testable.
 | 1 | Scope violation fails | quality: `real scope violation` | covered |
 | 1 | Tampered task file fails | probe: `verify-launders-worker-scope-rewrite` (asserts not PASS, nonzero) | covered |
 | 1 | Empty work fails | quality: `empty candidate failure`; selftest: `verify FAILs an empty run` | covered |
-| 1 | Unavailable base fails | probe: `verify-passes-on-vanished-base` | covered, exit 2 (see finding F1) |
+| 1 | Unavailable base fails | probe: `verify-passes-on-vanished-base` | covered, exit 1 since the F1 fix |
 | 1 | Failure takes precedence over incomplete evidence | coverage: `real failure outranks missing checks` | covered |
 | 1 | Failure reasons are preserved individually | coverage: `missing scope and checks keep both reasons`, `real failure outranks missing checks` | covered |
 | 1 | No waiver mechanism | No waiver command or flag exists (code inspection) | not mock-testable: absence of a feature |
@@ -127,19 +127,21 @@ only. Status values: covered, partial, gap, or not mock-testable.
 | Gate | Selftest, probes, branding, ShellCheck, syntax and docs lint all run | `tools/quality-check.sh` | covered |
 | Gate | Embedded and source PROTOCOL identity preserved | branding: protocol identity | covered |
 | Gate | Docs, examples and manuals updated for changed behavior | M1 item 4 (subagents `claude-help` and `claude-docs`), merged as `45803c1` and `ce3d57f` | covered |
-| Gate | No completion claim with failing checks or unimplemented clauses | M1 item 5 final gate, recorded in [M1-STATUS.md](M1-STATUS.md); owner acceptance pending | gate run; acceptance pending |
+| Gate | No completion claim with failing checks or unimplemented clauses | M1 item 5 final gate, recorded in [M1-STATUS.md](M1-STATUS.md); accepted by the owner on 2026-10-04 | covered; accepted |
 
 ## Findings
 
-- **F1, minor, open:** `verify` with an unavailable base exits 2, because the
-  revision snapshot fails before the base check that would exit 1. It never
-  reports PASS and records nothing, so it fails closed. The contract says
-  "normally 1". Left unchanged: making it 1 means reordering `cmd_verify`,
-  a bash command outside this audit's scope.
-- **F2, observation:** a handoff killed mid-publication leaves a
-  `.pending-*` scratch folder in `coord/handoffs/WORKER/TASK/`. No partial
-  packet is ever published under a final name, and earlier packets are
-  untouched, so the atomicity requirement holds. The folder can be deleted.
+- **F1, minor, fixed after acceptance:** `verify` with an unavailable base
+  exited 2, because the revision snapshot failed before the base check that
+  would exit 1. `cmd_verify` now checks the base first, so it exits 1 (FAIL)
+  as the contract says. Regression: `missing base fails verify with exit 1`.
+- **F2, observation, fixed after acceptance:** a handoff killed
+  mid-publication left a `.pending-*` scratch folder in
+  `coord/handoffs/WORKER/TASK/`. Nothing partial was ever published. The
+  next handoff, which holds the worker lock, now removes such folders; the
+  next locked result write likewise removes `.result-*` scratch left by a
+  killed writer. Regressions: `next handoff removes the interrupted scratch
+  folder` and `a killed writer's scratch result is swept on the next write`.
 - No new defect: all 23 coverage checks passed on the first run of the
   unchanged engine.
 
