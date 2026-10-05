@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
@@ -11,6 +11,7 @@ import hmac
 import json
 import re
 import secrets
+import shutil
 from pathlib import Path
 import subprocess
 import threading
@@ -101,7 +102,7 @@ class ActivityHandler(BaseHTTPRequestHandler):
         return True
 
     def token_allowed(self):
-        supplied = self.headers.get_all('X-Frugal-Flock-Session') or []
+        supplied = self.headers.get_all('X-Unio-Session') or []
         if (len(supplied) != 1 or self.server.session_token is None
                 or not hmac.compare_digest(supplied[0].encode(), self.server.session_token.encode())):
             self.error_response(403, 'session_refused')
@@ -208,10 +209,24 @@ def serve_preview(server, open_browser=False):
         server.server_close()
 
 
+def resolve_engine(explicit):
+    """Use an explicit executable, or the unio command on PATH."""
+    if explicit is None:
+        found = shutil.which('unio')
+        if not found:
+            raise ValueError('unio engine not found on PATH; pass --engine')
+        engine = Path(found).absolute()
+    else:
+        engine = Path(explicit).absolute()
+    if not engine.is_file():
+        raise ValueError('engine executable not found')
+    return engine
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Frugal Flock read-only local Activity preview')
+    parser = argparse.ArgumentParser(description='Unio read-only local Activity preview')
     parser.add_argument('--project',type=Path,required=True,help='enclosing workspace with repo/, coord/, wt/')
-    parser.add_argument('--engine',type=Path,required=True,help='explicit CLI executable supporting watch --once --json')
+    parser.add_argument('--engine',type=Path,help='CLI executable supporting watch --once --json (default: unio on PATH)')
     parser.add_argument('--port',type=int,default=0,help='loopback port, 0 chooses an unused port')
     parser.add_argument('--open-browser',action='store_true',help='optionally open this loopback read-only preview in the default browser')
     parser.add_argument('--enable-plan-drafts',action='store_true',help='opt in to manual draft storage only; never starts workers')
@@ -219,9 +234,11 @@ def main():
     if not 0 <= options.port <= 65535: parser.error('port must be 0 through 65535')
     project = options.project.absolute()
     if project.is_symlink() or project.resolve() != project or any(not (project/p).is_dir() for p in ('repo','coord','wt')):
-        parser.error('project must be a real enclosing Frugal Flock workspace')
-    engine = options.engine.absolute()
-    if not engine.is_file(): parser.error('engine executable not found')
+        parser.error('project must be a real enclosing Unio workspace')
+    try:
+        engine = resolve_engine(options.engine)
+    except ValueError as error:
+        parser.error(str(error))
     plans = None
     try:
         if options.enable_plan_drafts:

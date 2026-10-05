@@ -1,5 +1,5 @@
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit)
-# https://github.com/danielmevit/frugal-flock
+# Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit)
+# https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
 import concurrent.futures
 import importlib.util

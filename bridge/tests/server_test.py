@@ -1,5 +1,5 @@
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit)
-# https://github.com/danielmevit/frugal-flock
+# Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit)
+# https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
 import concurrent.futures
 import copy
@@ -8,6 +8,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import tempfile
 import threading
 import unittest
 from unittest.mock import Mock, patch
@@ -189,6 +190,38 @@ class PreviewLaunchTests(unittest.TestCase):
                 preview.server_close.assert_called_once_with()
         finally:
             release.set()
+
+
+class EngineSelectionTests(unittest.TestCase):
+    def test_default_engine_is_unio_on_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            unio = Path(directory) / 'unio'
+            unio.write_text('#!/bin/sh\n', encoding='utf-8')
+            with patch.object(server.shutil, 'which', return_value=str(unio)) as which:
+                self.assertEqual(server.resolve_engine(None), unio.absolute())
+            which.assert_called_once_with('unio')
+
+    def test_explicit_engine_overrides_the_unio_default(self):
+        with tempfile.TemporaryDirectory() as directory:
+            other = Path(directory) / 'other'
+            other.write_text('#!/bin/sh\n', encoding='utf-8')
+            with patch.object(server.shutil, 'which') as which:
+                self.assertEqual(server.resolve_engine(other), other.absolute())
+            which.assert_not_called()
+
+    def test_missing_unio_default_names_the_override(self):
+        with patch.object(server.shutil, 'which', return_value=None):
+            with self.assertRaises(ValueError) as raised:
+                server.resolve_engine(None)
+        self.assertIn('pass --engine', str(raised.exception))
+
+    def test_missing_explicit_engine_is_rejected(self):
+        missing = Path('/no/such/unio-engine')
+        with patch.object(server.shutil, 'which') as which:
+            with self.assertRaises(ValueError) as raised:
+                server.resolve_engine(missing)
+        which.assert_not_called()
+        self.assertEqual(str(raised.exception), 'engine executable not found')
 
 
 if __name__ == '__main__':
