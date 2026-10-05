@@ -16,6 +16,7 @@
 # What it looks for (see docs/DOC-CONVENTIONS.md for the reasoning):
 #   1. bare <placeholder> outside code — converters read it as an HTML tag
 #      and SILENTLY DELETE it. This has bitten this repo for real.
+#      Only <details> and <summary> (GitHub dropdowns) in README.md pass.
 #   2. unbalanced code fences — everything after them renders as code.
 #   3. triple backticks inline in prose — can open a fence by accident.
 #   4. unescaped pipes in table cells — split one column into two.
@@ -26,6 +27,7 @@ set -uo pipefail
 if [ "${1:-}" = "--selftest" ]; then
   t=$(mktemp -d); ok=0; fail=0
   probe() { # <name> <expect: bad|good> <content>
+    mkdir -p "$(dirname "$t/$1.md")"
     printf '%b' "$3" > "$t/$1.md"
     "$0" "$t/$1.md" >/dev/null 2>&1; rc=$?
     if { [ "$2" = bad ] && [ $rc -ne 0 ]; } || { [ "$2" = good ] && [ $rc -eq 0 ]; }; then
@@ -41,6 +43,9 @@ if [ "${1:-}" = "--selftest" ]; then
   probe inline-fence     bad  '# T\n\nFences (```) are code.\n'
   probe clean-doc        good '# T\n\nUse `wt/<w>` here.\n\n| a | b |\n|---|---|\n| `[30m\\|5h]` | y |\n'
   probe wrapped-span     good '# T\n\nRe-run `agentteam init\n<worker>` to refresh it.\n'
+  probe README           good '# T\n\n<details>\n<summary>Is it free?</summary>\n\nYes.\n\n</details>\n'
+  probe leak/README      bad  '# T\n\n<details>\n<summary>Why?</summary>\n\nBecause <reason>.\n\n</details>\n'
+  probe dropdown-in-doc  bad  '# T\n\n<details>\n<summary>Is it free?</summary>\n\nYes.\n\n</details>\n'
   rm -rf "$t"
   echo
   echo "check-docs selftest: $ok ok, $fail failed"
@@ -125,6 +130,10 @@ for path in sys.argv[1:]:
         prose = masked[n - 1]                        # code spans already blanked
 
         for m in re.finditer(r"<[A-Za-z][A-Za-z0-9_.-]*>", prose):
+            # Real HTML on purpose: GitHub's FAQ dropdowns, README.md only,
+            # since README is never converted to Word (DOC-CONVENTIONS rule 1).
+            if m.group(0) in ("<details>", "<summary>") and path.endswith("README.md"):
+                continue
             found.append((n, f"bare {m.group(0)} outside backticks — a converter will delete it"))
 
         if "```" in prose:

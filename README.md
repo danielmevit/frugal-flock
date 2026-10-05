@@ -28,7 +28,8 @@ The name says it: a **flock** of AIs from different companies, run
 through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
 
 [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
-[Under the hood](#for-the-curious-and-the-nerdy) · [What's next](#whats-next)
+[FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·
+[What's next](#whats-next)
 
 ## What this makes possible
 
@@ -123,6 +124,98 @@ and wait for my approval before starting work. Do not merge for me.
 Start with one helper and add another when you want a second perspective.
 `agents` shows what is installed, not remaining quota or sign-in status.
 `smoke` makes real test calls, so it uses some of your allowance.
+
+If your AI tool keeps asking before each `frgl-flc` command, or refuses to
+start the helpers, give it a [two-line allowlist](docs/SETUP.md#9-lead-ai-permissions)
+once instead of switching its safety checks off.
+
+## FAQ
+
+<details>
+<summary>Do I have to pay for anything extra?</summary>
+
+No. Frugal Flock is free and open source, and it uses the AI plans you
+already have, each with its own sign-in. There are no API keys to buy. The
+rehearsal (`frgl-flc selftest`) makes no AI calls at all. Real tasks use
+your plans' normal allowance; optional extras, such as a second AI reviewing
+the work, use a little more.
+
+</details>
+
+<details>
+<summary>Which AI tools do I need?</summary>
+
+One is enough to start. Settings are included for Claude Code, Codex,
+Antigravity, OpenCode (for models such as GLM and Kimi) and Grok. Any
+command-line AI that can take a task without a chat window can join with
+one line in `agents.conf`. A second tool from another company lets one AI
+review another's work.
+
+</details>
+
+<details>
+<summary>Does it work on Windows or Mac?</summary>
+
+Linux, yes. Windows, yes, through WSL (Ubuntu works well). Mac is not
+supported yet: Frugal Flock relies on Linux tools such as `flock`.
+
+</details>
+
+<details>
+<summary>Do the AIs talk to each other?</summary>
+
+Not directly, and they share no memory. They coordinate through files in
+your project: task orders, reports, results and handoff notes. Each AI
+starts fresh, reads what the others left, and writes down what it did, so
+any of them can pick up the work.
+
+</details>
+
+<details>
+<summary>Is it safe? Will it change my project without asking?</summary>
+
+Nothing reaches your real project until you merge it. Each helper works in
+its own copy on its own branch, and you decide what goes in. The helpers do
+run commands on your computer with your rights, and their copies are not a
+security sandbox, so use a spare machine or virtual machine without
+important passwords or keys, and keep secrets out of tasks.
+`frgl-flc stop` blocks new runs at any time.
+
+</details>
+
+<details>
+<summary>How do I know the AI's work is actually right?</summary>
+
+Every task names the files it may change and the checks that must pass.
+`frgl-flc verify` re-runs those checks and rejects changes outside the
+allowed files; `frgl-flc review` can then ask another company's AI to judge
+the change. The result keeps each step separate: the AI finished, the checks
+passed, the review approved, you accepted. A finished run is never taken as
+proof the work is right, and you still read the changes and decide.
+
+</details>
+
+<details>
+<summary>What happens when an AI hits its usage limit?</summary>
+
+Bench it and carry on with another company's AI. `frgl-flc off codex 5h`
+takes Codex out of rotation for five hours, and `frgl-flc handoff` writes a
+context note so the next AI can pick up the task. Frugal Flock does not get
+around limits or share plans; each tool keeps its own. Automatic switching
+is on the roadmap.
+
+</details>
+
+<details>
+<summary>My lead AI keeps asking for permission or refuses to start helpers. What now?</summary>
+
+That is the AI tool's own safety system, not Frugal Flock. Give it a
+two-line allowlist once so it may run `frugal-flock` commands, then restart
+it; [setup step 9](docs/SETUP.md#9-lead-ai-permissions) shows the file. Keep
+pushes and merges asking: those decisions stay with you. Turning all safety
+checks off is only sensible on a throwaway virtual machine.
+
+</details>
 
 ## For the curious and the nerdy
 

@@ -128,6 +128,9 @@ cd ~/code/myproj/repo
 claude        # or codex / agy / grok — whatever opens here IS the master
 ```
 
+First time with an AI as the master? Set up its permissions once (§9), or
+its own safety system may stop it from running `frugal-flock` commands.
+
 First prompt to the master:
 
 ```text
@@ -271,6 +274,69 @@ picks the agent). Timeout: `AGENTTEAM_TIMEOUT=7200 frugal-flock run ...`.
 - WSL `/mnt` quirks from your GOTCHAS don't apply on the native-ext4 VM;
   if you ever move this workflow to WSL-on-Windows-drive, re-add
   `codegraph sync` after edits and `git config core.filemode false`.
+- The master AI asks before every `frugal-flock` command, or refuses to
+  start workers → that is its own permission system; set up §9.
+
+## 9. Lead AI permissions
+
+The master (lead) is the AI session you open in `repo/`. It works by
+running `frugal-flock` commands, and `frugal-flock run` starts the other AI
+tools. AI coding tools guard the commands they run, and some treat
+"start another AI" or "push to GitHub" as risky. What you meet depends on
+how the lead runs:
+
+| How the lead runs | What happens |
+|---|---|
+| You type the `frugal-flock` commands yourself | Nothing to set up; the AI only plans and reviews. |
+| Claude Code, default mode | It asks before each new kind of command. "Don't ask again" saves a rule. |
+| Claude Code, auto mode | A safety check decides. Some commands are refused outright; the fix is a rule you add. |
+| Claude Code with `--dangerously-skip-permissions` | No checks at all, for the lead and everything it starts. |
+| Codex as the lead | Its sandbox decides. It must be able to write `repo/`, `wt/` and `coord/` and start other programs. |
+
+### The lasting fix: a two-line allowlist
+
+For Claude Code in default or auto mode, create
+`repo/.claude/settings.local.json` once:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(frugal-flock *)",
+      "Bash(frgl-flc *)"
+    ]
+  }
+}
+```
+
+Keep this personal file out of Git without editing `.gitignore`, then
+restart the lead, because settings are read when a session starts:
+
+```bash
+cd ~/code/myproj/repo
+echo ".claude/settings.local.json" >> .git/info/exclude
+```
+
+Why two rules are enough:
+
+- Every worker starts through `frugal-flock run`, so these rules cover all
+  AI tools. The lead never needs to call `codex`, `grok` or the others
+  directly; ask it not to.
+- A rule matches the start of a command. Put per-project agent commands in
+  `coord/agents.conf`, which overrides `~/.config/agentteam/agents.conf`,
+  instead of prefixing commands with a variable such as
+  `AGENTTEAM_CONF_DIR=...`.
+- `git push`, merges and the lead's own settings stay behind a prompt on
+  purpose: integration is your decision. Add rules yourself; auto mode
+  refuses a lead's attempt to edit its own permissions.
+
+### Why not skip permissions?
+
+`--dangerously-skip-permissions` removes every guard for the lead and for
+everything it starts. Use it only on a disposable VM that holds this
+project and nothing else, never on an everyday machine with other
+projects, Git credentials and keys. Workers already run unattended with
+their own approval flags (§2); the lead is where a person still watches.
 
 ## Sources (verified 2026-07-10)
 
