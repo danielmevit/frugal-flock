@@ -106,3 +106,17 @@ for verified adapter inputs and the delivery sequence. A read-only Codex
 probe succeeded; remaining OpenCode Go capacity is still Unknown without
 an actual account-meter reading. Session costs and reset reports do not
 establish current remaining allowance. No fleet-wide meter is implemented.
+
+## Additional owner-authorized Anthropic worker
+
+On 2026-10-05 the owner added Claude Opus 5.5 at high effort for milestone
+tasks. The private per-run seat pins `claude-opus-5-5` and `--effort high`,
+disables model fallback and retains structured model-usage evidence. Local
+CLI 2.1.289 is signed in through first-party Claude Pro. That sign-in does
+not establish remaining five-hour or weekly allowance. Do not conflate its
+subscription with OpenCode Go or assume an automatic quota adapter exists.
+
+Its first assigned task is QUEUE-APPROVAL-FIX-1: a bounded correction of five
+reproduced failures in Gemini's queue candidate. An OpenAI worker reviews the
+combined Google/Anthropic candidate, followed by the lead. Each invocation
+still receives its own receipt and deadline, with no automatic paid retry.
