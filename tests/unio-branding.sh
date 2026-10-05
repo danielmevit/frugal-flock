@@ -149,7 +149,7 @@ done
 unio license > "$BRAND_SANDBOX/entry-license"
 cmp "$BRAND_SANDBOX/expected-license" "$BRAND_SANDBOX/entry-license"
 unio version > "$BRAND_SANDBOX/version"
-grep -q '^Unio 0\.5\.2 ' "$BRAND_SANDBOX/version"
+grep -q '^Unio 0\.5\.3 ' "$BRAND_SANDBOX/version"
 grep -Fxq 'Small plans. Big ideas.' "$BRAND_SANDBOX/version"
 grep -Fxq "config: $UNIO_CONF_DIR/agents.conf" "$BRAND_SANDBOX/version"
 rc=0
