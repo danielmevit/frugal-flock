@@ -53,8 +53,8 @@ class JobStoreTests(unittest.TestCase):
     def test_queued_job_survives_restart_and_waits_for_owner(self):
         draft = self.draft('Café sweep\n$ literal text, not a command\n- ../../private')
         job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker-one', 'f' * 32)
-        self.assertEqual(set(job), {'id', 'draft_id', 'draft_sha256', 'worker',
-                                   'request_key', 'created_at', 'state'})
+        self.assertEqual(set(job), {'id', 'draft_id', 'draft_sha256', 'worker', 'request_key', 'created_at', 'state',
+                                   'approval_key', 'approved_at', 'reservation_key', 'reserved_at', 'unknown_at', 'cancelled_at'})
         self.assertEqual(job['state'], 'awaiting_owner_approval')
         self.assertEqual(job['draft_id'], draft['id'])
         self.assertEqual(job['draft_sha256'], draft['content_sha256'])
@@ -87,7 +87,7 @@ class JobStoreTests(unittest.TestCase):
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
             results = list(pool.map(submit, range(8)))
         self.assertEqual(results, [first] * 8)
-        self.assertEqual(self.store.pending(), [first])
+        self.assertEqual(self.store.jobs(), [first])
         self.assertEqual(self.count_jobs(), 1)
 
     def test_concurrent_first_open_on_new_workspace_initializes_once(self):
@@ -99,18 +99,18 @@ class JobStoreTests(unittest.TestCase):
             barrier.wait()
             with jobs.JobStore(workspace) as store:
                 return (store._db.execute('PRAGMA user_version').fetchone()[0],
-                        store.pending())
+                        store.jobs())
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
             results = list(pool.map(open_store, range(8)))
-        self.assertEqual(results, [(1, [])] * 8)
+        self.assertEqual(results, [(2, [])] * 8)
         connection = sqlite3.connect(workspace / 'coord' / 'ui-jobs.sqlite3')
         try:
             version = connection.execute('PRAGMA user_version').fetchone()[0]
             count = connection.execute('SELECT COUNT(*) FROM jobs').fetchone()[0]
         finally:
             connection.close()
-        self.assertEqual((version, count), (1, 0))
+        self.assertEqual((version, count), (2, 0))
 
     def test_interrupted_or_bare_database_files_initialize_to_schema_one(self):
         self.store.close()
@@ -133,7 +133,7 @@ class JobStoreTests(unittest.TestCase):
                 (workspace / 'coord').mkdir()
                 setup(workspace / 'coord' / 'ui-jobs.sqlite3')
                 with jobs.JobStore(workspace) as store:
-                    self.assertEqual(store.pending(), [])
+                    self.assertEqual(store.jobs(), [])
                 connection = sqlite3.connect(workspace / 'coord' / 'ui-jobs.sqlite3')
                 try:
                     version = connection.execute('PRAGMA user_version').fetchone()[0]
@@ -142,7 +142,7 @@ class JobStoreTests(unittest.TestCase):
                     count = connection.execute('SELECT COUNT(*) FROM jobs').fetchone()[0]
                 finally:
                     connection.close()
-                self.assertEqual(version, 1)
+                self.assertEqual(version, 2)
                 self.assertEqual(columns, jobs.COLUMNS)
                 self.assertEqual(count, 0)
 
@@ -159,7 +159,7 @@ class JobStoreTests(unittest.TestCase):
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
             results = list(pool.map(submit, range(8)))
         self.assertEqual(results, [results[0]] * 8)
-        self.assertEqual(self.store.pending(), [results[0]])
+        self.assertEqual(self.store.jobs(), [results[0]])
         self.assertEqual(self.count_jobs(), 1)
 
     def test_failed_commit_rolls_back_and_store_stays_usable(self):
@@ -183,7 +183,7 @@ class JobStoreTests(unittest.TestCase):
         finally:
             self.store._db = real
         self.assertEqual(self.count_jobs(), 0)
-        self.assertEqual(self.store.pending(), [])
+        self.assertEqual(self.store.jobs(), [])
         job = self.store.enqueue(draft['id'], draft['content_sha256'],
                                  'worker', 'd' * 32)
         self.assertEqual(self.store.get(job['id']), job)
@@ -217,7 +217,7 @@ class JobStoreTests(unittest.TestCase):
                                                else tie_a_draft['content_sha256'],
                                                'worker', request_key))
         self.assertEqual(ties[0]['created_at'], ties[1]['created_at'])
-        self.assertEqual(self.store.pending(), [ties[1], ties[0], early, late])
+        self.assertEqual(self.store.jobs(), [ties[1], ties[0], early, late])
 
     def test_conflicting_request_key_reuse_preserves_original(self):
         draft = self.draft('Original request')
@@ -230,7 +230,7 @@ class JobStoreTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.store.enqueue(*changed, '5' * 32)
         self.assertEqual(self.store.get(original['id']), original)
-        self.assertEqual(self.store.pending(), [original])
+        self.assertEqual(self.store.jobs(), [original])
         self.assertEqual(self.count_jobs(), 1)
 
     def test_edited_draft_fails_even_on_identical_replay(self):
@@ -247,7 +247,7 @@ class JobStoreTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 store.enqueue(draft['id'], '0' * 64, 'worker', '7' * 32)
         self.assertEqual(self.store.get(job['id']), job)
-        self.assertEqual(self.store.pending(), [job])
+        self.assertEqual(self.store.jobs(), [job])
         self.assertEqual(self.count_jobs(), 1)
 
     def test_invalid_inputs_never_select_paths_or_become_sql(self):
@@ -276,7 +276,7 @@ class JobStoreTests(unittest.TestCase):
             with self.subTest(request_key=str(value)):
                 with self.assertRaises(ValueError):
                     self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', value)
-        self.assertEqual(self.store.pending(), [])
+        self.assertEqual(self.store.jobs(), [])
         self.assertEqual(self.count_jobs(), 0)
         self.assertEqual({p.name for p in self.directory.iterdir()}, {draft['id'] + '.json'})
         self.assertEqual(self.store.enqueue(draft['id'], draft['content_sha256'],
@@ -300,7 +300,7 @@ class JobStoreTests(unittest.TestCase):
 
         def correct(connection):
             connection.execute(jobs.CREATE_JOBS)
-            connection.execute('PRAGMA user_version = 2')
+            connection.execute('PRAGMA user_version = 3')
 
         def unmarked(connection):
             connection.execute(jobs.CREATE_JOBS)
@@ -336,7 +336,7 @@ class JobStoreTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 store.get('c' * 32)
             with self.assertRaises(ValueError):
-                store.pending()
+                store.jobs()
 
     def test_garbage_database_refused_without_reinitializing(self):
         self.store.close()
@@ -391,7 +391,7 @@ class JobStoreTests(unittest.TestCase):
         draft = self.draft(request)
         job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', 'b' * 32)
         self.store.get(job['id'])
-        self.store.pending()
+        self.store.jobs()
         raw = self.database.read_bytes()
         self.assertNotIn(b'SECRET-REQUEST-TEXT', raw)
         self.assertNotIn(request.encode(), raw)
@@ -400,6 +400,207 @@ class JobStoreTests(unittest.TestCase):
                                  'coord/ui-plans/' + draft['id'] + '.json',
                                  'coord/ui-jobs.sqlite3'})
         self.assertNotIn('request', job)
+
+
+
+    def test_approve_validates_inputs_and_updates_state(self):
+        draft = self.draft()
+        job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', 'a' * 32)
+        approval_key = 'b' * 32
+
+        # Test approval updates state
+        approved = self.store.approve(job['id'], draft['content_sha256'], 'worker', approval_key)
+        self.assertEqual(approved['state'], 'approved')
+        self.assertEqual(approved['approval_key'], approval_key)
+        self.assertIsNotNone(datetime.fromisoformat(approved['approved_at']).tzinfo)
+
+        # Get should return the same
+        self.assertEqual(self.store.get(job['id']), approved)
+
+        # Pending should not return it
+        self.assertEqual(self.store.pending(), [])
+
+        # Jobs should return it
+        self.assertEqual(self.store.jobs(), [approved])
+
+    def test_approve_replay_and_conflict(self):
+        draft = self.draft()
+        job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', 'a' * 32)
+        approval_key = 'b' * 32
+
+        approved = self.store.approve(job['id'], draft['content_sha256'], 'worker', approval_key)
+
+        # Identical replay returns same
+        replayed = self.store.approve(job['id'], draft['content_sha256'], 'worker', approval_key)
+        self.assertEqual(approved, replayed)
+
+        # Conflicting key fails
+        with self.assertRaises(ValueError):
+            self.store.approve(job['id'], draft['content_sha256'], 'worker', 'c' * 32)
+
+        # Incorrect inputs fail
+        with self.assertRaises(ValueError):
+            self.store.approve(job['id'], draft['content_sha256'], 'other-worker', approval_key)
+
+    def test_reserve_validates_and_updates_state(self):
+        draft = self.draft()
+        job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', 'a' * 32)
+        approval_key = 'b' * 32
+        reservation_key = 'c' * 32
+
+        # Must be approved first
+        with self.assertRaises(ValueError):
+            self.store.reserve(job['id'], approval_key, reservation_key)
+
+        self.store.approve(job['id'], draft['content_sha256'], 'worker', approval_key)
+
+        res = self.store.reserve(job['id'], approval_key, reservation_key)
+        self.assertTrue(res['newly_reserved'])
+        reserved = res['job']
+        self.assertEqual(reserved['state'], 'reserved')
+        self.assertEqual(reserved['reservation_key'], reservation_key)
+        self.assertIsNotNone(datetime.fromisoformat(reserved['reserved_at']).tzinfo)
+
+    def test_reserve_replay_and_conflict(self):
+        draft = self.draft()
+        job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', 'a' * 32)
+        approval_key = 'b' * 32
+        reservation_key = 'c' * 32
+
+        self.store.approve(job['id'], draft['content_sha256'], 'worker', approval_key)
+        self.store.reserve(job['id'], approval_key, reservation_key)
+
+        # Identical replay returns newly_reserved=False
+        res = self.store.reserve(job['id'], approval_key, reservation_key)
+        self.assertFalse(res['newly_reserved'])
+
+        # Conflicting key fails
+        with self.assertRaises(ValueError):
+            self.store.reserve(job['id'], approval_key, 'd' * 32)
+
+        # Wrong approval key fails
+        with self.assertRaises(ValueError):
+            self.store.reserve(job['id'], 'e' * 32, reservation_key)
+
+    def test_mark_unknown_and_replay(self):
+        draft = self.draft()
+        job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', 'a' * 32)
+        approval_key = 'b' * 32
+        reservation_key = 'c' * 32
+
+        self.store.approve(job['id'], draft['content_sha256'], 'worker', approval_key)
+
+        # Cannot mark unknown if not reserved
+        with self.assertRaises(ValueError):
+            self.store.mark_unknown(job['id'], reservation_key)
+
+        self.store.reserve(job['id'], approval_key, reservation_key)
+
+        # Mark unknown
+        unknown = self.store.mark_unknown(job['id'], reservation_key)
+        self.assertEqual(unknown['state'], 'completion_unknown')
+        self.assertIsNotNone(datetime.fromisoformat(unknown['unknown_at']).tzinfo)
+
+        # Replay is idempotent
+        replayed = self.store.mark_unknown(job['id'], reservation_key)
+        self.assertEqual(unknown, replayed)
+
+    def test_cancel_allowed_states(self):
+        draft = self.draft()
+        job1 = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', '1' * 32)
+        job2 = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', '2' * 32)
+        job3 = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', '3' * 32)
+
+        # Cancel waiting
+        c1 = self.store.cancel(job1['id'])
+        self.assertEqual(c1['state'], 'cancelled')
+        self.assertIsNotNone(datetime.fromisoformat(c1['cancelled_at']).tzinfo)
+
+        # Cancel approved
+        self.store.approve(job2['id'], draft['content_sha256'], 'worker', 'a' * 32)
+        c2 = self.store.cancel(job2['id'])
+        self.assertEqual(c2['state'], 'cancelled')
+        self.assertEqual(c2['approval_key'], 'a' * 32)
+
+        # Cannot cancel reserved
+        self.store.approve(job3['id'], draft['content_sha256'], 'worker', 'b' * 32)
+        self.store.reserve(job3['id'], 'b' * 32, 'c' * 32)
+        with self.assertRaises(ValueError):
+            self.store.cancel(job3['id'])
+
+        # Replay of cancelled is idempotent
+        c1_replay = self.store.cancel(job1['id'])
+        self.assertEqual(c1, c1_replay)
+
+    def test_stale_draft_refused_on_approve_and_reserve(self):
+        draft = self.draft()
+        job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', 'a' * 32)
+        approval_key = 'b' * 32
+
+        path = self.directory / (draft['id'] + '.json')
+        edited = json.loads(path.read_text())
+        edited['request'] = 'Edited after queueing'
+        path.write_text(json.dumps(edited, ensure_ascii=True, sort_keys=True, separators=(',', ':')) + '\n')
+
+        with self.assertRaises(ValueError):
+            self.store.approve(job['id'], draft['content_sha256'], 'worker', approval_key)
+
+        # Restore draft to approve it
+        edited['request'] = 'Do the bounded thing'
+        path.write_text(json.dumps(edited, ensure_ascii=True, sort_keys=True, separators=(',', ':')) + '\n')
+        self.store.approve(job['id'], draft['content_sha256'], 'worker', approval_key)
+
+        # Edit again, reserve should fail
+        edited['request'] = 'Edited after approval'
+        path.write_text(json.dumps(edited, ensure_ascii=True, sort_keys=True, separators=(',', ':')) + '\n')
+        with self.assertRaises(ValueError):
+            self.store.reserve(job['id'], approval_key, 'c' * 32)
+
+    def test_schema_2_migration_preserves_records(self):
+        self.store.close()
+        # Setup schema 1 database
+        workspace = Path(tempfile.mkdtemp(prefix='job-mig-', dir=self.temp.name))
+        (workspace / 'coord').mkdir()
+        connection = sqlite3.connect(workspace / 'coord' / 'ui-jobs.sqlite3')
+        connection.execute("CREATE TABLE jobs (id TEXT PRIMARY KEY, request_key TEXT NOT NULL UNIQUE, draft_id TEXT NOT NULL, draft_sha256 TEXT NOT NULL, worker TEXT NOT NULL, created_at TEXT NOT NULL, state TEXT NOT NULL)")
+        connection.execute("PRAGMA user_version = 1")
+        connection.execute("INSERT INTO jobs (id, request_key, draft_id, draft_sha256, worker, created_at, state) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                           ('1' * 32, '2' * 32, '3' * 32, '4' * 64, 'worker-mig', '2026-10-05T00:00:00+00:00', 'awaiting_owner_approval'))
+        connection.commit()
+        connection.close()
+
+        with jobs.JobStore(workspace) as store:
+            job = store.get('1' * 32)
+            self.assertEqual(job['id'], '1' * 32)
+            self.assertEqual(job['request_key'], '2' * 32)
+            self.assertEqual(job['state'], 'awaiting_owner_approval')
+            self.assertEqual(job['approval_key'], None)
+
+        # Verify schema is upgraded
+        connection = sqlite3.connect(workspace / 'coord' / 'ui-jobs.sqlite3')
+        version = connection.execute('PRAGMA user_version').fetchone()[0]
+        self.assertEqual(version, 2)
+        connection.close()
+
+    def test_concurrent_reserve_serializes_and_returns_newly_reserved_once(self):
+        draft = self.draft()
+        job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', 'a' * 32)
+        approval_key = 'b' * 32
+        reservation_key = 'c' * 32
+
+        self.store.approve(job['id'], draft['content_sha256'], 'worker', approval_key)
+        barrier = threading.Barrier(8)
+
+        def submit(_):
+            with jobs.JobStore(self.workspace) as store:
+                barrier.wait()
+                return store.reserve(job['id'], approval_key, reservation_key)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(submit, range(8)))
+
+        newly_reserved_counts = sum(1 for r in results if r['newly_reserved'])
+        self.assertEqual(newly_reserved_counts, 1)
 
 
 if __name__ == '__main__':

@@ -30,7 +30,12 @@ host boundary; this does not protect against a malicious local account.
   and state awaiting_owner_approval. Read the existing PlanStore draft and
   match its current content_sha256 before creating or replaying a job.
 - get(job_id) returns the recorded job; a missing valid ID returns None.
-- pending() returns waiting jobs in deterministic creation-time/ID order.
+- pending() returns only awaiting_owner_approval jobs in deterministic creation-time/ID order.
+- jobs() returns all jobs in deterministic creation-time/ID order.
+- approve(job_id, expected_hash, worker, approval_key) explicitly approves the job.
+- reserve(job_id, approval_key, reservation_key) claims the job and returns an envelope with job and newly_reserved boolean.
+- mark_unknown(job_id, reservation_key) explicitly records uncertainty for a reserved attempt without restart.
+- cancel(job_id) cancels an unreserved waiting or approved job.
 
 Draft/job/request-key IDs are 32 lowercase hex characters; hashes are 64
 lowercase hex characters. Worker IDs are lowercase letters/digits/hyphen/

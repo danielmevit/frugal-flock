@@ -1,0 +1,1 @@
+- Added schema-2 queue job store with durable approve, reserve, unknown and cancel states.
