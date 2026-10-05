@@ -330,9 +330,10 @@ What these settings do and do not do:
   directly.
 - `additionalDirectories` lets it work with the task files in `coord/`,
   which sits next to `repo/`, as part of the project.
-- It is not a sandbox. Workers still run commands with your rights, and
-  the Validate lines of a task run inside `frugal-flock verify` without a
-  separate prompt, so read a task's Validate lines before verifying it.
+- It is not a sandbox. Workers still run commands with your rights. The
+  lead writes each task's Validate lines, and `frugal-flock verify` runs
+  them without a separate prompt, so read those lines when you approve the
+  lead's plan, before any work starts.
 - `git push`, merges and the lead's own settings are not covered. In
   default mode they keep asking; approve them one at a time, never with
   "don't ask again". In auto mode the safety check decides. Add rules

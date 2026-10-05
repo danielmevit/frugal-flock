@@ -143,6 +143,26 @@ the work, use a little more.
 </details>
 
 <details>
+<summary>How is this different from calling the AI tools myself?</summary>
+
+You can call any AI tool directly, and for a quick question that is fine.
+Frugal Flock matters once AIs change your code:
+
+| | Calling AI tools directly | Through Frugal Flock |
+|---|---|---|
+| Where the AI works | Wherever you point it; two at once can collide | Its own copy on its own branch |
+| When it is "done" | When the AI says so | When the task's checks pass and only allowed files changed |
+| Failures | Easy to miss | Recorded: a run that timed out stays "failed" |
+| Reviews | An opinion | Tied to the exact version; a later change makes it stale |
+| Memory | Lives in one chat | Files any AI or person can read and continue from |
+| Safety | Each tool on its own | A stop switch, paused agents, one run per worker, time limits |
+
+The AIs were always reachable. Frugal Flock makes their work isolated,
+checked, recorded and easy to hand over.
+
+</details>
+
+<details>
 <summary>Which AI tools do I need?</summary>
 
 One is enough to start. Settings are included for Claude Code, Codex,
@@ -224,9 +244,9 @@ AI tool asks or refuses, that is its own safety system. For Claude Code,
 allow the `frugal-flock` commands once in a small settings file and
 restart it; [setup step 9](docs/SETUP.md#9-lead-ai-permissions) shows the
 file and what it does and does not allow. Other tools have similar approval
-settings. Keep pushes and merges asking and approve them one at a time:
-those decisions stay with you. Turning all safety checks off is only
-sensible on a throwaway virtual machine.
+settings. Do not add rules for pushes or merges into your main branch;
+approve those yourself, one at a time. Turning all safety checks off is
+only sensible on a throwaway virtual machine.
 
 </details>
 
@@ -267,29 +287,6 @@ acceptance are separate results. `verify` exits 2 (INCOMPLETE) when a task
 has no scope or Validate lines, and `review` runs only after a current
 passing `verify`. `stop` blocks new runs; `kill TASK_ID` ends a running one.
 Every exit code and field is in the [quality reference](docs/QUALITY-USAGE.md).
-
-### Coming from agentteam?
-
-Same project, renamed from `agentteam-docs`, with its Git history intact.
-
-- `frugal-flock`, `frgl-flc`, and `agentteam` are one implementation with
-  shared Bash completion, installed at `~/.local/bin/agentteam`.
-- `agentteam-install.sh` still works; `frugal-flock-install.sh` forwards to
-  it, so keep both files together.
-- `AGENTTEAM_*` variables, `~/.config/agentteam`, `agents.conf`, and
-  project state names are unchanged. Linux `flock` is an unrelated utility.
-
-To update an existing clone, run inside it:
-
-```bash
-git remote set-url origin https://github.com/danielmevit/frugal-flock.git
-git pull --ff-only
-bash frugal-flock-install.sh
-frgl-flc selftest
-```
-
-If Git reports local changes or diverged history, resolve that first; do
-not discard your work just to update.
 
 ### Find the right level of detail
 
