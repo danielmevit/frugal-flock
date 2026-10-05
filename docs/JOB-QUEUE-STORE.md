@@ -1,66 +1,128 @@
-# First durable job-queue slice: waiting for owner approval
+# Durable job-queue store: explicit approval and reservation
 
-Implement this bounded code step through the legacy installed Frugal Flock v0.4.0
-run/verify/review/result cycle. The current lead reviews in-session with no
-paid reviewer, respecting the native different-agent gate. Codex prepared the
-task; the owner benched it to continue with Claude. Prepared options have zero
-calls and must be refreshed from latest main with actual reviewer identity.
-See [the closing handoff](SESSION-HANDOFF-2026-10-05.md).
-A native worker invocation requires fresh owner quota approval. No new global
-install, release, profile or credential change is part of this task.
+bridge/job_store.py is a persistent JobStore library with stdlib tests. Its
+current storage is schema 2. It records jobs, explicit caller approval, one
+reservation per job, recorded uncertainty and cancellation. It does not run
+anything: there is no executor, task compilation, worker or provider call,
+process start, HTTP/UI queue control, auto-resume, retry or integration
+action. The effective contract is section 2 of
+[the milestone contracts](NEXT-MILESTONE-CONTRACTS.md).
 
-This slice supplies only a persistent JobStore library and stdlib tests.
-There is no HTTP/UI queue endpoint, task compilation, worker execution,
-approval transition, auto-resume, cancellation, retry or integration action.
-A queued record must have state awaiting_owner_approval and no process exit,
-validation, review or completion claims. This is the first queue foundation,
-not the completed durable executor.
-
-## Frozen interface
+## Storage and safety
 
 JobStore(workspace) selects exactly coord/ui-jobs.sqlite3 in a real enclosing
-workspace. Use Python sqlite3 with parameterized statements, a schema-1 marker,
-transactions, a finite busy timeout and committed durable writes. Reject
-symlink/nonregular database or coordination paths, unsupported schema and
-corrupt storage without deleting/reinitializing them. Stay within the trusted
-host boundary; this does not protect against a malicious local account.
+workspace. It uses Python sqlite3 with parameterized statements, schema
+marker user_version 2, transactions, a finite busy timeout and committed
+durable writes. It rejects symlink/nonregular database or coordination paths.
+It stays within the trusted host boundary and does not protect against a
+malicious local account.
 
-- enqueue(draft_id, expected_hash, worker, request_key) returns a JSON-ready
-  record containing id, draft_id, draft_sha256, worker, request_key, created_at
-  and state awaiting_owner_approval. Read the existing PlanStore draft and
-  match its current content_sha256 before creating or replaying a job.
-- get(job_id) returns the recorded job; a missing valid ID returns None.
-- pending() returns waiting jobs in deterministic creation-time/ID order.
+Draft/job/request/approval/reservation IDs are 32 lowercase hex characters;
+hashes are 64 lowercase hex characters. Worker IDs are lowercase
+letters/digits/hyphen/underscore, beginning with a letter, at most 64
+characters. These are data, never commands or paths. There is no dynamic SQL
+or shell/provider invocation. The store creates an opaque random job ID and
+timezone-aware UTC timestamps. Raw native task text, credentials, commands
+and provider output are not stored.
 
-Draft/job/request-key IDs are 32 lowercase hex characters; hashes are 64
-lowercase hex characters. Worker IDs are lowercase letters/digits/hyphen/
-underscore, beginning with a letter, at most 64 characters. These are data,
-never commands or paths. There is no dynamic SQL or shell/provider invocation.
-An opaque random job ID and UTC creation time are created by the store.
+## Schema recognition and corruption refusal
 
-request_key is an idempotency key: the same key and exact inputs return the
-same job, including after restart; conflicting reuse fails and preserves the
-original. Concurrent duplicate submissions create exactly one record.
-An edited/stale draft fails even on replay. Reading a stored job does not
-claim its referenced draft is still current or approved for dispatch.
-Do not store raw native task text, credentials, commands or provider output.
+Opening a database is decided inside one immediate transaction:
 
-## Required checks
+- An empty file or an empty SQLite database is initialized to schema 2.
+- Schema 2 is accepted only when the jobs table has exactly the expected
+  columns, order, types, NOT NULL flags and defaults, a binary primary key on
+  id, and binary unique constraints on request_key, approval_key and
+  reservation_key, with no other tables, indexes, triggers or views. Matching
+  column names alone are not enough. Generated columns, extra CHECK
+  constraints and unknown table options are refused. Definition matching
+  ignores SQL whitespace and handles SQLite's quoted migration table name.
+- Schema 1 is migrated only when it has exactly the layout the first slice
+  created. Every legacy record is validated first: hex IDs and hash, worker
+  ID, a parseable creation time with a timezone, and state
+  awaiting_owner_approval. The migration copies every old field unchanged,
+  sets the new fields to null, verifies the schema-2 layout and the copied
+  records, and only then commits.
+- Any other version, unknown layout or corrupt legacy record is refused with
+  ValueError. Nothing is deleted, rewritten or reinitialized; the database
+  file stays byte-for-byte unchanged.
 
-Use workspace-local TMPDIR and no external dependencies. Prove:
+Schema 2 records are validated again on every read. A corrupt record makes
+that read or transition fail without rewriting the stored record.
 
-- a real stored manual draft can be queued, reopened identically after a
-  new JobStore instance, and listed while still awaiting owner approval;
-- repeated identical and concurrent submissions return one record;
-- conflicting request-key reuse and stale/edited draft hashes fail without
-  adding or overwriting a job;
-- bad IDs/hash/worker fields cannot select paths or become SQL;
-- missing IDs are honest, unknown schema/corrupt database fail closed, and
-  symlink/nonregular database or coordination paths are refused;
-- no native task, provider invocation or process/validation/review result is
-  created by enqueue/get/pending. Tests use only disposable scratch fixtures.
+## States and metadata
 
-The next bounded task will define explicit approval and reservation/recovery
-before any executor. Dispatch must eventually recheck the exact draft/task/
-revision, record the owner's provider approval, preserve real exit/evidence,
-and never automatically dispatch a possibly started job after interruption.
+| State | Meaning | Required metadata |
+| --- | --- | --- |
+| awaiting_owner_approval | Waiting; no provider approved | No transition metadata |
+| approved | Explicit caller approval for this draft and worker | approval_key, approved_at |
+| reserved | One claim; execution may or may not have started | Approval plus reservation_key, reserved_at |
+| completion_unknown | Reserved attempt needs reconciliation | Reservation plus unknown_at |
+| cancelled | Waiting or approved job cancelled before reservation | cancelled_at; prior approval retained if present |
+
+These metadata lists are exhaustive: every other transition field must be
+null. Approval and reservation keys always appear with their corresponding
+timestamp. Cancelled jobs retain either both approval fields or neither,
+and never contain reservation or uncertainty metadata.
+
+Records are JSON-ready dictionaries with id, request_key, draft_id,
+draft_sha256, worker, created_at, state, approval_key, approved_at,
+reservation_key, reserved_at, unknown_at and cancelled_at. No record claims
+a process exit, validation, review or completion.
+
+## Methods
+
+- enqueue(draft_id, expected_hash, worker, request_key) records a job
+  awaiting approval after matching the draft's current PlanStore hash.
+- get(job_id) returns the job; a missing valid ID returns None.
+- pending() returns only waiting jobs in creation-time/ID order.
+- jobs() returns all jobs in the same order with their stored state.
+- approve(job_id, expected_hash, worker, approval_key) approves a waiting job
+  whose stored inputs match exactly and whose draft still has that hash.
+- reserve(job_id, approval_key, reservation_key) claims an approved job after
+  rechecking the draft. It returns a dictionary with job and newly_reserved.
+- mark_unknown(job_id, reservation_key) records uncertainty for that reserved
+  attempt. Nothing is requeued or restarted.
+- cancel(job_id) cancels a waiting or approved job. Reserved and
+  completion_unknown jobs may have started and cannot be cancelled.
+
+Each transition is a compare-and-change operation in one immediate
+transaction. A refused call leaves the database unchanged.
+
+## Replay and draft freshness
+
+request_key, approval_key and reservation_key make calls idempotent. The same
+key with the same inputs returns the existing result, including after a
+restart. Conflicting reuse fails and preserves the original. Concurrent
+duplicate submissions create one job, and concurrent reservations produce
+exactly one newly_reserved=true result.
+
+Every enqueue, approve and reserve call rereads the draft, including identical
+replays. If the draft has changed, the call fails unchanged instead of
+returning an older job, approval or reservation. A successful identical
+reserve replay returns newly_reserved=false. Only the first approved-to-reserved
+transition returns true, and reopening storage never grants another dispatch
+from a reserved job. A reserved, completion_unknown or cancelled job cannot
+be approved again or reset.
+
+Reading a stored job does not certify that its draft is still current.
+Approval records the caller's explicit intent. This library does not
+authenticate a human or assert that a native task has started.
+
+## Limitations
+
+There is still no executor. Nothing here dispatches, starts or monitors work,
+and nothing reconciles a completion_unknown job. A later checkpoint must
+freeze the protected job API, task compilation, executor lifecycle and UI
+evidence before any dispatch exists.
+
+## History
+
+The first queue slice created schema 1, which held only waiting records
+and had no approval, reservation or cancellation. Its task was implemented
+through the legacy Frugal Flock v0.4.0 run cycle; see
+[the closing handoff](SESSION-HANDOFF-2026-10-05.md). QUEUE-APPROVAL-1 added
+schema 2 and the transitions above. QUEUE-APPROVAL-FIX-1 added exact layout
+recognition, validation of legacy records before migration, and draft
+rechecks on approve and reserve replays. These notes are historical and are
+not current operating instructions.
