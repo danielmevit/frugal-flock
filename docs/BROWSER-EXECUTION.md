@@ -51,6 +51,15 @@ without a trailing newline. Preparation does not publish a native task or
 invoke an engine. Identical request-key replay returns the same binding;
 conflicting reuse refuses.
 
+Before it records worker ownership or adds a queue row, prepare builds every
+document it will publish and checks it against its bound: the compiled task,
+the request/scope/check companions, the binding, the state record and each
+worker ownership phase. If any of them cannot fit, prepare returns
+invalid_request/400. Ownership, queue rows and the evidence of an earlier
+released (cancelled or accepted) job are left exactly as they were. A failure
+after ownership is recorded is still treated as uncertain: it stays
+outcome_unknown and is never cleared automatically.
+
 ## Explicit operations
 
 - approve(job_id, expected_hash, approval_key, preview_hash) rechecks the
@@ -91,7 +100,11 @@ coord/ui-execution/. A process-safe lock serializes service writers; each
 operation opens its own JobStore connection. Files are published atomically,
 fsynced and bounded, with symlink and special-file refusal. Immutable task and
 request/scope/check companions allow the full template limits while keeping
-each JSON document within 128 KiB. A worker has one
+each JSON document within 128 KiB. Companions are stored as unescaped UTF-8
+JSON, so they are never larger than the same text in the template. Text that
+cannot be encoded as UTF-8 stays escaped. Records written earlier as escaped
+ASCII JSON still read the same. The storage encoding never changes preview_hash
+or the binding hash, which always use escaped ASCII JSON. A worker has one
 active binding. Only explicit cancellation before reservation or current
 acceptance releases it. Reading, restart and an unresolved response never
 release an uncertain binding or start another attempt.

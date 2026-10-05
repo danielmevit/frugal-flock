@@ -103,6 +103,19 @@ def _canonical(value):
     return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(',', ':')).encode()
 
 
+def _stored(value):
+    """Durable companion bytes; unescaped UTF-8 keeps valid Unicode text within bounds.
+
+    Values that cannot be UTF-8 (lone surrogates from a JSON-escaped draft) keep
+    the escaped form. Both decode to the identical value, so canonical hashes
+    (always computed with _canonical) never depend on the stored encoding.
+    """
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode() + b'\n'
+    except UnicodeEncodeError:
+        return _json_bytes(value)
+
+
 def _hash(raw):
     return hashlib.sha256(raw).hexdigest()
 
@@ -954,6 +967,45 @@ class ExecutionService:
                     execution=execution, native_result=native, acceptance=acceptance,
                     warnings=list(dict.fromkeys(warnings))[:8])
 
+    def _publication(self, job_id, request_key, draft, template, base, base_revision,
+                     worker_revision, fingerprints):
+        """Build and bound-check every document prepare() publishes for job_id."""
+        if not _matches(HEX32, job_id):
+            raise ValueError('invalid queue identity')
+        task_id = 'ui-' + job_id
+        task = self._compile(draft['request'], task_id, template)
+        preview = dict(request=draft['request'], task_id=task_id, task_sha256=_hash(task),
+                       scope=template['scope'], validate=template['validate'], worker=self._worker,
+                       reviewer=self._reviewer, worker_company=self._worker_company,
+                       reviewer_company=self._reviewer_company)
+        preview['preview_hash'] = _hash(_canonical(preview))
+        binding = dict(schema_version=1, job_id=job_id, request_key=request_key, draft_id=draft['id'],
+                       draft_sha256=draft['content_sha256'], base=base, base_revision=base_revision,
+                       worker_revision=worker_revision, preview=preview, task=task.decode(),
+                       fingerprints=fingerprints, startup=dict(engine=str(self._engine),
+                       config=str(self._config), template=str(self._template_path)))
+        state = dict(schema_version=1, job_id=job_id,
+                     execution=dict(state='not_started', launcher_exit=None),
+                     acceptance=dict(state='pending', revision=None), run_action=None,
+                     review_action=None, actions=[])
+        physical = copy.deepcopy(binding)
+        physical.pop('task')
+        bindings = self._directory / 'bindings'
+        documents = [(bindings / (job_id + '.md'), task)]
+        for name in ('request', 'scope', 'validate'):
+            documents.append((bindings / (job_id + '.' + name + '.json'), _stored(physical['preview'].pop(name))))
+        documents.append((bindings / (job_id + '.json'), _json_bytes(physical)))
+        # Metadata written by this and later transitions: state and every ownership phase.
+        metadata = [_json_bytes(state)] + [
+            _json_bytes(dict(schema_version=1, worker=self._worker, phase=phase,
+                             job_id=None if phase == 'preparing' else job_id, request_key=request_key))
+            for phase in ('preparing', 'owned', 'released')]
+        if len(task) > OUTPUT_LIMIT or any(len(raw) > JSON_LIMIT
+                                           for raw in [raw for _, raw in documents[1:]] + metadata):
+            raise ExecutionError('invalid_request')
+        _json_bytes(binding)  # The canonical action-binding hash input must also serialize.
+        return binding, state, documents
+
     @_public
     def prepare(self, draft_id, expected_hash, request_key):
         _input(HEX32, draft_id)
@@ -990,34 +1042,20 @@ class ExecutionService:
             base, base_revision = self._base()
             template, _ = self._template()
             fingerprints = self._fingerprints()
+            # Preflight every document at its exact size before any ownership or
+            # queue publication: queue IDs are always 32 hex characters, so a
+            # placeholder ID yields byte-identical lengths. A deterministic bound
+            # refusal therefore leaves ownership, queue rows and evidence unchanged.
+            self._publication('0' * 32, request_key, draft, template, base, base_revision,
+                              worker_revision, fingerprints)
             self._write(self._owner_path(), dict(schema_version=1, worker=self._worker,
                         phase='preparing', job_id=None, request_key=request_key))
             job = store.enqueue(draft_id, expected_hash, self._worker, request_key)
-            task_id = 'ui-' + job['id']
-            task = self._compile(draft['request'], task_id, template)
-            preview = dict(request=draft['request'], task_id=task_id, task_sha256=_hash(task),
-                           scope=template['scope'], validate=template['validate'], worker=self._worker,
-                           reviewer=self._reviewer, worker_company=self._worker_company,
-                           reviewer_company=self._reviewer_company)
-            preview['preview_hash'] = _hash(_canonical(preview))
-            binding = dict(schema_version=1, job_id=job['id'], request_key=request_key, draft_id=draft_id,
-                           draft_sha256=expected_hash, base=base, base_revision=base_revision,
-                           worker_revision=worker_revision, preview=preview, task=task.decode(),
-                           fingerprints=fingerprints, startup=dict(engine=str(self._engine),
-                           config=str(self._config), template=str(self._template_path)))
-            state = dict(schema_version=1, job_id=job['id'],
-                         execution=dict(state='not_started', launcher_exit=None),
-                         acceptance=dict(state='pending', revision=None), run_action=None,
-                         review_action=None, actions=[])
-            physical = copy.deepcopy(binding)
-            physical.pop('task')
-            if len(task) > OUTPUT_LIMIT:
-                raise ValueError('oversized compiled task')
-            self._publish(self._directory / 'bindings' / (job['id'] + '.md'), task, True)
-            for name in ('request', 'scope', 'validate'):
-                self._write(self._directory / 'bindings' / (job['id'] + '.' + name + '.json'),
-                            physical['preview'].pop(name), True)
-            self._write(self._directory / 'bindings' / (job['id'] + '.json'), physical, True)
+            # Any failure from here is genuine uncertainty and stays outcome_unknown.
+            binding, state, documents = self._publication(job['id'], request_key, draft, template, base,
+                                                          base_revision, worker_revision, fingerprints)
+            for path, raw in documents:
+                self._publish(path, raw, True)
             self._state_write(state)
             self._write(self._owner_path(), dict(schema_version=1, worker=self._worker,
                         phase='owned', job_id=job['id'], request_key=request_key))

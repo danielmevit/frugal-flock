@@ -1,0 +1,2 @@
+- Unio 0.5.3: prepare now checks the size of every document it will publish before it records worker ownership or adds a queue row. A document that cannot fit returns invalid_request without changing ownership, queue rows or earlier released evidence.
+- Request/scope/check companions are stored as UTF-8 JSON, so maximum valid Unicode templates now prepare. Preview and binding hashes are unchanged, and older escaped records still read the same.
