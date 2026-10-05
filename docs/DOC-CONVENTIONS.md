@@ -56,9 +56,9 @@ and list items.
 
 One deliberate exception: `<details>` and `<summary>`, the tags behind
 GitHub's collapsible FAQ entries. The checker allows exactly these two,
-and only in README.md, which is read on GitHub and never converted. In a
-document converted to Word they stay flagged: a converter would delete the
-question lines and leave the answers behind.
+and only in files named README.md, which are read on GitHub and never
+converted. Everywhere else they stay flagged: a converter drops the tags,
+so the dropdowns vanish and every answer appears expanded.
 
 ## Rule 2 — keep code fences balanced, and never write triple backticks in prose
 

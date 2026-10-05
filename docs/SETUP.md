@@ -279,24 +279,28 @@ picks the agent). Timeout: `AGENTTEAM_TIMEOUT=7200 frugal-flock run ...`.
 
 ## 9. Lead AI permissions
 
-The master (lead) is the AI session you open in `repo/`. It works by
-running `frugal-flock` commands, and `frugal-flock run` starts the other AI
-tools. AI coding tools guard the commands they run, and some treat
-"start another AI" or "push to GitHub" as risky. What you meet depends on
-how the lead runs:
+The master (lead) is the AI session you open in `repo/`. It plans, writes
+task files in `coord/tasks/`, and runs `frugal-flock` commands;
+`frugal-flock run` then starts the worker AIs with their own approval flags
+(§2). AI coding tools guard the commands their own session runs, and some
+treat "start another AI" or "push to GitHub" as risky. What you meet
+depends on how the lead runs:
 
 | How the lead runs | What happens |
 |---|---|
 | You type the `frugal-flock` commands yourself | Nothing to set up; the AI only plans and reviews. |
 | Claude Code, default mode | It asks before each new kind of command. "Don't ask again" saves a rule. |
-| Claude Code, auto mode | A safety check decides. Some commands are refused outright; the fix is a rule you add. |
-| Claude Code with `--dangerously-skip-permissions` | No checks at all, for the lead and everything it starts. |
-| Codex as the lead | Its sandbox decides. It must be able to write `repo/`, `wt/` and `coord/` and start other programs. |
+| Claude Code, auto mode | A safety check decides each command. Some are refused until you add a rule. |
+| Claude Code with `--dangerously-skip-permissions` | No checks at all inside the lead session. |
+| Codex, Antigravity or Grok as the lead | Their own approval or sandbox settings decide; see each tool's docs. |
 
-### The lasting fix: a two-line allowlist
+Whatever the tool, the lead needs to write in `repo/` and `coord/` and run
+`frugal-flock`. It does not need to push or merge.
 
-For Claude Code in default or auto mode, create
-`repo/.claude/settings.local.json` once:
+### The lasting fix for Claude Code: allow the flock commands
+
+Create `repo/.claude/settings.local.json` once, with the full path to your
+project's `coord/` folder:
 
 ```json
 {
@@ -304,7 +308,8 @@ For Claude Code in default or auto mode, create
     "allow": [
       "Bash(frugal-flock *)",
       "Bash(frgl-flc *)"
-    ]
+    ],
+    "additionalDirectories": ["/home/you/code/myproj/coord"]
   }
 }
 ```
@@ -317,26 +322,34 @@ cd ~/code/myproj/repo
 echo ".claude/settings.local.json" >> .git/info/exclude
 ```
 
-Why two rules are enough:
+What these settings do and do not do:
 
-- Every worker starts through `frugal-flock run`, so these rules cover all
-  AI tools. The lead never needs to call `codex`, `grok` or the others
-  directly; ask it not to.
-- A rule matches the start of a command. Put per-project agent commands in
+- The lead may run any `frugal-flock` subcommand, including `run`, `sync`
+  and `kill`, without asking. Every worker starts through `frugal-flock
+  run`, so the lead never needs to call `codex`, `grok` or the others
+  directly.
+- `additionalDirectories` lets it work with the task files in `coord/`,
+  which sits next to `repo/`, as part of the project.
+- It is not a sandbox. Workers still run commands with your rights, and
+  the Validate lines of a task run inside `frugal-flock verify` without a
+  separate prompt, so read a task's Validate lines before verifying it.
+- `git push`, merges and the lead's own settings are not covered. In
+  default mode they keep asking; approve them one at a time, never with
+  "don't ask again". In auto mode the safety check decides. Add rules
+  yourself: auto mode refuses a lead's attempt to edit its own permissions.
+- A rule matches how a command starts. Put per-project agent commands in
   `coord/agents.conf`, which overrides `~/.config/agentteam/agents.conf`,
-  instead of prefixing commands with a variable such as
+  instead of starting commands with a variable such as
   `AGENTTEAM_CONF_DIR=...`.
-- `git push`, merges and the lead's own settings stay behind a prompt on
-  purpose: integration is your decision. Add rules yourself; auto mode
-  refuses a lead's attempt to edit its own permissions.
 
 ### Why not skip permissions?
 
-`--dangerously-skip-permissions` removes every guard for the lead and for
-everything it starts. Use it only on a disposable VM that holds this
-project and nothing else, never on an everyday machine with other
-projects, Git credentials and keys. Workers already run unattended with
-their own approval flags (§2); the lead is where a person still watches.
+`--dangerously-skip-permissions` turns off every check in the lead
+session: it can then run any command, push or delete without asking. Use
+it only on a disposable VM that holds this project and nothing else, never
+on an everyday machine with other projects, Git credentials and keys. The
+worker AIs are unaffected either way; they always run with their own
+approval flags (§2).
 
 ## Sources (verified 2026-07-10)
 

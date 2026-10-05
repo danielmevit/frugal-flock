@@ -46,6 +46,7 @@ if [ "${1:-}" = "--selftest" ]; then
   probe README           good '# T\n\n<details>\n<summary>Is it free?</summary>\n\nYes.\n\n</details>\n'
   probe leak/README      bad  '# T\n\n<details>\n<summary>Why?</summary>\n\nBecause <reason>.\n\n</details>\n'
   probe dropdown-in-doc  bad  '# T\n\n<details>\n<summary>Is it free?</summary>\n\nYes.\n\n</details>\n'
+  probe notREADME        bad  '# T\n\n<details>\n<summary>Is it free?</summary>\n\nYes.\n\n</details>\n'
   rm -rf "$t"
   echo
   echo "check-docs selftest: $ok ok, $fail failed"
@@ -65,7 +66,7 @@ fi
 [ ${#files[@]} -gt 0 ] || { echo "check-docs: no markdown files found"; exit 0; }
 
 python3 - "${files[@]}" <<'PY'
-import re, sys
+import os, re, sys
 
 
 def strip_fences(text):
@@ -130,9 +131,9 @@ for path in sys.argv[1:]:
         prose = masked[n - 1]                        # code spans already blanked
 
         for m in re.finditer(r"<[A-Za-z][A-Za-z0-9_.-]*>", prose):
-            # Real HTML on purpose: GitHub's FAQ dropdowns, README.md only,
-            # since README is never converted to Word (DOC-CONVENTIONS rule 1).
-            if m.group(0) in ("<details>", "<summary>") and path.endswith("README.md"):
+            # Real HTML on purpose: GitHub's FAQ dropdowns, only in files named
+            # README.md, which are never converted to Word (DOC-CONVENTIONS rule 1).
+            if m.group(0) in ("<details>", "<summary>") and os.path.basename(path) == "README.md":
                 continue
             found.append((n, f"bare {m.group(0)} outside backticks — a converter will delete it"))
 

@@ -126,17 +126,17 @@ Start with one helper and add another when you want a second perspective.
 `smoke` makes real test calls, so it uses some of your allowance.
 
 If your AI tool keeps asking before each `frgl-flc` command, or refuses to
-start the helpers, give it a [two-line allowlist](docs/SETUP.md#9-lead-ai-permissions)
-once instead of switching its safety checks off.
+start the helpers, [allow those commands once](docs/SETUP.md#9-lead-ai-permissions)
+instead of switching its safety checks off.
 
 ## FAQ
 
 <details>
 <summary>Do I have to pay for anything extra?</summary>
 
-No. Frugal Flock is free and open source, and it uses the AI plans you
-already have, each with its own sign-in. There are no API keys to buy. The
-rehearsal (`frgl-flc selftest`) makes no AI calls at all. Real tasks use
+No. Frugal Flock is free and open source. It works with the AI plans you
+already have, each signed in its own way, so you need no separate API keys.
+The rehearsal (`frgl-flc selftest`) makes no AI calls at all. Real tasks use
 your plans' normal allowance; optional extras, such as a second AI reviewing
 the work, use a little more.
 
@@ -148,8 +148,9 @@ the work, use a little more.
 One is enough to start. Settings are included for Claude Code, Codex,
 Antigravity, OpenCode (for models such as GLM and Kimi) and Grok. Any
 command-line AI that can take a task without a chat window can join with
-one line in `agents.conf`. A second tool from another company lets one AI
-review another's work.
+one line in `~/.config/agentteam/agents.conf`, for example
+`mycli=mycli -p "$(cat "$TASKFILE")"`. A second tool from another company
+lets one AI review another's work.
 
 </details>
 
@@ -167,19 +168,22 @@ supported yet: Frugal Flock relies on Linux tools such as `flock`.
 Not directly, and they share no memory. They coordinate through files in
 your project: task orders, reports, results and handoff notes. Each AI
 starts fresh, reads what the others left, and writes down what it did, so
-any of them can pick up the work.
+another AI can continue from those notes.
 
 </details>
 
 <details>
 <summary>Is it safe? Will it change my project without asking?</summary>
 
-Nothing reaches your real project until you merge it. Each helper works in
-its own copy on its own branch, and you decide what goes in. The helpers do
-run commands on your computer with your rights, and their copies are not a
-security sandbox, so use a spare machine or virtual machine without
-important passwords or keys, and keep secrets out of tasks.
-`frgl-flc stop` blocks new runs at any time.
+Helpers are given their own copies on their own branches, and their work
+reaches your main branch when you merge it. The lead AI works in your main
+copy, so tell it not to merge for you (the starter prompt above does).
+Nothing enforces those boundaries, though: every AI runs commands on your
+computer with your rights, and the copies are not a security sandbox. Use
+a spare Linux machine or virtual machine without important passwords or
+keys, keep secrets out of tasks and repositories, and remember that each AI
+sends your prompts and code to its provider. `frgl-flc stop` blocks new runs;
+`frgl-flc kill T7` ends task T7 if it is running.
 
 </details>
 
@@ -187,33 +191,42 @@ important passwords or keys, and keep secrets out of tasks.
 <summary>How do I know the AI's work is actually right?</summary>
 
 Every task names the files it may change and the checks that must pass.
-`frgl-flc verify` re-runs those checks and rejects changes outside the
-allowed files; `frgl-flc review` can then ask another company's AI to judge
-the change. The result keeps each step separate: the AI finished, the checks
-passed, the review approved, you accepted. A finished run is never taken as
-proof the work is right, and you still read the changes and decide.
+`frgl-flc verify` re-runs those checks and fails the task if one fails or
+anything changed outside the allowed files; nothing is undone, so you can
+inspect it. Once verify passes, `frgl-flc review` can ask another company's
+AI to judge the committed change. The result records separately whether the
+AI finished, the checks passed and the review approved. Your own decision
+comes last: a finished run is never taken as proof the work is right.
 
 </details>
 
 <details>
 <summary>What happens when an AI hits its usage limit?</summary>
 
-Bench it and carry on with another company's AI. `frgl-flc off codex 5h`
-takes Codex out of rotation for five hours, and `frgl-flc handoff` writes a
-context note so the next AI can pick up the task. Frugal Flock does not get
-around limits or share plans; each tool keeps its own. Automatic switching
-is on the roadmap.
+Pause it and give the next task to another company's AI.
+`frgl-flc off codex 5h` stops new tasks from going to Codex for five hours,
+and `frgl-flc handoff codex T7` writes a context note about task T7: what
+was done, what passed and what is left. The lead then gives the work to
+another AI with that note. The note is context only: unfinished, uncommitted
+changes stay in Codex's copy. [Handoff packets](docs/QUALITY-USAGE.md#handoff-packets)
+explain the details. Frugal Flock does not get around limits or share plans;
+each tool keeps its own. Automatic switching is on the roadmap.
 
 </details>
 
 <details>
-<summary>My lead AI keeps asking for permission or refuses to start helpers. What now?</summary>
+<summary>My lead AI keeps asking for permission, or a run is refused. What now?</summary>
 
-That is the AI tool's own safety system, not Frugal Flock. Give it a
-two-line allowlist once so it may run `frugal-flock` commands, then restart
-it; [setup step 9](docs/SETUP.md#9-lead-ai-permissions) shows the file. Keep
-pushes and merges asking: those decisions stay with you. Turning all safety
-checks off is only sensible on a throwaway virtual machine.
+First check who refused. Frugal Flock's own refusals say why, for example
+`STOP is active`, an agent that is `OFF`, or a worker that is
+`already running a task`; `frgl-flc status` shows the state. If instead the
+AI tool asks or refuses, that is its own safety system. For Claude Code,
+allow the `frugal-flock` commands once in a small settings file and
+restart it; [setup step 9](docs/SETUP.md#9-lead-ai-permissions) shows the
+file and what it does and does not allow. Other tools have similar approval
+settings. Keep pushes and merges asking and approve them one at a time:
+those decisions stay with you. Turning all safety checks off is only
+sensible on a throwaway virtual machine.
 
 </details>
 
