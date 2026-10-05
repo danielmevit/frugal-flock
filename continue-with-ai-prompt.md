@@ -1,53 +1,72 @@
 # Copy this prompt to continue with another AI
 
-Open the repo in your new AI session and paste the Prompt to paste below.
-Read the local agent log first; this file gives the current checkpoint.
-Earlier checkpoint notes remain in Git history and the append-only local log.
+Read the newest workspace agent-log entries before acting. This checkpoint
+records the completed rename; earlier decisions and failures remain in Git
+history and the append-only local log.
 
-Living checkpoint, updated 2026-10-05 12:06 +0200 by Codex lead
-(GPT-6; exact serving variant not exposed). Current local main: ce33555;
-A full gate and push are pending. Read the newest local log and receipts.
+Living checkpoint, updated 2026-10-05 13:43:13 +0200 by Codex lead
+(GPT-6; exact serving variant not exposed). Source integration main:
+aebe23c. The later handoff-only commit does not alter that source.
 
 ## Current checkpoint
 
-- Source rename tasks A/B/C/D were prepared and dispatched through native
-  Frugal Flock with pinned models, timeouts and zero automatic retries.
-- A Codex candidate passed 8/8 task checks; GLM's race invocation hit the
-  Go cap and was interrupted without source changes. Grok requested two
-  changes; distinct Codex RENAME-A-FIX completed at 823a01f, passed 5/5
-  checks and received Google approval plus lead approval. A merged locally
-  at ce33555; its full gate is running, with no push yet at this snapshot.
-- B Gemini replacement c11935d passed 3/3 checks. Its Codex review finished
-  with changes requested. Lead correction 7eb91b9 addressed seven findings
-  and passed 3/3 checks; Grok then requested this checkpoint correction and
-  confirmed the rest of the tree matches the contract. Both rejections are
-  preserved. The current B branch is agent/antigravity-rename-b; resolve its
-  actual HEAD before acting, since this checkpoint is itself a lead update.
-  The lead will review the corrected checkpoint and current integration base.
-- C Google candidate plus lead docs corrections is 27e2656. Codex's six
-  findings and Grok's two follow-up findings are preserved and addressed.
-  A focused Grok closing review checks the final correction and the exact D
-  API-header counterpart; unchanged file hashes bind the earlier full review.
-- D original Kimi run hit the Go cap without edits; approved Grok replacement
-  bf2ffb1 passed 9/9 checks, native Google review and all three browser suites.
-  The original DeepSeek B failure also remains preserved.
-- Merge A, then B, then C, then D. Run the full quality gate after each
-  merge and push each only after its gate passes. B/C/D are not merged
-  at this snapshot; check the newest log and gate
-  receipts for later integration.
-- Read [provider capacity](docs/PROVIDER-CAPACITY.md) before assigning models:
-  screenshot usage, current documented limits and historical reset estimate
-  are preserved there. Actual account meters govern new scheduling.
-- The workspace remains the legacy path `_vm/frugal-flock`. Installed build
-  tool: Frugal Flock 0.4.0. Source target: Unio 0.5.0, unreleased. No global
-  Unio install or release has been authorized.
+The owner-approved rename to Unio is complete in source. A, B, C and D were
+merged in that order. Each merge passed the complete
+`bash tools/quality-check.sh` before its own push to origin/main.
+
+| Slice | Merge | Full quality gate | Origin/main |
+| --- | --- | --- | --- |
+| A | ce33555 | PASS | pushed |
+| B | c76dd7f | PASS | pushed |
+| C | 8a482bc | PASS | pushed |
+| D | aebe23c | PASS | pushed |
+
+- A: core tool, installer, configuration, worker markers and tests.
+  Codex gpt-6.1-sol xhigh won the race; GLM 5.3 high hit the Go cap without
+  a candidate. Grok found two defects. The distinct Codex correction
+  823a01f passed verification, Google review and the lead's own review.
+- B: README, instructions, changelog, provider guide and ignored local role
+  cards. Original DeepSeek hit the Go cap; the owner-approved Gemini
+  replacement finished. Codex and Grok findings were corrected. Both
+  REQUEST-CHANGES reports remain preserved; final acceptance is the lead's
+  material-bound decision, not a claimed final independent approval.
+- C: current manuals and regenerated Word document. Gemini implemented;
+  Codex and Grok reviewed. All reported findings were corrected. Preserved
+  independent REQUEST-CHANGES reports are followed by the lead's final
+  adjudication; they are not represented as provider approvals.
+- D: examples, bridge and prototype. Original Kimi hit the Go cap; the
+  owner-approved Grok replacement bf2ffb1 passed verification, Google's
+  native review, the lead's review and all three existing browser suites.
+- Oversized or binary material refused by native review was reviewed in
+  separate native run tasks using complete, hash-bound packets. These
+  review transports and their limitations are recorded in the receipts.
+- Frozen histories, previous changelog entries and LICENSE are preserved.
+  Embedded LICENSE, NOTICE and protocol match their standalone files.
+  The final source audit records permitted historical and migration names.
+- Read [provider capacity](docs/PROVIDER-CAPACITY.md) before assigning models.
+  It preserves the owner's screenshot, dated public limits and actual Go
+  failures. The owner's 1h57m reset estimate was recorded as approximately
+  2026-10-05 13:30:02 +0200; it is historical and grants no automatic retry.
+- The earlier push security findings were recovered and checked with five
+  isolated mock probes. LIMIT-WALL still has known signal-coverage and
+  provenance limitations; these were not silently changed by the rename.
+  Read `../tmp/rename-unio/receipts/security-review-assessment.md` and
+  `security-observations.json` before defining a separate hardening task.
+- Source target: Unio 0.5.0, unreleased. Installed orchestration tool:
+  Frugal Flock 0.4.0. No global Unio installation or release was performed.
+  The workspace path remains `_vm/frugal-flock`. The orchestrator is stopped.
+  Do not run the new source's init/doctor against this live legacy workspace
+  until a separately approved installation/migration is planned.
 
 The owner authorizes available AIs for Unio and milestone tasks, including
-cross-company reviews, integration and pushes; do not ask again for ordinary
-assignments. Keep every task bounded, preserve rejected/failed receipts and
-use GLM high. Global installation, release or new billing changes still
-require owner approval. Receipts: `../tmp/rename-unio/receipts/`; task files:
-`../coord/tasks/`; original setup: `../tmp/race-limit-wall/`.
+cross-company reviews, integration and pushes. Routine assignments do not
+need repeated permission. Global installation, release publication and new
+billing changes still require owner approval. All original failures and
+rejected reviews remain preserved; no automatic provider retries occurred.
+
+Receipts: `../tmp/rename-unio/receipts/`; final candidates and pinned models:
+`../tmp/rename-unio/manifest.json`; task files: `../coord/tasks/`;
+original setup: `../tmp/race-limit-wall/`.
 
 ## Prompt to paste
 
@@ -55,29 +74,33 @@ require owner approval. Receipts: `../tmp/rename-unio/receipts/`; task files:
 Continue Unio in /mnt/d/Vibe Coding/_vm/frugal-flock/repo.
 You are the lead. Read ../coord/AGENT-LOG.md FIRST (newest entries), then
 continue-with-ai-prompt.md, docs/RENAME-UNIO.md, WORKSPACE-RULES.md,
-docs/PROVIDER-CAPACITY.md, and docs/DOGFOOD-WORKFLOW.md. Work in your own lead worktree;
-never redo or overwrite other branches.
+docs/PROVIDER-CAPACITY.md and docs/DOGFOOD-WORKFLOW.md.
+Work in your own lead worktree; preserve other branches and receipts.
 
-Next steps, in order:
-1. Read the actual A gate receipt, push A only on PASS, and check the
-   remaining C closing review. Do not wait on the finished rejected B reviews.
-2. Review each final candidate across companies, then review it yourself.
-3. Merge A, B, C, D in that order; run bash tools/quality-check.sh after
-   each merge, then push only after its gate passes.
-4. Ensure no current file still says the legacy names except where history requires it.
+The A/B/C/D rename is complete: each merge passed its full gate and was
+pushed. Check actual current main and receipts before choosing further work;
+do not repeat the completed rename runs or automatically retry the failed
+Go calls. Define the next concrete owner-requested milestone task from TODO
+and the newest log. Known LIMIT-WALL coverage/provenance limitations need a
+separate scoped hardening task if selected.
 
-Rules: use the installed frugal-flock 0.4.0 stop/resume around runs until
-Unio installation is separately approved; one invocation per task, no
-retries; use date for log timestamps; quote paths (they contain spaces).
+Use the installed frugal-flock 0.4.0 control tool until global Unio installation
+is separately approved. Resume before authorized native runs and stop after.
+Use per-run configs, pinned models, bounded wall-clock budgets and receipts.
+One invocation per task, no automatic retries; GLM 5.3 stays at high effort.
+Every slice gets another company's review, then your own review. Preserve
+rejections and distinguish provider output, verification, lead acceptance,
+merge, gate and push. The owner already permits available AI assignments.
+
+Take log timestamps from date. Quote all paths containing spaces.
 Never use pgrep -f or pkill -f with a pattern appearing in your own command.
-Ask the owner before installing Unio globally or releasing. After every
-checkpoint prepend a dated entry to ../coord/AGENT-LOG.md and update this file.
+Ask the owner before global installation, release or new billing changes.
+After every checkpoint prepend a dated entry to ../coord/AGENT-LOG.md and
+update continue-with-ai-prompt.md on your own branch.
 ```
 
 ## Checkpoint discipline
 
-Use current main and actual local branch/receipts, not an old NEXT instruction.
-Update this file and the local log whenever branch, verification, blocker,
-active worker or next task changes. Preserve previous failures and distinguish
-process exit, validation, review, human acceptance and integration.
-Historical detail is in the dated handoffs and Git history.
+Use actual branches and receipts rather than an old NEXT instruction.
+Update this file and the shared log when verification, integration, blocker,
+active worker or next task changes. Keep the local log append-only.
