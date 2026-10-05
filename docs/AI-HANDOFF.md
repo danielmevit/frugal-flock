@@ -1,4 +1,4 @@
-# Frugal Flock — continue with another AI
+# Unio — continue with another AI
 
 This handoff is portable: it requires the public repository, not the
 previous conversation, one particular model, or private coordination logs.
@@ -17,13 +17,14 @@ All project-owned files belong under one workspace, per
 
 ## Current baseline
 
-- Public repository: https://github.com/danielmevit/frugal-flock
+- Public repository: https://github.com/danielmevit/unio
 - Published implementation/README baseline: `f962b6a`. Read the latest main
   for this handoff and the research documents added afterward.
-- Product: Frugal Flock. Tagline: Small plans. Big ideas.
-- Commands: `frugal-flock`, `frgl-flc`, and compatibility `agentteam`.
-- The runtime is embedded in `agentteam-install.sh`; the canonical
-  `frugal-flock-install.sh` is a wrapper, not a second implementation.
+- Product: Unio. Tagline: Small plans. Big ideas.
+- Command: `unio` only.
+- The runtime, templates and completion are embedded in the single
+  `unio-install.sh` installer. Source targets Unio 0.5.0; global installation
+  and release require separate owner approval.
 - The UI and recovery flow are proposals. No frontend framework has been
   selected, and no working graphical app should be assumed to exist.
 - Existing baseline checks passed: 40 selftests, 14 adversarial probes,
@@ -76,7 +77,8 @@ turn the main interface into a wall of terminals or quota charts.
   and narrow-screen behavior are checked. Respect reduced-motion settings.
 - Provide exact install/start/build/test commands. Run what the environment
   supports; list anything not run and why. Include tests for state transitions.
-- Leave the existing CLI behavior, aliases, and configuration untouched.
+- Preserve the existing CLI behavior and coordination schemas. The rename
+  contract deliberately removes old command aliases and migrates config once.
 
 ## Copy-paste prompt
 
@@ -105,6 +107,6 @@ is future work, not a shipped scheduler or universal quota API.
 5. Add explicit human-approved integration tied to exact revisions.
 6. Test with two newcomers and compare human effort against the old CLI.
 
-Follow [TODO.md](../TODO.md) for priorities. Public visibility is not a
-license decision; the owner still needs to choose a license before calling
-the project open source.
+Follow [TODO.md](../TODO.md) for priorities. The project uses AGPL-3.0-only with the attribution/origin terms in
+LICENSE and NOTICE; see [LICENSING.md](LICENSING.md). Public visibility and
+license obligations are separate facts.

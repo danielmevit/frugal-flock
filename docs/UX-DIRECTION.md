@@ -1,10 +1,10 @@
-# Frugal Flock — UX direction
+# Unio — UX direction
 
 Small plans. Big ideas.
 
 ## Status and intended user
 
-Frugal Flock ships a command-line engine. An original
+Unio ships a command-line engine. An original
 [mock-data prototype](../prototype/README.md) now covers one connected
 sample journey: project/tool, plan approval, question/progress, a named
 replacement after a simulated limit, and separate checks/review/acceptance.
@@ -65,7 +65,7 @@ compete with the first task journey.
 
 ## First-use setup
 
-The proposed packaged entrypoint is a Frugal Flock launcher or shortcut.
+The proposed packaged entrypoint is a Unio launcher or shortcut.
 It starts the local service and opens the browser at the local app. If the
 service cannot start, the launcher explains the failure and offers a retry.
 The first release should target a local machine or WSL installation; a
@@ -85,7 +85,7 @@ login, and a valid login is not proof of remaining capacity.
 
 Explain the exact action required to connect a tool. Continue through its
 native supported authentication flow; do not request subscription passwords
-in Frugal Flock or copy authentication tokens into the browser. Starting a
+in Unio or copy authentication tokens into the browser. Starting a
 live test call must disclose that it uses provider capacity.
 
 Start with the tools the user already has. One connected agent is enough
@@ -98,7 +98,7 @@ The project view combines an outcome brief, current work, and the next
 decision. It is not primarily a terminal viewer or a wall of usage charts.
 
 ```text
-Frugal Flock                         My flock     Settings
+Unio                         My flock     Settings
 Small plans. Big ideas.
 
 Project: Garden journal
@@ -185,10 +185,14 @@ Keep these outcomes distinct in data and UI:
 - Human accepted or rejected the result.
 - Integration succeeded, conflicted, or has not been attempted.
 
-The current CLI can return success after automatic verification failed,
-and review process exit codes do not encode the reviewer's decision.
-The UI adapter must not convert exit zero into Ready to apply. Missing
-scope and missing checks need an explicit incomplete state.
+Before M1, the CLI could return success after failed automatic verification,
+and review exits did not encode the reviewer's decision. M1 resolved those
+engine defects: automatic verification failures now return their nonzero
+status, and review exits distinguish approved (0), changes requested or
+process failure (1), and unknown/incomplete/stale evidence (2). See
+[QUALITY-USAGE.md](QUALITY-USAGE.md) for the current contract. Process exit
+zero alone still does not mean Ready to apply; missing scope or checks
+requires an explicit incomplete state.
 
 Bind displayed evidence and human approval to the exact candidate commit,
 base commit, and worktree state. Recheck them before integration; if work

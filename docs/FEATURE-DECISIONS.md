@@ -4,7 +4,7 @@ Decision log, 2026-10-03. This selects ideas from the
 [primary-source competitor review](../research/COMPETITIVE-REVIEW.md), not
 copied implementations. None of these comparisons is a performance benchmark.
 
-| Idea and reference | Decision for Frugal Flock | Why / acceptance boundary |
+| Idea and reference | Decision for Unio | Why / acceptance boundary |
 |---|---|---|
 | Proof/evidence packages — [AWO](https://github.com/ystepanoff/awo) | Adopt a bounded original version in M1. | Revision-bound checks and a manual context packet make human review and switching AI clearer. Not a backup or automatic acceptance. |
 | Explicit worker lifecycle — [Agent Orchestrator](https://github.com/Untrivial-ai/agent-orchestrator) | Adopt separate CLI result states in M1; visual workspace later. | Process, checks, review, and integration must not collapse into one green tick. No cloud daemon required now. |

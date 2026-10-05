@@ -1,14 +1,14 @@
-# Frugal Flock
+# Unio
 
 Small plans. Big ideas.
 
 ## Name and promise
 
-The owner selected Frugal Flock as the product name and approved the
-tagline above. Frugal Flock connects AI coding tools from different
+The owner selected Unio as the product name and approved the
+tagline above. Unio connects AI coding tools from different
 companies into one workspace: one AI leads, the others work as its
 subagents in separate copies of the project, and a person approves what is
-merged. The name explains it: a flock of AIs from different companies, run
+merged. Unio means union or oneness: a team of AIs from different companies, run
 frugally on the plans people already have.
 
 The promise is to reduce the interruption and coordination work caused by
@@ -20,13 +20,11 @@ provider's quota or conversation memory.
 
 | Surface | Name |
 |---------|------|
-| Product and window title | Frugal Flock |
+| Product and window title | Unio |
 | Tagline | Small plans. Big ideas. |
 | One-sentence description (README title, GitHub) | Connect AI coding tools from different companies into one workspace |
-| Canonical terminal command | `frugal-flock` |
-| Short terminal command | `frgl-flc` |
-| Compatibility command | `agentteam` |
-| New installer entrypoint | `frugal-flock-install.sh` |
+| Canonical terminal command | `unio` |
+| Installer entrypoint | `unio-install.sh` |
 
 GitHub repository metadata, set 2026-10-04. Keep the description, README
 title and these topics consistent when the product description changes:
@@ -36,7 +34,7 @@ title and these topics consistent when the product description changes:
   as a lead and subagents, each in its own copy of your project, with
   checked results and you approving every merge."
 - Topics: 10 precise tags, not the maximum of 20. Each must describe what
-  Frugal Flock does; generic filler (llm, ai-workflow) and jargon
+  Unio does; generic filler (llm, ai-workflow) and jargon
   (human-in-the-loop) dilute it: ai-orchestration, agent-orchestration,
   multi-agent, subagents, ai-agents, coding-agents, agentic-coding,
   multi-llm, claude-code, codex.
@@ -44,13 +42,16 @@ title and these topics consistent when the product description changes:
 Do not use `flock` as an executable name. It is the Linux locking utility
 used by the orchestration engine.
 
-The naming change preserves existing `AGENTTEAM_*` environment variables,
-the default `~/.config/agentteam` configuration, project coordination data,
-and existing automation. The canonical repository is now
-[danielmevit/frugal-flock](https://github.com/danielmevit/frugal-flock),
-renamed in place from `agentteam-docs` with its history retained. Existing
+Unio 0.5.0 uses only the `unio` command and `UNIO_*` environment variables.
+The default configuration is `~/.config/unio`. When that folder is absent
+and no config override is supplied, installation copies the legacy
+`~/.config/agentteam` folder once, leaving the old folder untouched.
+Old command aliases and environment names are removed; update automation.
+Project coordination layouts and evidence schemas stay the same. The canonical repository is now
+[danielmevit/unio](https://github.com/danielmevit/unio),
+renamed in place from the historical `agentteam-docs` and `frugal-flock` repositories with its history retained. Existing
 local directories need not be renamed; keeping them avoids breaking
-worktree paths. Point their Git remote at the new URL.
+worktree paths (for example, the legacy local path `/mnt/d/Vibe Coding/_vm/frugal-flock` stays intact). Point their Git remote at the new URL.
 
 ## Voice
 

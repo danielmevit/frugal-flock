@@ -1,6 +1,7 @@
-# Frugal Flock — engine findings and acceptance criteria
+# Unio — engine findings and acceptance criteria
 
-Reviewed 2026-10-03 against published baseline `f962b6a`. This is a
+Historical review: 2026-10-03 against published baseline `f962b6a`.
+Pinned source links retain the legacy installer filename from that revision. This is a
 source-backed follow-up list, not a claim that these issues were fixed.
 The rename and documentation work did not change these semantics.
 
@@ -28,7 +29,7 @@ commands leave both counters at zero. Neither condition alone changes
 the final verdict from PASS. A nonempty candidate can therefore pass
 without either class of evidence. The self-test even includes the current
 permissive no-Validate behavior; passing it does not resolve this finding.
-See [verification logic at the reviewed revision](https://github.com/danielmevit/frugal-flock/blob/f962b6a/agentteam-install.sh#L571-L639).
+See [verification logic at the reviewed revision](https://github.com/danielmevit/unio/blob/f962b6a/agentteam-install.sh#L571-L639).
 
 Required outcome: distinguish complete verification, failed verification,
 and missing evidence. M1 deliberately provides no waiver bypass. Missing evidence
@@ -47,7 +48,7 @@ are stored separately, and run keeps the worker's own nonzero exit.
 With automatic verification enabled, `cmd_run` invokes `cmd_verify` with
 `|| true`, then returns the worker process's original exit code. A worker
 exit of zero can coexist with failed validation in the report.
-See [automatic verification](https://github.com/danielmevit/frugal-flock/blob/f962b6a/agentteam-install.sh#L518-L525).
+See [automatic verification](https://github.com/danielmevit/unio/blob/f962b6a/agentteam-install.sh#L518-L525).
 
 Required outcome: preserve both process status and validation status in a
 structured result. A client must never turn process exit zero alone into
@@ -65,7 +66,7 @@ line counts; anything else is unknown, and review exits 0/1/2.
 
 `cmd_review` asks for an APPROVE or REQUEST-CHANGES line, but records and
 returns the review process's exit code without parsing that decision.
-See [review implementation](https://github.com/danielmevit/frugal-flock/blob/f962b6a/agentteam-install.sh#L787-L842).
+See [review implementation](https://github.com/danielmevit/unio/blob/f962b6a/agentteam-install.sh#L787-L842).
 
 Required outcome: separate process result from approved, changes requested,
 and unknown reviewer decisions. Missing, contradictory, or malformed
@@ -84,8 +85,8 @@ Several shipped invocation templates enable broad permissions. Separate
 Git worktrees and branch/scope checks help coordinate edits but do not
 prevent operating-system access outside the worker folder. A reviewer
 launched in a temporary directory is not thereby sandboxed either.
-See [invocation templates](https://github.com/danielmevit/frugal-flock/blob/f962b6a/agentteam-install.sh#L1605-L1635)
-and [review launch](https://github.com/danielmevit/frugal-flock/blob/f962b6a/agentteam-install.sh#L826-L829).
+See [invocation templates](https://github.com/danielmevit/unio/blob/f962b6a/agentteam-install.sh#L1605-L1635)
+and [review launch](https://github.com/danielmevit/unio/blob/f962b6a/agentteam-install.sh#L826-L829).
 
 Current guidance: use a disposable environment without production secrets;
 WSL by itself is not a host-file isolation boundary. Task scope checks
@@ -105,8 +106,8 @@ The engine provides binary detection, manual/timed benching, and optional
 failed-run limit-message detection. These are not proof of a valid login
 or a provider's remaining allowance. An operator-selected retry interval
 is not a confirmed provider reset time. See `cmd_agents`, `cmd_off`, and
-the `LIMIT_RE`/`AGENTTEAM_AUTO_OFF` handling in
-[the engine](../agentteam-install.sh).
+the `LIMIT_RE`/`UNIO_AUTO_OFF` handling in
+[the engine](../unio-install.sh).
 
 Required states: installed, sign-in needed, available, limited, unavailable,
 or unknown, with evidence and timestamps when available. Show no invented

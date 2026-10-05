@@ -1,4 +1,4 @@
-# Frugal Flock — your 5-CLI team on one Ubuntu VM
+# Unio — your 5-CLI team on one Ubuntu VM
 
 One master CLI session (default: Claude Code) delegates coding tasks to
 worker CLI agents (Codex, Antigravity, OpenCode, Grok Build), each
@@ -17,7 +17,7 @@ same day — sources at the bottom.
 
 - **One agent = one line** in `agents.conf`. Add, remove, or re-tune agents
   without touching anything else.
-- **One switch per agent**: `frugal-flock off codex 5h` when it burns its
+- **One switch per agent**: `unio off codex 5h` when it burns its
   5-hour window, `off codex 7d` for a weekly cap, `on codex` to re-enable.
   Expiries clear themselves; the master reroutes around OFF agents.
 - **Master is whoever you launch** in the repo dir — the role card is
@@ -28,11 +28,11 @@ same day — sources at the bottom.
 ## 1. Install (once, on the VM)
 
 ```bash
-bash frugal-flock-install.sh
+bash unio-install.sh
 # ~/.local/bin must be on PATH (Ubuntu default; otherwise:)
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
-frugal-flock selftest       # rehearse the whole loop with mock agents — no quota
-frugal-flock version        # confirm what's installed
+unio selftest       # rehearse the whole loop with mock agents — no quota
+unio version        # confirm what's installed
 ```
 
 Tab-completion (commands, workers, tasks, agents) installs automatically;
@@ -70,18 +70,18 @@ read the task .log first.
 CodeGraph (your standard): wire agents once per the playbook —
 `codegraph install -t claude,codex,opencode,antigravity`. Grok has no
 CodeGraph target; it uses shell `codegraph explore "..."` (the worker card
-says so). `frugal-flock init` indexes a new worktree only when your clone is
+says so). `unio init` indexes a new worktree only when your clone is
 itself indexed (there is a `.codegraph/` in `repo/`), and it does that in the
-background, time-boxed by `AGENTTEAM_CG_INDEX_TIMEOUT` (default 600s). An
+background, time-boxed by `UNIO_CG_INDEX_TIMEOUT` (default 600s). An
 unindexed repo stays unindexed — that is your call, not the tool's.
 
 ## 3. Set up a project
 
 One command does the whole recipe below (clone → dev → init → playbooks
-from `~/.config/agentteam/playbooks/`):
+from `~/.config/unio/playbooks/`):
 
 ```bash
-cd ~/code && frugal-flock new <repo-url> myproj
+cd ~/code && unio new <repo-url> myproj
 ```
 
 Or step by step:
@@ -90,8 +90,8 @@ Or step by step:
 cd ~/code && mkdir myproj && cd myproj
 git clone <your-repo-url> repo && cd repo
 git checkout dev                       # your model: dev = work, main = releases
-frugal-flock init codex antigravity opencode grok
-frugal-flock agents                       # every row: OK + on
+unio init codex antigravity opencode grok
+unio agents                       # every row: OK + on
 cp ~/path/to/ai-*.md ../coord/docs/    # your playbooks -> master's reading ritual
 ```
 
@@ -119,7 +119,7 @@ Role cards and `.codegraph/` are excluded via `.git/info/exclude` — the repo
 stays clean. If the repo already has its own AGENTS.md router (your standard
 setup), init does NOT overwrite it; it tells you to add one line: "Also read
 and follow MASTER.md." Workers are likewise told to follow the repo's
-AGENTS.md reading ritual, with Frugal Flock boundaries taking precedence.
+AGENTS.md reading ritual, with Unio boundaries taking precedence.
 
 ## 4. Run a cycle
 
@@ -129,34 +129,34 @@ claude        # or codex / agy / grok — whatever opens here IS the master
 ```
 
 First time with an AI as the master? Set up its permissions once (§9), or
-its own safety system may stop it from running `frugal-flock` commands.
+its own safety system may stop it from running `unio` commands.
 
 First prompt to the master:
 
 ```text
 Read MASTER.md and the playbooks in ../coord/docs/. I want: <feature/fix>.
-Check frugal-flock agents, propose a task breakdown, and wait for my "go"
+Check unio agents, propose a task breakdown, and wait for my "go"
 before delegating. Then run the cycle and end with a merge recommendation.
 ```
 
 The master (or you, in a second terminal) drives everything with:
 
 ```bash
-frugal-flock run codex T1-codex        # run a task (foreground)
-frugal-flock run -b grok T2-grok       # long task in background
-frugal-flock tail T2-grok              # watch a background run live
-frugal-flock kill T2-grok              # stop a background run
-frugal-flock status                    # off-agents, tasks, review queue, jobs
-frugal-flock verify codex T1-codex     # machine gate: scope + Validate + commits (exit 0/1/2)
-frugal-flock diff codex                # the REAL diff vs dev — reports can lie
-frugal-flock review codex T1-codex     # a rival vendor reviews the committed diff (exit 0/1/2)
-frugal-flock result codex T1-codex     # stored evidence as JSON: ready_for_human_review?
-frugal-flock handoff codex T1-codex    # context packet for the next AI, same checkout
-frugal-flock sync                      # after merges: refresh all workshops
-frugal-flock race T5 codex grok        # bake-off: two vendors, one task, one winner
-frugal-flock sabotage opencode         # saboteur seat: failing tests vs fresh merges
-frugal-flock off antigravity 5h        # it hit its window -> bench it
-frugal-flock stop                      # kill switch for the whole project
+unio run codex T1-codex        # run a task (foreground)
+unio run -b grok T2-grok       # long task in background
+unio tail T2-grok              # watch a background run live
+unio kill T2-grok              # stop a background run
+unio status                    # off-agents, tasks, review queue, jobs
+unio verify codex T1-codex     # machine gate: scope + Validate + commits (exit 0/1/2)
+unio diff codex                # the REAL diff vs dev — reports can lie
+unio review codex T1-codex     # a rival vendor reviews the committed diff (exit 0/1/2)
+unio result codex T1-codex     # stored evidence as JSON: ready_for_human_review?
+unio handoff codex T1-codex    # context packet for the next AI, same checkout
+unio sync                      # after merges: refresh all workshops
+unio race T5 codex grok        # bake-off: two vendors, one task, one winner
+unio sabotage opencode         # saboteur seat: failing tests vs fresh merges
+unio off antigravity 5h        # it hit its window -> bench it
+unio stop                      # kill switch for the whole project
 ```
 
 You merge, nobody else — into dev, per your model:
@@ -166,7 +166,7 @@ cd ~/code/myproj/repo
 git merge --no-ff agent/codex       # after the milestone gate passes
 ```
 
-Acceptance gate (from your recipe, enforced by MASTER.md): `frugal-flock
+Acceptance gate (from your recipe, enforced by MASTER.md): `unio
 verify` PASS + clean build (0 warnings where the repo enforces it) +
 tests green + smoke run + changelog fragment (`changelog.d/<ID>.md` —
 workers never edit CHANGELOG.md itself) — only then is a branch
@@ -180,11 +180,11 @@ failed reviewer process, and 2 for an unknown verdict or incomplete
 material. `result` prints the stored evidence; `ready_for_human_review`
 is never your acceptance. Details: [QUALITY-USAGE.md](QUALITY-USAGE.md).
 
-If Claude Code asks approval for every Frugal Flock call, allow once in
+If Claude Code asks approval for every Unio call, allow once in
 `repo/.claude/settings.json`:
 
 ```json
-{ "permissions": { "allow": ["Bash(frugal-flock *)"] } }
+{ "permissions": { "allow": ["Bash(unio *)"] } }
 ```
 
 ## 5. The quota switch (5-hour and weekly limits)
@@ -193,25 +193,25 @@ When an agent exhausts its plan window, bench it — everything else keeps
 running:
 
 ```bash
-frugal-flock off codex 5h    # 5-hour window burned; auto-ON when it resets
-frugal-flock off grok 7d     # weekly cap burned
-frugal-flock off opencode    # off until you say otherwise
-frugal-flock on codex        # manual re-enable anytime
-frugal-flock agents          # shows on/OFF + auto-on countdown per agent
+unio off codex 5h    # 5-hour window burned; auto-ON when it resets
+unio off grok 7d     # weekly cap burned
+unio off opencode    # off until you say otherwise
+unio on codex        # manual re-enable anytime
+unio agents          # shows on/OFF + auto-on countdown per agent
 ```
 
 Mechanics: `run` refuses OFF agents with a clear message, expired timers
 clear themselves, `status` lists benched agents first. After every run the
 log is scanned for limit language ("rate limit", "usage limit", "quota",
 "resets at"...) and prints the exact `off` command to use; set
-`AGENTTEAM_AUTO_OFF=1` to auto-bench an agent for 5h when that fires.
+`UNIO_AUTO_OFF=1` to auto-bench an agent for 5h when that fires.
 MASTER.md tells the master to check availability before delegating and
 reroute by the fallback policy (codex→claude/grok, antigravity→codex,
 grok→codex, opencode→any idle) — work never queues on a dead agent.
 
 ## 6. Tuning agents
 
-`~/.config/agentteam/agents.conf` (or per-project `coord/agents.conf`):
+`~/.config/unio/agents.conf` (or per-project `coord/agents.conf`):
 one line per agent, `$TASKFILE` holds the task path, command runs inside
 the worker's worktree.
 
@@ -225,10 +225,12 @@ Fresh source installs use `--auto`; reinstalls keep existing profiles and
 model choices. Check `opencode run --help` and edit only your OpenCode
 entries if needed. Doctor flags direct entries with the legacy option
 without executing commands; shell wrappers may need manual inspection.
-Global configuration is not automatically migrated.
+The Unio installer copies the legacy config folder once when the new default
+folder is absent and no config override is supplied. It preserves configured
+provider commands; it does not rewrite custom shell wrappers or provider flags.
 
-Two workers on one engine: `frugal-flock init codex-2` (prefix before the dash
-picks the agent). Timeout: `AGENTTEAM_TIMEOUT=7200 frugal-flock run ...`.
+Two workers on one engine: `unio init codex-2` (prefix before the dash
+picks the agent). Timeout: `UNIO_TIMEOUT=7200 unio run ...`.
 
 ## 7. Read this before you scale up
 
@@ -249,17 +251,17 @@ picks the agent). Timeout: `AGENTTEAM_TIMEOUT=7200 frugal-flock run ...`.
 - **Grok Build is a beta** (2026-05-25). If a run fails instantly, check
   `grok --help` and fix the conf line.
 - **Always read the diff.** The report's output tail is the agent's claim;
-  `frugal-flock diff <worker>` is the truth.
+  `unio diff <worker>` is the truth.
 
 ## 8. Troubleshooting
 
-- `not inside a Frugal Flock project` — run from the clone or any project
+- `not inside a Unio project` — run from the clone or any project
   subdir (it searches upward for `coord/` + `wt/`).
 - Worker hangs → an approval prompt its auto-approve flag didn't cover, or
   expired login. Check `coord/reports/<task>.log`, re-login that CLI, verify
   with the §2 one-liner.
 - Nonzero exit + near-empty log → not logged in or wrong flag;
-  `frugal-flock agents` + §2 verify commands isolate it fast.
+  `unio agents` + §2 verify commands isolate it fast.
 - Codex edits files but can't commit ("index.lock" / .git not writable) →
   its workspace-write sandbox keeps .git read-only, and a worktree's git
   metadata lives in the main repo's .git/worktrees/. The conf uses
@@ -270,35 +272,35 @@ picks the agent). Timeout: `AGENTTEAM_TIMEOUT=7200 frugal-flock run ...`.
   (standard library only); see §1.
 - `agents` shows `installed=unknown` → normal for conf lines that use shell
   syntax such as `"$(cat "$TASKFILE")"`; it never runs them to find out.
-  `frugal-flock doctor` checks that each worker's program is on PATH.
+  `unio doctor` checks that each worker's program is on PATH.
 - WSL `/mnt` quirks from your GOTCHAS don't apply on the native-ext4 VM;
   if you ever move this workflow to WSL-on-Windows-drive, re-add
   `codegraph sync` after edits and `git config core.filemode false`.
-- The master AI asks before every `frugal-flock` command, or its tool
+- The master AI asks before every `unio` command, or its tool
   refuses to run one → that is the tool's own permission system; set up
-  §9. A refusal printed by Frugal Flock itself (`STOP is active`, an agent
+  §9. A refusal printed by Unio itself (`STOP is active`, an agent
   that is `OFF`, a worker `already running a task`) says why; check
-  `frugal-flock status`.
+  `unio status`.
 
 ## 9. Lead AI permissions
 
 The master (lead) is the AI session you open in `repo/`. It plans, writes
-task files in `coord/tasks/`, and runs `frugal-flock` commands;
-`frugal-flock run` then starts the worker AIs with their own approval flags
+task files in `coord/tasks/`, and runs `unio` commands;
+`unio run` then starts the worker AIs with their own approval flags
 (§2). AI coding tools guard the commands their own session runs, and some
 treat "start another AI" or "push to GitHub" as risky. What you meet
 depends on how the lead runs:
 
 | How the lead runs | What happens |
 |---|---|
-| You type the `frugal-flock` commands yourself | Nothing to set up; the AI only plans and reviews. |
+| You type the `unio` commands yourself | Nothing to set up; the AI only plans and reviews. |
 | Claude Code, default mode | It asks before each new kind of command. "Don't ask again" saves a rule. |
 | Claude Code, auto mode | A safety check decides each command. Some are refused until you add a rule. |
 | Claude Code with `--dangerously-skip-permissions` | No checks at all inside the lead session. |
 | Codex, Antigravity or Grok as the lead | Their own approval or sandbox settings decide; see each tool's docs. |
 
 Whatever the tool, the lead needs to write in `repo/` and `coord/` and run
-`frugal-flock`. It does not need to push or merge.
+`unio`. It does not need to push or merge.
 
 ### The lasting fix for Claude Code: allow the flock commands
 
@@ -309,8 +311,7 @@ project's `coord/` folder:
 {
   "permissions": {
     "allow": [
-      "Bash(frugal-flock *)",
-      "Bash(frgl-flc *)"
+      "Bash(unio *)"
     ],
     "additionalDirectories": ["/home/you/code/myproj/coord"]
   }
@@ -327,14 +328,14 @@ echo ".claude/settings.local.json" >> .git/info/exclude
 
 What these settings do and do not do:
 
-- The lead may run any `frugal-flock` subcommand, including `run`, `sync`
-  and `kill`, without asking. Every worker starts through `frugal-flock
+- The lead may run any `unio` subcommand, including `run`, `sync`
+  and `kill`, without asking. Every worker starts through `unio
   run`, so the lead never needs to call `codex`, `grok` or the others
   directly.
 - `additionalDirectories` lets it work with the task files in `coord/`,
   which sits next to `repo/`, as part of the project.
 - It is not a sandbox. Workers still run commands with your rights. The
-  lead writes each task's Validate lines, and `frugal-flock verify` runs
+  lead writes each task's Validate lines, and `unio verify` runs
   them without a separate prompt, so read those lines when you approve the
   lead's plan, before any work starts.
 - `git push`, merges and the lead's own settings are not covered. In
@@ -342,9 +343,9 @@ What these settings do and do not do:
   "don't ask again". In auto mode the safety check decides. Add rules
   yourself: auto mode refuses a lead's attempt to edit its own permissions.
 - A rule matches how a command starts. Put per-project agent commands in
-  `coord/agents.conf`, which overrides `~/.config/agentteam/agents.conf`,
+  `coord/agents.conf`, which overrides `~/.config/unio/agents.conf`,
   instead of starting commands with a variable such as
-  `AGENTTEAM_CONF_DIR=...`.
+  `UNIO_CONF_DIR=...`.
 
 ### Why not skip permissions?
 

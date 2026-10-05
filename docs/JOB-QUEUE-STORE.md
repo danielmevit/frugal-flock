@@ -1,6 +1,6 @@
 # First durable job-queue slice: waiting for owner approval
 
-Implement this bounded code step through the installed Frugal Flock v0.4.0
+Implement this bounded code step through the legacy installed Frugal Flock v0.4.0
 run/verify/review/result cycle. The current lead reviews in-session with no
 paid reviewer, respecting the native different-agent gate. Codex prepared the
 task; the owner benched it to continue with Claude. Prepared options have zero

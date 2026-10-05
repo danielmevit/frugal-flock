@@ -1,4 +1,4 @@
-# Build Frugal Flock with Frugal Flock
+# Build Unio with Unio
 
 The owner's main objective is to implement the next milestones through the
 flock while testing it in real use. Canary success alone is not completion
@@ -13,8 +13,11 @@ For each next implementation slice:
    under wt/ from current main. Put exact local test/tool paths in the task;
    prohibit dependency discovery/broad filesystem searches. Native auth and
    provider capacity stay unknown until a real approved invocation.
-2. Ask the owner before spending provider quota, stating model/effort,
-   invocation count, timeout and no-retry bound. No reply means no approval.
+2. Honor existing owner authorization for provider assignments. The owner
+   authorizes available AIs for Unio and milestone work; do not ask again
+   within that scope. Record model/effort, invocation count, timeout and
+   no-retry bound. Ask only for an action outside the authorized scope.
+   Read [PROVIDER-CAPACITY.md](PROVIDER-CAPACITY.md) before scheduling.
 3. Use the installed release's run command, with only temporary local model
    config. Do not reinstall while it builds the next source version.
 4. Preserve real worker logs/exits/partial changes. A failed or interrupted
@@ -22,12 +25,12 @@ For each next implementation slice:
    Diagnose, preserve and propose one bounded finishing task through the flock.
 5. Run native verify against the frozen task/current candidate. If it fails,
    keep the failure and fix via the same controlled task/review process.
-6. The current lead reads the full task and diff and reviews in-session.
-   There is no extra paid reviewer. Bind any local decision transport to the
-   exact material hash and actual reviewer/model; never call it a provider
-   review. Preserve the native different-agent gate: when Claude is lead,
-   choose a different-provider implementation worker for this arrangement.
-   Same-provider review must not claim independent different-provider approval.
+6. For this owner-authorized rename cycle, each slice receives an independent
+   review from a different company, then the lead reads the full task and
+   diff and reviews in-session. Bind every decision to the exact candidate
+   and material hash. A local lead decision adapter is not a provider review.
+   Preserve refused native reviews and label separate complete-material
+   review-transport tasks accurately; do not claim native approval from them.
 7. Recheck native result and retain a pre-integration receipt. Distinguish
    process, validation, review, human acceptance and integration. Source main
    changes can make the old native result stale; do not assume readiness persists.
@@ -51,7 +54,7 @@ still with no executor, through the same cadence. Put a commit-by time in
 each task so the worker's log entry fits.
 
 Owner direction, 2026-10-05: use every available AI for flock work: Codex
-(Sol 6.1, xhigh), OpenCode Go (GLM 5.3, max), the Grok CLI (high) and
+(Sol 6.1, xhigh), OpenCode Go (GLM 5.3, high), the Grok CLI (high) and
 Antigravity (Gemini 3.1 Pro, high). A different vendor may perform the
 native review, in addition to the lead's full review; the owner can act as
 the human reviewer. Each task or review is one invocation with a stated

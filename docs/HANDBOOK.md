@@ -1,14 +1,14 @@
-# The Frugal Flock Handbook
+# The Unio Handbook
 
-One document, everything you need: what Frugal Flock is, every command, a real
+One document, everything you need: what Unio is, every command, a real
 worked example from your own history, and the maintenance recipes. Written
 to be readable without a programming background.
 
 ---
 
-## 1. What Frugal Flock is
+## 1. What Unio is
 
-Frugal Flock turns five separate AI coding subscriptions — Claude, Codex
+Unio turns five separate AI coding subscriptions — Claude, Codex
 (ChatGPT), Antigravity (Google), Grok Build (X), and OpenCode — into one
 coordinated software team on your Ubuntu machine. One AI acts as the
 **foreman** (plans work, writes task orders, inspects results); the others
@@ -20,14 +20,15 @@ What it is NOT: it isn't an AI itself, and it doesn't contain the AI
 tools. It's coordination machinery — about a thousand lines of scripting
 that handles workshops, work orders, reports, receipts, and safety
 switches. The
-intelligence is rented from your five subscriptions; Frugal Flock is the
+intelligence is rented from your five subscriptions; Unio is the
 office they work in.
 
 Three principles it's built on:
 
 **Isolation.** Every worker gets its own complete copy of the project (a
-"git worktree") pinned to its own branch. Two workers physically cannot
-overwrite each other's files.
+"git worktree") pinned to its own branch. This separates ordinary edits
+and review receipts; it is not an OS sandbox. Configured commands retain
+host access and can reach other worktrees or files.
 
 **Receipts over reports.** Every run produces a report (the agent's own
 claim) and a diff (the exact line-by-line truth). Rule one of operating
@@ -50,7 +51,7 @@ Every piece of work follows the same cycle:
    ↓
  WORKERS: build, test, commit on their own branch, report
    ↓
- FOREMAN: machine-checks first (frugal-flock verify), reads the diffs, recommends
+ FOREMAN: machine-checks first (unio verify), reads the diffs, recommends
    ↓
  YOU: read the diff yourself → merge what passes → reject what doesn't
 ```
@@ -60,7 +61,7 @@ your gate has gone soft, not that the team has become perfect.
 
 ## 3. Project anatomy
 
-`frugal-flock init` builds this next to any repo clone:
+`unio init` builds this next to any repo clone:
 
 ```text
 <project>/
@@ -86,7 +87,7 @@ your gate has gone soft, not that the team has become perfect.
     │                + ledger.jsonl: one JSON line per run/verify/review.
     ├── results/     One JSON result per worker and task: process, checks
     │                and review, each bound to an exact revision.
-    ├── handoffs/    Context packets for the next AI (frugal-flock handoff).
+    ├── handoffs/    Context packets for the next AI (unio handoff).
     ├── blockers.md  "I'm stuck" notes, append-only.
     └── STOP         If this file exists, all new runs are refused.
 ```
@@ -95,45 +96,45 @@ Key facts about the data: report `.md` files are append-only (every run
 adds a block — this is the historical record); `.log` files hold only the
 latest run (overwritten each time). `ledger.jsonl` is the machine twin of
 the reports — append-only JSON, one line per run/verify/review/merge with
-durations and diffstats; `frugal-flock score` reads it directly, no markdown
+durations and diffstats; `unio score` reads it directly, no markdown
 parsing anywhere.
 
 ## 4. Complete command reference
 
-### Frugal Flock (the machinery)
+### Unio (the machinery)
 
 | Command | What it does |
 |---|---|
-| `frugal-flock new <repo-url> [name] [workers...]` | The whole project bootstrap in one command: clone → dev branch → init → your playbooks copied in from `~/.config/agentteam/playbooks/`. Run it where you keep projects (e.g. `~/code`). |
-| `frugal-flock init [w1 w2 ...]` | Build workshops + office next to your clone. Run once per project, from inside the repo. Default workers: codex antigravity opencode grok. Add more anytime: `frugal-flock init claude`. |
-| `frugal-flock agents [--json]` | Roll call: each agent — program installed (yes / no / unknown when the conf line uses shell syntax)? switched on/off? Local only: it never runs the agent and never checks login or quota. `--json` prints the same as machine-readable JSON. |
-| `frugal-flock run <w> <task>` | Execute `coord/tasks/<task>.md` with worker `<w>` in its workshop. Blocks until done; prints exit code + report path. Resets the task's stored result; the worker's real exit code is kept even if the post-run snapshot fails. |
-| `frugal-flock run -b <w> <task>` | Same, in the background — dispatch several at once, poll with `status`. |
-| `frugal-flock tail [task]` | Watch a run's log live (default: the newest). Ctrl-C stops watching, not the run. |
-| `frugal-flock kill <task>` | Stop a background run cleanly — kills its whole session, including the agent under `timeout`; any partial work stays uncommitted in the workshop. |
-| `frugal-flock report <task> [lines]` | Read a task's report without typing paths (default: last 60 lines of the append-only history). |
-| `frugal-flock verify <w> <task>` | The mechanical gate assist: checks the diff against the task's "- path" scope lines, re-runs its "$ " Validate commands inside the workshop, and flags empty "success" diffs. Verdict lands in the report and the stored result. Exit 0 = PASS, 1 = FAIL, 2 = INCOMPLETE (no scope lines, no Validate lines, or the worktree changed during the checks). Run it BEFORE reading any diff. |
-| `frugal-flock diff <w> [--stat]` | The receipts: exact changes on that worker's branch vs the base branch, committed and uncommitted separately. `--stat` = file list only (your scope check). |
-| `frugal-flock review <w> <task> [agent]` | Second opinion from a DIFFERENT vendor, only after a current verify PASS: it gets the task order + the full committed diff (clean worktree, text only, at most 300000 bytes) and must end with exactly one `VERDICT: APPROVE` or `VERDICT: REQUEST-CHANGES` line. Exit 0 = approved, 1 = changes requested or the reviewer failed, 2 = unknown verdict or incomplete material. Your gate, with a rival's eyes attached. |
-| `frugal-flock result <w> <task>` | The stored evidence as JSON: process, validation and review states, each bound to a revision, plus `stale` and `ready_for_human_review`. Read-only, no provider call. Exit 2 when the result is missing or malformed. |
-| `frugal-flock handoff <w> <task>` | Writes a context packet for the next AI under `coord/handoffs/` (task, result, revision, changed paths, HANDOFF.md) and prints its path. Not a backup: uncommitted work stays in the workshop. Refused while the worker runs. |
-| `frugal-flock sync [w]` | After your merges: brings the base branch into worker branches (fast-forward when fully merged, merge otherwise) so workshops build on current reality instead of drifting stale. Skips dirty or running workers; reports conflicts instead of forcing them. |
-| `frugal-flock status` | Morning briefing: benched agents, open tasks, recent reports,each workshop's branch state, anything still running. |
-| `frugal-flock off <agent> [30m\|5h\|7d]` | Quota switch: bench an agent. `5h` for a burned session window, `7d` for a weekly cap — auto-returns when the time expires. No duration = benched until `on`. |
-| `frugal-flock on <agent>` | Un-bench immediately. |
-| `frugal-flock smoke` | One tiny live call per agent, from a neutral folder. Run after any CLI update or after days away — catches renamed flags and expired logins in 30 seconds. Rows read OK / WARN (replied, but not "ok") / FAIL. |
-| `frugal-flock selftest` | The whole loop — init, run, verify, bench, lock, background + kill, sync, review — rehearsed in a throwaway sandbox with mock agents. Zero quota, ~15 seconds. Run after updating Frugal Flock itself. |
-| `frugal-flock doctor` | Preflight a project before you dispatch: base branch present, each agent's binary and config line, worktree health (right branch, behind base, uncommitted), stale pidfiles, guard hooks, disk headroom. Catches the misconfigurations that would otherwise waste a run. Exits nonzero on an error. |
-| `frugal-flock race <task> <w1> <w2> …` | Bake-off: the same task dispatched to several workers in parallel (isolation makes it free). Compare the diffs, merge exactly ONE winner — head-to-head data for the scorecard. |
-| `frugal-flock sabotage [w]` | The saboteur seat: syncs the worker, then sends it hunting for real bugs in freshly merged work by writing failing tests. With no worker named, the seat rotates round-robin through your vendors — a different pair of eyes each time. |
-| `frugal-flock sabotage --all` | Every available vendor attacks the same code in turn, one after another. For a finished feature or a release: different models find different defects, and a finding two vendors agree on is almost certainly real. |
-| `frugal-flock score [project-root]` | The fleet scorecard, straight from the ledger: runs, ok/fail, walls, verify pass-rate, merges, average duration — per worker, sorted by merges. Your "who earns their seat" view; `myapp` remains the full product with pre-ledger history. |
-| `frugal-flock version` | Installed version + config path — check it after every `bash frugal-flock-install.sh`. |
-| `frugal-flock stop` / `resume` | Project-wide red button: refuse ALL new runs / release. |
+| `unio new <repo-url> [name] [workers...]` | The whole project bootstrap in one command: clone → dev branch → init → your playbooks copied in from `~/.config/unio/playbooks/`. Run it where you keep projects (e.g. `~/code`). |
+| `unio init [w1 w2 ...]` | Build workshops + office next to your clone. Run once per project, from inside the repo. Default workers: codex antigravity opencode grok. Add more anytime: `unio init claude`. |
+| `unio agents [--json]` | Roll call: each agent — program installed (yes / no / unknown when the conf line uses shell syntax)? switched on/off? Local only: it never runs the agent and never checks login or quota. `--json` prints the same as machine-readable JSON. |
+| `unio run <w> <task>` | Execute `coord/tasks/<task>.md` with worker `<w>` in its workshop. Blocks until done; prints exit code + report path. Resets the task's stored result; the worker's real exit code is kept even if the post-run snapshot fails. |
+| `unio run -b <w> <task>` | Same, in the background — dispatch several at once, poll with `status`. |
+| `unio tail [task]` | Watch a run's log live (default: the newest). Ctrl-C stops watching, not the run. |
+| `unio kill <task>` | Stop a background run cleanly — kills its whole session, including the agent under `timeout`; any partial work stays uncommitted in the workshop. |
+| `unio report <task> [lines]` | Read a task's report without typing paths (default: last 60 lines of the append-only history). |
+| `unio verify <w> <task>` | The mechanical gate assist: checks the diff against the task's "- path" scope lines, re-runs its "$ " Validate commands inside the workshop, and flags empty "success" diffs. Verdict lands in the report and the stored result. Exit 0 = PASS, 1 = FAIL, 2 = INCOMPLETE (no scope lines, no Validate lines, or the worktree changed during the checks). Run it BEFORE reading any diff. |
+| `unio diff <w> [--stat]` | The receipts: exact changes on that worker's branch vs the base branch, committed and uncommitted separately. `--stat` = file list only (your scope check). |
+| `unio review <w> <task> [agent]` | Second opinion from a DIFFERENT vendor, only after a current verify PASS: it gets the task order + the full committed diff (clean worktree, text only, at most 300000 bytes) and must end with exactly one `VERDICT: APPROVE` or `VERDICT: REQUEST-CHANGES` line. Exit 0 = approved, 1 = changes requested or the reviewer failed, 2 = unknown verdict or incomplete material. Your gate, with a rival's eyes attached. |
+| `unio result <w> <task>` | The stored evidence as JSON: process, validation and review states, each bound to a revision, plus `stale` and `ready_for_human_review`. Read-only, no provider call. Exit 2 when the result is missing or malformed. |
+| `unio handoff <w> <task>` | Writes a context packet for the next AI under `coord/handoffs/` (task, result, revision, changed paths, HANDOFF.md) and prints its path. Not a backup: uncommitted work stays in the workshop. Refused while the worker runs. |
+| `unio sync [w]` | After your merges: brings the base branch into worker branches (fast-forward when fully merged, merge otherwise) so workshops build on current reality instead of drifting stale. Skips dirty or running workers; reports conflicts instead of forcing them. |
+| `unio status` | Morning briefing: benched agents, open tasks, recent reports,each workshop's branch state, anything still running. |
+| `unio off <agent> [30m\|5h\|7d]` | Quota switch: bench an agent. `5h` for a burned session window, `7d` for a weekly cap — auto-returns when the time expires. No duration = benched until `on`. |
+| `unio on <agent>` | Un-bench immediately. |
+| `unio smoke` | One tiny live call per agent, from a neutral folder. Run after any CLI update or after days away — catches renamed flags and expired logins in 30 seconds. Rows read OK / WARN (replied, but not "ok") / FAIL. |
+| `unio selftest` | The whole loop — init, run, verify, bench, lock, background + kill, sync, review — rehearsed in a throwaway sandbox with mock agents. Zero quota, ~15 seconds. Run after updating Unio itself. |
+| `unio doctor` | Preflight a project before you dispatch: base branch present, each agent's binary and config line, worktree health (right branch, behind base, uncommitted), stale pidfiles, guard hooks, disk headroom. Catches the misconfigurations that would otherwise waste a run. Exits nonzero on an error. |
+| `unio race <task> <w1> <w2> …` | Bake-off: the same task dispatched to several workers in parallel (isolation makes it free). Compare the diffs, merge exactly ONE winner — head-to-head data for the scorecard. |
+| `unio sabotage [w]` | The saboteur seat: syncs the worker, then sends it hunting for real bugs in freshly merged work by writing failing tests. With no worker named, the seat rotates round-robin through your vendors — a different pair of eyes each time. |
+| `unio sabotage --all` | Every available vendor attacks the same code in turn, one after another. For a finished feature or a release: different models find different defects, and a finding two vendors agree on is almost certainly real. |
+| `unio score [project-root]` | The fleet scorecard, straight from the ledger: runs, ok/fail, walls, verify pass-rate, merges, average duration — per worker, sorted by merges. Your "who earns their seat" view; `myapp` remains the full product with pre-ledger history. |
+| `unio version` | Installed version + config path — check it after every `bash unio-install.sh`. |
+| `unio stop` / `resume` | Project-wide red button: refuse ALL new runs / release. |
 
 Tab-completion ships with the installer (commands, then workers / task ids
 / agent names in context) — it lands in
-`~/.local/share/bash-completion/completions/agentteam` and just works in
+`~/.local/share/bash-completion/completions/unio` and just works in
 any new shell on a normal Ubuntu.
 
 Worker naming: the part before a dash picks the engine — worker `codex-2`
@@ -143,22 +144,22 @@ runs the codex CLI, so you can have two codex workshops.
 
 | Thing | Meaning |
 |---|---|
-| `~/.config/agentteam/agents.conf` | One line per agent: how to invoke its CLI headless. THE lego file — add/retune agents here. |
+| `~/.config/unio/agents.conf` | One line per agent: how to invoke its CLI headless. THE lego file — add/retune agents here. |
 | `<project>/coord/agents.conf` | Optional per-project override of the above. |
 | `<project>/coord/base` | The integration branch name (auto-detected: dev). |
-| `AGENTTEAM_TIMEOUT=7200 frugal-flock run ...` | Per-run time limit in seconds (default 3600). |
-| `AGENTTEAM_VERIFY_TIMEOUT=900` | Per-command time limit for verify's Validate re-runs. |
-| `AGENTTEAM_REVIEW_TIMEOUT=900` | Time limit for a cross-vendor review call. |
-| `AGENTTEAM_AUTO_OFF=1` | Auto-bench an agent for 5h when a FAILED run's output mentions usage limits. (A successful run on a task that is itself about rate limits no longer benches anyone.) |
-| `AGENTTEAM_AUTO_VERIFY=1` | Append verification after the run. A successful worker plus failed/incomplete checks returns the check's nonzero exit; worker failures keep their own exit. This is not approval. |
-| `AGENTTEAM_AUTO_SYNC=1` | Fast-forward a stale worker onto the base branch before a run (when its worktree is clean), so it never builds against outdated code. Without it, `run` just warns. |
-| `AGENTTEAM_ALLOW_SECRETS=1` | Override init's refusal when secret-looking files are tracked. Know exactly why before using it. |
+| `UNIO_TIMEOUT=7200 unio run ...` | Per-run time limit in seconds (default 3600). |
+| `UNIO_VERIFY_TIMEOUT=900` | Per-command time limit for verify's Validate re-runs. |
+| `UNIO_REVIEW_TIMEOUT=900` | Time limit for a cross-vendor review call. |
+| `UNIO_AUTO_OFF=1` | Auto-bench an agent for 5h when a FAILED run's output mentions usage limits. (A successful run on a task that is itself about rate limits no longer benches anyone.) |
+| `UNIO_AUTO_VERIFY=1` | Append verification after the run. A successful worker plus failed/incomplete checks returns the check's nonzero exit; worker failures keep their own exit. This is not approval. |
+| `UNIO_AUTO_SYNC=1` | Fast-forward a stale worker onto the base branch before a run (when its worktree is clean), so it never builds against outdated code. Without it, `run` just warns. |
+| `UNIO_ALLOW_SECRETS=1` | Override init's refusal when secret-looking files are tracked. Know exactly why before using it. |
 
 ### myapp (the scorecard — the team's first product)
 
 | Command | What it does |
 |---|---|
-| `myapp <project-root>` | Per-agent performance table for any Frugal Flock project: Runs, OK, Fail, Walls (runs that hit auth/quota walls), Merges (branches you accepted), Last run. Sorted by merges — earners on top. |
+| `myapp <project-root>` | Per-agent performance table for any Unio project: Runs, OK, Fail, Walls (runs that hit auth/quota walls), Merges (branches you accepted), Last run. Sorted by merges — earners on top. |
 
 Run it weekly per active project. Merges are the column that matters:
 effort is Runs, results are Merges.
@@ -188,8 +189,8 @@ files are self-contained and the board exists.
 
 ```bash
 cd ~/code/<project>/repo
-frugal-flock status          # where did I leave off? benched agents? open tasks?
-frugal-flock smoke           # after CLI updates or days away: everyone alive?
+unio status          # where did I leave off? benched agents? open tasks?
+unio smoke           # after CLI updates or days away: everyone alive?
 claude                    # hire the foreman
 ```
 
@@ -210,23 +211,23 @@ then propose the next step. Wait for my go.
 
 ### Working efficiently
 
-- Dispatch long tasks with `-b`, poll with `frugal-flock status` (or watch
-  live with `frugal-flock tail`), and review results in batches — two or
+- Dispatch long tasks with `-b`, poll with `unio status` (or watch
+  live with `unio tail`), and review results in batches — two or
   three diffs in one sitting beats context-switching per task.
-- `frugal-flock verify` before you read any diff — let the machine flag
+- `unio verify` before you read any diff — let the machine flag
   scope breaks, failing Validate commands, and empty "success" diffs
   first, then read with its verdict in hand. Big or risky diff? Add
-  `frugal-flock review` for a rival vendor's second opinion.
-  `frugal-flock result` then shows whether the run, verify and review
+  `unio review` for a rival vendor's second opinion.
+  `unio result` then shows whether the run, verify and review
   evidence all still match the current code.
-- After your merges: `frugal-flock sync` — one command and every workshop
+- After your merges: `unio sync` — one command and every workshop
   rebuilds on the new base instead of drifting stale.
 - Two terminals: foreman in one, YOUR gate commands (diff, tests, merge)
   in the other. Never gate inside the foreman's window.
 - Reject early. A sharp re-brief costs minutes; polishing a wrong diff
   costs an evening.
 - Quota-aware ordering: hard tasks early in your 5-hour windows, chores
-  late. Bench (`frugal-flock off`) the moment limits bite; never wait on a
+  late. Bench (`unio off`) the moment limits bite; never wait on a
   dead agent.
 - One cycle at a time: don't dispatch new work while merged-pending diffs
   are waiting on you — your review is the bottleneck, protect it.
@@ -234,9 +235,9 @@ then propose the next step. Wait for my go.
 ### Ending a session (3 minutes — the save ritual)
 
 ```bash
-frugal-flock status          # 1. "running: (none)" — never leave -b runs going;
+unio status          # 1. "running: (none)" — never leave -b runs going;
                           #    Windows sleep/reboot kills them mid-write
-                          #    (stragglers: frugal-flock kill <task>)
+                          #    (stragglers: unio kill <task>)
 ```
 
 Then tell the foreman to close the books:
@@ -266,11 +267,16 @@ the session are running processes and un-pushed work, which is what steps
 | Foreman chat | Yes via `claude -c`, but degrades — files are canonical |
 | Running `-b` tasks | NO — finish or kill before leaving |
 | Un-pushed commits | Only on this VM until `git push` |
-| Benched/off timers | Yes (global, in ~/.config/agentteam/off) |
+| Benched/off timers | Yes (global, in ~/.config/unio/off) |
 
 ---
 
 ## 6. A real example: how the scorecard got built
+
+Historical account: this build used the legacy Frugal Flock command names
+before the Unio rename. The quoted brief and commands below preserve that
+record; current instructions elsewhere use `unio`.
+
 
 This is not hypothetical — it's the compressed true story of myapp v0.1.1,
 your first shipped product. Every mechanism in this handbook appears in it.
@@ -342,7 +348,7 @@ cd ~/code && mkdir <proj> && cd <proj>
 git clone <repo-url> repo && cd repo
 git checkout dev 2>/dev/null || git checkout -b dev   # create dev off main if missing
 git push -u origin dev                                # dev must exist on the remote too
-frugal-flock init codex antigravity                      # start with two workers, always
+unio init codex antigravity                      # start with two workers, always
 cp ~/path/to/ai-*.md ../coord/docs/
 ```
 
@@ -368,7 +374,7 @@ accurate map instead of guessing about a codebase it's never seen.
 - **Secrets stay out.** Check that `.env` / credential files are
   gitignored BEFORE init — worktrees copy tracked files, and workers run
   with auto-approve. If secrets are tracked in the repo, fix that first.
-  `frugal-flock init` enforces this: it refuses to scaffold while
+  `unio init` enforces this: it refuses to scaffold while
   secret-looking files are tracked.
 - **First tasks are small and reversible:** a bug fix, missing tests, doc
   updates. Never "refactor the core" on cycle one — you're calibrating
@@ -388,7 +394,7 @@ feeding `myapp <project-root>` like any other.
 
 ### Updating the AI CLIs
 
-Frugal Flock has no bundled AI — it calls whatever binaries are on your
+Unio has no bundled AI — it calls whatever binaries are on your
 PATH, so updating a CLI updates the fleet instantly. Update commands:
 
 ```bash
@@ -404,7 +410,7 @@ it has already happened three times in this system's short life (agy,
 opencode, codex). After updating, run:
 
 ```bash
-frugal-flock smoke        # one live call per agent; prints OK / FAIL per row
+unio smoke        # one live call per agent; prints OK / FAIL per row
 ```
 
 Equivalent manual form, if you want to see the raw output:
@@ -415,21 +421,21 @@ opencode run "say ok" --auto; grok -p "say ok" --always-approve
 ```
 
 If one fails with a usage/flag dump: `<binary> --help`, find the renamed
-flag, fix that agent's line in `~/.config/agentteam/agents.conf`. One
+flag, fix that agent's line in `~/.config/unio/agents.conf`. One
 line, two minutes — the drill you already know. Sensible cadence: monthly,
 or when a worker starts behaving oddly.
 
-### Updating Frugal Flock itself
+### Updating Unio itself
 
-Re-run `bash frugal-flock-install.sh` anytime: it overwrites the `frugal-flock`
+Re-run `bash unio-install.sh` anytime: it overwrites the `unio`
 command and templates with the newest versions but NEVER touches your
 `agents.conf` (your tuned flags survive). Existing projects keep their
 old MASTER.md/WORKER.md copies; new projects get the new templates. After
 big template changes, paste the new sections into important existing
 projects' MASTER.md by hand if you want them (re-running
-`frugal-flock init <worker>` in a project refreshes that worker's card).
+`unio init <worker>` in a project refreshes that worker's card).
 
-After any Frugal Flock update, run `frugal-flock selftest`: the entire loop —
+After any Unio update, run `unio selftest`: the entire loop —
 init, run, verify, bench, lock, background + kill, sync, review —
 rehearsed with mock agents in a throwaway sandbox. Zero quota, about
 fifteen seconds, and it exits red if the machinery broke.
@@ -445,7 +451,7 @@ library only, by design.
 ### Backups, standing policy
 
 Code: `git push` at session end — that's everything that matters.
-Config: `tar czf /mnt/c/Users/dmite/agentteam-conf.tgz -C ~ .config/agentteam`
+Config: `tar czf /mnt/c/Users/dmite/unio-conf.tgz -C ~ .config/unio`
 after conf changes (a few KB). Full VM export: optional, only when disk
 allows; the rebuild path (installer + five logins, under an hour) is
 documented and acceptable.
@@ -456,14 +462,14 @@ documented and acceptable.
 
 | Symptom | Cause → fix |
 |---|---|
-| `not inside a Frugal Flock project` | Wrong folder — cd into the project (it searches upward for coord/ + wt/). |
+| `not inside a Unio project` | Wrong folder — cd into the project (it searches upward for coord/ + wt/). |
 | Worker fails instantly, log shows a flag/usage dump | CLI updated, flag renamed → `--help`, fix agents.conf line. |
 | Worker fails, log says token/login expired | `<cli> logout && <cli> login`, rerun. |
 | Worker hangs | Waiting on a prompt auto-approve didn't cover, or agy's 5-minute default print timeout → check the .log. |
-| Log mentions rate/usage limit | `frugal-flock off <agent> 5h` (weekly: 7d), foreman reroutes. |
+| Log mentions rate/usage limit | `unio off <agent> 5h` (weekly: 7d), foreman reroutes. |
 | Report says done, diff shows uncommitted work | Worker forgot to commit → commit it yourself in `wt/<w>`, or rerun with sharper Done-means. |
 | Report says done, diff looks wrong | Normal. Reject; foreman re-briefs. The system working. |
-| `worker … is already running a task` | The per-worker lock: one run per workshop at a time → `frugal-flock status` to see what; stray background run: `frugal-flock kill <task>`. |
+| `worker … is already running a task` | The per-worker lock: one run per workshop at a time → `unio status` to see what; stray background run: `unio kill <task>`. |
 | verify says SCOPE VIOLATION | The worker left its lane → reject the branch, re-brief with corrected scope. Never merge a violating diff as-is. |
 | verify FAIL while the report claims success | Working as designed — the report lied, the machine caught it. Trust verify. |
 | verify says INCOMPLETE (exit 2) | The task has no "- path" scope lines or no "$ " Validate lines, or the worktree changed while the checks ran → fix the task through the foreman, or rerun verify. It is never a PASS. |
@@ -472,19 +478,19 @@ documented and acceptable.
 | "unsupported assume-unchanged/skip-worktree index flags" | Those git flags hide edits from scope and review → `git update-index --no-assume-unchanged --no-skip-worktree <path>` or `git sparse-checkout disable`. |
 | run: "post-run snapshot failed" | The worker left a FIFO, socket, device, nested repo or submodule. Its exit is recorded but the result stays not ready → remove the file, run again. |
 | "Python 3 is required before run/review/smoke" | Install `python3` (standard library only, nothing else is downloaded). |
-| git complains about `index.lock` | A killed run died mid-commit → the next `frugal-flock run` clears it automatically; by hand: delete `<gitdir>/index.lock`. |
+| git complains about `index.lock` | A killed run died mid-commit → the next `unio run` clears it automatically; by hand: delete `<gitdir>/index.lock`. |
 | "name must not contain a path separator / `..`" | Safety guard on worker/task ids (they build paths under `wt/` and `coord/tasks/`) → use the bare id, e.g. `T7-codex`. |
-| init: "this repo has no commits yet" | Worktrees branch from a commit → `git commit --allow-empty -m init`, then `frugal-flock init`. |
+| init: "this repo has no commits yet" | Worktrees branch from a commit → `git commit --allow-empty -m init`, then `unio init`. |
 | Two workers touched the same file | Scope overlap — accept one, reject the other, tell the foreman to fix disjointness. (Exception: a deliberate `race`, where only one branch merges anyway.) |
-| Everything on fire | `frugal-flock stop`, read status + reports, `resume` when understood. |
+| Everything on fire | `unio stop`, read status + reports, `resume` when understood. |
 
 ---
 
 ## 10. The document map
 
-Everything lives in [Frugal Flock](https://github.com/danielmevit/frugal-flock),
-the repository formerly called `agentteam-docs`. Clone it, run
-`bash frugal-flock-install.sh`, and sign in to the coding CLIs you choose
+Everything lives in [Unio](https://github.com/danielmevit/unio),
+the repository historically called Frugal Flock and `agentteam-docs`. Clone it, run
+`bash unio-install.sh`, and sign in to the coding CLIs you choose
 to use. You can start with one; all five are not required.
 
 - **docs/GUIDEBOOK.md** — the complete manual: every feature explained
@@ -495,11 +501,11 @@ to use. You can start with one; all five are not required.
   session rhythm, the worked example.
 - **docs/EXAMPLE.md** — the replayable tour of every command against a
   toy project with stand-in agents; rerun it anytime with
-  `bash examples/demo.sh /tmp/agentteam-demo` (zero quota).
+  `bash examples/demo.sh /tmp/unio-demo` (zero quota).
 - **docs/SETUP.md** — the compact install/setup reference.
 - **docs/MASTER-PLAN.md** — the deep explanation for a beginner + the
   phased roadmap; dictionary of every technical term.
-- **frugal-flock-install.sh** — the installer; run it, don't read it.
+- **unio-install.sh** — the installer; run it, don't read it.
 - **Your playbooks** (`ai-project-setup-playbook.md`,
   `ai-full-build-recipe.md`) — the working standard every foreman follows.
 - **multi-agent-claude-review.md** — the original research: why this

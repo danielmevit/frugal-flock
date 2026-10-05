@@ -1,13 +1,13 @@
-# Frugal Flock — quality milestone reference (M1)
+# Unio — quality milestone reference (M1)
 
-Milestone 1 is **in progress and not an accepted release**. The runtime
-prints 0.4.0, but the accepted baseline is still 0.3.1. See
-[M1-STATUS.md](M1-STATUS.md) for what is still open. This page describes
-what the current code does: strict verification, revision-bound results,
+Milestone 1 is complete and owner-accepted; its historical record is
+[M1-STATUS.md](M1-STATUS.md). This reference describes Unio 0.5.0 source,
+which has not been globally installed or released in this rename cycle.
+The legacy installed Frugal Flock 0.4.0 remains the build tool until a
+separate owner approval. Current source provides: strict verification, revision-bound results,
 gated review, local availability JSON and same-checkout handoff packets.
 
-Examples use the canonical `frugal-flock` command; `frgl-flc` and the
-legacy `agentteam` name run the same program. WORKER and TASK stand for a
+Examples use the only supported command, `unio`. WORKER and TASK stand for a
 worker name such as `codex` and a task ID such as `T7-codex`.
 
 ## Requirement: Python 3
@@ -138,7 +138,7 @@ an invalid worker or task ID.
 without automatic verification exits 0, but its validation stays
 `not_run` and the task is not ready.
 
-With `AGENTTEAM_AUTO_VERIFY=1`, verification runs while the same worker
+With `UNIO_AUTO_VERIFY=1`, verification runs while the same worker
 lock is held. A worker failure keeps its own nonzero exit. A successful
 worker followed by failed or incomplete verification returns the
 verification's exit (1 or 2).
@@ -194,7 +194,7 @@ A refusal records review `unknown`, `material_complete: false` and reason
 `incomplete_material`, and exits 2.
 
 The reviewer runs from an empty temporary folder, with `TASKFILE` pointing
-at the material and a time limit of `AGENTTEAM_REVIEW_TIMEOUT` seconds
+at the material and a time limit of `UNIO_REVIEW_TIMEOUT` seconds
 (default 900). Its configured command still has host-level access.
 
 Only stdout can carry the decision. Exactly one line may mention
@@ -305,7 +305,7 @@ after cleanup. Remove the unsupported file, then run the task again.
 
 Run `bash tools/quality-check.sh`. It installs only in temporary
 directories and runs the selftest, the mock quality regressions
-(`tests/frugal-flock-quality.sh`), the existing adversarial probes,
+(`tests/unio-quality.sh`), the existing adversarial probes,
 branding checks, ShellCheck and documentation lint. No provider is
 invoked. Python 3 and ShellCheck are checked locally; no dependency is
 downloaded.
@@ -329,8 +329,8 @@ with this source version; old reports are not retroactively inferred.
 Only after the owner approves another attempt, run:
 
 ```bash
-frugal-flock allow-retry TASK
-frugal-flock run WORKER TASK
+unio allow-retry TASK
+unio run WORKER TASK
 ```
 
 The grant permits one invocation, cannot accumulate, and keeps the failure

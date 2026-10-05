@@ -1,21 +1,21 @@
 # Read-only activity monitor (unreleased source)
 
-`frugal-flock watch` prints local activity when it changes, polling once
+`unio watch` prints local activity when it changes, polling once
 per second. Press Ctrl-C to exit. It runs no agent commands, reads no
 raw logs or credentials, and changes no project coordination files.
-The installed v0.4.0 stays unchanged until a deliberate release/install.
+The legacy installed Frugal Flock v0.4.0 stays unchanged until the owner
+approves a separate global Unio installation or release.
 
 ```bash
-frugal-flock watch
-frugal-flock watch --once
-frugal-flock watch --once --json
-frugal-flock watch --json --interval 0.5
+unio watch
+unio watch --once
+unio watch --once --json
+unio watch --json --interval 0.5
 ```
 
 JSON mode emits one complete JSON object per line, initially and whenever
 the observed state changes. `--once` prints one snapshot and exits.
-Intervals must be between 0.1 and 60 seconds. Both compatibility aliases
-(`frgl-flc`, `agentteam`) support the same command.
+Intervals must be between 0.1 and 60 seconds. Only `unio` is supported.
 
 Each snapshot includes STOP, local agent diagnostics and operator retry
 times, recorded process/validation/reviewer states, task retry-brake state,
@@ -26,7 +26,7 @@ malformed lines/results produce warnings instead of invented verdicts.
 Ledger replacement/truncation is followed on the next poll.
 
 These are recorded decisions, not fresh revision checks or human approval.
-Run `frugal-flock result WORKER TASK` to check current readiness. A recorded
+Run `unio result WORKER TASK` to check current readiness. A recorded
 running result with a free worker lock shows `completion_unknown`, retaining
 the native running state and null exit. Interruption is possible; the free
 lock does not establish that no detached process exists. A held lock is

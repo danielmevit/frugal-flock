@@ -23,7 +23,7 @@ Some providers expose usable information. For example, the official
 [Claude Code status-line documentation](https://code.claude.com/docs/en/statusline#rate-limit-usage)
 describes five-hour and weekly usage/reset fields in supported subscription
 contexts. Fields can be absent. This establishes a possible adapter input,
-not proof that a Frugal Flock adapter exists or every limit is observable.
+not proof that a Unio adapter exists or every limit is observable.
 Check current provider documentation and installed versions when building.
 
 Do not confuse subscription allowance, context-window space, API request

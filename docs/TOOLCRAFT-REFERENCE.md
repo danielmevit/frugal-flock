@@ -1,4 +1,4 @@
-# Toolcraft reference — original Frugal Flock UI
+# Toolcraft reference — original Unio UI
 
 ## Scope
 
@@ -11,7 +11,7 @@ The official [Mesh FX demo](https://toolcraft.sh/demos/mesh-fx) was viewed
 on 2026-10-03. It uses a dominant working area, a compact right-side
 inspector with grouped controls, restrained app chrome, and a small
 contextual toolbar. See also the [official project](https://toolcraft.sh/).
-No Toolcraft dependency or implementation was added to Frugal Flock.
+No Toolcraft dependency or implementation was added to Unio.
 
 ## Adapt the composition, not the creative-canvas product
 
@@ -22,7 +22,7 @@ No Toolcraft dependency or implementation was added to Frugal Flock.
 - Keep task-specific actions nearby. Label Start, Stop, Request changes,
   and Apply literally; never let a decorative control imply approval.
 - Use original typography, spacing, colors, icons, and components following
-  the Frugal Flock identity. No 3D runtime or image-processing canvas needed.
+  the Unio identity. No 3D runtime or image-processing canvas needed.
 - On narrow screens, collapse the inspector without hiding the next
   decision. Support keyboard focus, readable labels, and reduced motion.
 
