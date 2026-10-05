@@ -756,7 +756,7 @@ TPL_DIR="$CONF_DIR/templates"
 OFF_DIR="$CONF_DIR/off"
 TIMEOUT="${AGENTTEAM_TIMEOUT:-3600}"
 CG_INDEX_TIMEOUT="${AGENTTEAM_CG_INDEX_TIMEOUT:-600}"
-LIMIT_RE='rate.?limit|usage limit|limit (reached|exceeded)|quota|too many requests|resets (at|in)'
+LIMIT_RE='rate.?limit|usage limit|limit (reached|exceeded)|quota (exceeded|exhausted)|exceeded your quota|too many requests|resets (at|in)'
 
 die() { echo "frugal-flock: $*" >&2; exit 1; }
 
@@ -1862,17 +1862,13 @@ cmd_run() {
     echo '~~~'
   } >> "$report"
 
-  # limit detection is a helper only: a task whose own text mentions limits
-  # must not bench a healthy agent, and AUTO_OFF fires only on a FAILED run
+  # limit detection is a helper only: a run that exits 0 never counts, and
+  # only a FAILED run whose tail matches provider limit phrases walls
   local wall=0
-  if tail -n 40 "$log" | grep -qiE "$LIMIT_RE"; then
-    if grep -qiE "$LIMIT_RE" "$tf" && [ "$rc" -eq 0 ]; then
-      : # the task itself is about limits and the run succeeded — noise
-    else
-      wall=1
-      echo "!! output mentions usage limits — if '$agent' hit its 5h/weekly cap:  frugal-flock off $agent 5h   (weekly: 7d)" >&2
-      if [ "${AGENTTEAM_AUTO_OFF:-0}" = "1" ] && [ "$rc" -ne 0 ]; then cmd_off "$agent" 5h >&2; fi
-    fi
+  if [ "$rc" -ne 0 ] && tail -n 40 "$log" | grep -qiE "$LIMIT_RE"; then
+    wall=1
+    echo "!! output mentions usage limits — if '$agent' hit its 5h/weekly cap:  frugal-flock off $agent 5h   (weekly: 7d)" >&2
+    if [ "${AGENTTEAM_AUTO_OFF:-0}" = "1" ]; then cmd_off "$agent" 5h >&2; fi
   fi
 
   ledger_add "$root" "$(printf '{"event":"run","ts":"%s","task":"%s","worker":"%s","agent":"%s","exit":%d,"duration_s":%d,"wall_s":%d,"suspended":%d,"snapshot_failed":%d,"commits":%d,"files":%d,"insertions":%d,"deletions":%d,"uncommitted":%d,"wall":%d}' \
