@@ -1,9 +1,9 @@
-Frugal Flock — Small plans. Big ideas.
+Unio — Small plans. Big ideas.
 Copyright (C) 2026 Daniel Mitev
 Public attribution: Daniel Mevit (@danielmevit)
-Original project: https://github.com/danielmevit/frugal-flock
+Original project: https://github.com/danielmevit/unio
 
-Unless otherwise indicated, original Frugal Flock code and documentation
+Unless otherwise indicated, original Unio code and documentation
 are licensed under the GNU Affero General Public License, version 3 only
 (SPDX-License-Identifier: AGPL-3.0-only).
 
@@ -25,18 +25,18 @@ redistributing covered copies or modified versions, as the license requires.
 
 Additional terms under GNU AGPLv3 sections 7(b) and 7(c)
 
-For original Frugal Flock material copyrighted by Daniel Mitev:
+For original Unio material copyrighted by Daniel Mitev:
 
 1. Preserve the following reasonable author attribution in that material
    or in the Appropriate Legal Notices displayed by works containing it:
 
-   Frugal Flock — Copyright (C) 2026 Daniel Mitev
+   Unio — Copyright (C) 2026 Daniel Mitev
    Public attribution: Daniel Mevit (@danielmevit)
-   Original project: https://github.com/danielmevit/frugal-flock
+   Original project: https://github.com/danielmevit/unio
 
 2. Do not misrepresent the origin of that material. Modified versions of
-   that material must be marked as different from the original Frugal Flock.
+   that material must be marked as different from the original Unio.
 
-These terms concern covered Frugal Flock material. They do not require
+These terms concern covered Unio material. They do not require
 credit in independent projects merely developed using the tool. They do
 not prohibit selling copies in compliance with the GNU AGPLv3.

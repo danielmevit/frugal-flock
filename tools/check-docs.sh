@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
@@ -23,7 +23,7 @@
 set -uo pipefail
 
 # --selftest: prove the checks actually fire, on planted bugs (see the
-# agentteam selftest philosophy — a checker nobody checks is worth little).
+# unio selftest philosophy — a checker nobody checks is worth little).
 if [ "${1:-}" = "--selftest" ]; then
   t=$(mktemp -d); ok=0; fail=0
   probe() { # <name> <expect: bad|good> <content>
@@ -42,7 +42,7 @@ if [ "${1:-}" = "--selftest" ]; then
   probe table-pipe       bad  '# T\n\n| a | b |\n|---|---|\n| x | 30m|5h |\n'
   probe inline-fence     bad  '# T\n\nFences (```) are code.\n'
   probe clean-doc        good '# T\n\nUse `wt/<w>` here.\n\n| a | b |\n|---|---|\n| `[30m\\|5h]` | y |\n'
-  probe wrapped-span     good '# T\n\nRe-run `agentteam init\n<worker>` to refresh it.\n'
+  probe wrapped-span     good '# T\n\nRe-run `unio init\n<worker>` to refresh it.\n'
   probe README           good '# T\n\n<details>\n<summary>Is it free?</summary>\n\nYes.\n\n</details>\n'
   probe leak/README      bad  '# T\n\n<details>\n<summary>Why?</summary>\n\nBecause <reason>.\n\n</details>\n'
   probe dropdown-in-doc  bad  '# T\n\n<details>\n<summary>Is it free?</summary>\n\nYes.\n\n</details>\n'

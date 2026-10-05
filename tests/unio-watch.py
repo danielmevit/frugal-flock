@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
@@ -20,13 +20,13 @@ import tempfile
 source = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='watch-') as directory:
     base=Path(directory); root=base/'project'; repo=root/'repo'; repo.mkdir(parents=True)
-    env=dict(os.environ, AGENTTEAM_BIN_DIR=str(base/'bin'), AGENTTEAM_CONF_DIR=str(base/'conf'),
-             AGENTTEAM_COMPLETION_DIR=str(base/'completion'), AGENTTEAM_AUTO_VERIFY='0',
-             AGENTTEAM_AUTO_OFF='0', AGENTTEAM_AUTO_SYNC='0', AGENTTEAM_TIMEOUT='15',
+    env=dict(os.environ, UNIO_BIN_DIR=str(base/'bin'), UNIO_CONF_DIR=str(base/'conf'),
+             UNIO_COMPLETION_DIR=str(base/'completion'), UNIO_AUTO_VERIFY='0',
+             UNIO_AUTO_OFF='0', UNIO_AUTO_SYNC='0', UNIO_TIMEOUT='15',
              GIT_AUTHOR_NAME='mock', GIT_COMMITTER_NAME='mock',
              GIT_AUTHOR_EMAIL='mock@example.invalid', GIT_COMMITTER_EMAIL='mock@example.invalid')
-    subprocess.run(['bash',str(source/'frugal-flock-install.sh')],env=env,check=True,capture_output=True)
-    at=str(base/'bin/frugal-flock')
+    subprocess.run(['bash',str(source/'unio-install.sh')],env=env,check=True,capture_output=True)
+    at=str(base/'bin/unio')
     def call(*args, code=0):
         p=subprocess.run([at,*args],cwd=repo,env=env,capture_output=True,text=True,timeout=30)
         assert p.returncode==code,(args,p.returncode,p.stdout,p.stderr)
@@ -50,8 +50,8 @@ subprocess.run(['git','commit','-qm','mock'],check=True)
     def check(label, condition=True):
         global checks
         assert condition,label;checks+=1;print('  watch: '+label,flush=True)
-    def snapshot(alias=at):
-        p=subprocess.run([alias,'watch','--once','--json'],cwd=repo,env=env,capture_output=True,text=True,timeout=10)
+    def snapshot():
+        p=subprocess.run([at,'watch','--once','--json'],cwd=repo,env=env,capture_output=True,text=True,timeout=10)
         assert p.returncode==0,(p.stdout,p.stderr)
         return json.loads(p.stdout)
     def files():
@@ -66,7 +66,7 @@ subprocess.run(['git','commit','-qm','mock'],check=True)
     check('recorded process, validation and review shown separately',r['process']['state']=='succeeded' and r['validation']['state']=='passed' and r['review']['state']=='approved')
     check('monitor never claims current readiness', 'ready_for_human_review' not in json.dumps(s) and 'recorded' in s['evidence'])
     check('watching completed evidence is read only',files()==before and len(marker.read_text().splitlines())==1)
-    check('canonical and both compatibility aliases agree',all(snapshot(str(base/'bin'/a))['results']==s['results'] for a in ('agentteam','frgl-flc')))
+    check('repeated Unio snapshots agree',snapshot()['results']==s['results'])
     human=call('watch','--once').stdout
     check('human view explains recorded evidence', 'validation passed' in human and 'review approved' in human and 'Authentication/capacity unknown' in human)
     call('off','mock','5h');call('stop');s=snapshot();a=s['agents'][0]

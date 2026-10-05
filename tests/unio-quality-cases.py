@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
@@ -15,8 +15,8 @@ import time
 
 root = Path.cwd().parent
 wt = root / 'wt/mock'
-at = str(Path(os.environ['AGENTTEAM_BIN_DIR']) / 'frugal-flock')
-conf = Path(os.environ['AGENTTEAM_CONF_DIR']) / 'agents.conf'
+at = str(Path(os.environ['UNIO_BIN_DIR']) / 'unio')
+conf = Path(os.environ['UNIO_CONF_DIR']) / 'agents.conf'
 result = root / 'coord/results/mock/evidence.json'
 tf = root / 'coord/tasks/evidence.md'
 count = 0
@@ -98,7 +98,7 @@ for label, command, code, state in [
     d=data()
     check('review '+label, d['review']['state']==state and d['review']['process_exit_code']==(7 if state=='failed' else 0))
 configuration('sleep 3; printf "VERDICT: APPROVE\\n"')
-call('review','mock','evidence','rev',code=1,env={'AGENTTEAM_REVIEW_TIMEOUT':'1'})
+call('review','mock','evidence','rev',code=1,env={'UNIO_REVIEW_TIMEOUT':'1'})
 check('timeout process exit preserved',data()['review']['process_exit_code']==124)
 configuration()
 ready()
@@ -270,7 +270,7 @@ snap=root/'coord/results/mock/snapfail.json'
 ledger=root/'coord/reports/ledger.jsonl'
 for code in (7, 0):
     conf.write_text(f"mock=bash -c 'echo snap >> hello.txt; git add hello.txt; git commit -qm snap; mkfifo pipe; exit {code}'\n")
-    p=call('run','mock','snapfail',code=code or 2,env={'AGENTTEAM_AUTO_VERIFY':'1'})
+    p=call('run','mock','snapfail',code=code or 2,env={'UNIO_AUTO_VERIFY':'1'})
     d=json.loads(snap.read_text())
     check(f'snapshot failure keeps worker exit {code}',d['process']['exit_code']==code
           and d['process']['state']==('failed' if code else 'succeeded') and d['process']['post_run_snapshot']=='failed'

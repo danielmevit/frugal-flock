@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
@@ -10,21 +10,21 @@ set -euo pipefail
 QUALITY_REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 QUALITY_SB=$(mktemp -d)
 trap 'rm -rf -- "$QUALITY_SB"' EXIT
-export AGENTTEAM_BIN_DIR="$QUALITY_SB/bin"
-export AGENTTEAM_CONF_DIR="$QUALITY_SB/conf"
-export AGENTTEAM_COMPLETION_DIR="$QUALITY_SB/completion"
+export UNIO_BIN_DIR="$QUALITY_SB/bin"
+export UNIO_CONF_DIR="$QUALITY_SB/conf"
+export UNIO_COMPLETION_DIR="$QUALITY_SB/completion"
 export GIT_AUTHOR_NAME=quality-test GIT_AUTHOR_EMAIL=quality@test.invalid
 export GIT_COMMITTER_NAME=quality-test GIT_COMMITTER_EMAIL=quality@test.invalid
-export AGENTTEAM_TIMEOUT=30 AGENTTEAM_VERIFY_TIMEOUT=15
-export AGENTTEAM_AUTO_VERIFY=0 AGENTTEAM_AUTO_OFF=0 AGENTTEAM_AUTO_SYNC=0
-bash "$QUALITY_REPO/frugal-flock-install.sh" > "$QUALITY_SB/install.log"
-QUALITY_AT="$AGENTTEAM_BIN_DIR/frugal-flock"
+export UNIO_TIMEOUT=30 UNIO_VERIFY_TIMEOUT=15
+export UNIO_AUTO_VERIFY=0 UNIO_AUTO_OFF=0 UNIO_AUTO_SYNC=0
+bash "$QUALITY_REPO/unio-install.sh" > "$QUALITY_SB/install.log"
+QUALITY_AT="$UNIO_BIN_DIR/unio"
 git init -q -b dev "$QUALITY_SB/project/repo"
 cd "$QUALITY_SB/project/repo"
 git commit -qm initial --allow-empty
 "$QUALITY_AT" init mock noop > "$QUALITY_SB/init.log" 2>&1
 printf '%s\n' "mock=bash -c 'set -e; echo work >> hello.txt; git add hello.txt; git commit -qm quality; exit \"\${MOCK_EXIT:-0}\"'" \
-  "noop=bash -c 'exit 0'" > "$AGENTTEAM_CONF_DIR/agents.conf"
+  "noop=bash -c 'exit 0'" > "$UNIO_CONF_DIR/agents.conf"
 QUALITY_OK=0
 task() {
   printf '# Task %s\n## Goal\nquality\n## Allowed scope\n%s\n## Validate\n%s\n' \
@@ -59,13 +59,13 @@ task empty '- hello.txt' '$ true'
 expect 0 'empty worker process' "$QUALITY_AT" run noop empty
 expect 1 'empty candidate failure' "$QUALITY_AT" verify noop empty
 task auto-fail '- hello.txt' '$ false'
-expect 1 'auto-verify failure propagates' env AGENTTEAM_AUTO_VERIFY=1 "$QUALITY_AT" run mock auto-fail
+expect 1 'auto-verify failure propagates' env UNIO_AUTO_VERIFY=1 "$QUALITY_AT" run mock auto-fail
 task auto-incomplete '- hello.txt' ''
-expect 2 'auto-verify incomplete propagates' env AGENTTEAM_AUTO_VERIFY=1 "$QUALITY_AT" run mock auto-incomplete
+expect 2 'auto-verify incomplete propagates' env UNIO_AUTO_VERIFY=1 "$QUALITY_AT" run mock auto-incomplete
 task auto-pass '- hello.txt' '$ test -s hello.txt'
-expect 0 'automatic success' env AGENTTEAM_AUTO_VERIFY=1 "$QUALITY_AT" run mock auto-pass
+expect 0 'automatic success' env UNIO_AUTO_VERIFY=1 "$QUALITY_AT" run mock auto-pass
 task process-fail '- hello.txt' '$ true'
-expect 7 'worker failure preserved' env MOCK_EXIT=7 AGENTTEAM_AUTO_VERIFY=1 "$QUALITY_AT" run mock process-fail
+expect 7 'worker failure preserved' env MOCK_EXIT=7 UNIO_AUTO_VERIFY=1 "$QUALITY_AT" run mock process-fail
 echo "quality regressions: $QUALITY_OK passed"
-python3 "$QUALITY_REPO/tests/frugal-flock-quality-cases.py"
-python3 "$QUALITY_REPO/tests/frugal-flock-quality-coverage.py"
+python3 "$QUALITY_REPO/tests/unio-quality-cases.py"
+python3 "$QUALITY_REPO/tests/unio-quality-coverage.py"

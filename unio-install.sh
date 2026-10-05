@@ -1,30 +1,54 @@
 #!/usr/bin/env bash
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
-# Frugal Flock installer — Small plans. Big ideas.
+# Unio installer — Small plans. Big ideas.
 # One-master / many-CLI-workers orchestration for a
 # single Ubuntu VM. No API keys, no browser automation: every agent runs its
 # own official CLI headless under its own subscription login.
-# Installs: ~/.local/bin/{frugal-flock,frgl-flc,agentteam},
-#           ~/.config/agentteam/agents.conf (EDIT),
-#           ~/.config/agentteam/templates/
-# Then:     frugal-flock selftest   (mock-agent rehearsal, zero quota)
-#           cd <your repo clone> && frugal-flock init codex antigravity opencode grok
+# Installs: ~/.local/bin/unio,
+#           ~/.config/unio/agents.conf (EDIT),
+#           ~/.config/unio/templates/
+# Then:     unio selftest   (mock-agent rehearsal, zero quota)
+#           cd <your repo clone> && unio init codex antigravity opencode grok
 set -euo pipefail
 
-BIN_DIR="${AGENTTEAM_BIN_DIR:-$HOME/.local/bin}"
-CONF_DIR="${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}"
+BIN_DIR="${UNIO_BIN_DIR:-$HOME/.local/bin}"
+CONF_DIR="${UNIO_CONF_DIR:-$HOME/.config/unio}"
+COMP_DIR="${UNIO_COMPLETION_DIR:-$HOME/.local/share/bash-completion/completions}"
+legacy_conf_dir="$HOME/.config/agentteam"
+if [ "${UNIO_CONF_DIR+x}" != x ] && [ ! -e "$CONF_DIR" ] && [ ! -L "$CONF_DIR" ] && [ -d "$legacy_conf_dir" ]; then
+  mkdir -p "$CONF_DIR"
+  # Copy contents: the legacy path may itself be a directory symlink, but
+  # the new config must be independent. Preserve symlinks inside the tree.
+  cp -a -- "$legacy_conf_dir/." "$CONF_DIR"
+  echo "Copied legacy config from $legacy_conf_dir to $CONF_DIR (original kept)."
+fi
 TPL_DIR="$CONF_DIR/templates"
-mkdir -p "$BIN_DIR" "$CONF_DIR" "$TPL_DIR" "$CONF_DIR/playbooks"
+mkdir -p "$BIN_DIR" "$COMP_DIR" "$CONF_DIR" "$TPL_DIR" "$CONF_DIR/playbooks"
+
+# Remove only copies and links owned by the legacy installer.
+legacy_commands=(frugal-flock frgl-flc agentteam)
+legacy_link_target=agentteam
+legacy_version_marker='AGENTTEAM_VERSION='
+for legacy_dir in "$BIN_DIR" "$COMP_DIR"; do
+  for legacy_command in "${legacy_commands[@]}"; do
+    legacy_path="$legacy_dir/$legacy_command"
+    if { [ -L "$legacy_path" ] && [ "$(readlink -- "$legacy_path")" = "$legacy_link_target" ]; } \
+      || { [ ! -L "$legacy_path" ] && [ -f "$legacy_path" ] && grep -qF "$legacy_version_marker" "$legacy_path"; }; then
+      rm -- "$legacy_path"
+      echo "Removed legacy install: $legacy_path"
+    fi
+  done
+done
 
 # Keep the installer self-contained: standalone installs also receive the
 # complete license and original-project notice, without a network request.
 mkdir -p "$CONF_DIR/legal"
-cat > "$CONF_DIR/legal/LICENSE" <<'FLOCK_LICENSE_EOF'
+cat > "$CONF_DIR/legal/LICENSE" <<'UNIO_LICENSE_EOF'
                     GNU AFFERO GENERAL PUBLIC LICENSE
                        Version 3, 19 November 2007
 
@@ -686,14 +710,14 @@ specific requirements.
 if any, to sign a "copyright disclaimer" for the program, if necessary.
 For more information on this, and how to apply and follow the GNU AGPL, see
 <https://www.gnu.org/licenses/>.
-FLOCK_LICENSE_EOF
-cat > "$CONF_DIR/legal/NOTICE" <<'FLOCK_NOTICE_EOF'
-Frugal Flock — Small plans. Big ideas.
+UNIO_LICENSE_EOF
+cat > "$CONF_DIR/legal/NOTICE" <<'UNIO_NOTICE_EOF'
+Unio — Small plans. Big ideas.
 Copyright (C) 2026 Daniel Mitev
 Public attribution: Daniel Mevit (@danielmevit)
-Original project: https://github.com/danielmevit/frugal-flock
+Original project: https://github.com/danielmevit/unio
 
-Unless otherwise indicated, original Frugal Flock code and documentation
+Unless otherwise indicated, original Unio code and documentation
 are licensed under the GNU Affero General Public License, version 3 only
 (SPDX-License-Identifier: AGPL-3.0-only).
 
@@ -715,50 +739,50 @@ redistributing covered copies or modified versions, as the license requires.
 
 Additional terms under GNU AGPLv3 sections 7(b) and 7(c)
 
-For original Frugal Flock material copyrighted by Daniel Mitev:
+For original Unio material copyrighted by Daniel Mitev:
 
 1. Preserve the following reasonable author attribution in that material
    or in the Appropriate Legal Notices displayed by works containing it:
 
-   Frugal Flock — Copyright (C) 2026 Daniel Mitev
+   Unio — Copyright (C) 2026 Daniel Mitev
    Public attribution: Daniel Mevit (@danielmevit)
-   Original project: https://github.com/danielmevit/frugal-flock
+   Original project: https://github.com/danielmevit/unio
 
 2. Do not misrepresent the origin of that material. Modified versions of
-   that material must be marked as different from the original Frugal Flock.
+   that material must be marked as different from the original Unio.
 
-These terms concern covered Frugal Flock material. They do not require
+These terms concern covered Unio material. They do not require
 credit in independent projects merely developed using the tool. They do
 not prohibit selling copies in compliance with the GNU AGPLv3.
-FLOCK_NOTICE_EOF
+UNIO_NOTICE_EOF
 
-# ---------------------------------------------------------------- frugal-flock
-cat > "$BIN_DIR/agentteam" <<'AGENTTEAM_BIN_EOF'
+# ---------------------------------------------------------------- unio
+cat > "$BIN_DIR/unio" <<'UNIO_BIN_EOF'
 #!/usr/bin/env bash
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
-# Frugal Flock — Small plans. Big ideas.
+# Unio — Small plans. Big ideas.
 # Delegate tasks from a master CLI session to worker CLI agents.
-# Layout (created by `frugal-flock init` next to your repo clone):
+# Layout (created by `unio init` next to your repo clone):
 #   PROJECT/<clone>/  your repo on the base branch (dev) -> master runs here
 #   PROJECT/wt/<w>/   one git worktree per worker, branch agent/<w>
 #   PROJECT/coord/    board.md, base, docs/, tasks/, reports/, blockers.md, STOP
 set -euo pipefail
 
-AGENTTEAM_VERSION="0.4.0"
-CONF_DIR="${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}"
+UNIO_VERSION="0.5.0"
+CONF_DIR="${UNIO_CONF_DIR:-$HOME/.config/unio}"
 CONF_FILE="$CONF_DIR/agents.conf"
 TPL_DIR="$CONF_DIR/templates"
 OFF_DIR="$CONF_DIR/off"
-TIMEOUT="${AGENTTEAM_TIMEOUT:-3600}"
-CG_INDEX_TIMEOUT="${AGENTTEAM_CG_INDEX_TIMEOUT:-600}"
+TIMEOUT="${UNIO_TIMEOUT:-3600}"
+CG_INDEX_TIMEOUT="${UNIO_CG_INDEX_TIMEOUT:-600}"
 LIMIT_RE='rate.?limit|usage limit|limit (reached|exceeded)|quota (exceeded|exhausted)|exceeded your quota|too many requests|resets (at|in)'
 
-die() { echo "frugal-flock: $*" >&2; exit 1; }
+die() { echo "unio: $*" >&2; exit 1; }
 
 # One embedded runtime; Python uses only its standard library and never a shell.
 quality() {
@@ -1007,7 +1031,7 @@ def retry(root, task, operation, worker=''):
             if state['failed_attempts'] >= 2 and not state['retry_granted']:
                 atomic(path, state)
                 fail('loop brake: task ' + task + ' has ' + str(state['failed_attempts'])
-                     + ' failed attempts; owner must grant one attempt with: frugal-flock allow-retry ' + task)
+                     + ' failed attempts; owner must grant one attempt with: unio allow-retry ' + task)
             state['retry_granted'] = False
             state['latest'][worker] = dict(id=uuid.uuid4().hex, failed=False, pending=True)
         elif operation in ('end', 'fail'):
@@ -1240,7 +1264,7 @@ def activity_snapshot(root, conf, offdir):
 
 def watch(root, conf, offdir, *args):
     import argparse
-    parser = argparse.ArgumentParser(prog='frugal-flock watch', description='Read-only local activity; no provider or quota probes.')
+    parser = argparse.ArgumentParser(prog='unio watch', description='Read-only local activity; no provider or quota probes.')
     parser.add_argument('--once', action='store_true', help='print one snapshot and exit')
     parser.add_argument('--json', action='store_true', help='newline-delimited JSON snapshots')
     parser.add_argument('--interval', type=float, default=1, help='poll seconds (0.1 through 60; default 1)')
@@ -1259,7 +1283,7 @@ def watch(root, conf, offdir, *args):
                 if options.json:
                     print(json.dumps(state, ensure_ascii=True), flush=True)
                 else:
-                    print('\n[' + state['observed_at'] + '] Frugal Flock activity: STOP ' + ('active' if state['stopped'] else 'clear'))
+                    print('\n[' + state['observed_at'] + '] Unio activity: STOP ' + ('active' if state['stopped'] else 'clear'))
                     print('Recorded evidence; use result to recheck revision/readiness. Authentication/capacity unknown.')
                     for a in state['agents']:
                         b = a['bench']
@@ -1334,7 +1358,7 @@ may have been interrupted. Ready means only ready for human inspection.
 
 ## Next safe actions
 
-Read task.md and result.json. Run `frugal-flock result {worker} {task}`
+Read task.md and result.json. Run `unio result {worker} {task}`
 from the project. Recheck old evidence after new edits or a move to another
 machine: run verify, then review once validation passes. Commit remaining
 work before review. Only the owner decides acceptance and integration.
@@ -1370,7 +1394,7 @@ try:
         safe(a[0],'coord','.locks',a[1]+'.lock')
     else: fail('unknown quality command')
 except (ValueError,OSError,KeyError,TypeError) as exc:
-    print('frugal-flock quality: '+str(exc),file=sys.stderr)
+    print('unio quality: '+str(exc),file=sys.stderr)
     sys.exit(2)
 QUALITY_PY
 }
@@ -1505,12 +1529,12 @@ is_off() { # true if agent is off; auto-clears expired markers
 
 off_desc() {
   local exp; exp=$(cat "$OFF_DIR/$1" 2>/dev/null || true)
-  if [ -z "$exp" ]; then echo "manual — re-enable with: frugal-flock on $1"
+  if [ -z "$exp" ]; then echo "manual — re-enable with: unio on $1"
   else echo "auto-on in $(( (exp - $(date +%s) + 59) / 60 ))m"; fi
 }
 
 cmd_off() {
-  local agent="${1:-}"; [ -n "$agent" ] || die "usage: frugal-flock off <agent> [30m|5h|7d]"
+  local agent="${1:-}"; [ -n "$agent" ] || die "usage: unio off <agent> [30m|5h|7d]"
   check_id "$agent" agent   # the name addresses a file under OFF_DIR
   mkdir -p "$OFF_DIR"
   if [ -n "${2:-}" ]; then
@@ -1523,15 +1547,127 @@ cmd_off() {
 }
 
 cmd_on() {
-  local a="${1:-}"; [ -n "$a" ] || die "usage: frugal-flock on <agent>"
+  local a="${1:-}"; [ -n "$a" ] || die "usage: unio on <agent>"
   check_id "$a" agent       # without this, `on ../../x` is an rm -f primitive
   rm -f "$OFF_DIR/$a"; echo "agent '$a' ON"
+}
+
+# Recognize our current and legacy guard hooks, preserving unrelated hooks.
+is_unio_guard() {
+  local legacy_guard='agentteam guard'
+  grep -qF 'unio guard' "$1" || grep -qF "$legacy_guard" "$1"
+}
+
+migrate_project() {
+  local root="$1" main_dir="$2" legacy_marker excl
+  local legacy_worker_marker='.agentteam-worker'
+  excl="$(git -C "$main_dir" rev-parse --path-format=absolute --git-common-dir)/info/exclude"
+  mkdir -p "$(dirname "$excl")"
+  grep -qxF '.unio-worker' "$excl" 2>/dev/null || echo '.unio-worker' >> "$excl"
+  for legacy_marker in "$root"/wt/*/"$legacy_worker_marker"; do
+    [ -e "$legacy_marker" ] || [ -L "$legacy_marker" ] || continue
+    mv -- "$legacy_marker" "${legacy_marker%/*}/.unio-worker"
+    echo "Renamed legacy worker marker: $legacy_marker"
+  done
+}
+
+install_guard_hooks() {
+  # guard hooks: a worker worktree commits only on its own branch, never pushes
+  local hooks
+  hooks="$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)/hooks"
+  mkdir -p "$hooks"
+  if [ -f "$hooks/pre-commit" ] && ! is_unio_guard "$hooks/pre-commit"; then
+    echo "note: existing pre-commit hook left untouched — worker-branch guard NOT installed" >&2
+  else
+    cat > "$hooks/pre-commit" <<'HOOK_COMMIT_EOF'
+#!/bin/sh
+# Unio — Copyright (C) 2026 Daniel Mitev
+# Original project: https://github.com/danielmevit/unio
+# unio guard — inside a worker worktree, commit only on agent/<worker>
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$top/.unio-worker" ] || exit 0        # not a worker worktree: owner, allow
+w=$(cat "$top/.unio-worker")
+b=$(git rev-parse --abbrev-ref HEAD)
+if [ "$b" != "agent/$w" ]; then
+  echo "unio guard: worker '$w' must commit on agent/$w (currently on: $b)" >&2
+  exit 1
+fi
+HOOK_COMMIT_EOF
+    chmod +x "$hooks/pre-commit"
+  fi
+  if [ -f "$hooks/pre-push" ] && ! is_unio_guard "$hooks/pre-push"; then
+    echo "note: existing pre-push hook left untouched — worker no-push guard NOT installed" >&2
+  else
+    cat > "$hooks/pre-push" <<'HOOK_PUSH_EOF'
+#!/bin/sh
+# Unio — Copyright (C) 2026 Daniel Mitev
+# Original project: https://github.com/danielmevit/unio
+# unio guard — workers never push; the owner pushes from repo/
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+if [ -f "$top/.unio-worker" ]; then
+  echo "unio guard: workers do not push (owner pushes from repo/)" >&2
+  exit 1
+fi
+HOOK_PUSH_EOF
+    chmod +x "$hooks/pre-push"
+  fi
+  # pre-commit and pre-push cannot see `git update-ref`, so a worker could move
+  # the base branch straight from its worktree with nothing noticing. The
+  # reference-transaction hook fires on EVERY ref change, which closes that.
+  if [ -f "$hooks/reference-transaction" ] && ! is_unio_guard "$hooks/reference-transaction"; then
+    echo "note: existing reference-transaction hook left untouched — base-branch guard NOT installed" >&2
+  else
+    cat > "$hooks/reference-transaction" <<'HOOK_REFTX_EOF'
+#!/bin/sh
+# Unio — Copyright (C) 2026 Daniel Mitev
+# Original project: https://github.com/danielmevit/unio
+# unio guard — a worker worktree may only move its own agent/<w> ref
+[ "$1" = "prepared" ] || exit 0
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$top/.unio-worker" ] || exit 0        # owner: allow
+w=$(cat "$top/.unio-worker")
+root=$(dirname "$(dirname "$top")")
+base=$(cat "$root/coord/base" 2>/dev/null || echo main)
+while read -r _old _new ref; do
+  case "$ref" in
+    "refs/heads/agent/$w"|refs/stash|refs/notes/*) ;;
+    "refs/heads/$base"|refs/heads/main|refs/remotes/*)
+      echo "unio guard: worker '$w' may not move $ref" >&2
+      exit 1;;
+  esac
+done
+HOOK_REFTX_EOF
+    chmod +x "$hooks/reference-transaction"
+  fi
+
+  if [ -f "$hooks/post-merge" ] && ! is_unio_guard "$hooks/post-merge"; then
+    echo "note: existing post-merge hook left untouched — merges will not be ledger-logged" >&2
+  else
+    cat > "$hooks/post-merge" <<'HOOK_MERGE_EOF'
+#!/bin/sh
+# Unio — Copyright (C) 2026 Daniel Mitev
+# Original project: https://github.com/danielmevit/unio
+# unio guard — record every merge into the base branch as a ledger event
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$top/.unio-worker" ] && exit 0        # a worker's merge is not an owner merge
+root=$(dirname "$top")
+[ -d "$root/coord/reports" ] || exit 0
+p2=$(git rev-parse -q --verify HEAD^2 2>/dev/null) || exit 0
+w=$(git for-each-ref 'refs/heads/agent/*' --points-at "$p2" --format='%(refname:short)' 2>/dev/null | head -1)
+w=${w#agent/}
+s=$(git log -1 --format=%s | tr '"' "'")
+printf '{"event":"merge","ts":"%s","worker":"%s","subject":"%s"}\n' \
+  "$(date -Is)" "$w" "$s" >> "$root/coord/reports/ledger.jsonl"
+HOOK_MERGE_EOF
+    chmod +x "$hooks/post-merge"
+  fi
+
 }
 
 # ------------------------------------------------------------------ init
 cmd_init() {
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-    || die "run 'frugal-flock init' from inside your repo clone"
+    || die "run 'unio init' from inside your repo clone"
   # worktrees branch from a commit; an unborn HEAD gives a cryptic git error
   git rev-parse -q --verify HEAD >/dev/null 2>&1 \
     || die "this repo has no commits yet — make one first, e.g.:
@@ -1549,9 +1685,9 @@ cmd_init() {
   leaks=$(git -C "$main_dir" ls-files \
     | grep -E '(^|/)\.env(\.|$)|(^|/)id_(rsa|ed25519|ecdsa)($|\.)|\.(pem|p12|pfx)$|(^|/)(credentials|secrets?)\.(json|ya?ml|toml|txt)$' \
     || true)
-  if [ -n "$leaks" ] && [ "${AGENTTEAM_ALLOW_SECRETS:-0}" != "1" ]; then
+  if [ -n "$leaks" ] && [ "${UNIO_ALLOW_SECRETS:-0}" != "1" ]; then
     echo "$leaks" | sed 's/^/  /' >&2
-    die "possible secrets tracked in git (above) — untrack/gitignore them first, or rerun with AGENTTEAM_ALLOW_SECRETS=1"
+    die "possible secrets tracked in git (above) — untrack/gitignore them first, or rerun with UNIO_ALLOW_SECRETS=1"
   fi
 
   mkdir -p "$root/wt" "$root/coord/tasks" "$root/coord/reports" "$root/coord/docs" "$root/coord/.locks"
@@ -1576,87 +1712,8 @@ cmd_init() {
     grep -qxF "$f" "$excl" 2>/dev/null || echo "$f" >> "$excl"
   done
 
-  # guard hooks: a worker worktree commits only on its own branch, never pushes
-  local hooks
-  hooks="$(cd "$main_dir" && git rev-parse --path-format=absolute --git-common-dir)/hooks"
-  mkdir -p "$hooks"
-  if [ -f "$hooks/pre-commit" ] && ! grep -q 'agentteam guard' "$hooks/pre-commit"; then
-    echo "note: existing pre-commit hook left untouched — worker-branch guard NOT installed" >&2
-  else
-    cat > "$hooks/pre-commit" <<'HOOK_COMMIT_EOF'
-#!/bin/sh
-# agentteam guard — inside a worker worktree, commit only on agent/<worker>
-top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
-[ -f "$top/.agentteam-worker" ] || exit 0        # not a worker worktree: owner, allow
-w=$(cat "$top/.agentteam-worker")
-b=$(git rev-parse --abbrev-ref HEAD)
-if [ "$b" != "agent/$w" ]; then
-  echo "agentteam guard: worker '$w' must commit on agent/$w (currently on: $b)" >&2
-  exit 1
-fi
-HOOK_COMMIT_EOF
-    chmod +x "$hooks/pre-commit"
-  fi
-  if [ -f "$hooks/pre-push" ] && ! grep -q 'agentteam guard' "$hooks/pre-push"; then
-    echo "note: existing pre-push hook left untouched — worker no-push guard NOT installed" >&2
-  else
-    cat > "$hooks/pre-push" <<'HOOK_PUSH_EOF'
-#!/bin/sh
-# agentteam guard — workers never push; the owner pushes from repo/
-top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
-if [ -f "$top/.agentteam-worker" ]; then
-  echo "agentteam guard: workers do not push (owner pushes from repo/)" >&2
-  exit 1
-fi
-HOOK_PUSH_EOF
-    chmod +x "$hooks/pre-push"
-  fi
-  # pre-commit and pre-push cannot see `git update-ref`, so a worker could move
-  # the base branch straight from its worktree with nothing noticing. The
-  # reference-transaction hook fires on EVERY ref change, which closes that.
-  if [ -f "$hooks/reference-transaction" ] && ! grep -q 'agentteam guard' "$hooks/reference-transaction"; then
-    echo "note: existing reference-transaction hook left untouched — base-branch guard NOT installed" >&2
-  else
-    cat > "$hooks/reference-transaction" <<'HOOK_REFTX_EOF'
-#!/bin/sh
-# agentteam guard — a worker worktree may only move its own agent/<w> ref
-[ "$1" = "prepared" ] || exit 0
-top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
-[ -f "$top/.agentteam-worker" ] || exit 0        # owner: allow
-w=$(cat "$top/.agentteam-worker")
-root=$(dirname "$(dirname "$top")")
-base=$(cat "$root/coord/base" 2>/dev/null || echo main)
-while read -r _old _new ref; do
-  case "$ref" in
-    "refs/heads/agent/$w"|refs/stash|refs/notes/*) ;;
-    "refs/heads/$base"|refs/heads/main|refs/remotes/*)
-      echo "agentteam guard: worker '$w' may not move $ref" >&2
-      exit 1;;
-  esac
-done
-HOOK_REFTX_EOF
-    chmod +x "$hooks/reference-transaction"
-  fi
-
-  if [ -f "$hooks/post-merge" ] && ! grep -q 'agentteam guard' "$hooks/post-merge"; then
-    echo "note: existing post-merge hook left untouched — merges will not be ledger-logged" >&2
-  else
-    cat > "$hooks/post-merge" <<'HOOK_MERGE_EOF'
-#!/bin/sh
-# agentteam guard — record every merge into the base branch as a ledger event
-top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
-[ -f "$top/.agentteam-worker" ] && exit 0        # a worker's merge is not an owner merge
-root=$(dirname "$top")
-[ -d "$root/coord/reports" ] || exit 0
-p2=$(git rev-parse -q --verify HEAD^2 2>/dev/null) || exit 0
-w=$(git for-each-ref 'refs/heads/agent/*' --points-at "$p2" --format='%(refname:short)' 2>/dev/null | head -1)
-w=${w#agent/}
-s=$(git log -1 --format=%s | tr '"' "'")
-printf '{"event":"merge","ts":"%s","worker":"%s","subject":"%s"}\n' \
-  "$(date -Is)" "$w" "$s" >> "$root/coord/reports/ledger.jsonl"
-HOOK_MERGE_EOF
-    chmod +x "$hooks/post-merge"
-  fi
+  migrate_project "$root" "$main_dir"
+  install_guard_hooks "$main_dir"
 
   # master role card — readable by any master CLI via symlinked names
   [ -f "$main_dir/MASTER.md" ] || cp "$TPL_DIR/MASTER.md" "$main_dir/MASTER.md"
@@ -1681,8 +1738,7 @@ HOOK_MERGE_EOF
     # Identify a worker worktree by a marker file rather than by guessing from
     # the git dir path: when repo/ is ITSELF a linked worktree, the path guess
     # misfired and blocked the owner's own commits.
-    printf '%s\n' "$w" > "$root/wt/$w/.agentteam-worker"
-    grep -qxF '.agentteam-worker' "$excl" 2>/dev/null || echo '.agentteam-worker' >> "$excl"
+    printf '%s\n' "$w" > "$root/wt/$w/.unio-worker"
     for name in CLAUDE.md AGENTS.md GEMINI.md; do
       if [ -e "$root/wt/$w/$name" ] && [ ! -L "$root/wt/$w/$name" ]; then
         echo "note: $root/wt/$w/$name exists — add 'Also read and follow WORKER.md.' to it" >&2
@@ -1711,7 +1767,7 @@ HOOK_MERGE_EOF
     echo "codegraph    : indexing worktrees in the background (repo/ is indexed)"
   fi
   echo "playbooks    : drop your operational .md files into $root/coord/docs/"
-  echo "next         : frugal-flock agents"
+  echo "next         : unio agents"
 }
 
 # ------------------------------------------------------------------- run
@@ -1719,17 +1775,17 @@ cmd_run() {
   local bg=0
   if [ "${1:-}" = "-b" ]; then bg=1; shift; fi
   local worker="${1:-}" task="${2:-}"
-  [ -n "$worker" ] && [ -n "$task" ] || die "usage: frugal-flock run [-b] <worker> <task-id>"
+  [ -n "$worker" ] && [ -n "$task" ] || die "usage: unio run [-b] <worker> <task-id>"
   check_id "$worker" worker; check_id "$task" task
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
-  [ -f "$root/coord/STOP" ] && die "STOP is active (frugal-flock resume to clear)"
+  local root; root=$(find_root) || die "not inside a Unio project"
+  [ -f "$root/coord/STOP" ] && die "STOP is active (unio resume to clear)"
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"
   [ -f "$tf" ] || die "no task file: $tf"
   local wt="$root/wt/$worker"
-  [ -d "$wt" ] || die "no worktree for '$worker' — run: frugal-flock init $worker"
+  [ -d "$wt" ] || die "no worktree for '$worker' — run: unio init $worker"
   local agent="${worker%%-*}" conf cmdline base
-  is_off "$agent" && die "agent '$agent' is OFF ($(off_desc "$agent")) — reassign the task or: frugal-flock on $agent"
+  is_off "$agent" && die "agent '$agent' is OFF ($(off_desc "$agent")) — reassign the task or: unio on $agent"
   conf=$(conf_for_root "$root")
   cmdline=$(agent_cmd "$agent" "$conf") || die "no agents.conf entry for '$agent' in $conf"
   base=$(get_base "$root")
@@ -1741,22 +1797,22 @@ cmd_run() {
   local log="$root/coord/reports/$task.log"
 
   if [ "$bg" = 1 ]; then
-    lock_probe "$root" "$worker" || die "worker '$worker' is already running a task (frugal-flock status)"
+    lock_probe "$root" "$worker" || die "worker '$worker' is already running a task (unio status)"
     if command -v setsid >/dev/null 2>&1; then
-      AGENTTEAM_BG=1 nohup setsid -f "$0" run "$worker" "$task" >/dev/null 2>&1
+      UNIO_BG=1 nohup setsid -f "$0" run "$worker" "$task" >/dev/null 2>&1
     else
-      AGENTTEAM_BG=1 nohup "$0" run "$worker" "$task" >/dev/null 2>&1 &
+      UNIO_BG=1 nohup "$0" run "$worker" "$task" >/dev/null 2>&1 &
     fi
-    echo "started in background — poll: frugal-flock status   live: frugal-flock tail $task   abort: frugal-flock kill $task"
+    echo "started in background — poll: unio status   live: unio tail $task   abort: unio kill $task"
     return 0
   fi
 
   # one run per worker: hold the lock for the whole run (freed on exit)
   exec 9>>"$root/coord/.locks/$worker.lock"
-  flock -n 9 || die "worker '$worker' is already running a task (frugal-flock status)"
+  flock -n 9 || die "worker '$worker' is already running a task (unio status)"
 
   local pidfile=""
-  if [ "${AGENTTEAM_BG:-0}" = "1" ]; then
+  if [ "${UNIO_BG:-0}" = "1" ]; then
     pidfile="$root/coord/reports/$task.pid"
     echo "$$" > "$pidfile"
     # bake the path into the trap: it fires at script EXIT, after cmd_run has
@@ -1781,7 +1837,7 @@ cmd_run() {
   local behind
   behind=$(git -C "$wt" rev-list --count "HEAD..$base" 2>/dev/null || echo 0)
   if [ "${behind:-0}" -gt 0 ]; then
-    if [ "${AGENTTEAM_AUTO_SYNC:-0}" = "1" ] && [ -z "$(git -C "$wt" status --porcelain=v1 2>/dev/null)" ]; then
+    if [ "${UNIO_AUTO_SYNC:-0}" = "1" ] && [ -z "$(git -C "$wt" status --porcelain=v1 2>/dev/null)" ]; then
       if git -C "$wt" merge --no-edit "$base" >/dev/null 2>&1; then
         echo "note: '$worker' was $behind commit(s) behind $base — auto-synced before running"
       else
@@ -1790,7 +1846,7 @@ cmd_run() {
       fi
     else
       echo "!! '$worker' is $behind commit(s) behind $base — it may build against stale code." >&2
-      echo "   run 'frugal-flock sync $worker' first, or set AGENTTEAM_AUTO_SYNC=1." >&2
+      echo "   run 'unio sync $worker' first, or set UNIO_AUTO_SYNC=1." >&2
     fi
   fi
 
@@ -1867,8 +1923,8 @@ cmd_run() {
   local wall=0
   if [ "$rc" -ne 0 ] && tail -n 40 "$log" | grep -qiE "$LIMIT_RE"; then
     wall=1
-    echo "!! output mentions usage limits — if '$agent' hit its 5h/weekly cap:  frugal-flock off $agent 5h   (weekly: 7d)" >&2
-    if [ "${AGENTTEAM_AUTO_OFF:-0}" = "1" ]; then cmd_off "$agent" 5h >&2; fi
+    echo "!! output mentions usage limits — if '$agent' hit its 5h/weekly cap:  unio off $agent 5h   (weekly: 7d)" >&2
+    if [ "${UNIO_AUTO_OFF:-0}" = "1" ]; then cmd_off "$agent" 5h >&2; fi
   fi
 
   ledger_add "$root" "$(printf '{"event":"run","ts":"%s","task":"%s","worker":"%s","agent":"%s","exit":%d,"duration_s":%d,"wall_s":%d,"suspended":%d,"snapshot_failed":%d,"commits":%d,"files":%d,"insertions":%d,"deletions":%d,"uncommitted":%d,"wall":%d}' \
@@ -1882,12 +1938,12 @@ cmd_run() {
   local verify_rc=0
   if [ "$snap_failed" = 1 ] || [ "$record_failed" = 1 ]; then
     verify_rc=2   # no trustworthy revision to verify against
-  elif [ "${AGENTTEAM_AUTO_VERIFY:-0}" = "1" ]; then
+  elif [ "${UNIO_AUTO_VERIFY:-0}" = "1" ]; then
     # Keep the same lock across automatic validation; no new run may intervene.
     cmd_verify "$worker" "$task" locked || verify_rc=$?
-    echo "next: frugal-flock diff $worker"
+    echo "next: unio diff $worker"
   else
-    echo "next: frugal-flock verify $worker $task   then: frugal-flock diff $worker"
+    echo "next: unio verify $worker $task   then: unio diff $worker"
   fi
   [ "$rc" -eq 0 ] || return "$rc"
   return "$verify_rc"
@@ -1896,9 +1952,9 @@ cmd_run() {
 # ---------------------------------------------------------------- verify
 cmd_verify() {
   local worker="${1:-}" task="${2:-}"
-  [ -n "$worker" ] && [ -n "$task" ] || die "usage: frugal-flock verify <worker> <task-id>"
+  [ -n "$worker" ] && [ -n "$task" ] || die "usage: unio verify <worker> <task-id>"
   check_id "$worker" worker; check_id "$task" task
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  local root; root=$(find_root) || die "not inside a Unio project"
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
   local wt="$root/wt/$worker";           [ -d "$wt" ] || die "no worktree: $wt"
@@ -1973,7 +2029,7 @@ cmd_verify() {
     # Validate command that reads stdin (a bare `cat`, an interactive tool)
     # swallowed the REMAINING "$ " lines and the gate reported them as passed.
     # cmd_smoke has carried this guard for the same reason since day one.
-    out=$( cd "$wt" && timeout "${AGENTTEAM_VERIFY_TIMEOUT:-900}" bash -c "$cmd" </dev/null 2>&1 ) || rc=$?
+    out=$( cd "$wt" && timeout "${UNIO_VERIFY_TIMEOUT:-900}" bash -c "$cmd" </dev/null 2>&1 ) || rc=$?
     if [ "$rc" -eq 0 ]; then
       vout="${vout}  PASS  \$ $cmd"$'\n'
     else
@@ -2038,9 +2094,9 @@ cmd_verify() {
 }
 
 cmd_diff() {
-  local worker="${1:-}"; [ -n "$worker" ] || die "usage: frugal-flock diff <worker> [--stat]"
+  local worker="${1:-}"; [ -n "$worker" ] || die "usage: unio diff <worker> [--stat]"
   check_id "$worker" worker
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  local root; root=$(find_root) || die "not inside a Unio project"
   local wt="$root/wt/$worker"; [ -d "$wt" ] || die "no worktree: $wt"
   local mode="${2:-}" base; base=$(get_base "$root")
   echo "== branch/status =="
@@ -2055,7 +2111,7 @@ cmd_diff() {
 
 # ------------------------------------------------------------------ sync
 cmd_sync() { # after merges: bring base's new work into worker branches
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  local root; root=$(find_root) || die "not inside a Unio project"
   local base; base=$(get_base "$root")
   local list=("$@") wt w
   for w in "$@"; do check_id "$w" worker; done
@@ -2088,7 +2144,7 @@ cmd_sync() { # after merges: bring base's new work into worker branches
 }
 
 cmd_status() {
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  local root; root=$(find_root) || die "not inside a Unio project"
   local base; base=$(get_base "$root")
   [ -f "$root/coord/STOP" ] && echo "!! STOP is active — runs are blocked" && echo
   echo "== agents off (quota) =="
@@ -2127,19 +2183,19 @@ cmd_status() {
     t=$(basename "$pf" .pid)
     pid=$(cat "$pf" 2>/dev/null || true)
     if [ -n "$pid" ] && { pgrep -s "$pid" >/dev/null 2>&1 || kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; }; then
-      echo "  $t (background, pid $pid) — tail: frugal-flock tail $t   abort: frugal-flock kill $t"; any=1
+      echo "  $t (background, pid $pid) — tail: unio tail $t   abort: unio kill $t"; any=1
     else
       rm -f "$pf"
     fi
   done
-  local pg; pg=$(pgrep -af "bin/(agentteam|frugal-flock|frgl-flc) run" 2>/dev/null | grep -v "^$$ " || true)
+  local pg; pg=$(pgrep -af "bin/unio run" 2>/dev/null | grep -v "^$$ " || true)
   if [ -n "$pg" ]; then printf '%s\n' "$pg" | sed 's/^/  /'; any=1; fi
   [ "$any" = 1 ] || echo "  (none)"
 }
 
 cmd_watch() {
   local root conf
-  root=$(find_root) || die "not inside a Frugal Flock project"
+  root=$(find_root) || die "not inside a Unio project"
   conf=$(conf_for_root "$root")
   quality watch "$root" "$conf" "$OFF_DIR" "$@"
 }
@@ -2180,9 +2236,9 @@ cmd_smoke() { # one tiny live call per configured agent — the post-update ritu
 # ---------------------------------------------------------------- review
 cmd_review() { # a DIFFERENT vendor judges the task order + the diff
   local worker="${1:-}" task="${2:-}" reviewer="${3:-}"
-  [ -n "$worker" ] && [ -n "$task" ] || die "usage: frugal-flock review <worker> <task-id> [reviewer-agent]"
+  [ -n "$worker" ] && [ -n "$task" ] || die "usage: unio review <worker> <task-id> [reviewer-agent]"
   check_id "$worker" worker; check_id "$task" task
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  local root; root=$(find_root) || die "not inside a Unio project"
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
   local wt="$root/wt/$worker";           [ -d "$wt" ] || die "no worktree: $wt"
@@ -2206,7 +2262,7 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
       reviewer="$name"; break
     done < "$conf"
   fi
-  [ -n "$reviewer" ] || die "no available reviewer (all benched or missing) — name one: frugal-flock review $worker $task <agent>"
+  [ -n "$reviewer" ] || die "no available reviewer (all benched or missing) — name one: unio review $worker $task <agent>"
   check_id "$reviewer" reviewer
   is_off "$reviewer" && die "reviewer '$reviewer' is benched"
   [ "$reviewer" != "$author" ] || die "reviewer must be a different vendor than the author agent '$author'"
@@ -2221,8 +2277,8 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
   fi
   complete=yes
   host_warning || return $?
-  echo "[review] $reviewer reviewing $worker's '$task' (timeout ${AGENTTEAM_REVIEW_TIMEOUT:-900}s)"
-  ( cd "$nd" && TASKFILE="$pf" timeout "${AGENTTEAM_REVIEW_TIMEOUT:-900}" bash -c "$rcmd" </dev/null ) > "$stdout" 2> "$stderr" || rc=$?
+  echo "[review] $reviewer reviewing $worker's '$task' (timeout ${UNIO_REVIEW_TIMEOUT:-900}s)"
+  ( cd "$nd" && TASKFILE="$pf" timeout "${UNIO_REVIEW_TIMEOUT:-900}" bash -c "$rcmd" </dev/null ) > "$stdout" 2> "$stderr" || rc=$?
   cat "$stdout"
   state=$(quality verdict "$stdout") || state=unknown
   if [ "$rc" -ne 0 ]; then state=failed; ret=1; reasons=reviewer_process_failed
@@ -2258,7 +2314,7 @@ cmd_evidence() {
   local operation="$1" worker="${2:-}" task="${3:-}" root
   check_id "$worker" worker; check_id "$task" task
   task="${task%.md}"
-  root=$(find_root) || die "not inside a Frugal Flock project"
+  root=$(find_root) || die "not inside a Unio project"
   quality paths "$root" "$worker" "$task" || return $?
   if [ "$operation" = handoff ]; then
     mkdir -p "$root/coord/.locks"
@@ -2270,26 +2326,26 @@ cmd_evidence() {
 
 cmd_allow_retry() {
   local task="${1:-}" root
-  [ $# -eq 1 ] || die "usage: frugal-flock allow-retry <task-id>"
+  [ $# -eq 1 ] || die "usage: unio allow-retry <task-id>"
   task="${task%.md}"; check_id "$task" task
-  root=$(find_root) || die "not inside a Frugal Flock project"
+  root=$(find_root) || die "not inside a Unio project"
   quality retry "$root" "$task" allow
 }
 
 # ------------------------------------------------------------------ race
 cmd_race() { # same task to several workers in parallel; merge ONE winner
   local task="${1:-}"; shift || true
-  [ -n "$task" ] && [ $# -ge 2 ] || die "usage: frugal-flock race <task-id> <worker> <worker> [...]"
+  [ -n "$task" ] && [ $# -ge 2 ] || die "usage: unio race <task-id> <worker> <worker> [...]"
   check_id "$task" task
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  local root; root=$(find_root) || die "not inside a Unio project"
   task="${task%.md}"
   local tf="$root/coord/tasks/$task.md"; [ -f "$tf" ] || die "no task file: $tf"
   local w
   for w in "$@"; do
     check_id "$w" worker
-    [ -d "$root/wt/$w" ] || die "no worktree for '$w' — run: frugal-flock init $w"
+    [ -d "$root/wt/$w" ] || die "no worktree for '$w' — run: unio init $w"
     is_off "${w%%-*}" && die "agent '${w%%-*}' is OFF — bench-aware racing: pick another worker"
-    lock_probe "$root" "$w" || die "worker '$w' is busy (frugal-flock status)"
+    lock_probe "$root" "$w" || die "worker '$w' is busy (unio status)"
   done
   local ct
   for w in "$@"; do
@@ -2301,7 +2357,7 @@ cmd_race() { # same task to several workers in parallel; merge ONE winner
     "$0" run -b "$w" "$task-$w"
   done
   ledger_add "$root" "$(printf '{"event":"race","ts":"%s","task":"%s","workers":"%s"}' "$(date -Is)" "$task" "$*")"
-  echo "race on. compare: frugal-flock verify/diff per worker — merge exactly one winner, reject the rest."
+  echo "race on. compare: unio verify/diff per worker — merge exactly one winner, reject the rest."
 }
 
 # -------------------------------------------------------------- sabotage
@@ -2345,7 +2401,7 @@ sab_dispatch() { # $1=root $2=worker $3=background? — build the task and run i
 }
 
 cmd_sweep_saboteurs() { # internal: run the named workers as saboteurs, in turn
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  local root; root=$(find_root) || die "not inside a Unio project"
   local sweep="$root/coord/reports/saboteur-sweep.log" w
   : > "$sweep"
   for w in "$@"; do
@@ -2357,7 +2413,7 @@ cmd_sweep_saboteurs() { # internal: run the named workers as saboteurs, in turn
 }
 
 cmd_sabotage() { # the saboteur seat: attack fresh merges with failing tests
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  local root; root=$(find_root) || die "not inside a Unio project"
   [ -f "$TPL_DIR/SABOTEUR.md" ] || die "SABOTEUR.md template missing — rerun the installer"
 
   # --all: every available vendor in turn, one after another. Different models
@@ -2368,7 +2424,7 @@ cmd_sabotage() { # the saboteur seat: attack fresh merges with failing tests
     [ -n "$list" ] || die "no worker is available for the saboteur seat (all benched or busy)"
     echo "== saboteur sweep: $(printf '%s' "$list" | wc -l) vendor(s), sequentially =="
     printf '%s\n' "$list" | sed 's/^/   /'
-    echo "running detached — watch with: frugal-flock status"
+    echo "running detached — watch with: unio status"
     echo "progress log: $root/coord/reports/saboteur-sweep.log"
     # Detach the sweep the same way `run -b` does, so it survives this shell.
     # The sweep itself runs each vendor in the FOREGROUND, one after another.
@@ -2384,33 +2440,33 @@ cmd_sabotage() { # the saboteur seat: attack fresh merges with failing tests
   if [ -z "$worker" ]; then
     worker=$(sab_next "$root") \
       || die "no worker is available for the saboteur seat (all benched or busy)"
-    echo "saboteur rotation -> $worker  (override: frugal-flock sabotage <worker>)"
+    echo "saboteur rotation -> $worker  (override: unio sabotage <worker>)"
   fi
   check_id "$worker" worker
-  [ -d "$root/wt/$worker" ] || die "no worktree for '$worker' — run: frugal-flock init $worker"
+  [ -d "$root/wt/$worker" ] || die "no worktree for '$worker' — run: unio init $worker"
   is_off "${worker%%-*}" && die "agent '${worker%%-*}' is OFF"
-  lock_probe "$root" "$worker" || die "worker '$worker' is busy (frugal-flock status)"
+  lock_probe "$root" "$worker" || die "worker '$worker' is busy (unio status)"
   sab_dispatch "$root" "$worker" 1
 }
 
 # ------------------------------------------------------------- tail/kill
 cmd_tail() {
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  local root; root=$(find_root) || die "not inside a Unio project"
   local task="${1:-}" f
   if [ -n "$task" ]; then
     task="${task%.md}"; f="$root/coord/reports/$task.log"
   else
     f=$(ls -t "$root"/coord/reports/*.log 2>/dev/null | head -1 || true)
   fi
-  [ -n "$f" ] && [ -f "$f" ] || die "no log found (frugal-flock tail <task-id>)"
+  [ -n "$f" ] && [ -f "$f" ] || die "no log found (unio tail <task-id>)"
   echo ">> $f"
   exec tail -n 40 -f "$f"
 }
 
 cmd_kill() {
-  local task="${1:-}"; [ -n "$task" ] || die "usage: frugal-flock kill <task-id>"
+  local task="${1:-}"; [ -n "$task" ] || die "usage: unio kill <task-id>"
   check_id "${task%.md}" task
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  local root; root=$(find_root) || die "not inside a Unio project"
   task="${task%.md}"
   local pf="$root/coord/reports/$task.pid"
   [ -f "$pf" ] || die "no background run recorded for '$task' (foreground runs: Ctrl-C)"
@@ -2420,10 +2476,20 @@ cmd_kill() {
   # group-kill misses the agent because `timeout` runs it in its own group
   # A recorded pid is not proof of identity: after a SIGKILLed run the OS can
   # reuse it, and `kill` would then take out an innocent process. Confirm the
-  # session really is a Frugal Flock run before signalling it.
-  if [ -r "/proc/$pid/cmdline" ] && ! tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -Eq 'agentteam|frugal-flock|frgl-flc'; then
-    rm -f "$pf"
-    die "pid $pid is not a Frugal Flock run (stale pidfile removed) — refusing to signal it"
+  # session really is a Unio run before signalling it.
+  if [ -r "/proc/$pid/cmdline" ]; then
+    local -a run_argv=()
+    local interpreter script
+    mapfile -d '' -t run_argv < "/proc/$pid/cmdline" 2>/dev/null || true
+    interpreter="${run_argv[0]:-}"; script="${run_argv[1]:-}"
+    # Background re-exec uses the Bash shebang: bash <path>/unio run ... .
+    # Keep NUL argument boundaries, accepting any parent path (and spaces)
+    # without mistaking shell command text or later arguments for a script.
+    if [ "${interpreter##*/}" != bash ] || [ "${script##*/}" != unio ] \
+      || [ "${run_argv[2]:-}" != run ]; then
+      rm -f "$pf"
+      die "pid $pid is not a Unio run (stale pidfile removed) — refusing to signal it"
+    fi
   fi
   if pgrep -s "$pid" >/dev/null 2>&1; then
     pkill -TERM -s "$pid" 2>/dev/null || true
@@ -2445,19 +2511,19 @@ cmd_kill() {
 
 # ---------------------------------------------------------- report/version
 cmd_report() { # read a task's report without typing coord/reports paths
-  local task="${1:-}"; [ -n "$task" ] || die "usage: frugal-flock report <task-id> [lines]"
+  local task="${1:-}"; [ -n "$task" ] || die "usage: unio report <task-id> [lines]"
   check_id "${task%.md}" task
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  local root; root=$(find_root) || die "not inside a Unio project"
   task="${task%.md}"
   local f="$root/coord/reports/$task.md"
-  [ -f "$f" ] || die "no report yet for '$task' (run it first; live output: frugal-flock tail $task)"
+  [ -f "$f" ] || die "no report yet for '$task' (run it first; live output: unio tail $task)"
   local n="${2:-60}"
   echo ">> $f (last $n lines — full history is append-only above)"
   tail -n "$n" "$f"
 }
 
 cmd_version() {
-  echo "Frugal Flock $AGENTTEAM_VERSION ($0)"
+  echo "Unio $UNIO_VERSION ($0)"
   echo "Small plans. Big ideas."
   echo "config: $CONF_FILE"
 }
@@ -2466,7 +2532,7 @@ cmd_version() {
 cmd_score() { # fleet scorecard straight from the ledger; myapp = full view
   local root="${1:-}"
   if [ -n "$root" ]; then [ -d "$root/coord" ] || die "no coord/ under: $root"
-  else root=$(find_root) || die "not inside a Frugal Flock project (or: frugal-flock score <project-root>)"; fi
+  else root=$(find_root) || die "not inside a Unio project (or: unio score <project-root>)"; fi
   local lg="$root/coord/reports/ledger.jsonl"
   [ -f "$lg" ] || die "no ledger yet: $lg (it appears after the first run)"
   printf '  %-14s %5s %4s %5s %6s %8s %7s %8s\n' worker runs ok fail walls verify merges avg-dur
@@ -2506,21 +2572,27 @@ cmd_score() { # fleet scorecard straight from the ledger; myapp = full view
 
 # ----------------------------------------------------------------- doctor
 cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
-  local root; root=$(find_root) || die "not inside a Frugal Flock project"
+  local root; root=$(find_root) || die "not inside a Unio project"
   local base conf warn=0 bad=0
   base=$(get_base "$root"); conf=$(conf_for_root "$root")
-  local main_dir="$root/repo"
-  [ -d "$main_dir" ] || main_dir=$(dirname "$(git -C "$root"/wt/* rev-parse --git-common-dir 2>/dev/null | head -1)" 2>/dev/null)
+  local main_dir="$root/repo" candidate common_dir
+  if ! git -C "$main_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    for candidate in "$root"/wt/*/; do
+      common_dir=$(git -C "$candidate" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || continue
+      main_dir=$(dirname "$common_dir")
+      break
+    done
+  fi
   ok()   { printf '  ok    %s\n' "$1"; }
   warn() { printf '  WARN  %s\n' "$1"; warn=$((warn+1)); }
   err()  { printf '  ERR   %s\n' "$1"; bad=$((bad+1)); }
 
-  echo "== frugal-flock doctor =="
+  echo "== unio doctor =="
   echo "project: $root"
   echo "base:    $base"
 
   # STOP / config
-  [ -f "$root/coord/STOP" ] && warn "STOP is active — all runs are blocked (frugal-flock resume)" \
+  [ -f "$root/coord/STOP" ] && warn "STOP is active — all runs are blocked (unio resume)" \
                             || ok "no STOP file (runs allowed)"
   [ -f "$conf" ] && ok "agents.conf found: $conf" \
                  || err "no agents.conf at $conf — every run will fail"
@@ -2543,6 +2615,12 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
       || err "base branch '$base' does not exist in the repo — sync/merge/diff will misbehave"
   fi
 
+  if git -C "$main_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    migrate_project "$root" "$main_dir"
+  else
+    err "main repository could not be located — project migration skipped"
+  fi
+
   # each worker: worktree healthy, on its own branch, conf line present
   local wt w br agent behind dirty
   for wt in "$root"/wt/*/; do
@@ -2554,7 +2632,7 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
     br=$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null)
     [ "$br" = "agent/$w" ] || warn "worker '$w' is on branch '$br', expected 'agent/$w'"
     behind=$(git -C "$wt" rev-list --count "HEAD..$base" 2>/dev/null || echo 0)
-    [ "${behind:-0}" -gt 0 ] && warn "worker '$w' is $behind commit(s) behind $base (frugal-flock sync $w)"
+    [ "${behind:-0}" -gt 0 ] && warn "worker '$w' is $behind commit(s) behind $base (unio sync $w)"
     dirty=$(git -C "$wt" status --porcelain=v1 2>/dev/null | wc -l)
     [ "$dirty" -gt 0 ] && warn "worker '$w' has $dirty uncommitted file(s) in its worktree"
     if ! agent_cmd "$agent" "$conf" >/dev/null 2>&1; then
@@ -2569,9 +2647,17 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
   local hooks
   hooks=$(git -C "$main_dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/hooks
   if [ -d "$hooks" ]; then
-    grep -q 'agentteam guard' "$hooks/pre-commit" 2>/dev/null \
+    local legacy_guard='agentteam guard' hook legacy_hooks=0
+    for hook in pre-commit pre-push reference-transaction post-merge; do
+      if grep -qF "$legacy_guard" "$hooks/$hook" 2>/dev/null; then legacy_hooks=1; fi
+    done
+    if [ "$legacy_hooks" -eq 1 ]; then
+      install_guard_hooks "$main_dir"
+      ok "legacy guard hooks converted to Unio"
+    fi
+    is_unio_guard "$hooks/pre-commit" 2>/dev/null \
       && ok "guard hooks installed (worker-branch + no-push + merge-ledger)" \
-      || warn "guard hooks missing — re-run 'frugal-flock init <worker>' to install them"
+      || warn "guard hooks missing — re-run 'unio init <worker>' to install them"
   fi
 
   # stale control files
@@ -2582,7 +2668,7 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
     if [ -n "$pid" ] && { pgrep -s "$pid" >/dev/null 2>&1 || kill -0 "$pid" 2>/dev/null; }; then
       ok "background run live: $t (pid $pid)"
     else
-      warn "stale pidfile for '$t' (dead process) — 'frugal-flock status' clears it"
+      warn "stale pidfile for '$t' (dead process) — 'unio status' clears it"
     fi
   done
 
@@ -2607,7 +2693,7 @@ cmd_doctor() { # preflight: catch what would otherwise waste a run or quota
 
 # -------------------------------------------------------------------- new
 cmd_new() { # bootstrap: clone -> dev branch -> init -> playbooks, one command
-  local url="${1:-}"; [ -n "$url" ] || die "usage: frugal-flock new <repo-url> [name] [workers...]"
+  local url="${1:-}"; [ -n "$url" ] || die "usage: unio new <repo-url> [name] [workers...]"
   local name="${2:-}"
   [ -n "$name" ] || name=$(basename "$url" .git)
   shift; [ $# -gt 0 ] && shift || true
@@ -2630,10 +2716,10 @@ cmd_new() { # bootstrap: clone -> dev branch -> init -> playbooks, one command
   if [ "$copied" -gt 0 ]; then
     echo "playbooks   : $copied copied from $CONF_DIR/playbooks/ into coord/docs/"
   else
-    echo "playbooks   : none in $CONF_DIR/playbooks/ — drop your ai-*.md there once; every 'frugal-flock new' copies them in"
+    echo "playbooks   : none in $CONF_DIR/playbooks/ — drop your ai-*.md there once; every 'unio new' copies them in"
   fi
   echo "remote dev  : when ready:  cd $name/repo && git push -u origin dev"
-  echo "start       : cd $name/repo && frugal-flock agents"
+  echo "start       : cd $name/repo && unio agents"
 }
 
 # -------------------------------------------------------------- selftest
@@ -2660,15 +2746,15 @@ printf 'done %s\n' "$PWD" >> "$CG_LOG"
 ST_CG_EOF
   chmod +x "$d/bin/codegraph" || return 1
   git init -q -b dev "$d/p/repo" || return 1
-  git -C "$d/p/repo" -c user.email=selftest@agentteam.local \
-      -c user.name=agentteam-selftest commit -q --allow-empty -m init || return 1
+  git -C "$d/p/repo" -c user.email=selftest@unio.local \
+      -c user.name=unio-selftest commit -q --allow-empty -m init || return 1
   [ "$mode" = skip ] || mkdir -p "$d/p/repo/.codegraph"
 
   CG_LOG="$d/calls"; : > "$CG_LOG"
   # The cap is ~10x an ordinary init, and the fake index hangs for 45s: an
   # inline call cannot come in under it, which is what makes rc the assertion.
   out=$(cd "$d/p/repo" && CG_LOG="$CG_LOG" PATH="$d/bin:$PATH" \
-        AGENTTEAM_CG_INDEX_TIMEOUT=2 timeout 20 "$0" init mock 2>&1); rc=$?
+        UNIO_CG_INDEX_TIMEOUT=2 timeout 20 "$0" init mock 2>&1); rc=$?
   [ "$rc" -eq 0 ] || return 1
 
   case "$mode" in
@@ -2699,7 +2785,7 @@ cmd_selftest() { # the whole loop, rehearsed with mock agents — zero quota
   [ -f "$TPL_DIR/TASK.md" ] || die "templates missing at $TPL_DIR — rerun the installer"
 
   local ST; ST=$(mktemp -d)
-  echo "== frugal-flock selftest — sandbox: $ST =="
+  echo "== unio selftest — sandbox: $ST =="
   mkdir -p "$ST/conf/templates"
   cp "$TPL_DIR"/*.md "$ST/conf/templates/"
 
@@ -2714,24 +2800,24 @@ ST_CONF_EOF
   local repo="$ST/proj/repo"
   mkdir -p "$ST/proj"
   git init -q -b dev "$repo"
-  git -C "$repo" config user.email selftest@agentteam.local
-  git -C "$repo" config user.name  agentteam-selftest
+  git -C "$repo" config user.email selftest@unio.local
+  git -C "$repo" config user.name  unio-selftest
   git -C "$repo" commit -q --allow-empty -m "init"
 
-  export AGENTTEAM_CONF_DIR="$ST/conf"
+  export UNIO_CONF_DIR="$ST/conf"
   cd "$repo"
 
   st_chk "init scaffolds worktrees + coord" \
     bash -c '"$0" init mock rogue slow noop >/dev/null 2>&1 && [ -d ../wt/mock ] && [ -d ../wt/slow ] && [ -f ../coord/board.md ] && [ -f ../coord/tasks/TEMPLATE.md ]' "$0"
   st_chk "worker-branch guard hooks installed" \
-    bash -c 'grep -q "agentteam guard" .git/hooks/pre-commit && grep -q "agentteam guard" .git/hooks/pre-push'
+    bash -c 'grep -q "unio guard" .git/hooks/pre-commit && grep -q "unio guard" .git/hooks/pre-push'
 
   cat > ../coord/tasks/T1-mock.md <<'ST_T1_EOF'
 # Task T1 — worker: mock
 ## Goal
 Create hello.txt containing the word line.
 ## Context
-frugal-flock selftest task.
+unio selftest task.
 ## Allowed scope
 - hello.txt
 ## Constraints
@@ -2764,7 +2850,7 @@ ST_T1_EOF
 ## Goal
 Touch only hello.txt (the rogue agent will not).
 ## Context
-frugal-flock selftest — this worker intentionally leaves its scope.
+unio selftest — this worker intentionally leaves its scope.
 ## Allowed scope
 - hello.txt
 ## Validate
@@ -2804,7 +2890,7 @@ ST_T2_EOF
 ## Goal
 Sleep (background-run fodder for the selftest).
 ## Context
-frugal-flock selftest.
+unio selftest.
 ## Allowed scope
 - hello.txt
 ## Validate
@@ -2829,7 +2915,7 @@ ST_T3_EOF
   st_chk "score prints the fleet table" \
     bash -c '"$0" score 2>/dev/null | grep -q "  mock"' "$0"
   st_chk "AUTO_VERIFY appends the verdict on its own" \
-    bash -c 'AGENTTEAM_AUTO_VERIFY=1 "$0" run mock T1-mock >/dev/null 2>&1; [ "$(grep -c "### verify" ../coord/reports/T1-mock.md)" -ge 2 ]' "$0"
+    bash -c 'UNIO_AUTO_VERIFY=1 "$0" run mock T1-mock >/dev/null 2>&1; [ "$(grep -c "### verify" ../coord/reports/T1-mock.md)" -ge 2 ]' "$0"
   st_chk "new bootstraps a project from a repo url" \
     bash -c 'cd ../.. && "$0" new proj/repo freshcopy >/dev/null 2>&1 && [ -d freshcopy/wt/codex ] && [ -f freshcopy/coord/board.md ]' "$0"
 
@@ -2841,7 +2927,7 @@ ST_T3_EOF
 ## Goal
 No machine-run Validate lines here (prose only).
 ## Context
-frugal-flock selftest.
+unio selftest.
 ## Allowed scope
 - hello.txt
 ## Validate
@@ -2860,7 +2946,7 @@ ST_T4_EOF
 ## Goal
 The agent will do nothing; the machinery must notice.
 ## Context
-frugal-flock selftest.
+unio selftest.
 ## Allowed scope
 - hello.txt
 ## Validate
@@ -2884,7 +2970,7 @@ ST_T5_EOF
   st_chk "report command prints a task's history" \
     bash -c '"$0" report T1-mock 200 2>/dev/null | grep -q "worker=mock"' "$0"
   st_chk "version prints" \
-    bash -c '"$0" version | grep -q "^Frugal Flock "' "$0"
+    bash -c '"$0" version | grep -q "^Unio "' "$0"
   st_chk "task ids cannot escape coord/tasks" \
     bash -c '! "$0" run mock ../reports/T1-mock >/dev/null 2>&1' "$0"
   st_chk "worker ids cannot escape wt/" \
@@ -2907,7 +2993,7 @@ ST_T5_EOF
   st_chk "run warns when a worker is behind base (noop lagged the T1 merge)" \
     bash -c 'out=$("$0" run noop T5-noop 2>&1); printf "%s" "$out" | grep -qi "behind"' "$0"
   st_chk "AUTO_SYNC clears the stale-branch warning" \
-    bash -c 'out=$(AGENTTEAM_AUTO_SYNC=1 "$0" run noop T5-noop 2>&1); printf "%s" "$out" | grep -qi "auto-synced"' "$0"
+    bash -c 'out=$(UNIO_AUTO_SYNC=1 "$0" run noop T5-noop 2>&1); printf "%s" "$out" | grep -qi "auto-synced"' "$0"
 
   # saboteur rotation: no worker named => the seat is assigned round-robin,
   # and the choice is remembered so the next call moves on to another vendor
@@ -2950,50 +3036,50 @@ cmd_license() {
 
 cmd_help() {
   cat <<'HELP'
-Frugal Flock — Small plans. Big ideas.
+Unio — Small plans. Big ideas.
 One master CLI session delegating to worker CLI agents.
-Commands: frugal-flock (canonical), frgl-flc (short), agentteam (legacy).
+Command: unio.
 
 setup / health
-  frugal-flock new <repo-url> [name] [workers...]
+  unio new <repo-url> [name] [workers...]
                                      bootstrap a whole project: clone ->
                                      dev branch -> init -> playbooks copied
-                                     from ~/.config/agentteam/playbooks/
-  frugal-flock init [workers...]        scaffold wt/ + coord/ next to your clone
+                                     from ~/.config/unio/playbooks/
+  unio init [workers...]        scaffold wt/ + coord/ next to your clone
                                      (default: codex antigravity opencode grok)
                                      refuses while secret-looking files are
                                      tracked; installs worker-branch guard hooks
-  frugal-flock agents [--json]          list agents: binary found? on/off? Local
+  unio agents [--json]          list agents: binary found? on/off? Local
                                      only: never signs in, probes quota or runs
                                      a configured command. --json: schema 1,
                                      binary present true/false/null, bench,
                                      authentication + capacity "unknown",
                                      execution_boundary "trusted_host"
-  frugal-flock smoke                    one tiny live call per agent, from a
+  unio smoke                    one tiny live call per agent, from a
                                      neutral dir — run after every CLI update
-  frugal-flock selftest                 rehearse the whole loop with mock agents
+  unio selftest                 rehearse the whole loop with mock agents
                                      in a throwaway sandbox — zero quota
-  frugal-flock doctor                   preflight a project: base branch, agent
+  unio doctor                   preflight a project: base branch, agent
                                      binaries, python3, worktree health, stale
                                      state, disk — catch what would waste a run
 
 work
-  frugal-flock run [-b] <w> <task>      run coord/tasks/<task>.md in w's worktree
+  unio run [-b] <w> <task>      run coord/tasks/<task>.md in w's worktree
                                      (-b = background; one run per worker);
                                      a failed worker keeps its own exit code.
                                      Two failed attempts block further calls
-  frugal-flock allow-retry <task>      OWNER: grant one more attempt after the
+  unio allow-retry <task>      OWNER: grant one more attempt after the
                                      loop brake; preserves failure history
-  frugal-flock tail [task]              follow a run's live log (default: newest)
-  frugal-flock kill <task>              stop a background run (whole session)
-  frugal-flock report <task> [lines]    read a task's report (default: last 60)
-  frugal-flock verify <w> <task>        machine gate: diff vs the task's "- path"
+  unio tail [task]              follow a run's live log (default: newest)
+  unio kill <task>              stop a background run (whole session)
+  unio report <task> [lines]    read a task's report (default: last 60)
+  unio verify <w> <task>        machine gate: diff vs the task's "- path"
                                      scope lines + run its "$ " Validate lines
                                      + commit sanity; verdict into the report.
                                      exit 0 PASS, 1 FAIL, 2 INCOMPLETE (no scope
                                      or no Validate lines; there is no waiver)
-  frugal-flock diff <w> [--stat]        review a worker's changes vs base branch
-  frugal-flock review <w> <task> [agent]  a DIFFERENT vendor reviews the task
+  unio diff <w> [--stat]        review a worker's changes vs base branch
+  unio review <w> <task> [agent]  a DIFFERENT vendor reviews the task
                                      order + committed diff. Needs a current
                                      verify PASS and clean, committed, text-only
                                      material up to 300000 bytes (else refused,
@@ -3002,54 +3088,54 @@ work
                                      VERDICT: REQUEST-CHANGES. exit 0 approve,
                                      1 changes requested or reviewer failure,
                                      2 unknown, incomplete or stale
-  frugal-flock result <w> <task>        structured result from coord/results,
+  unio result <w> <task>        structured result from coord/results,
                                      rechecked against the current worktree:
                                      stale, ready_for_human_review (never human
                                      acceptance). JSON-only stdout, no provider
                                      call; exit 2 if missing, malformed or the
                                      worktree state is unsupported
-  frugal-flock handoff <w> <task>       write a NEW same-checkout context packet
+  unio handoff <w> <task>       write a NEW same-checkout context packet
                                      under coord/handoffs for the next AI:
                                      task, result, revision, changed files and
                                      HANDOFF.md. Context only, NOT a backup:
                                      uncommitted work stays in the worktree.
                                      Refuses a locked or running worker
-  frugal-flock sync [w]                 after merges: bring base into worker
+  unio sync [w]                 after merges: bring base into worker
                                      branches (ff/merge; skips dirty/running)
 
 fleet plays
-  frugal-flock race <task> <w1> <w2> [...]  same task to several workers in
+  unio race <task> <w1> <w2> [...]  same task to several workers in
                                      parallel — merge exactly one winner
-  frugal-flock sabotage [w]             saboteur seat: sync, then hunt fresh
+  unio sabotage [w]             saboteur seat: sync, then hunt fresh
                                      merges with failing tests (SAB-* task).
                                      No worker = next vendor in rotation.
-  frugal-flock sabotage --all           every available vendor in turn, one after
+  unio sabotage --all           every available vendor in turn, one after
                                      another — for a finished feature/release.
                                      Different models find different defects;
                                      agreement between them is the strongest
                                      signal a finding is real
-  frugal-flock score [project-root]     fleet scorecard from the ledger: runs,
+  unio score [project-root]     fleet scorecard from the ledger: runs,
                                      ok/fail, walls, verify rate, merges,
                                      avg duration — per worker
 
 switches
-  frugal-flock watch [--once] [--json] [--interval seconds]
+  unio watch [--once] [--json] [--interval seconds]
                                      read-only local activity on changes:
                                      recorded verdicts, failures and limits.
                                      No provider call, no current readiness
                                      claim; Ctrl-C exits (default poll 1s)
-  frugal-flock status                   off-agents, tasks, reports, review queue,
+  unio status                   off-agents, tasks, reports, review queue,
                                      running jobs
-  frugal-flock off <agent> [30m|5h|7d]  quota switch: disable an agent
-                                     (no duration = until 'frugal-flock on')
-  frugal-flock on <agent>               re-enable an agent
-  frugal-flock stop | resume            project kill switch for ALL new runs
-  frugal-flock version                  installed version + config path
-  frugal-flock license                  original credit and full AGPLv3 terms
+  unio off <agent> [30m|5h|7d]  quota switch: disable an agent
+                                     (no duration = until 'unio on')
+  unio on <agent>               re-enable an agent
+  unio stop | resume            project kill switch for ALL new runs
+  unio version                  installed version + config path
+  unio license                  original credit and full AGPLv3 terms
 
 Worker -> agent: prefix before first "-" ("codex-2" uses agent "codex").
-Config: ~/.config/agentteam/agents.conf (project override: coord/agents.conf).
-Compatibility: all AGENTTEAM_* variables and existing state paths are retained.
+Config: ~/.config/unio/agents.conf (project override: coord/agents.conf).
+Configuration overrides use UNIO_* environment variables.
 Linux flock is required for locking; it is never a product alias.
 Base branch: coord/base. Machine history: coord/reports/ledger.jsonl.
 Python 3 (standard library only) is required by run, verify, review, smoke,
@@ -3061,15 +3147,15 @@ skip-worktree index flags (verify, review, handoff); FIFOs, devices, sockets,
 nested repositories, submodules (run, verify, review, result, handoff). If one
 appears during a run, run keeps the worker's real exit, marks the result
 post_run_snapshot=failed (stale, never ready) and returns nonzero.
-Env: AGENTTEAM_TIMEOUT (3600s)  AGENTTEAM_VERIFY_TIMEOUT (900s)
-     AGENTTEAM_REVIEW_TIMEOUT (900s)  AGENTTEAM_ALLOW_SECRETS=1 (init override)
-     AGENTTEAM_AUTO_OFF=1 (bench 5h when a FAILED run mentions usage limits)
-     AGENTTEAM_AUTO_VERIFY=1 (append verify verdict; propagate failed/incomplete checks)
-     AGENTTEAM_AUTO_SYNC=1 (fast-forward a stale worker onto base before a run)
+Env: UNIO_TIMEOUT (3600s)  UNIO_VERIFY_TIMEOUT (900s)
+     UNIO_REVIEW_TIMEOUT (900s)  UNIO_ALLOW_SECRETS=1 (init override)
+     UNIO_AUTO_OFF=1 (bench 5h when a FAILED run mentions usage limits)
+     UNIO_AUTO_VERIFY=1 (append verify verdict; propagate failed/incomplete checks)
+     UNIO_AUTO_SYNC=1 (fast-forward a stale worker onto base before a run)
 
 Copyright (C) 2026 Daniel Mitev — Daniel Mevit (@danielmevit).
 License: AGPL-3.0-only; you may redistribute under its terms. No warranty.
-Run 'frugal-flock license' for the full license and original-project notice.
+Run 'unio license' for the full license and original-project notice.
 HELP
 }
 
@@ -3103,23 +3189,19 @@ case "${1:-help}" in
   resume)   shift; cmd_resume "$@";;
   allow-retry) shift; cmd_allow_retry "$@";;
   help|-h|--help) cmd_help;;
-  *) die "unknown command '${1}' (frugal-flock help)";;
+  *) die "unknown command '${1}' (unio help)";;
 esac
-AGENTTEAM_BIN_EOF
-chmod +x "$BIN_DIR/agentteam"
-# Keep one implementation at the legacy path so old installations upgrade in place.
-# Relative links also work when BIN_DIR contains spaces or the install is moved.
-ln -sfnT agentteam "$BIN_DIR/frugal-flock"
-ln -sfnT agentteam "$BIN_DIR/frgl-flc"
+UNIO_BIN_EOF
+chmod +x "$BIN_DIR/unio"
 # ------------------------------------------------------------- agents.conf
 if [ -f "$CONF_DIR/agents.conf" ]; then
   echo "keeping existing $CONF_DIR/agents.conf"
 else
 cat > "$CONF_DIR/agents.conf" <<'AGENTS_CONF_EOF'
-# frugal-flock agents.conf — one line per agent:  name=shell command
+# unio agents.conf — one line per agent:  name=shell command
 # $TASKFILE = task file path. Commands run INSIDE the worker's worktree.
 # Lego rules: add/remove lines freely; disable a quota-dead agent with
-# `frugal-flock off <name> 5h` (or 7d for weekly caps) — no editing needed.
+# `unio off <name> 5h` (or 7d for weekly caps) — no editing needed.
 # Syntax verified against official docs 2026-07-10; recheck with --help.
 
 # Claude Code (Anthropic sub). Unattended => skip-permissions; VM-only setting.
@@ -3154,7 +3236,7 @@ fi
 cat > "$TPL_DIR/MASTER.md" <<'MASTER_TPL_EOF'
 # Role: Team lead (plan, delegate, review, integrate — do NOT implement)
 
-You are the master session of a Frugal Flock CLI team. Daniel is the human
+You are the master session of a Unio CLI team. Daniel is the human
 owner: he approves plans and he merges. You never merge, never write code.
 
 Layout: this dir = the base branch (see ../coord/base — normally `dev`;
@@ -3171,29 +3253,29 @@ Coordination = ../coord.
 Plan first: present the breakdown to Daniel; delegate only after his "go".
 
 ## How to delegate
-1. `frugal-flock agents` — who is ON. OFF = quota-exhausted (5h/weekly cap).
+1. `unio agents` — who is ON. OFF = quota-exhausted (5h/weekly cap).
    Reroute per the policy below; never queue work on an OFF agent. If a
    worker's output hits a limit mid-cycle, tell Daniel and suggest
-   `frugal-flock off <agent> 5h` (weekly: 7d).
+   `unio off <agent> 5h` (weekly: 7d).
 2. Write ../coord/tasks/<ID>-<worker>.md from TEMPLATE.md. Workers have
    ZERO memory of this chat — task files must be self-contained. The
    "- path" lines under Allowed scope and the "$ " lines under Validate
-   are machine-enforced by `frugal-flock verify` — write them precisely.
-3. `frugal-flock run <worker> <ID>-<worker>` (long: add -b, poll with status,
-   watch live with `frugal-flock tail`).
-4. Machine check FIRST: `frugal-flock verify <worker> <ID>-<worker>` — scope
+   are machine-enforced by `unio verify` — write them precisely.
+3. `unio run <worker> <ID>-<worker>` (long: add -b, poll with status,
+   watch live with `unio tail`).
+4. Machine check FIRST: `unio verify <worker> <ID>-<worker>` — scope
    compliance, Validate commands re-run, commit sanity; the verdict lands
    in the report. Then read ../coord/reports/<ID>-<worker>.md and the REAL
-   diff: `frugal-flock diff <worker>`. Never trust a report without both.
+   diff: `unio diff <worker>`. Never trust a report without both.
    For risky or large diffs, get a rival's opinion too:
-   `frugal-flock review <worker> <ID>-<worker>` (a different vendor judges it).
+   `unio review <worker> <ID>-<worker>` (a different vendor judges it).
 5. Accept only if the milestone gate passes: verify PASS + clean build
    (0 warnings where the repo enforces it) + tests green + smoke run +
    changelog fragment changelog.d/<ID>.md (if the repo keeps a CHANGELOG —
    workers never edit CHANGELOG.md itself). Then tell Daniel the branch is
    ready to merge into the base branch. Reject -> sharper task file (<ID>b),
    rerun. Two failed attempts -> escalate to Daniel.
-6. After Daniel merges: `frugal-flock sync` — every workshop rebuilds on the
+6. After Daniel merges: `unio sync` — every workshop rebuilds on the
    new base instead of drifting stale. At release time, roll the
    changelog.d/ fragments into CHANGELOG.md (you may edit docs).
 
@@ -3214,7 +3296,7 @@ Plan first: present the breakdown to Daniel; delegate only after his "go".
   every cycle; if ../coord/STOP exists, stop delegating immediately.
 
 ## Fleet intelligence
-- `frugal-flock score` — the always-available scorecard from the ledger:
+- `unio score` — the always-available scorecard from the ledger:
   runs, ok/fail, walls, verify pass-rate, merges (auto-logged by the
   post-merge hook), avg duration, per worker. Consult it when assigning
   tasks — favor workers that earn merges; flag chronic wall-hitters.
@@ -3223,9 +3305,9 @@ Plan first: present the breakdown to Daniel; delegate only after his "go".
 - ../coord/reports/ledger.jsonl is the machine history: one JSON line per
   run/verify/review/race/merge with durations and diffstats. Cite it,
   not vibes.
-- Head-to-head data when vendors disagree: `frugal-flock race <task> w1 w2`
+- Head-to-head data when vendors disagree: `unio race <task> w1 w2`
   runs one task on several vendors in parallel; exactly one winner merges.
-- Spare quota after merge days -> `frugal-flock sabotage <worker>`: the
+- Spare quota after merge days -> `unio sabotage <worker>`: the
   saboteur seat attacks freshly merged work with failing tests. Real bugs
   found there are cheaper than bugs found by users.
 MASTER_TPL_EOF
@@ -3233,7 +3315,7 @@ MASTER_TPL_EOF
 cat > "$TPL_DIR/WORKER.md" <<'WORKER_TPL_EOF'
 # Role: worker "{{WORKER}}"
 
-You are one worker in a Frugal Flock team. Your entire assignment is the
+You are one worker in a Unio team. Your entire assignment is the
 task prompt you were given. Follow it exactly.
 
 - Onboard first if present: this repo's AGENTS.md and docs/ai/START_HERE.md
@@ -3242,7 +3324,7 @@ task prompt you were given. Follow it exactly.
   Never switch branches, never push, never touch the base branch (dev/main).
   Git hooks enforce this; do not fight them.
 - Modify only files in the task's "Allowed scope". The "- path" lines there
-  are machine-checked after your run (`frugal-flock verify`) — out-of-scope
+  are machine-checked after your run (`unio verify`) — out-of-scope
   edits get the whole branch rejected. Need something outside it? Do NOT
   touch it — finish what you can, state the need in your report.
 - No architecture changes, no new dependencies, unless the task grants them.
@@ -3275,7 +3357,7 @@ the code does now, relevant files and roles, decisions already made, frozen
 contracts ("types in src/api/types.ts @ <sha> — do not change them").
 
 ## Allowed scope
-One "- path" line per allowed file or directory — ENFORCED by `frugal-flock
+One "- path" line per allowed file or directory — ENFORCED by `unio
 verify` (globs ok; a trailing / means the whole directory; changelog.d/
 is always allowed):
 - src/feature.py
@@ -3286,7 +3368,7 @@ Libraries to use/avoid, style, frozen interfaces, no new deps.
 
 ## Validate
 Prose is fine here, but every line starting with "$ " is machine-run by
-`frugal-flock verify` inside the worktree and must exit 0:
+`unio verify` inside the worktree and must exit 0:
 $ dotnet build -c Release
 $ python3 -m unittest discover tests -v
 
@@ -3378,15 +3460,20 @@ failing test name), EXPECTED vs ACTUAL, SEVERITY.
 SABOTEUR_TPL_EOF
 
 cat > "$TPL_DIR/PROTOCOL.md" <<'PROTOCOL_TPL_EOF'
-# Frugal Flock Protocol — system specification for AI agents
+# Unio Protocol — system specification for AI agents
 
-Audience: AI agents (lead or worker) operating inside a Frugal Flock project.
+<!--
+Unio — Copyright (C) 2026 Daniel Mitev
+Original project: https://github.com/danielmevit/unio
+-->
+
+Audience: AI agents (lead or worker) operating inside a Unio project.
 Status: normative. If your role card (MASTER.md / WORKER.md) conflicts with
 this document, the role card wins. The human owner (Daniel) outranks both.
 
 ## 1. SYSTEM
 
-Frugal Flock coordinates one interactive LEAD session and N headless WORKER
+Unio coordinates one interactive LEAD session and N headless WORKER
 runs from different AI CLIs (claude, codex, agy/antigravity, grok,
 opencode) on one shared git repository. Isolation is per-worker git
 worktrees. Coordination is plain files. Integration is human-gated merges.
@@ -3416,12 +3503,12 @@ Layout relative to project root:
 | `coord/docs/` | Operating playbooks + this protocol | OWNER |
 | `coord/board.md` | Task board, one row per task | LEAD only |
 | `coord/tasks/<ID>-<worker>.md` | Task files (work orders) | LEAD only |
-| `coord/reports/<task>.md` | Append-only run history per task | Frugal Flock tooling |
-| `coord/reports/<task>.log` | Latest run's full output (overwritten) | Frugal Flock tooling |
-| `coord/reports/ledger.jsonl` | Append-only machine ledger: one JSON object per event | Frugal Flock tooling |
-| `coord/reports/<task>.review.*/` | Raw reviewer stdout and stderr, one folder per review | Frugal Flock tooling |
-| `coord/results/<w>/<task>.json` | Structured result (schema 1), replaced atomically under the worker lock | Frugal Flock tooling |
-| `coord/handoffs/<w>/<task>/` | One new context packet per `handoff`; earlier packets are kept | Frugal Flock tooling |
+| `coord/reports/<task>.md` | Append-only run history per task | Unio tooling |
+| `coord/reports/<task>.log` | Latest run's full output (overwritten) | Unio tooling |
+| `coord/reports/ledger.jsonl` | Append-only machine ledger: one JSON object per event | Unio tooling |
+| `coord/reports/<task>.review.*/` | Raw reviewer stdout and stderr, one folder per review | Unio tooling |
+| `coord/results/<w>/<task>.json` | Structured result (schema 1), replaced atomically under the worker lock | Unio tooling |
+| `coord/handoffs/<w>/<task>/` | One new context packet per `handoff`; earlier packets are kept | Unio tooling |
 | `coord/blockers.md` | Blocker notes | anyone, APPEND only |
 | `coord/STOP` | If present: all new runs refused | OWNER |
 
@@ -3436,11 +3523,11 @@ only the latest run and MUST NOT be used as history.
 Timing rule: `duration_s` is measured on a monotonic clock and therefore
 excludes time the machine spent asleep; `wall_s` is the wall-clock elapsed
 time and `suspended` is 1 when the two diverge by more than a minute. A
-suspended run's elapsed time is meaningless — `frugal-flock score` excludes it
+suspended run's elapsed time is meaningless — `unio score` excludes it
 from averages, and any other analysis MUST do the same.
 
-Enforcement at init: `frugal-flock init` refuses to scaffold while likely
-secret files are tracked (override: AGENTTEAM_ALLOW_SECRETS=1), and
+Enforcement at init: `unio init` refuses to scaffold while likely
+secret files are tracked (override: UNIO_ALLOW_SECRETS=1), and
 installs git hooks: a worker worktree can commit only on its own
 `agent/<w>` branch and can never push, and every merge into the base
 branch is recorded as a ledger `merge` event (post-merge hook).
@@ -3465,7 +3552,7 @@ commits=<n> files=<n> insertions=<n> deletions=<n> uncommitted=<n>
 ~~~
 ```
 
-Verify block (appended by `frugal-flock verify`):
+Verify block (appended by `unio verify`):
 `### verify <ts> — worker=<w> scope=<OK|VIOLATION|UNCHECKED>
 validate=<passed>/<run> empty=<0|1> verdict=<PASS|FAIL|INCOMPLETE>` plus
 out-of-scope paths, individual reasons, and per-command results. PASS exits
@@ -3511,7 +3598,7 @@ evidence revision differs from the current one (commit, base, task file,
 index, tracked or nonignored untracked content). `ready_for_human_review`
 needs a succeeded process, passed validation and approved review, all at the
 current revision and not stale. It is never human acceptance or permission
-to integrate. `frugal-flock result` prints this JSON only, recomputed against
+to integrate. `unio result` prints this JSON only, recomputed against
 the current worktree; a missing or malformed file fails closed (exit 2), and
 old report text is never backfilled as structured evidence.
 
@@ -3519,14 +3606,14 @@ Loop brake: after two failed attempts on a task ID, `run` refuses before
 calling a provider (exit 2), shared across workers. Nonzero exits, failed or
 incomplete verification and interrupted tracked starts count once per
 attempt. Repeated verification does not add failures. Only the owner may
-use `frugal-flock allow-retry TASK` to grant one invocation; grants do not
+use `unio allow-retry TASK` to grant one invocation; grants do not
 accumulate or erase failures. State is local in `coord/retries/TASK/`,
 locked across workers; malformed or symlink state fails closed. Tracking
 starts with this source version, without inferring historical outcomes.
 Workers must not grant themselves retries. This is trusted-host coordination,
 not an access-control boundary or provider-quota approval.
 
-Review gate: `frugal-flock review` needs current passed validation. Its
+Review gate: `unio review` needs current passed validation. Its
 material is the task file plus the full committed diff against base. It is
 refused (exit 2, review recorded `unknown`, `material_complete` false) for
 staged, unstaged or untracked work, binary changes, non-UTF-8 data, more than
@@ -3546,7 +3633,7 @@ uncommitted and untracked contents stay in the source worktree. Credentials,
 agents.conf, ignored files and raw logs are never copied; task text may be
 sensitive, so review a packet before sharing it.
 
-Activity monitor: `frugal-flock watch [--once] [--json] [--interval seconds]`
+Activity monitor: `unio watch [--once] [--json] [--interval seconds]`
 observes local results, worker locks, retry-brake state, STOP, agent diagnostics
 and up to 20 recent ledger events. It calls no provider, rewrites no evidence,
 and reads no raw logs or task contents. JSON snapshots emit initially and
@@ -3556,7 +3643,7 @@ keeping its native state/null exit. A free lock does not rule out detached
 processes. Capacity/auth stay unknown; wall signals are runner log patterns,
 and operator retry times are not provider resets. See docs/WATCH-USAGE.md.
 
-Availability (`frugal-flock agents --json`, local only, never executes a
+Availability (`unio agents --json`, local only, never executes a
 configured command or probes sign-in or quota):
 
 ```text
@@ -3582,34 +3669,34 @@ with state ∈ {todo, doing, blocked, review, done}.
 Worker→agent resolution: agent id = worker name up to first `-`
 (worker `codex-2` → agent `codex`).
 
-## 4. THE `frugal-flock` COMMANDS (local shell tool)
+## 4. THE `unio` COMMANDS (local shell tool)
 
-To be explicit: these are subcommands of the local `frugal-flock` shell
+To be explicit: these are subcommands of the local `unio` shell
 script. No AI-provider API is involved anywhere in this system — every
 agent is an official CLI running under its own subscription LOGIN
 (cached on the machine), never an API key.
 
 ```text
-frugal-flock init [w1 w2 ...]     scaffold worktrees + coord (idempotent);
+unio init [w1 w2 ...]     scaffold worktrees + coord (idempotent);
                                secrets preflight; guard hooks
-frugal-flock agents [--json]      list agents: binary present, on/off state;
+unio agents [--json]      list agents: binary present, on/off state;
                                --json = schema 1, local only (see §3)
-frugal-flock smoke                one tiny live call per agent from a neutral
+unio smoke                one tiny live call per agent from a neutral
                                dir (still trusted_host); OK / WARN (reply
                                lacks "ok") / FAIL
-frugal-flock selftest             full-loop rehearsal in a sandbox repo with
+unio selftest             full-loop rehearsal in a sandbox repo with
                                mock agents; zero quota; nonzero on failure
-frugal-flock run [-b] <w> <task>  execute coord/tasks/<task>.md as worker <w>
+unio run [-b] <w> <task>  execute coord/tasks/<task>.md as worker <w>
                                in wt/<w>; -b = background; per-worker lock;
                                writes report+log+ledger+structured result;
                                a failed worker's own exit code wins
-frugal-flock tail [task]          follow a run's live log (default: newest)
-frugal-flock kill <task>          terminate a background run (whole session,
+unio tail [task]          follow a run's live log (default: newest)
+unio kill <task>          terminate a background run (whole session,
                                including the agent under `timeout`)
-frugal-flock report <task> [n]    print the last n (default 60) lines of a
+unio report <task> [n]    print the last n (default 60) lines of a
                                task's append-only report
-frugal-flock version              installed tool version + config path
-frugal-flock verify <w> <task>    machine gate assist: diff vs the task's
+unio version              installed tool version + config path
+unio verify <w> <task>    machine gate assist: diff vs the task's
                                "- path" scope lines + run its "$ " Validate
                                lines in the worktree + commit sanity;
                                appends verify block and records validation;
@@ -3617,65 +3704,65 @@ frugal-flock verify <w> <task>    machine gate assist: diff vs the task's
                                empty diff, tampered task), 2 INCOMPLETE (no
                                scope or no Validate lines) or unsupported
                                worktree state
-frugal-flock diff <w> [--stat]    changes on agent/<w> vs base: committed and
+unio diff <w> [--stat]    changes on agent/<w> vs base: committed and
                                uncommitted, separately
-frugal-flock review <w> <task> [agent]  cross-vendor review: a DIFFERENT agent
+unio review <w> <task> [agent]  cross-vendor review: a DIFFERENT agent
                                judges task order + committed diff from a
                                neutral dir; gated and parsed as in §3;
                                exit 0 approved, 1 changes/failure, 2 unknown
-frugal-flock result <w> <task>    structured result JSON on stdout only; no
+unio result <w> <task>    structured result JSON on stdout only; no
                                provider call; exit 2 if missing, malformed or
                                the worktree state is unsupported
-frugal-flock handoff <w> <task>   new same-checkout context packet under
+unio handoff <w> <task>   new same-checkout context packet under
                                coord/handoffs (see §3); not a backup
-frugal-flock sync [w]             bring base's merged work into worker
+unio sync [w]             bring base's merged work into worker
                                branches (ff when fully merged, merge
                                otherwise; skips dirty/running; aborts and
                                reports on conflict)
-frugal-flock race <task> <w1> <w2> [...]  copy <task>.md to <task>-<w>.md per
+unio race <task> <w1> <w2> [...]  copy <task>.md to <task>-<w>.md per
                                worker and dispatch all in background;
                                OWNER merges at most one winner
-frugal-flock sabotage <w>         saboteur seat: sync <w>, generate a SAB-*
+unio sabotage <w>         saboteur seat: sync <w>, generate a SAB-*
                                task from the template, dispatch background
-frugal-flock score [root]         per-worker scorecard from ledger.jsonl:
+unio score [root]         per-worker scorecard from ledger.jsonl:
                                runs, ok/fail, walls, verify rate, merges,
                                avg duration
-frugal-flock doctor               preflight the project: base branch present,
+unio doctor               preflight the project: base branch present,
                                agent binaries, python3, worktree health,
                                stale pidfiles, disk headroom; nonzero on error
-frugal-flock new <url> [name] [w...]  bootstrap a project: clone -> dev branch
+unio new <url> [name] [w...]  bootstrap a project: clone -> dev branch
                                -> init -> copy $CONF/playbooks/*.md into
                                coord/docs/
-frugal-flock status               off-agents, tasks, reports, review queue
+unio status               off-agents, tasks, reports, review queue
                                (unreviewed commits per worker), running jobs
-frugal-flock off <agent> [dur]    bench agent (dur: 30m|5h|7d; absent=manual);
+unio off <agent> [dur]    bench agent (dur: 30m|5h|7d; absent=manual);
                                run refuses benched agents; expiry auto-clears
-frugal-flock on <agent>           un-bench
-frugal-flock stop | resume        create/remove coord/STOP (global run gate)
+unio on <agent>           un-bench
+unio stop | resume        create/remove coord/STOP (global run gate)
 ```
 
-Environment: `AGENTTEAM_TIMEOUT` (seconds, default 3600) caps each run;
-`AGENTTEAM_VERIFY_TIMEOUT` (default 900) caps each Validate command;
-`AGENTTEAM_REVIEW_TIMEOUT` (default 900) caps a review call.
-`AGENTTEAM_AUTO_OFF=1` auto-benches an agent 5h when a FAILED run's log
+Environment: `UNIO_TIMEOUT` (seconds, default 3600) caps each run;
+`UNIO_VERIFY_TIMEOUT` (default 900) caps each Validate command;
+`UNIO_REVIEW_TIMEOUT` (default 900) caps a review call.
+`UNIO_AUTO_OFF=1` auto-benches an agent 5h when a FAILED run's log
 matches limit-language patterns (suppressed when the task text itself
-mentions limits and the run succeeded). `AGENTTEAM_AUTO_VERIFY=1` makes
+mentions limits and the run succeeded). `UNIO_AUTO_VERIFY=1` makes
 every run append its own verify verdict after finishing. If the worker
 succeeds but verification fails or is incomplete, run returns the
 verification's nonzero exit; a failed worker retains its own exit code.
-`AGENTTEAM_AUTO_SYNC=1` fast-forwards a worker onto the base branch
+`UNIO_AUTO_SYNC=1` fast-forwards a worker onto the base branch
 before a run when the worktree is clean, so it never builds against
 stale code (otherwise `run` warns and leaves it to the operator).
-`AGENTTEAM_ALLOW_SECRETS=1` overrides the init secrets preflight. Python 3
+`UNIO_ALLOW_SECRETS=1` overrides the init secrets preflight. Python 3
 (standard library only, nothing downloaded) is required by run, verify,
 review, smoke, agents, result and handoff. Unsupported worktree states fail
 closed with exit 2: assume-unchanged or skip-worktree index flags (verify,
 review, handoff); FIFOs, devices, sockets, nested repositories and submodules
 (run, verify, review, result, handoff). Agent
-invocation templates live in `~/.config/agentteam/agents.conf` (project
+invocation templates live in `~/.config/unio/agents.conf` (project
 override: `coord/agents.conf`).
 
-Fleet intelligence: `frugal-flock score` (ledger-based, always available)
+Fleet intelligence: `unio score` (ledger-based, always available)
 and the companion tool `myapp <project-root>` (full scorecard incl.
 pre-ledger history from reports/*.md). LEAD SHOULD consult one of them
 when assigning tasks.
@@ -3684,11 +3771,11 @@ when assigning tasks.
 
 1. OWNER states intent to LEAD.
 2. LEAD reads coord/docs/*, repo docs (AGENTS.md router, docs/ai/), and
-   `frugal-flock agents`; produces a task breakdown; WAITS for OWNER "go".
+   `unio agents`; produces a task breakdown; WAITS for OWNER "go".
 3. LEAD freezes shared contracts (types/schemas/fixtures) as commits on
    the base branch BEFORE dispatching dependent tasks; task files cite
    contract paths @ sha.
-4. LEAD dispatches via `frugal-flock run`; parallel tasks MUST have disjoint
+4. LEAD dispatches via `unio run`; parallel tasks MUST have disjoint
    Allowed-scope sets (changelog.d/ exempt — one file per task); at most
    one task per cycle may modify dependency manifests (package files,
    lockfiles, migrations). Race tasks are the sanctioned exception to
@@ -3697,15 +3784,15 @@ when assigning tasks.
    paths, runs Validate, writes its changelog fragment, commits only files
    it changed (never blanket staging), ends output with the Report
    sections.
-6. LEAD verifies, machine first: `frugal-flock verify` (scope + Validate +
-   commit sanity), then reads the report and `frugal-flock diff`; for risky
-   diffs also `frugal-flock review`. `frugal-flock result` shows whether that
+6. LEAD verifies, machine first: `unio verify` (scope + Validate +
+   commit sanity), then reads the report and `unio diff`; for risky
+   diffs also `unio review`. `unio result` shows whether that
    evidence is still current. Reports are claims; diffs, verify verdicts and
    logs are ground truth.
 7. OWNER merges accepted branches into base (`git merge --no-ff`).
    Acceptance gate: verify PASS, clean build, tests green, smoke run,
    changelog fragment where the repo keeps a changelog. After the merge
-   cycle, LEAD runs `frugal-flock sync` so all workshops rebuild on the new
+   cycle, LEAD runs `unio sync` so all workshops rebuild on the new
    base.
 8. Releases: OWNER-only, explicit, base→main + tag. At release, LEAD rolls
    changelog.d/ fragments into CHANGELOG.md. Order: merge fix → verify →
@@ -3730,7 +3817,7 @@ when assigning tasks.
 - I9  Benched (OFF) agents get no work; LEAD reroutes by the fallback
       policy in MASTER.md.
 - I10 Verification is evidence-based: a claim without a diff/test/log
-      backing it is treated as unverified. `frugal-flock verify` is the
+      backing it is treated as unverified. `unio verify` is the
       mechanical floor of that evidence, not its ceiling.
 - I11 Workers never edit CHANGELOG.md; changelog entries are per-task
       fragments in changelog.d/, rolled up at release by LEAD/OWNER.
@@ -3751,19 +3838,19 @@ when assigning tasks.
 | Condition | Required behavior |
 |---|---|
 | Auth/token error in output | Report it verbatim; OWNER re-logins the CLI; task is rerunnable. |
-| Limit language in output (rate/usage limit, quota, resets at) | LEAD suggests `frugal-flock off <agent> 5h` (weekly: 7d) and reroutes. |
+| Limit language in output (rate/usage limit, quota, resets at) | LEAD suggests `unio off <agent> 5h` (weekly: 7d) and reroutes. |
 | Validate commands fail | Do not claim success. Report failure + hypothesis. |
-| `frugal-flock verify` reports SCOPE VIOLATION | Reject the branch; LEAD re-briefs with corrected scope; a violating diff is never merged as-is. |
-| `frugal-flock verify` reports INCOMPLETE (exit 2) | The task has no scope or no Validate lines: LEAD adds them. There is no waiver. |
+| `unio verify` reports SCOPE VIOLATION | Reject the branch; LEAD re-briefs with corrected scope; a violating diff is never merged as-is. |
+| `unio verify` reports INCOMPLETE (exit 2) | The task has no scope or no Validate lines: LEAD adds them. There is no waiver. |
 | Unsupported worktree state (flagged index entries, FIFO, device, socket, nested repository, submodule) | Clear it (`git update-index --no-assume-unchanged --no-skip-worktree`, `git sparse-checkout disable`, or remove the file), then rerun the command. |
 | Run reports "post-run snapshot failed" | The worker's real exit is recorded but the result stays stale. Fix the worktree, then run the task again. |
-| `frugal-flock result` shows stale evidence | Verify again, then review again. Never reuse old evidence. |
+| `unio result` shows stale evidence | Verify again, then review again. Never reuse old evidence. |
 | Review refused as incomplete material | Commit all work. Binary, non-UTF-8 or oversized changes need manual inspection. |
-| Worker lock busy ("already running a task") | Wait or `frugal-flock status`; abort a stray background run with `frugal-flock kill <task>`. |
-| Stale index.lock after a killed run | Cleared automatically at the next `frugal-flock run`; if git still complains, remove `<gitdir>/index.lock` by hand. |
+| Worker lock busy ("already running a task") | Wait or `unio status`; abort a stray background run with `unio kill <task>`. |
+| Stale index.lock after a killed run | Cleared automatically at the next `unio run`; if git still complains, remove `<gitdir>/index.lock` by hand. |
 | Blocked on missing contract/file | I2/I6: flag, don't fix; wait. |
 | Task file ambiguous | LEAD: rewrite it. WORKER: state the ambiguity and the interpretation chosen; prefer the narrower reading. |
-| Merge conflict on integration | OWNER decision; LEAD proposes resolution order; nobody force-merges. Routine prevention: `frugal-flock sync` after every merge cycle. |
+| Merge conflict on integration | OWNER decision; LEAD proposes resolution order; nobody force-merges. Routine prevention: `unio sync` after every merge cycle. |
 
 ## 8. REFERENCES
 
@@ -3772,21 +3859,20 @@ when assigning tasks.
   `coord/docs/ai-full-build-recipe.md` — define working style (dev/main
   model, verified milestones, evaluation-first, docs upkeep).
 - Human documentation: docs/HANDBOOK.md, docs/MASTER-PLAN.md,
-  docs/SETUP.md in the Frugal Flock docs repository.
+  docs/SETUP.md in the Unio docs repository.
 PROTOCOL_TPL_EOF
 
 # --------------------------------------------------------------- completion
-COMP_DIR="${AGENTTEAM_COMPLETION_DIR:-$HOME/.local/share/bash-completion/completions}"
 mkdir -p "$COMP_DIR"
-cat > "$COMP_DIR/agentteam" <<'COMPLETION_EOF'
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+cat > "$COMP_DIR/unio" <<'COMPLETION_EOF'
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
-# bash completion for frugal-flock — commands, then workers/tasks/agents in context
-_agentteam() {
+# bash completion for unio — commands, then workers/tasks/agents in context
+_unio() {
   local cur cmd root d cmds
   cur="${COMP_WORDS[COMP_CWORD]}"
   cmds="new init run verify result handoff diff sync review race sabotage score doctor tail kill report status agents watch off on smoke selftest stop resume allow-retry version license help"
@@ -3803,7 +3889,7 @@ _agentteam() {
   [ -n "$root" ] && workers=$(ls "$root/wt" 2>/dev/null)
   [ -n "$root" ] && tasks=$(ls "$root/coord/tasks" 2>/dev/null | sed 's/\.md$//' | grep -v '^TEMPLATE$')
   agents=$(sed -n 's/^\([a-zA-Z0-9_-]*\)=.*/\1/p' \
-    "${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}/agents.conf" 2>/dev/null)
+    "${UNIO_CONF_DIR:-$HOME/.config/unio}/agents.conf" 2>/dev/null)
   case "$cmd" in
     watch) COMPREPLY=( $(compgen -W "--once --json --interval" -- "$cur") );;
     allow-retry) COMPREPLY=( $(compgen -W "$tasks" -- "$cur") );;
@@ -3829,19 +3915,16 @@ _agentteam() {
     off|on) COMPREPLY=( $(compgen -W "$agents" -- "$cur") );;
   esac
 }
-complete -F _agentteam frugal-flock frgl-flc agentteam
+complete -F _unio unio
 COMPLETION_EOF
-ln -sfnT agentteam "$COMP_DIR/frugal-flock"
-ln -sfnT agentteam "$COMP_DIR/frgl-flc"
 
 echo
-echo "Frugal Flock installed. Small plans. Big ideas."
-echo "  command   : $BIN_DIR/frugal-flock   (ensure that dir is on PATH)"
-echo "  aliases   : frgl-flc (short), agentteam (legacy) — same implementation"
-echo "  compatible: AGENTTEAM_* overrides and existing state paths are retained"
+echo "Unio installed. Small plans. Big ideas."
+echo "  command   : $BIN_DIR/unio   (ensure that dir is on PATH)"
+echo "  overrides : UNIO_* environment variables"
 echo "  config    : $CONF_DIR/agents.conf   <- EDIT: enable/tune your agents"
-echo "  license   : $CONF_DIR/legal/   (frugal-flock license)"
-echo "  quota     : frugal-flock off <agent> 5h|7d   /   frugal-flock on <agent>"
+echo "  license   : $CONF_DIR/legal/   (unio license)"
+echo "  quota     : unio off <agent> 5h|7d   /   unio on <agent>"
 echo
-echo "Next: frugal-flock selftest        (mock-agent rehearsal, zero quota)"
-echo "Then: cd <your repo clone> && frugal-flock init codex antigravity opencode grok"
+echo "Next: unio selftest        (mock-agent rehearsal, zero quota)"
+echo "Then: cd <your repo clone> && unio init codex antigravity opencode grok"

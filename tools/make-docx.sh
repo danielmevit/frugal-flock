@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
-# make-docx.sh — turn a Frugal Flock Markdown document into a formatted .docx.
+# make-docx.sh — turn a Unio Markdown document into a formatted .docx.
 #
 #   ./tools/make-docx.sh                      # docs/GUIDEBOOK.md -> docs/GUIDEBOOK.docx
 #   ./tools/make-docx.sh docs/HANDBOOK.md     # any doc; output sits beside it
