@@ -54,6 +54,12 @@ Inside fenced code blocks nothing is interpreted, so placeholders there
 need no backticks. The rule is only about prose, table cells, headings,
 and list items.
 
+One deliberate exception: `<details>` and `<summary>`, the tags behind
+GitHub's collapsible FAQ entries. The checker allows exactly these two,
+and only in files named README.md, which are read on GitHub and never
+converted. Everywhere else they stay flagged: a converter drops the tags,
+so the dropdowns vanish and every answer appears expanded.
+
 ## Rule 2 — keep code fences balanced, and never write triple backticks in prose
 
 An unclosed fence turns the entire rest of the document into a code block.

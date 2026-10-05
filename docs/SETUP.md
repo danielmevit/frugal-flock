@@ -128,6 +128,9 @@ cd ~/code/myproj/repo
 claude        # or codex / agy / grok — whatever opens here IS the master
 ```
 
+First time with an AI as the master? Set up its permissions once (§9), or
+its own safety system may stop it from running `frugal-flock` commands.
+
 First prompt to the master:
 
 ```text
@@ -271,6 +274,83 @@ picks the agent). Timeout: `AGENTTEAM_TIMEOUT=7200 frugal-flock run ...`.
 - WSL `/mnt` quirks from your GOTCHAS don't apply on the native-ext4 VM;
   if you ever move this workflow to WSL-on-Windows-drive, re-add
   `codegraph sync` after edits and `git config core.filemode false`.
+- The master AI asks before every `frugal-flock` command, or refuses to
+  start workers → that is its own permission system; set up §9.
+
+## 9. Lead AI permissions
+
+The master (lead) is the AI session you open in `repo/`. It plans, writes
+task files in `coord/tasks/`, and runs `frugal-flock` commands;
+`frugal-flock run` then starts the worker AIs with their own approval flags
+(§2). AI coding tools guard the commands their own session runs, and some
+treat "start another AI" or "push to GitHub" as risky. What you meet
+depends on how the lead runs:
+
+| How the lead runs | What happens |
+|---|---|
+| You type the `frugal-flock` commands yourself | Nothing to set up; the AI only plans and reviews. |
+| Claude Code, default mode | It asks before each new kind of command. "Don't ask again" saves a rule. |
+| Claude Code, auto mode | A safety check decides each command. Some are refused until you add a rule. |
+| Claude Code with `--dangerously-skip-permissions` | No checks at all inside the lead session. |
+| Codex, Antigravity or Grok as the lead | Their own approval or sandbox settings decide; see each tool's docs. |
+
+Whatever the tool, the lead needs to write in `repo/` and `coord/` and run
+`frugal-flock`. It does not need to push or merge.
+
+### The lasting fix for Claude Code: allow the flock commands
+
+Create `repo/.claude/settings.local.json` once, with the full path to your
+project's `coord/` folder:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(frugal-flock *)",
+      "Bash(frgl-flc *)"
+    ],
+    "additionalDirectories": ["/home/you/code/myproj/coord"]
+  }
+}
+```
+
+Keep this personal file out of Git without editing `.gitignore`, then
+restart the lead, because settings are read when a session starts:
+
+```bash
+cd ~/code/myproj/repo
+echo ".claude/settings.local.json" >> .git/info/exclude
+```
+
+What these settings do and do not do:
+
+- The lead may run any `frugal-flock` subcommand, including `run`, `sync`
+  and `kill`, without asking. Every worker starts through `frugal-flock
+  run`, so the lead never needs to call `codex`, `grok` or the others
+  directly.
+- `additionalDirectories` lets it work with the task files in `coord/`,
+  which sits next to `repo/`, as part of the project.
+- It is not a sandbox. Workers still run commands with your rights. The
+  lead writes each task's Validate lines, and `frugal-flock verify` runs
+  them without a separate prompt, so read those lines when you approve the
+  lead's plan, before any work starts.
+- `git push`, merges and the lead's own settings are not covered. In
+  default mode they keep asking; approve them one at a time, never with
+  "don't ask again". In auto mode the safety check decides. Add rules
+  yourself: auto mode refuses a lead's attempt to edit its own permissions.
+- A rule matches how a command starts. Put per-project agent commands in
+  `coord/agents.conf`, which overrides `~/.config/agentteam/agents.conf`,
+  instead of starting commands with a variable such as
+  `AGENTTEAM_CONF_DIR=...`.
+
+### Why not skip permissions?
+
+`--dangerously-skip-permissions` turns off every check in the lead
+session: it can then run any command, push or delete without asking. Use
+it only on a disposable VM that holds this project and nothing else, never
+on an everyday machine with other projects, Git credentials and keys. The
+worker AIs are unaffected either way; they always run with their own
+approval flags (§2).
 
 ## Sources (verified 2026-07-10)
 

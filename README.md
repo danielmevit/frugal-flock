@@ -28,7 +28,8 @@ The name says it: a **flock** of AIs from different companies, run
 through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
 
 [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
-[Under the hood](#for-the-curious-and-the-nerdy) · [What's next](#whats-next)
+[FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·
+[What's next](#whats-next)
 
 ## What this makes possible
 
@@ -124,6 +125,131 @@ Start with one helper and add another when you want a second perspective.
 `agents` shows what is installed, not remaining quota or sign-in status.
 `smoke` makes real test calls, so it uses some of your allowance.
 
+If your AI tool keeps asking before each `frgl-flc` command, or refuses to
+start the helpers, [allow those commands once](docs/SETUP.md#9-lead-ai-permissions)
+instead of switching its safety checks off.
+
+## FAQ
+
+<details>
+<summary>Do I have to pay for anything extra?</summary>
+
+No. Frugal Flock is free and open source. It works with the AI plans you
+already have, each signed in its own way, so you need no separate API keys.
+The rehearsal (`frgl-flc selftest`) makes no AI calls at all. Real tasks use
+your plans' normal allowance; optional extras, such as a second AI reviewing
+the work, use a little more.
+
+</details>
+
+<details>
+<summary>How is this different from calling the AI tools myself?</summary>
+
+You can call any AI tool directly, and for a quick question that is fine.
+Frugal Flock matters once AIs change your code:
+
+| | Calling AI tools directly | Through Frugal Flock |
+|---|---|---|
+| Where the AI works | Wherever you point it; two at once can collide | Its own copy on its own branch |
+| When it is "done" | When the AI says so | When the task's checks pass and only allowed files changed |
+| Failures | Easy to miss | Recorded: a run that timed out stays "failed" |
+| Reviews | An opinion | Tied to the exact version; a later change makes it stale |
+| Memory | Lives in one chat | Files any AI or person can read and continue from |
+| Safety | Each tool on its own | A stop switch, paused agents, one run per worker, time limits |
+
+The AIs were always reachable. Frugal Flock makes their work isolated,
+checked, recorded and easy to hand over.
+
+</details>
+
+<details>
+<summary>Which AI tools do I need?</summary>
+
+One is enough to start. Settings are included for Claude Code, Codex,
+Antigravity, OpenCode (for models such as GLM and Kimi) and Grok. Any
+command-line AI that can take a task without a chat window can join with
+one line in `~/.config/agentteam/agents.conf`, for example
+`mycli=mycli -p "$(cat "$TASKFILE")"`. A second tool from another company
+lets one AI review another's work.
+
+</details>
+
+<details>
+<summary>Does it work on Windows or Mac?</summary>
+
+Linux, yes. Windows, yes, through WSL (Ubuntu works well). Mac is not
+supported yet: Frugal Flock relies on Linux tools such as `flock`.
+
+</details>
+
+<details>
+<summary>Do the AIs talk to each other?</summary>
+
+Not directly, and they share no memory. They coordinate through files in
+your project: task orders, reports, results and handoff notes. Each AI
+starts fresh, reads what the others left, and writes down what it did, so
+another AI can continue from those notes.
+
+</details>
+
+<details>
+<summary>Is it safe? Will it change my project without asking?</summary>
+
+Helpers are given their own copies on their own branches, and their work
+reaches your main branch when you merge it. The lead AI works in your main
+copy, so tell it not to merge for you (the starter prompt above does).
+Nothing enforces those boundaries, though: every AI runs commands on your
+computer with your rights, and the copies are not a security sandbox. Use
+a spare Linux machine or virtual machine without important passwords or
+keys, keep secrets out of tasks and repositories, and remember that each AI
+sends your prompts and code to its provider. `frgl-flc stop` blocks new runs;
+`frgl-flc kill T7` ends task T7 if it is running.
+
+</details>
+
+<details>
+<summary>How do I know the AI's work is actually right?</summary>
+
+Every task names the files it may change and the checks that must pass.
+`frgl-flc verify` re-runs those checks and fails the task if one fails or
+anything changed outside the allowed files; nothing is undone, so you can
+inspect it. Once verify passes, `frgl-flc review` can ask another company's
+AI to judge the committed change. The result records separately whether the
+AI finished, the checks passed and the review approved. Your own decision
+comes last: a finished run is never taken as proof the work is right.
+
+</details>
+
+<details>
+<summary>What happens when an AI hits its usage limit?</summary>
+
+Pause it and give the next task to another company's AI.
+`frgl-flc off codex 5h` stops new tasks from going to Codex for five hours,
+and `frgl-flc handoff codex T7` writes a context note about task T7: what
+was done, what passed and what is left. The lead then gives the work to
+another AI with that note. The note is context only: unfinished, uncommitted
+changes stay in Codex's copy. [Handoff packets](docs/QUALITY-USAGE.md#handoff-packets)
+explain the details. Frugal Flock does not get around limits or share plans;
+each tool keeps its own. Automatic switching is on the roadmap.
+
+</details>
+
+<details>
+<summary>My lead AI keeps asking for permission, or a run is refused. What now?</summary>
+
+First check who refused. Frugal Flock's own refusals say why, for example
+`STOP is active`, an agent that is `OFF`, or a worker that is
+`already running a task`; `frgl-flc status` shows the state. If instead the
+AI tool asks or refuses, that is its own safety system. For Claude Code,
+allow the `frugal-flock` commands once in a small settings file and
+restart it; [setup step 9](docs/SETUP.md#9-lead-ai-permissions) shows the
+file and what it does and does not allow. Other tools have similar approval
+settings. Do not add rules for pushes or merges into your main branch;
+approve those yourself, one at a time. Turning all safety checks off is
+only sensible on a throwaway virtual machine.
+
+</details>
+
 ## For the curious and the nerdy
 
 Frugal Flock is a Bash orchestration layer around existing coding CLIs, not
@@ -161,29 +287,6 @@ acceptance are separate results. `verify` exits 2 (INCOMPLETE) when a task
 has no scope or Validate lines, and `review` runs only after a current
 passing `verify`. `stop` blocks new runs; `kill TASK_ID` ends a running one.
 Every exit code and field is in the [quality reference](docs/QUALITY-USAGE.md).
-
-### Coming from agentteam?
-
-Same project, renamed from `agentteam-docs`, with its Git history intact.
-
-- `frugal-flock`, `frgl-flc`, and `agentteam` are one implementation with
-  shared Bash completion, installed at `~/.local/bin/agentteam`.
-- `agentteam-install.sh` still works; `frugal-flock-install.sh` forwards to
-  it, so keep both files together.
-- `AGENTTEAM_*` variables, `~/.config/agentteam`, `agents.conf`, and
-  project state names are unchanged. Linux `flock` is an unrelated utility.
-
-To update an existing clone, run inside it:
-
-```bash
-git remote set-url origin https://github.com/danielmevit/frugal-flock.git
-git pull --ff-only
-bash frugal-flock-install.sh
-frgl-flc selftest
-```
-
-If Git reports local changes or diverged history, resolve that first; do
-not discard your work just to update.
 
 ### Find the right level of detail
 
