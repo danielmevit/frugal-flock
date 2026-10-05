@@ -26,6 +26,14 @@ end, and AUTO_OFF=1 with unchanged availability/config files.
 Unio 0.5.1 (unreleased): guarantee 5 checks the failed mock's real exit and suspected-limit warning, unchanged availability with UNIO_AUTO_OFF=1, and explicit off/refusal/on behavior.
 The adversarial demo honors UNIO_BIN_DIR and the incoming UNIO_CONF_DIR for its engine and template source while retaining isolated mock configuration and existing defaults.
 
+## 0.5.2 — durable queue approval (UNRELEASED)
+
+- Added schema-2 queue job store with durable approve, reserve, unknown and cancel states.
+
+- Fixed the queue job store: it now refuses unknown or under-constrained schema-1 and schema-2 layouts and corrupt legacy records without changing the database, and identical approve/reserve replays recheck the current draft.
+
+Reject impossible queue state metadata and unknown CHECK/generated layouts unchanged; preserve recognized migrations and valid replays with exhaustive corruption regressions.
+
 ## 0.5.0 — Unio rename (UNRELEASED)
 
 - The project is renamed to Unio.
