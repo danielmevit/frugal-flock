@@ -6,3 +6,7 @@ Lead corrections after independent review remove filesystem-containment
 promises, finish split-line product names and broken guide references,
 preserve original historical quotes/commands, and correct current version,
 M1 outcome, licensing and standing provider-authorization guidance.
+
+Final documentation polish labels the guidebook tour as adapted history
+and distinguishes the historical API header from the current Unio header,
+which slice D updates consistently and verifies with API/browser suites.

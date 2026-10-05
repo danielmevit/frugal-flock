@@ -42,6 +42,12 @@ the stdlib store suite, with no new runtime dependency or global install.
 
 ## Protected opt-in create/read API (2026-10-05)
 
+Current Unio source uses `X-Unio-Session`, consistently renamed in slice D
+across the bridge server, browser client and API tests. The earlier checks
+recorded below used the historical `X-Frugal-Flock-Session` header; those
+results are preserved as earlier evidence. The Unio rename candidate was
+also checked with the existing API and browser suites on 2026-10-05.
+
 Start the server with --enable-plan-drafts to enable only manual-draft
 storage in the fixed startup project. Default startup neither constructs
 PlanStore nor creates its directory. GET /api/session returns schema 1,

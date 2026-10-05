@@ -764,8 +764,10 @@ The full field list and every exit code are in `docs/QUALITY-USAGE.md`.
 
 ## 8. See one complete cycle
 
-The file `docs/EXAMPLE.md` is a real transcript of everything chapter 7
-described — a feature built, verified, reviewed, merged, and synced; a
+The file `docs/EXAMPLE.md` adapts a historical Frugal Flock transcript to
+current Unio commands. Its retained run IDs and output describe the older
+run, not newly measured Unio output. It illustrates chapter 7: a feature
+built, verified, reviewed, merged, and synced; a
 rogue worker caught by verify; background runs, a race, the saboteur
 finding a genuine bug; and the fix cycle that closes the loop. Replay it
 on your machine anytime:
