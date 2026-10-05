@@ -1,7 +1,7 @@
 # M2 first installed-release dogfood task
 
 The original prototype is published as `5d40d68`. One small enhancement
-will exercise the existing installed v0.4.0 worker/verify/review/result cycle
+will exercise the existing legacy installed Frugal Flock v0.4.0 worker/verify/review/result cycle
 while the next version stays in source. No global reinstall or release.
 
 Task: Ctrl+Enter or Command+Enter submits the currently focused demo form
@@ -36,7 +36,7 @@ the sample UI to providers.
 
 ## First keyboard attempt: preserved failure
 
-The owner approved one GLM 5.3/max worker on 2026-10-04. Installed v0.4.0
+The owner approved one GLM 5.3/max worker on 2026-10-04. The legacy Frugal Flock installation at v0.4.0
 returned exit 124 at 180 seconds, with no edits or commits. Tooling discovery
 consumed the window, including a broad browser search. Native verification
 ran all five baseline checks successfully but failed overall with empty_work.
@@ -54,7 +54,7 @@ is a source change; the failed native worker remains a failed dogfood attempt.
 
 The owner then approved one Claude Opus 5.5/high invocation for a separate
 small feedback-guide task. Native model usage confirmed claude-opus-5-5;
-installed v0.4.0 returned exit 0 in 83 seconds. Candidate eaf24e6 changed
+legacy installed Frugal Flock v0.4.0 returned exit 0 in 83 seconds. Candidate eaf24e6 changed
 three allowed documentation files in one clean commit. Native verify passed
 2/2 checks; root Codex inspected the complete task/diff and approved here.
 A local adapter bound that decision to the exact review-material hash,

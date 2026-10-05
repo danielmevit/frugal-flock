@@ -225,7 +225,9 @@ Fresh source installs use `--auto`; reinstalls keep existing profiles and
 model choices. Check `opencode run --help` and edit only your OpenCode
 entries if needed. Doctor flags direct entries with the legacy option
 without executing commands; shell wrappers may need manual inspection.
-Global configuration is not automatically migrated.
+The Unio installer copies the legacy config folder once when the new default
+folder is absent and no config override is supplied. It preserves configured
+provider commands; it does not rewrite custom shell wrappers or provider flags.
 
 Two workers on one engine: `unio init codex-2` (prefix before the dash
 picks the agent). Timeout: `UNIO_TIMEOUT=7200 unio run ...`.
@@ -309,7 +311,6 @@ project's `coord/` folder:
 {
   "permissions": {
     "allow": [
-      "Bash(unio *)",
       "Bash(unio *)"
     ],
     "additionalDirectories": ["/home/you/code/myproj/coord"]

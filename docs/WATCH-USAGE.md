@@ -3,7 +3,8 @@
 `unio watch` prints local activity when it changes, polling once
 per second. Press Ctrl-C to exit. It runs no agent commands, reads no
 raw logs or credentials, and changes no project coordination files.
-The installed v0.4.0 stays unchanged until a deliberate release/install.
+The legacy installed Frugal Flock v0.4.0 stays unchanged until the owner
+approves a separate global Unio installation or release.
 
 ```bash
 unio watch
@@ -14,8 +15,7 @@ unio watch --json --interval 0.5
 
 JSON mode emits one complete JSON object per line, initially and whenever
 the observed state changes. `--once` prints one snapshot and exits.
-Intervals must be between 0.1 and 60 seconds. Both compatibility aliases
-(`unio`, `unio`) support the same command.
+Intervals must be between 0.1 and 60 seconds. Only `unio` is supported.
 
 Each snapshot includes STOP, local agent diagnostics and operator retry
 times, recorded process/validation/reviewer states, task retry-brake state,

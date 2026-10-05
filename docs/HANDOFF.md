@@ -1,7 +1,7 @@
 # Unio — Handoff
 
 How to take over **Unio** and keep improving it without re-deriving anything.
-Written after the v0.3.x hardening rounds (`D:\Vibe Coding\_vm\unio-docs` — the
+Written after the v0.3.x hardening rounds (the historical `D:\Vibe Coding\_vm\agentteam-docs` workspace — the
 orchestration tool that ran the `repos` build with five AI vendors in parallel); point
 any model at this file and say: *"You're taking over Unio — read
 `docs/HANDOFF.md` and continue."*
@@ -184,7 +184,8 @@ agent (`unio off <a> 30m`), reroute the seat, carry on.
 
 ## 9. Handoff prompt (fill in)
 
-> You're taking over **Unio** at `/mnt/d/Vibe Coding/_vm/frugal-flock-docs`. Read
+> You're taking over **Unio** in the repository under the legacy local workspace
+> `/mnt/d/Vibe Coding/_vm/frugal-flock/repo`. Read
 > `docs/HANDOFF.md`, then `docs/PROTOCOL.md` (normative) and `docs/GUIDEBOOK.md` (the
 > manual). The product is `unio-install.sh` — never edit the installed copy. Every
 > change: `bash -n` → install → `unio selftest` → `bash tests/unio-probes.sh` →

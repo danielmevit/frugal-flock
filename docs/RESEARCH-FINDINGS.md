@@ -11,7 +11,7 @@ separate reusable documents. They are now linked below.
 |---|---|---|
 | F1 — The category | Human-supervised teams of coding agents from different providers already exist. Observed overlap, not a uniqueness claim. | [Competitive review C1–C2](../research/COMPETITIVE-REVIEW.md) |
 | F2 — Why keep building? | Simple supervision for people using modest plans is a useful hypothesis, not proven savings or superiority. | [Positioning and validation C3–C5](../research/COMPETITIVE-REVIEW.md) |
-| F3 — Product identity | Unio; Small plans. Big ideas.; canonical and short CLI aliases approved and implemented. | [Brand contract](BRAND.md) |
+| F3 — Product identity | Unio; Small plans. Big ideas.; only `unio` is supported by the owner-approved rename contract. | [Brand contract](BRAND.md) |
 | F4 — UX barrier | Exposing tasks, branches, and commands first makes onboarding difficult. Recommended response: one project conversation with plan, activity, and review cards. Needs user testing. | [UX direction](UX-DIRECTION.md) |
 | F5 — Trustworthy results | Process exit, checks, reviewer decision, human acceptance, and integration are different outcomes. Current engine gaps remain open. | [Engine findings E1–E3](ENGINE-FINDINGS.md) |
 | F6 — Safety | Git worktrees and scope checks are not OS isolation; broad-permission defaults need explicit boundaries. | [Engine finding E4](ENGINE-FINDINGS.md) |
@@ -28,7 +28,7 @@ separate reusable documents. They are now linked below.
 
 The repository is public at
 [danielmevit/unio](https://github.com/danielmevit/unio),
-renamed in place from `unio-docs`. The reviewed published baseline
+renamed in place from the historical `agentteam-docs`, then Frugal Flock. The reviewed published baseline
 is `f962b6a`; this handoff adds documentation on top. Existing commit
 history was preserved and completed implementation work was merged into
 main at the owner's explicit request.

@@ -21,9 +21,10 @@ All project-owned files belong under one workspace, per
 - Published implementation/README baseline: `f962b6a`. Read the latest main
   for this handoff and the research documents added afterward.
 - Product: Unio. Tagline: Small plans. Big ideas.
-- Commands: `unio`, `unio`, and compatibility `unio`.
-- The runtime is embedded in `unio-install.sh`; the canonical
-  `unio-install.sh` is a wrapper, not a second implementation.
+- Command: `unio` only.
+- The runtime, templates and completion are embedded in the single
+  `unio-install.sh` installer. Source targets Unio 0.5.0; global installation
+  and release require separate owner approval.
 - The UI and recovery flow are proposals. No frontend framework has been
   selected, and no working graphical app should be assumed to exist.
 - Existing baseline checks passed: 40 selftests, 14 adversarial probes,
@@ -76,7 +77,8 @@ turn the main interface into a wall of terminals or quota charts.
   and narrow-screen behavior are checked. Respect reduced-motion settings.
 - Provide exact install/start/build/test commands. Run what the environment
   supports; list anything not run and why. Include tests for state transitions.
-- Leave the existing CLI behavior, aliases, and configuration untouched.
+- Preserve the existing CLI behavior and coordination schemas. The rename
+  contract deliberately removes old command aliases and migrates config once.
 
 ## Copy-paste prompt
 

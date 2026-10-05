@@ -1,13 +1,13 @@
 # Unio — quality milestone reference (M1)
 
-Milestone 1 is **in progress and not an accepted release**. The runtime
-prints 0.4.0, but the accepted baseline is still 0.3.1. See
-[M1-STATUS.md](M1-STATUS.md) for what is still open. This page describes
-what the current code does: strict verification, revision-bound results,
+Milestone 1 is complete and owner-accepted; its historical record is
+[M1-STATUS.md](M1-STATUS.md). This reference describes Unio 0.5.0 source,
+which has not been globally installed or released in this rename cycle.
+The legacy installed Frugal Flock 0.4.0 remains the build tool until a
+separate owner approval. Current source provides: strict verification, revision-bound results,
 gated review, local availability JSON and same-checkout handoff packets.
 
-Examples use the canonical `unio` command; `unio` and the
-legacy `unio` name run the same program. WORKER and TASK stand for a
+Examples use the only supported command, `unio`. WORKER and TASK stand for a
 worker name such as `codex` and a task ID such as `T7-codex`.
 
 ## Requirement: Python 3

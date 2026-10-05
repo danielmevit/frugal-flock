@@ -8,7 +8,7 @@ The owner selected Unio as the product name and approved the
 tagline above. Unio connects AI coding tools from different
 companies into one workspace: one AI leads, the others work as its
 subagents in separate copies of the project, and a person approves what is
-merged. The name explains it: a flock of AIs from different companies, run
+merged. Unio means union or oneness: a team of AIs from different companies, run
 frugally on the plans people already have.
 
 The promise is to reduce the interruption and coordination work caused by
@@ -42,9 +42,12 @@ title and these topics consistent when the product description changes:
 Do not use `flock` as an executable name. It is the Linux locking utility
 used by the orchestration engine.
 
-The naming change preserves existing `UNIO_*` environment variables,
-the default `~/.config/unio` configuration, project coordination data,
-and existing automation. The canonical repository is now
+Unio 0.5.0 uses only the `unio` command and `UNIO_*` environment variables.
+The default configuration is `~/.config/unio`. When that folder is absent
+and no config override is supplied, installation copies the legacy
+`~/.config/agentteam` folder once, leaving the old folder untouched.
+Old command aliases and environment names are removed; update automation.
+Project coordination layouts and evidence schemas stay the same. The canonical repository is now
 [danielmevit/unio](https://github.com/danielmevit/unio),
 renamed in place from the historical `agentteam-docs` and `frugal-flock` repositories with its history retained. Existing
 local directories need not be renamed; keeping them avoids breaking

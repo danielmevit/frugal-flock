@@ -483,7 +483,7 @@ documented and acceptable.
 ## 10. The document map
 
 Everything lives in [Unio](https://github.com/danielmevit/unio),
-the repository formerly called `unio-docs`. Clone it, run
+the repository historically called Frugal Flock and `agentteam-docs`. Clone it, run
 `bash unio-install.sh`, and sign in to the coding CLIs you choose
 to use. You can start with one; all five are not required.
 

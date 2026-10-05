@@ -7,7 +7,11 @@
 > are simple pipe tables. There is no HTML and no special syntax anywhere
 > in this document.
 
-**Covers Unio v0.3.1 plus the in-progress M1 quality changes (the runtime prints 0.4.0, which is not an accepted release) · written 2026-07-19, updated 2026-10-04 · for the complete beginner**
+**Covers Unio 0.5.0 source, including the owner-accepted M1 quality changes · written 2026-07-19, updated 2026-10-05 · for the complete beginner**
+
+The rename is not yet a published release or global installation. This
+workspace builds it using the legacy installed Frugal Flock 0.4.0; the
+owner must approve switching that global installation separately.
 
 This is the one book that explains everything: what Unio is, how to
 install it, how to use every command step by step, how to fix every common
@@ -202,12 +206,12 @@ untouched and tells you so.
 ### 4.2 Install Unio itself
 
 From your clone of [Unio](https://github.com/danielmevit/unio)
-(formerly `unio-docs`):
+(historically named Frugal Flock and `agentteam-docs`):
 
 ```text
 $ bash unio-install.sh
 $ unio version
-Unio 0.3.1 (/home/you/.local/bin/unio)
+Unio 0.5.0 (/home/you/.local/bin/unio)
 Small plans. Big ideas.
 config: /home/you/.config/unio/agents.conf
 ```
@@ -224,12 +228,11 @@ The installer creates:
 
 | Path | Purpose |
 |---|---|
-| `~/.local/bin/unio` | Shared implementation and legacy command |
-| `~/.local/bin/unio`, `~/.local/bin/unio` | Canonical and short commands; links to the shared implementation |
+| `~/.local/bin/unio` | The only installed command |
 | `~/.config/unio/agents.conf` | The agent config — **the file you edit** (never overwritten by updates) |
 | `~/.config/unio/templates/` | Role cards and task templates stamped into every new project |
 | `~/.config/unio/playbooks/` | Drop your standard `ai-*.md` playbooks here once; `unio new` copies them into every project |
-| `~/.local/share/bash-completion/completions/unio` | Shared tab-completion, with links for `unio` and `unio` (open a new terminal to activate) |
+| `~/.local/share/bash-completion/completions/unio` | Tab-completion for `unio` (open a new terminal to activate) |
 
 Tab-completion means: type `unio ru<TAB>` and the shell finishes the
 command; type `unio run <TAB>` and it lists your workers; then
@@ -1021,7 +1024,9 @@ renamed flag, fix that one line in `agents.conf`. Two minutes.
 ### 13.2 Updating Unio itself
 
 Open a terminal inside your existing clone. Its local folder may still be
-called `unio-docs`; it does not need to be renamed.
+called `frugal-flock` or the historical `agentteam-docs`; it does not need
+to be renamed. The legacy local workspace path
+`/mnt/d/Vibe Coding/_vm/frugal-flock` stays intact to preserve worktree links.
 
 ```text
 $ git remote set-url origin https://github.com/danielmevit/unio.git

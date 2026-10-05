@@ -28,7 +28,7 @@ The fixed engine is trusted local code, not an isolated command sandbox.
 
 ## Disposable source build
 
-Installed v0.4.0 continues dogfooding and is not replaced. It cannot observe
+The legacy Frugal Flock installation at v0.4.0 continues dogfooding and is not replaced. It cannot observe
 with watch. Build a preview CLI under the enclosing workspace's tmp/:
 
 ```bash
@@ -79,7 +79,7 @@ A loopback HTTP request using the disposable current-source watch executable
 against the real project returned 200. It showed GLM process failed/124 and
 validation failed, and Claude process succeeded/0, validation passed and
 review approved. All 36 observed coordination-file hashes were unchanged.
-The installed v0.4.0 executable and global profile hashes also remained
+The legacy installed Frugal Flock v0.4.0 executable and global profile hashes also remained
 unchanged. No provider invocation occurred during bridge checks. Receipts
 and screenshots stay local under workspace tmp/m2-bridge-20261004/.
 
