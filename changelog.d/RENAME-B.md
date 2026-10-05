@@ -5,3 +5,6 @@
 
 Lead polish fixes a missed handoff alias, preserves past release entries,
 and records actual correction/review state and standing owner authorization.
+
+Final lead checkpoint correction records both completed rejected B reviews,
+their fixes, the actual local A merge/gate and completed D checks.

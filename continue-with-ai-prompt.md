@@ -4,27 +4,37 @@ Open the repo in your new AI session and paste the Prompt to paste below.
 Read the local agent log first; this file gives the current checkpoint.
 Earlier checkpoint notes remain in Git history and the append-only local log.
 
-Living checkpoint, updated 2026-10-05 11:51 +0200 by Codex lead
-(GPT-6; exact serving variant not exposed). Frozen rename base: 181f13e.
-Follow the newest local log and receipts when they supersede this snapshot.
+Living checkpoint, updated 2026-10-05 12:06 +0200 by Codex lead
+(GPT-6; exact serving variant not exposed). Current local main: ce33555;
+A full gate and push are pending. Read the newest local log and receipts.
 
 ## Current checkpoint
 
-- Source rename tasks A/B/C/D are prepared and dispatched through native
+- Source rename tasks A/B/C/D were prepared and dispatched through native
   Frugal Flock with pinned models, timeouts and zero automatic retries.
 - A Codex candidate passed 8/8 task checks; GLM's race invocation hit the
   Go cap and was interrupted without source changes. Grok requested two
-  changes; the distinct Codex RENAME-A-FIX task is active.
-- B Gemini replacement c11935d passed 3/3 checks; independent Codex review
-  is active. Lead docs polish corrects a missed alias and current handoff.
-- C Google candidate plus explicit lead docs corrections is 4eab8fc.
-  Codex's six blocking documentation findings are preserved. A new complete,
-  SHA-bound Grok review of the corrected candidate is active.
-- D original Kimi run hit the Go cap without edits; the explicitly approved
-  Grok replacement is active. The original DeepSeek B failure also remains.
+  changes; distinct Codex RENAME-A-FIX completed at 823a01f, passed 5/5
+  checks and received Google approval plus lead approval. A merged locally
+  at ce33555; its full gate is running, with no push yet at this snapshot.
+- B Gemini replacement c11935d passed 3/3 checks. Its Codex review finished
+  with changes requested. Lead correction 7eb91b9 addressed seven findings
+  and passed 3/3 checks; Grok then requested this checkpoint correction and
+  confirmed the rest of the tree matches the contract. Both rejections are
+  preserved. The current B branch is agent/antigravity-rename-b; resolve its
+  actual HEAD before acting, since this checkpoint is itself a lead update.
+  The lead will review the corrected checkpoint and current integration base.
+- C Google candidate plus lead docs corrections is 27e2656. Codex's six
+  findings and Grok's two follow-up findings are preserved and addressed.
+  A focused Grok closing review checks the final correction and the exact D
+  API-header counterpart; unchanged file hashes bind the earlier full review.
+- D original Kimi run hit the Go cap without edits; approved Grok replacement
+  bf2ffb1 passed 9/9 checks, native Google review and all three browser suites.
+  The original DeepSeek B failure also remains preserved.
 - Merge A, then B, then C, then D. Run the full quality gate after each
-  merge and push each only after its gate passes. No rename slice is merged
-  at this snapshot; check the newest log for later integration.
+  merge and push each only after its gate passes. B/C/D are not merged
+  at this snapshot; check the newest log and gate
+  receipts for later integration.
 - Read [provider capacity](docs/PROVIDER-CAPACITY.md) before assigning models:
   screenshot usage, current documented limits and historical reset estimate
   are preserved there. Actual account meters govern new scheduling.
@@ -49,7 +59,8 @@ docs/PROVIDER-CAPACITY.md, and docs/DOGFOOD-WORKFLOW.md. Work in your own lead w
 never redo or overwrite other branches.
 
 Next steps, in order:
-1. Check the status of the pending A/B/C/D reviews and gates.
+1. Read the actual A gate receipt, push A only on PASS, and check the
+   remaining C closing review. Do not wait on the finished rejected B reviews.
 2. Review each final candidate across companies, then review it yourself.
 3. Merge A, B, C, D in that order; run bash tools/quality-check.sh after
    each merge, then push only after its gate passes.
