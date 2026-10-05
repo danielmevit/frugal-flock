@@ -1,21 +1,21 @@
-# Frugal Flock — keep one project in one folder
+# Unio — keep one project in one folder
 
 Owner rule, recorded 2026-10-04. This is a standing instruction for future
-Frugal Flock work, not merely a suggestion for this session.
+Unio work, not merely a suggestion for this session.
 
 ## One enclosing workspace
 
 All project-owned source, working copies, tasks, reports, checkpoints,
 design references, generated deliverables and scratch belong INSIDE one
-`frugal-flock` workspace. Do not create associated sibling folders or leave
+`unio` workspace (or legacy `frugal-flock` folder). Do not create associated sibling folders or leave
 important work in shared temporary directories. Ask before using a different
 storage layout. Do not move unrelated projects into this workspace.
 
-The current local workspace is `D:\Vibe Coding\_vm\frugal-flock` on Windows,
+The current local workspace remains the legacy path `D:\Vibe Coding\_vm\frugal-flock` on Windows,
 or `/mnt/d/Vibe Coding/_vm/frugal-flock` in WSL:
 
 ```text
-frugal-flock/
+frugal-flock/ (legacy path)
   repo/          Main Git checkout: stable source, documentation and prompt
   wt/codex/      Active Codex working copy: unfinished quality fixes
   wt/.../        Other registered worktrees; keep inactive histories intact
@@ -50,7 +50,7 @@ enclosing workspace. It is local, shared by every worktree, and not pushed.
   add an entry at the top of the log: local date and time with UTC offset,
   agent and exact model, worktree, branch and SHA, what changed, the tests
   actually run with results, state, and the one next task. Also update
-  [continue-with-ai-prompt.md](continue-with-ai-prompt.md) on your branch.
+  [continue-with-ai-prompt.md](continue-with-ai-prompt.md) on your branch, and keep provider guidance current.
 - Never edit or delete older entries. Without the local workspace (a fresh
   clone), the continuation prompt and M1 status carry the same facts.
 
@@ -78,6 +78,11 @@ Use the project-local `tmp/` for scratch files and, where supported,
 - Historical reports may contain old paths/names. Keep history truthful;
   update current instructions and explicitly identify the replacement path.
 
-On another machine, choose its own enclosing `frugal-flock` folder and keep
+On another machine, choose its own enclosing `unio` or `frugal-flock` folder and keep
 the same relationships. Do not hard-code this computer's drive into runtime
 code. Read this rule before creating files or additional workspaces.
+
+Before assigning any provider, read [docs/PROVIDER-CAPACITY.md](docs/PROVIDER-CAPACITY.md)
+and the newest log entries. Existing owner authorization for available AI
+work on Unio and milestones persists; do not request it again for routine
+assignments. Preserve invocation budgets, no-retry rules and review evidence.

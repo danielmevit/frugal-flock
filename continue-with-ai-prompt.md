@@ -4,71 +4,72 @@ Open the repo in your new AI session and paste the Prompt to paste below.
 Read the local agent log first; this file gives the current checkpoint.
 Earlier checkpoint notes remain in Git history and the append-only local log.
 
-Living checkpoint, updated 2026-10-05 10:50 +0200 by Claude Code lead
-(claude-opus-5-5), wt/claude-lead on agent/claude-lead, main 9d9f12c.
-The lead stopped early because its usage limit was close.
+Living checkpoint, updated 2026-10-05 12:06 +0200 by Codex lead
+(GPT-6; exact serving variant not exposed). Current local main: ce33555;
+A full gate and push are pending. Read the newest local log and receipts.
 
 ## Current checkpoint
 
-- **The project is being renamed to Unio.** Owner decisions and approved
-  lead proposals are frozen in [docs/RENAME-UNIO.md](docs/RENAME-UNIO.md)
-  (on main). GitHub repo already renamed: github.com/danielmevit/unio (old
-  URL redirects). Only the `unio` command (no old aliases); NOTICE names just
-  Unio; tagline stays until a new one is chosen; the local workspace folder
-  stays `_vm/frugal-flock`. Owner still to do: register unio.io, trademark
-  search for UNIO.
-- **LIMIT-WALL is merged (89202b4)** after its full quality gate passed. Five-model race through `frugal-flock race`
-  (GLM 5.3 high, Kimi K3 default, Qwen 3.8 Max xhigh, MiniMax M3 thinking,
-  DeepSeek V4 Pro high): all exit 0, verify 5/5, every test fails on old code.
-  Winner GLM, branch agent/glm-race @ 81c1bfc: lead APPROVE and Codex
-  (gpt-6.1-sol xhigh) native review APPROVE. The full quality gate was still
-  running at handoff: read the end of
-  tmp/race-limit-wall/receipts/quality-check-glm.log (needs "quality-check:
-  all checks passed"). Losing race branches are kept, not merged. Details:
-  tmp/race-limit-wall/manifest.json and receipts/.
-- **Rename slice A task is written:** coord/tasks/RENAME-A.md (race Codex
-  gpt-6.1-sol xhigh vs GLM 5.3 high, 2400s). Slices B (README and top-level
-  files), C (current docs/ guides; keep dated history such as
-  SESSION-HANDOFF-*, M1-*, M1.5-*, QUALITY-M1-CONTRACT, research/,
-  changelog.d and past CHANGELOG entries) and D (examples/, bridge/,
-  prototype/) still need task files. Plan: A merges first; B, C, D can run
-  in parallel because the contract fixes every new name.
-- README now has a collapsible FAQ and SETUP section 9 explains lead AI
-  permissions. STOP is set; no worker is running.
+- Source rename tasks A/B/C/D were prepared and dispatched through native
+  Frugal Flock with pinned models, timeouts and zero automatic retries.
+- A Codex candidate passed 8/8 task checks; GLM's race invocation hit the
+  Go cap and was interrupted without source changes. Grok requested two
+  changes; distinct Codex RENAME-A-FIX completed at 823a01f, passed 5/5
+  checks and received Google approval plus lead approval. A merged locally
+  at ce33555; its full gate is running, with no push yet at this snapshot.
+- B Gemini replacement c11935d passed 3/3 checks. Its Codex review finished
+  with changes requested. Lead correction 7eb91b9 addressed seven findings
+  and passed 3/3 checks; Grok then requested this checkpoint correction and
+  confirmed the rest of the tree matches the contract. Both rejections are
+  preserved. The current B branch is agent/antigravity-rename-b; resolve its
+  actual HEAD before acting, since this checkpoint is itself a lead update.
+  The lead will review the corrected checkpoint and current integration base.
+- C Google candidate plus lead docs corrections is 27e2656. Codex's six
+  findings and Grok's two follow-up findings are preserved and addressed.
+  A focused Grok closing review checks the final correction and the exact D
+  API-header counterpart; unchanged file hashes bind the earlier full review.
+- D original Kimi run hit the Go cap without edits; approved Grok replacement
+  bf2ffb1 passed 9/9 checks, native Google review and all three browser suites.
+  The original DeepSeek B failure also remains preserved.
+- Merge A, then B, then C, then D. Run the full quality gate after each
+  merge and push each only after its gate passes. B/C/D are not merged
+  at this snapshot; check the newest log and gate
+  receipts for later integration.
+- Read [provider capacity](docs/PROVIDER-CAPACITY.md) before assigning models:
+  screenshot usage, current documented limits and historical reset estimate
+  are preserved there. Actual account meters govern new scheduling.
+- The workspace remains the legacy path `_vm/frugal-flock`. Installed build
+  tool: Frugal Flock 0.4.0. Source target: Unio 0.5.0, unreleased. No global
+  Unio install or release has been authorized.
 
-Owner directions: use all AIs (Codex Sol 6.1 xhigh, OpenCode GLM 5.3 high
-plus Kimi K3/Qwen 3.8 Max/DeepSeek V4 Pro/MiniMax M3, Grok high, Antigravity
-Gemini 3.1 Pro high) with cross-company reviews; one invocation per task or
-review, stated timeout, no automatic retries, every spend logged. Use GLM at
-high, not max (max thinks ~2.5x longer for no better result); GLM 5.3 Flash
-was unreliable. DeepSeek needs the OpenCode workspace set to Global regions
-(done). Owner pushes are authorized; review everything before merging.
+The owner authorizes available AIs for Unio and milestone tasks, including
+cross-company reviews, integration and pushes; do not ask again for ordinary
+assignments. Keep every task bounded, preserve rejected/failed receipts and
+use GLM high. Global installation, release or new billing changes still
+require owner approval. Receipts: `../tmp/rename-unio/receipts/`; task files:
+`../coord/tasks/`; original setup: `../tmp/race-limit-wall/`.
 
 ## Prompt to paste
 
 ```text
-Continue Unio (formerly Frugal Flock) in /mnt/d/Vibe Coding/_vm/frugal-flock/repo.
+Continue Unio in /mnt/d/Vibe Coding/_vm/frugal-flock/repo.
 You are the lead. Read ../coord/AGENT-LOG.md FIRST (newest entries), then
-continue-with-ai-prompt.md, docs/RENAME-UNIO.md, WORKSPACE-RULES.md and
-docs/DOGFOOD-WORKFLOW.md. Work in your own lead worktree ../wt/claude-lead
-(branch agent/claude-lead); never redo or overwrite other branches.
+continue-with-ai-prompt.md, docs/RENAME-UNIO.md, WORKSPACE-RULES.md,
+docs/PROVIDER-CAPACITY.md, and docs/DOGFOOD-WORKFLOW.md. Work in your own lead worktree;
+never redo or overwrite other branches.
 
 Next steps, in order:
-1. Read docs/FINDINGS-2026-10-05.md (what the model tests proved).
-2. Start the Unio rename through the flock per docs/RENAME-UNIO.md: write
-   task files for slices B, C and D (see continue-with-ai-prompt.md for
-   scopes), then run slice A (coord/tasks/RENAME-A.md) as a race of Codex
-   gpt-6.1-sol xhigh vs GLM 5.3 high, and B/C/D on other vendors, each
-   reviewed by a different company and by you. Reuse the pattern in
-   ../tmp/race-limit-wall (per-run conf dir with pinned model wrappers,
-   review adapter, receipts). Create worker worktrees from main with a
-   .agentteam-worker marker so the git guards apply.
-3. Merge A first, then B/C/D, full quality gate after each, then check no
-   current file still says Frugal Flock or the old commands.
+1. Read the actual A gate receipt, push A only on PASS, and check the
+   remaining C closing review. Do not wait on the finished rejected B reviews.
+2. Review each final candidate across companies, then review it yourself.
+3. Merge A, B, C, D in that order; run bash tools/quality-check.sh after
+   each merge, then push only after its gate passes.
+4. Ensure no current file still says the legacy names except where history requires it.
 
-Rules: frugal-flock stop/resume around runs; one invocation per task, no
-retries; use `date` for log timestamps; quote paths (they contain spaces);
-never `pgrep -f` or `pkill -f` a pattern that appears in your own command.
+Rules: use the installed frugal-flock 0.4.0 stop/resume around runs until
+Unio installation is separately approved; one invocation per task, no
+retries; use date for log timestamps; quote paths (they contain spaces).
+Never use pgrep -f or pkill -f with a pattern appearing in your own command.
 Ask the owner before installing Unio globally or releasing. After every
 checkpoint prepend a dated entry to ../coord/AGENT-LOG.md and update this file.
 ```

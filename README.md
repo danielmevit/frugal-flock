@@ -1,14 +1,14 @@
-# Frugal Flock: connect AI coding tools from different companies into one workspace
+# Unio: connect AI coding tools from different companies into one workspace
 
 **Small plans. Big ideas.**
 
-Frugal Flock links AI coding tools from different companies, such as
+Unio links AI coding tools from different companies, such as
 Claude Code (Anthropic), Codex (OpenAI), Grok (xAI), Antigravity (Google)
 and OpenCode (which runs models such as Kimi), into one shared work
 environment for your project.
 
 On their own, these tools never meet. Each works in its own window, on its
-own subscription, unaware of the others. Frugal Flock gives them a common
+own subscription, unaware of the others. Unio gives them a common
 place to work:
 
 - **One leads, the others help.** One AI plans the work and hands out
@@ -21,11 +21,16 @@ place to work:
 - **Every result is checked**, and only you decide what goes into the real
   project.
 
-The name says it: a **flock** of AIs from different companies, run
-**frugally** on the plans you already have instead of one expensive one.
+The name says it plainly: *Unio* (Latin for oneness and union) unites AI
+coding tools from different companies into one team, run on the plans you
+already have instead of one expensive one.
+
+Unio was called Frugal Flock, and agentteam before that.
 
 **Available today:** a command-line tool for Linux, including Windows
 through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
+
+*(Note: The globally installed build tool remains Frugal Flock 0.4.0 (legacy build tool) until owner approval, while this source targets Unio 0.5.0. It is not yet released or installed globally.)*
 
 [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
 [FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·
@@ -51,7 +56,7 @@ Say you want to add search to a small website:
    who does each one, which files may change, and how it will be checked.
 3. **The helpers work**, each in a separate copy of the project, so their
    changes never get mixed up.
-4. **The work is checked.** Frugal Flock runs the agreed checks and keeps
+4. **The work is checked.** Unio runs the agreed checks and keeps
    the evidence. A helper from another company can review the changes too.
 5. **You decide.** Keep the changes, ask for fixes, or drop them. A
    finished AI run is not proof the work is right; the checks and your
@@ -59,7 +64,7 @@ Say you want to add search to a small website:
 
 ## Good to know
 
-- Frugal Flock does not get around usage limits or pool subscriptions. Each
+- Unio does not get around usage limits or pool subscriptions. Each
   tool keeps its own plan, limits, and terms.
 - Switching AIs after a limit is supervised today: the next AI gets a
   written handoff, not the previous one's memory. Automatic continuation
@@ -78,17 +83,17 @@ You need Linux or WSL with Bash, Git, Python 3, and standard tools such as
 `flock`. The rehearsal needs no AI account and uses no AI allowance.
 
 ```bash
-git clone https://github.com/danielmevit/frugal-flock.git
-cd frugal-flock
-bash frugal-flock-install.sh
+git clone https://github.com/danielmevit/unio.git
+cd unio
+bash unio-install.sh
 export PATH="$HOME/.local/bin:$PATH"
-frgl-flc selftest
+unio selftest
 ```
 
 The self-test runs the whole workflow with pretend AIs in a temporary
-project. `frgl-flc` is the short command; `frugal-flock` does the same. The
+project. The command is `unio`. The
 installer puts commands in `~/.local/bin` and settings in
-`~/.config/agentteam`; the [setup guide](docs/SETUP.md) shows how to keep the
+`~/.config/unio`; the [setup guide](docs/SETUP.md) shows how to keep the
 PATH change for future terminals.
 
 ### 2. Choose your path
@@ -107,10 +112,10 @@ with Codex:
 
 ```bash
 # Use your own Git repository URL; it needs at least one commit.
-frgl-flc new YOUR_REPOSITORY_URL my-project codex
+unio new YOUR_REPOSITORY_URL my-project codex
 cd my-project/repo
-frgl-flc doctor
-frgl-flc agents
+unio doctor
+unio agents
 ```
 
 Open your favourite AI coding tool in `my-project/repo` and ask:
@@ -125,9 +130,9 @@ Start with one helper and add another when you want a second perspective.
 `agents` shows what is installed, not remaining quota or sign-in status.
 `smoke` makes real test calls, so it uses some of your allowance.
 
-If your AI tool keeps asking before each `frgl-flc` command, or its own
+If your AI tool keeps asking before each `unio` command, or its own
 safety system refuses to run them, [allow those commands once](docs/SETUP.md#9-lead-ai-permissions)
-instead of switching its safety checks off. Frugal Flock's own refusals,
+instead of switching its safety checks off. Unio's own refusals,
 such as `STOP is active`, say why in their message.
 
 ## FAQ
@@ -135,9 +140,9 @@ such as `STOP is active`, say why in their message.
 <details>
 <summary>Do I have to pay for anything extra?</summary>
 
-No. Frugal Flock is free and open source. It works with the AI plans you
+No. Unio is free and open source. It works with the AI plans you
 already have, each signed in its own way, so you need no separate API keys.
-The rehearsal (`frgl-flc selftest`) makes no AI calls at all. Real tasks use
+The rehearsal (`unio selftest`) makes no AI calls at all. Real tasks use
 your plans' normal allowance; optional extras, such as a second AI reviewing
 the work, use a little more.
 
@@ -147,9 +152,9 @@ the work, use a little more.
 <summary>How is this different from calling the AI tools myself?</summary>
 
 You can call any AI tool directly, and for a quick question that is fine.
-Frugal Flock matters once AIs change your code:
+Unio matters once AIs change your code:
 
-| | Calling AI tools directly | Through Frugal Flock |
+| | Calling AI tools directly | Through Unio |
 |---|---|---|
 | Where the AI works | Wherever you point it; two at once can collide | Its own copy on its own branch |
 | When it is "done" | When the AI says so | When the task's checks pass and only allowed files changed |
@@ -158,7 +163,7 @@ Frugal Flock matters once AIs change your code:
 | Memory | Lives in one chat | Files any AI or person can read and continue from |
 | Safety | Each tool on its own | A stop switch, paused agents, one run per worker, time limits |
 
-The AIs were always reachable. Frugal Flock makes their work isolated,
+The AIs were always reachable. Unio makes their work isolated,
 checked, recorded and easy to hand over.
 
 </details>
@@ -169,7 +174,7 @@ checked, recorded and easy to hand over.
 One is enough to start. Settings are included for Claude Code, Codex,
 Antigravity, OpenCode (for models such as GLM and Kimi) and Grok. Any
 command-line AI that can take a task without a chat window can join with
-one line in `~/.config/agentteam/agents.conf`, for example
+one line in `~/.config/unio/agents.conf`, for example
 `mycli=mycli -p "$(cat "$TASKFILE")"`. A second tool from another company
 lets one AI review another's work.
 
@@ -179,7 +184,7 @@ lets one AI review another's work.
 <summary>Does it work on Windows or Mac?</summary>
 
 Linux, yes. Windows, yes, through WSL (Ubuntu works well). Mac is not
-supported yet: Frugal Flock relies on Linux tools such as `flock`.
+supported yet: Unio relies on Linux tools such as `flock`.
 
 </details>
 
@@ -203,8 +208,8 @@ Nothing enforces those boundaries, though: every AI runs commands on your
 computer with your rights, and the copies are not a security sandbox. Use
 a spare Linux machine or virtual machine without important passwords or
 keys, keep secrets out of tasks and repositories, and remember that each AI
-sends your prompts and code to its provider. `frgl-flc stop` blocks new runs;
-`frgl-flc kill T7` ends task T7 if it is running.
+sends your prompts and code to its provider. `unio stop` blocks new runs;
+`unio kill T7` ends task T7 if it is running.
 
 </details>
 
@@ -212,9 +217,9 @@ sends your prompts and code to its provider. `frgl-flc stop` blocks new runs;
 <summary>How do I know the AI's work is actually right?</summary>
 
 Every task names the files it may change and the checks that must pass.
-`frgl-flc verify` re-runs those checks and fails the task if one fails or
+`unio verify` re-runs those checks and fails the task if one fails or
 anything changed outside the allowed files; nothing is undone, so you can
-inspect it. Once verify passes, `frgl-flc review` can ask another company's
+inspect it. Once verify passes, `unio review` can ask another company's
 AI to judge the committed change. The result records separately whether the
 AI finished, the checks passed and the review approved. Your own decision
 comes last: a finished run is never taken as proof the work is right.
@@ -225,12 +230,12 @@ comes last: a finished run is never taken as proof the work is right.
 <summary>What happens when an AI hits its usage limit?</summary>
 
 Pause it and give the next task to another company's AI.
-`frgl-flc off codex 5h` stops new tasks from going to Codex for five hours,
-and `frgl-flc handoff codex T7` writes a context note about task T7: what
+`unio off codex 5h` stops new tasks from going to Codex for five hours,
+and `unio handoff codex T7` writes a context note about task T7: what
 was done, what passed and what is left. The lead then gives the work to
 another AI with that note. The note is context only: unfinished, uncommitted
 changes stay in Codex's copy. [Handoff packets](docs/QUALITY-USAGE.md#handoff-packets)
-explain the details. Frugal Flock does not get around limits or share plans;
+explain the details. Unio does not get around limits or share plans;
 each tool keeps its own. Automatic switching is on the roadmap.
 
 </details>
@@ -238,11 +243,11 @@ each tool keeps its own. Automatic switching is on the roadmap.
 <details>
 <summary>My lead AI keeps asking for permission, or a run is refused. What now?</summary>
 
-First check who refused. Frugal Flock's own refusals say why, for example
+First check who refused. Unio's own refusals say why, for example
 `STOP is active`, an agent that is `OFF`, or a worker that is
-`already running a task`; `frgl-flc status` shows the state. If instead the
+`already running a task`; `unio status` shows the state. If instead the
 AI tool asks or refuses, that is its own safety system. For Claude Code,
-allow the `frugal-flock` commands once in a small settings file and
+allow the `unio` commands once in a small settings file and
 restart it; [setup step 9](docs/SETUP.md#9-lead-ai-permissions) shows the
 file and what it does and does not allow. Other tools have similar approval
 settings. Do not add rules for pushes or merges into your main branch;
@@ -253,7 +258,7 @@ only sensible on a throwaway virtual machine.
 
 ## For the curious and the nerdy
 
-Frugal Flock is a Bash orchestration layer around existing coding CLIs, not
+Unio is a Bash orchestration layer around existing coding CLIs, not
 a new model or a hosted service. Each tool uses its own sign-in; there is no
 shared API-key service.
 
@@ -272,15 +277,15 @@ shared API-key service.
 Everyday commands once a project is set up:
 
 ```bash
-frgl-flc help             # discover commands
-frgl-flc status           # tasks, reports, review queue, running work
-frgl-flc tail             # follow the latest run's log
-frgl-flc score            # per-worker scorecard from the event ledger
-frgl-flc result codex T7  # stored run/verify/review evidence as JSON
-frgl-flc handoff codex T7 # context packet for the next AI, same checkout
-frgl-flc agents --json    # local availability; no login or quota probe
-frgl-flc off codex 5h     # bench a provider for your chosen interval
-frgl-flc on codex         # make it available again
+unio help             # discover commands
+unio status           # tasks, reports, review queue, running work
+unio tail             # follow the latest run's log
+unio score            # per-worker scorecard from the event ledger
+unio result codex T7  # stored run/verify/review evidence as JSON
+unio handoff codex T7 # context packet for the next AI, same checkout
+unio agents --json    # local availability; no login or quota probe
+unio off codex 5h     # bench a provider for your chosen interval
+unio on codex         # make it available again
 ```
 
 A finished process, passing checks, a reviewer's approval, and your own
@@ -298,7 +303,7 @@ Every exit code and field is in the [quality reference](docs/QUALITY-USAGE.md).
 | See a worked example | [Replayable tour](docs/EXAMPLE.md) |
 | Understand task contracts and coordination | [Agent protocol](docs/PROTOCOL.md) |
 | Read the release notes | [Changelog](CHANGELOG.md) |
-| Work on Frugal Flock itself | [Maintainer handoff](docs/HANDOFF.md) · [Doc conventions](docs/DOC-CONVENTIONS.md) |
+| Work on Unio itself | [Maintainer handoff](docs/HANDOFF.md) · [Doc conventions](docs/DOC-CONVENTIONS.md) |
 | Test the engine's guardrails | [Test plan](docs/TESTPLAN.md) · [Word copy](docs/TESTPLAN.docx) |
 | Read the background research | [Architecture research](research/multi-agent-claude-review.md) · [Original plan](docs/MASTER-PLAN.md) |
 
@@ -306,9 +311,9 @@ Contributor checks, none of which call a live provider:
 
 ```bash
 bash tools/quality-check.sh   # everything below plus selftest and ShellCheck
-bash tests/frugal-flock-quality.sh
-bash tests/frugal-flock-branding.sh
-bash tests/agentteam-probes.sh
+bash tests/unio-quality.sh
+bash tests/unio-branding.sh
+bash tests/unio-probes.sh
 bash tools/check-docs.sh
 ```
 
@@ -320,7 +325,7 @@ needed to rebuild the Word manuals with `tools/make-docx.sh`.
 - **Done, v0.4.0:** a reliable core. Strict checks, evidence tied to the
   exact version of the work, gated reviews, and a handoff file for the next
   AI. See the [release notes](CHANGELOG.md).
-- **Now:** a stability phase with real AI providers, so that Frugal Flock
+- **Now:** a stability phase with real AI providers, so that Unio
   can safely help build its own app.
 - **Then:** a simple app to describe work, approve a plan, follow progress,
   and review results, followed by guided "continue with another AI" when
@@ -336,13 +341,13 @@ and [findings index](docs/RESEARCH-FINDINGS.md) hold the details.
 
 ## License
 
-Frugal Flock is licensed under **AGPL-3.0-only**, with attribution and origin
+Unio is licensed under **AGPL-3.0-only**, with attribution and origin
 terms under sections 7(b) and 7(c). Copyright (C) 2026
 **Daniel Mitev**, publicly **Daniel Mevit (@danielmevit)**. See
-[LICENSE](LICENSE) and [NOTICE](NOTICE), or run `frugal-flock license`.
+[LICENSE](LICENSE) and [NOTICE](NOTICE), or run `unio license`.
 
 Commercial use and compliant forks are allowed. Covered redistributed
-derivatives must preserve the **Frugal Flock** name and original author
+derivatives must preserve the **Unio** name and original author
 credit in the reused material or appropriate legal notices, identify
 modified versions, and meet the license's
 source-sharing requirements; modified network versions must offer source
@@ -390,5 +395,5 @@ patterns work today.
   writer–reviewer pipelines, agent relay, best-of-N, cross-provider handoff,
   agent swarms, AI councils. Not model merging, shared quotas, or automatic
   consensus.
-- **Names and commands:** Frugal Flock, frugal-flock, frgl-flc, agentteam,
-  agentteam-docs, Claude Code, Codex, Antigravity, OpenCode, Grok, Kimi.
+- **Names and commands:** Unio, unio, Claude Code, Codex, Antigravity,
+  OpenCode, Grok, Kimi.

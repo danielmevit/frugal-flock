@@ -1,4 +1,4 @@
-# Frugal Flock — next steps
+# Unio — next steps
 
 Small plans. Big ideas.
 
@@ -15,14 +15,13 @@ Initial M1.5 source work is complete; broader app work continues from the
 ## Current handoff
 
 - 2026-10-05: Claude is the lead. The waiting-job JobStore library/tests
-  were built through the installed Frugal Flock pipeline (GLM 5.3 worker,
+  were built through the installed Frugal Flock 0.4.0 (legacy build tool) pipeline (GLM 5.3 worker,
   two approved runs, Claude lead review), merged and pushed as 2539c64.
   Owner direction: use Codex, OpenCode GLM, Grok and Antigravity for flock
   work with cross-vendor reviews. Next: approval plus reservation/recovery
   slice (no executor) and job_store_test.py in the routine gate.
 - Name and tagline approved by the owner.
-- Canonical CLI: `frugal-flock`; short CLI: `frgl-flc`; compatibility CLI:
-  `agentteam`. The Linux `flock` utility must remain untouched.
+- Canonical CLI: `unio` (old aliases `frugal-flock`, `frgl-flc`, and `agentteam` are removed). The Linux `flock` utility must remain untouched.
 - Naming contract: [Brand](docs/BRAND.md).
 - UX proposal: [UX direction](docs/UX-DIRECTION.md). The proposed graphical
   app is not implemented yet.
@@ -47,9 +46,11 @@ Initial M1.5 source work is complete; broader app work continues from the
   `.log` file. That interrupted run is historical, not the final task
   outcome; see the later verification and completion handoff in the report.
 - Existing local commits from before this session were preserved. The
-  GitHub repository was renamed in place from `agentteam-docs` to
+  Historical GitHub rename: `agentteam-docs` became
   [frugal-flock](https://github.com/danielmevit/frugal-flock). The rewritten
   README offers a beginner path, optional technical depth, and keywords.
+- On 2026-10-05, the owner approved the subsequent rename to
+  [Unio](https://github.com/danielmevit/unio); see docs/RENAME-UNIO.md.
 
 ## 1. M1 — finish quality before UX
 
@@ -74,14 +75,16 @@ accepted M1 on 2026-10-04. M2 starts when the owner asks for it.
 ### Clean-clone baseline check
 
 - Follow the README from a fresh clone. Install with
-  `bash frugal-flock-install.sh`, then run `frgl-flc selftest` and
-  `frgl-flc version` before connecting a live provider.
-- Keep old configuration paths, environment overrides, and command
-  compatibility. Existing local clone folders need not be renamed.
+  `bash unio-install.sh`, then run `unio selftest` and
+  `unio version` before connecting a live provider.
+- Unio supports only `unio`, `UNIO_*` overrides and `~/.config/unio`.
+  The installer copies legacy default config once when the new config is
+  absent and no override is selected, preserving the old config. Old aliases
+  and environment names are not supported; local clone folders stay intact.
 
 ## Near-term roadmap (owner-approved 2026-10-04)
 
-Goal: build the Frugal Flock app WITH Frugal Flock (dogfooding) and watch
+Goal: build the Unio app WITH the legacy installed Frugal Flock 0.4.0 (dogfooding) and watch
 its behaviour live, so build progress, bugs and errors are visible as they
 happen. Only after a stability phase, so the team does not burn tokens in
 bug loops.
@@ -108,7 +111,7 @@ continuation after provider limits is the real differentiator. Risks:
 Order: M1.5 below, then M2 built by the flock itself (mock-data prototype,
 one worker plus a reviewer, owner merges, widen after a few clean cycles),
 then the read-only local bridge (section 4), whose first view grows out of
-`frugal-flock watch`, then capacity-aware handoff (section 5).
+`unio watch`, then capacity-aware handoff (section 5).
 
 ## 1.5 M1.5 — stability before dogfooding
 
@@ -139,7 +142,7 @@ order, one small tested checkpoint each:
    one explicit owner grant via `allow-retry`. Full gate passed: 40 selftests,
    120 existing regressions, 22 brake checks, 14 probes, packaging, ShellCheck
    and docs. Installed 0.4.0 remains unchanged until a deliberate release.
-3. Live monitor (`frugal-flock watch`): runs, verdicts, failures and limits
+3. Live monitor (`unio watch`): runs, verdicts, failures and limits
    as they happen; it later becomes the app's Activity view.
    Source implementation complete: 26 focused mock checks, standalone
    packaging/aliases/completion, ShellCheck/syntax and full docs lint passed.
@@ -292,7 +295,7 @@ journey is useful and understandable.
   Daniel Mitev, public attribution Daniel Mevit (@danielmevit). The owner
   explicitly chose true open source, allowing compliant commercial forks,
   with optional paid agreements for proprietary use. Section 7(b)/(c) terms
-  preserve the Frugal Flock name/author credit and prohibit origin
+  preserve the Unio name/author credit and prohibit origin
   misrepresentation in covered copies/variants. Full terms/NOTICE
   ship with the installer; see [licensing guidance](docs/LICENSING.md).
 - Add concise contribution and issue-reporting guidance.
