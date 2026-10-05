@@ -10,6 +10,7 @@ from pathlib import Path
 import sqlite3
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -87,6 +88,105 @@ class JobStoreTests(unittest.TestCase):
             results = list(pool.map(submit, range(8)))
         self.assertEqual(results, [first] * 8)
         self.assertEqual(self.store.pending(), [first])
+        self.assertEqual(self.count_jobs(), 1)
+
+    def test_concurrent_first_open_on_new_workspace_initializes_once(self):
+        workspace = Path(tempfile.mkdtemp(prefix='job-open-race-', dir=self.temp.name))
+        (workspace / 'coord').mkdir()
+        barrier = threading.Barrier(8)
+
+        def open_store(_):
+            barrier.wait()
+            with jobs.JobStore(workspace) as store:
+                return (store._db.execute('PRAGMA user_version').fetchone()[0],
+                        store.pending())
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(open_store, range(8)))
+        self.assertEqual(results, [(1, [])] * 8)
+        connection = sqlite3.connect(workspace / 'coord' / 'ui-jobs.sqlite3')
+        try:
+            version = connection.execute('PRAGMA user_version').fetchone()[0]
+            count = connection.execute('SELECT COUNT(*) FROM jobs').fetchone()[0]
+        finally:
+            connection.close()
+        self.assertEqual((version, count), (1, 0))
+
+    def test_interrupted_or_bare_database_files_initialize_to_schema_one(self):
+        self.store.close()
+
+        def zero_byte(path):
+            path.write_bytes(b'')
+
+        def bare_sqlite(path):
+            connection = sqlite3.connect(path)
+            try:
+                connection.execute('CREATE TABLE ghost (x TEXT)')
+                connection.execute('DROP TABLE ghost')
+                connection.commit()
+            finally:
+                connection.close()
+
+        for setup in (zero_byte, bare_sqlite):
+            with self.subTest(setup=setup.__name__):
+                workspace = Path(tempfile.mkdtemp(prefix='job-bare-', dir=self.temp.name))
+                (workspace / 'coord').mkdir()
+                setup(workspace / 'coord' / 'ui-jobs.sqlite3')
+                with jobs.JobStore(workspace) as store:
+                    self.assertEqual(store.pending(), [])
+                connection = sqlite3.connect(workspace / 'coord' / 'ui-jobs.sqlite3')
+                try:
+                    version = connection.execute('PRAGMA user_version').fetchone()[0]
+                    columns = tuple(row[1] for row
+                                    in connection.execute('PRAGMA table_info(jobs)'))
+                    count = connection.execute('SELECT COUNT(*) FROM jobs').fetchone()[0]
+                finally:
+                    connection.close()
+                self.assertEqual(version, 1)
+                self.assertEqual(columns, jobs.COLUMNS)
+                self.assertEqual(count, 0)
+
+    def test_concurrent_enqueue_of_same_new_key_creates_exactly_one_job(self):
+        draft = self.draft()
+        inputs = (draft['id'], draft['content_sha256'], 'race-worker', 'c' * 32)
+        barrier = threading.Barrier(8)
+
+        def submit(_):
+            with jobs.JobStore(self.workspace) as store:
+                barrier.wait()
+                return store.enqueue(*inputs)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(submit, range(8)))
+        self.assertEqual(results, [results[0]] * 8)
+        self.assertEqual(self.store.pending(), [results[0]])
+        self.assertEqual(self.count_jobs(), 1)
+
+    def test_failed_commit_rolls_back_and_store_stays_usable(self):
+        draft = self.draft()
+        real = self.store._db
+
+        class FlakyCommitProxy:
+            failed = False
+
+            def execute(self, sql, *parameters):
+                if not self.failed and sql == 'COMMIT':
+                    self.failed = True
+                    raise sqlite3.OperationalError('simulated COMMIT failure')
+                return real.execute(sql, *parameters)
+
+        self.store._db = FlakyCommitProxy()
+        try:
+            with self.assertRaises(sqlite3.OperationalError):
+                self.store.enqueue(draft['id'], draft['content_sha256'],
+                                   'worker', 'd' * 32)
+        finally:
+            self.store._db = real
+        self.assertEqual(self.count_jobs(), 0)
+        self.assertEqual(self.store.pending(), [])
+        job = self.store.enqueue(draft['id'], draft['content_sha256'],
+                                 'worker', 'd' * 32)
+        self.assertEqual(self.store.get(job['id']), job)
         self.assertEqual(self.count_jobs(), 1)
 
     def test_pending_orders_by_creation_time_then_id(self):

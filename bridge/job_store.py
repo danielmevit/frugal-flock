@@ -64,20 +64,17 @@ class JobStore:
             try:
                 info = os.stat(DATABASE, dir_fd=coordination, follow_symlinks=False)
             except FileNotFoundError:
-                fresh = True
-            else:
-                if not stat.S_ISREG(info.st_mode):
-                    raise ValueError('job database must be a regular file')
-                fresh = False
-            if fresh:
                 try:
                     descriptor = os.open(DATABASE,
                                          os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                                          0o600, dir_fd=coordination)
                 except FileExistsError:
-                    fresh = False
+                    pass
                 else:
                     os.close(descriptor)
+            else:
+                if not stat.S_ISREG(info.st_mode):
+                    raise ValueError('job database must be a regular file')
         finally:
             os.close(coordination)
         try:
@@ -86,16 +83,21 @@ class JobStore:
         except sqlite3.Error as error:
             raise ValueError('cannot open job database') from error
         try:
-            if fresh:
-                connection.execute('BEGIN IMMEDIATE')
+            connection.execute('BEGIN IMMEDIATE')
+            version = connection.execute('PRAGMA user_version').fetchone()[0]
+            objects = connection.execute(
+                'SELECT COUNT(*) FROM sqlite_master').fetchone()[0]
+            if version == 0 and objects == 0:
                 try:
                     connection.execute(CREATE_JOBS)
                     connection.execute('PRAGMA user_version = 1')
+                    connection.execute('COMMIT')
                 except BaseException:
                     self._rollback(connection)
                     raise
-                connection.execute('COMMIT')
-            self._verify(connection)
+            else:
+                connection.execute('ROLLBACK')
+                self._verify(connection)
         except sqlite3.Error as error:
             connection.close()
             raise ValueError('corrupt or unsupported job database') from error
@@ -213,7 +215,11 @@ class JobStore:
         except BaseException:
             self._rollback(connection)
             raise
-        connection.execute('COMMIT')
+        try:
+            connection.execute('COMMIT')
+        except sqlite3.Error:
+            self._rollback(connection)
+            raise
         return self.get(identity)
 
     def get(self, job_id):
