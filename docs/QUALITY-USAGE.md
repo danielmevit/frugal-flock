@@ -145,6 +145,30 @@ verification's exit (1 or 2).
 Before a provider starts, `run` prints the execution boundary warning:
 configured commands run with host-level access.
 
+## Limit observations (heuristic)
+
+`run` scans the worker's final output window for provider limit language
+(rate/usage limit, quota, resets at). It is a conservative text heuristic,
+never a confirmed quota, and worker text never changes agent state.
+
+- One normalized final window drives both display and matching: the
+  report's `### agent output (tail)` section shows the last 60 log lines
+  with ANSI/control escapes and carriage returns normalized, and the same
+  normalized text is matched. The raw log at `coord/reports/TASK.log` is
+  kept as the original evidence, and log text is never executed.
+- A run is failed for this helper when its actual exit is nonzero, or when
+  the empty-work rule finds zero commits against the base and zero
+  uncommitted files. The real process exit is preserved in the report, the
+  ledger and the stored result.
+- Only such a failed run can warn (`!! output mentions usage limits`) and
+  record ledger `wall=1`, meaning suspected limit language. A successful
+  run with committed work records `wall=0` even when it prints limit
+  phrases, including quoted repository file text.
+- `UNIO_AUTO_OFF` is accepted for compatibility and no longer benches: no
+  availability or configuration file is ever written from log matching.
+  Benching an agent stays an explicit operator action (`unio off` /
+  `unio on`), and `unio agents` keeps reporting capacity as unknown.
+
 ## Verification exits
 
 `verify WORKER TASK` holds the worker lock for the whole check, so it

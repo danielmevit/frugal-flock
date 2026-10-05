@@ -773,7 +773,7 @@ cat > "$BIN_DIR/unio" <<'UNIO_BIN_EOF'
 #   PROJECT/coord/    board.md, base, docs/, tasks/, reports/, blockers.md, STOP
 set -euo pipefail
 
-UNIO_VERSION="0.5.0"
+UNIO_VERSION="0.5.1"
 CONF_DIR="${UNIO_CONF_DIR:-$HOME/.config/unio}"
 CONF_FILE="$CONF_DIR/agents.conf"
 TPL_DIR="$CONF_DIR/templates"
@@ -1893,6 +1893,21 @@ cmd_run() {
   files=${files:-0}; ins=${ins:-0}; dels=${dels:-0}
   unc=$(git -C "$wt" status --porcelain=v1 2>/dev/null | wc -l)
 
+  # One final 60-line window, normalized (ANSI/control escapes and carriage
+  # returns stripped — normalization processes the text, it never executes
+  # log text), drives both the report display below and limit matching after
+  # it. The raw log stays untouched as the original evidence.
+  local norm
+  norm=$(mktemp)
+  tail -n 60 "$log" | LC_ALL=C sed \
+    -e $'s,\x1b\\[[0-9;:?<=>!]*[ -/]*[@-~],,g' \
+    -e $'s,\x1b\\][^\a\x1b]*\a,,g' \
+    -e $'s,\x1b\\][^\x1b]*\x1b\\\\,,g' \
+    -e $'s,\x1b[@-~],,g' \
+    -e $'s,\r,,g' \
+    -e $'s,[\x01-\x08\x0b\x0c\x0e-\x1f\x7f],,g' \
+    > "$norm" || true
+
   {
     echo
     echo "## run $(date -Is) — worker=$worker agent=$agent exit=$rc duration=${dur}s task_sha=$task_fp"
@@ -1914,18 +1929,27 @@ cmd_run() {
     echo
     echo "### agent output (tail)"
     echo '~~~'
-    tail -n 60 "$log"
+    cat "$norm"
     echo '~~~'
   } >> "$report"
 
-  # limit detection is a helper only: a run that exits 0 never counts, and
-  # only a FAILED run whose tail matches provider limit phrases walls
-  local wall=0
-  if [ "$rc" -ne 0 ] && tail -n 40 "$log" | grep -qiE "$LIMIT_RE"; then
+  # limit detection is a helper only: a conservative text heuristic over the
+  # same normalized final window — wall=1 and its warning mean SUSPECTED
+  # limit language, never a confirmed provider quota. A run counts as failed
+  # for this helper when its actual exit is nonzero, or the empty-work check
+  # above found zero commits against the base and zero uncommitted files; the
+  # real process exit is preserved in every receipt. Worker text never calls
+  # off or writes availability/configuration state: UNIO_AUTO_OFF is accepted
+  # for compatibility and ignored, and benching stays an explicit operator
+  # action (`unio off` / `unio on`).
+  local failed_helper=0 wall=0
+  [ "$rc" -ne 0 ] && failed_helper=1
+  [ "$commits" -eq 0 ] && [ "$unc" -eq 0 ] && failed_helper=1
+  if [ "$failed_helper" = 1 ] && grep -aqiE "$LIMIT_RE" "$norm"; then
     wall=1
-    echo "!! output mentions usage limits — if '$agent' hit its 5h/weekly cap:  unio off $agent 5h   (weekly: 7d)" >&2
-    if [ "${UNIO_AUTO_OFF:-0}" = "1" ]; then cmd_off "$agent" 5h >&2; fi
+    echo "!! output mentions usage limits — suspected limit language, not a confirmed quota; if '$agent' hit its 5h/weekly cap:  unio off $agent 5h   (weekly: 7d)" >&2
   fi
+  rm -f "$norm"
 
   ledger_add "$root" "$(printf '{"event":"run","ts":"%s","task":"%s","worker":"%s","agent":"%s","exit":%d,"duration_s":%d,"wall_s":%d,"suspended":%d,"snapshot_failed":%d,"commits":%d,"files":%d,"insertions":%d,"deletions":%d,"uncommitted":%d,"wall":%d}' \
     "$(date -Is)" "$task" "$worker" "$agent" "$rc" "$dur" "$wallsec" "$suspended" "$snap_failed" "$commits" "$files" "$ins" "$dels" "$unc" "$wall")"
@@ -3149,7 +3173,8 @@ appears during a run, run keeps the worker's real exit, marks the result
 post_run_snapshot=failed (stale, never ready) and returns nonzero.
 Env: UNIO_TIMEOUT (3600s)  UNIO_VERIFY_TIMEOUT (900s)
      UNIO_REVIEW_TIMEOUT (900s)  UNIO_ALLOW_SECRETS=1 (init override)
-     UNIO_AUTO_OFF=1 (bench 5h when a FAILED run mentions usage limits)
+     UNIO_AUTO_OFF (accepted for compatibility, no effect: worker output
+                    never benches an agent; bench only via 'unio off/on')
      UNIO_AUTO_VERIFY=1 (append verify verdict; propagate failed/incomplete checks)
      UNIO_AUTO_SYNC=1 (fast-forward a stale worker onto base before a run)
 
@@ -3548,9 +3573,13 @@ commits=<n> files=<n> insertions=<n> deletions=<n> uncommitted=<n>
 [!! empty-diff warning when exit=0 with no changes]
 ### agent output (tail)
 ~~~
-<last 60 lines of the run log>
+<last 60 log lines, ANSI/control escapes and carriage returns normalized>
 ~~~
 ```
+
+The `agent output (tail)` window is the final 60 log lines with ANSI/control
+escapes and carriage returns normalized; the raw `*.log` file keeps the
+original evidence, and normalization never executes log text.
 
 Verify block (appended by `unio verify`):
 `### verify <ts> — worker=<w> scope=<OK|VIOLATION|UNCHECKED>
@@ -3744,9 +3773,14 @@ unio stop | resume        create/remove coord/STOP (global run gate)
 Environment: `UNIO_TIMEOUT` (seconds, default 3600) caps each run;
 `UNIO_VERIFY_TIMEOUT` (default 900) caps each Validate command;
 `UNIO_REVIEW_TIMEOUT` (default 900) caps a review call.
-`UNIO_AUTO_OFF=1` auto-benches an agent 5h when a FAILED run's log
-matches limit-language patterns (suppressed when the task text itself
-mentions limits and the run succeeded). `UNIO_AUTO_VERIFY=1` makes
+`UNIO_AUTO_OFF` is accepted for compatibility and has no effect: worker
+output never benches an agent or writes availability/configuration state.
+A limit warning and ledger `wall=1` mean suspected limit language in a
+failed-for-the-helper run's normalized final window — actual exit nonzero,
+or zero commits against the base and zero uncommitted files — never a
+confirmed provider quota. A successful run with work stays `wall=0` and
+keeps its real exit whatever it printed. Benching remains an explicit
+operator action (`unio off` / `unio on`). `UNIO_AUTO_VERIFY=1` makes
 every run append its own verify verdict after finishing. If the worker
 succeeds but verification fails or is incomplete, run returns the
 verification's nonzero exit; a failed worker retains its own exit code.
@@ -3838,7 +3872,7 @@ when assigning tasks.
 | Condition | Required behavior |
 |---|---|
 | Auth/token error in output | Report it verbatim; OWNER re-logins the CLI; task is rerunnable. |
-| Limit language in output (rate/usage limit, quota, resets at) | LEAD suggests `unio off <agent> 5h` (weekly: 7d) and reroutes. |
+| Suspected limit language (rate/usage limit, quota, resets at) in a failed run's normalized final window | Heuristic only, never a confirmed quota; LEAD may suggest `unio off <agent> 5h` (weekly: 7d) and reroute. |
 | Validate commands fail | Do not claim success. Report failure + hypothesis. |
 | `unio verify` reports SCOPE VIOLATION | Reject the branch; LEAD re-briefs with corrected scope; a violating diff is never merged as-is. |
 | `unio verify` reports INCOMPLETE (exit 2) | The task has no scope or no Validate lines: LEAD adds them. There is no waiver. |
