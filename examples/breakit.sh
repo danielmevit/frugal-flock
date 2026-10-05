@@ -21,7 +21,8 @@
 # (it did not). If everything HELD, unio earned the right to build
 # something real — see docs/TESTPLAN.md Part C.
 set -uo pipefail
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="${UNIO_BIN_DIR:-$HOME/.local/bin}:$PATH"
+TEMPLATES="${UNIO_CONF_DIR:-$HOME/.config/unio}/templates"
 
 command -v unio >/dev/null || { echo "install unio first: bash unio-install.sh"; exit 1; }
 
@@ -38,7 +39,7 @@ refused() { # exit nonzero (and optional needle in output)
 
 WORK="${1:-$(mktemp -d)}"; rm -rf "$WORK"; mkdir -p "$WORK"
 CONF="$WORK/conf"; mkdir -p "$CONF/templates"
-cp "$HOME/.config/unio/templates/"*.md "$CONF/templates/" 2>/dev/null \
+cp "$TEMPLATES/"*.md "$CONF/templates/" 2>/dev/null \
   || { echo "run bash unio-install.sh first (templates missing)"; exit 1; }
 export UNIO_CONF_DIR="$CONF"
 
@@ -143,16 +144,38 @@ printf '%s' "$out" | grep -qi "do not push\|guard" && held "pre-push guard block
 [ "$(git rev-list --count dev)" -eq 1 ] && held "base branch 'dev' is untouched (still 1 commit)" \
   || cracked "base branch moved — the escapee reached it"
 
-hdr "GUARANTEE 5 — quota walls (failure protocol): detected and benched"
+hdr "GUARANTEE 5 — suspected limits: warn without changing availability; bench explicitly"
 mktask T-wall waller
+availability_before=$(unio agents --json 2>/dev/null); availability_before_rc=$?
 out=$(UNIO_AUTO_OFF=1 unio run waller T-wall 2>&1); rc=$?
-printf '%s' "$out" | grep -qi "usage limits" && held "wall language detected and surfaced" \
-  || cracked "quota wall went undetected"
-unio agents 2>/dev/null | grep -i waller | grep -q OFF \
-  && held "AUTO_OFF benched the walled agent" || cracked "walled agent was not benched"
+[ "$rc" -eq 1 ] && held "the failed mock keeps its real exit (1)" \
+  || cracked "the failed mock's real exit was not preserved (rc=$rc)"
+printf '%s' "$out" | grep -Fq "!! output mentions usage limits — suspected limit language, not a confirmed quota" \
+  && held "the warning reports suspected limit language, not a confirmed quota" \
+  || cracked "the failed mock did not surface the suspected-limit warning"
+availability_after=$(unio agents --json 2>/dev/null); availability_after_rc=$?
+if [ "$availability_before_rc" -eq 0 ] && [ "$availability_after_rc" -eq 0 ] \
+   && [ "$availability_before" = "$availability_after" ] && [ ! -e "$CONF/off/waller" ]; then
+  held "UNIO_AUTO_OFF=1 leaves availability unchanged after worker output"
+else
+  cracked "UNIO_AUTO_OFF=1 changed availability or availability could not be checked"
+fi
+out=$(unio off waller 5h 2>&1); rc=$?
+if [ "$rc" -eq 0 ] && [ -f "$CONF/off/waller" ]; then
+  held "explicit unio off benches the mock agent"
+else
+  cracked "explicit unio off did not bench the mock agent (rc=$rc)"
+fi
 out=$(unio run waller T-wall 2>&1); rc=$?
-refused "a benched agent is refused new work" "$rc" "$out" "OFF|benched"
-unio on waller >/dev/null
+refused "the explicitly benched agent is refused new work" "$rc" "$out" "OFF|benched"
+out=$(unio on waller 2>&1); rc=$?
+availability_after=$(unio agents --json 2>/dev/null); availability_after_rc=$?
+if [ "$rc" -eq 0 ] && [ "$availability_before_rc" -eq 0 ] && [ "$availability_after_rc" -eq 0 ] \
+   && [ "$availability_before" = "$availability_after" ] && [ ! -e "$CONF/off/waller" ]; then
+  held "explicit unio on restores the original availability"
+else
+  cracked "explicit unio on did not restore availability (rc=$rc)"
+fi
 
 hdr "GUARANTEE 6 — the human gate (I3): only YOU merge; merges are logged"
 # workers never merged anything; only the owner does, and it hits the ledger
