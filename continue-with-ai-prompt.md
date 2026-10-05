@@ -1,122 +1,141 @@
-# Copy this prompt to continue with another AI
+# Continue Unio with another AI
 
-Read the newest workspace agent-log entries before acting. This checkpoint
-records the completed rename; earlier decisions and failures remain in Git
-history and the append-only local log.
+Read newest ../../coord/AGENT-LOG.md first from a worker, or ../coord/AGENT-LOG.md
+from repo/. History there is append-only. Read actual newer worker branches
+before changing anything; never reset or overwrite them. This living prompt
+keeps current decisions; complete receipts and prior notes remain private.
 
-Living checkpoint, updated 2026-10-05 14:24:57 +0200 by Codex lead
-(GPT-6; exact serving variant not exposed). Source integration main:
-aebe23c. The later handoff-only commit does not alter that source.
+Living checkpoint: 2026-10-05 21:39:01 +0200; Codex lead (GPT-6; exact serving variant not exposed).
 
 ## Current checkpoint
 
-Unio 0.5.0 is now installed with owner approval. Original agent configuration
-remains intact, migrated settings are byte-identical, and project markers and
-Git guards use Unio. Private backup/rollback: `../artifacts/migration-unio/`;
-actual receipts: `../tmp/unio-next/receipts/`. No new public release was made.
-The existing v0.4.0 release title is now Unio without a former-name suffix.
+<!-- LIVE_CHECKPOINT_START -->
+Queue 0.5.2 full gate PASS; pushed 1bddeabfa25db09522020f238febb89fced92cde.
+Browser contract frozen; BROWSER-SERVICE-1 prepared for one native Codex call.
+No browser implementation candidate exists yet. Read the private manifest.
+<!-- LIVE_CHECKPOINT_END -->
 
-The owner approved all five next milestones. Version sequence: rename 0.5.0,
-limit-policy hardening 0.5.1, queue approval/recovery 0.5.2, real browser flow
-0.5.3 and provider continuation 0.5.4. See docs/VERSION-PLAN.md and
-docs/NEXT-MILESTONE-CONTRACTS.md. No feature task has been invoked yet.
-The owner reports the OpenCode Go 5h limit has reset; use GLM 5.3 high for
-the first scoped task, then another company review and the lead review.
-This capacity report does not establish weekly/monthly headroom or billing.
+## Milestones and versions
 
-The owner-approved rename to Unio is complete in source. A, B, C and D were
-merged in that order. Each merge passed the complete
-`bash tools/quality-check.sh` before its own push to origin/main.
+The owner approved all five milestones and integration/push. Use native
+Unio for every delegated source task and AI review. Lead writes contracts,
+docs, orchestration and extra probes; workers implement product source.
 
-| Slice | Merge | Full quality gate | Origin/main |
-| --- | --- | --- | --- |
-| A | ce33555 | PASS | pushed |
-| B | c76dd7f | PASS | pushed |
-| C | 8a482bc | PASS | pushed |
-| D | aebe23c | PASS | pushed |
+| Version | Work | Current source status |
+| --- | --- | --- |
+| 0.5.0 | Complete Unio rename | Gated/pushed; installed with owner approval |
+| 0.5.1 | Limit-policy hardening | Full gate PASS; pushed af437b1 |
+| 0.5.2 | Queue approval/reservation/recovery | Full gate PASS; pushed 1bddeab |
+| 0.5.3 | Real browser-to-worker workflow | Contract frozen; service task prepared, not yet dispatched |
+| 0.5.4 | Checkpoint-based provider continuation | Private contract draft; no worker dispatched |
+| Shipping | Concrete release artifacts/upgrade evidence | Prepare after milestones; publication needs approval |
 
-- A: core tool, installer, configuration, worker markers and tests.
-  Codex gpt-6.1-sol xhigh won the race; GLM 5.3 high hit the Go cap without
-  a candidate. Grok found two defects. The distinct Codex correction
-  823a01f passed verification, Google review and the lead's own review.
-- B: README, instructions, changelog, provider guide and ignored local role
-  cards. Original DeepSeek hit the Go cap; the owner-approved Gemini
-  replacement finished. Codex and Grok findings were corrected. Both
-  REQUEST-CHANGES reports remain preserved; final acceptance is the lead's
-  material-bound decision, not a claimed final independent approval.
-- C: current manuals and regenerated Word document. Gemini implemented;
-  Codex and Grok reviewed. All reported findings were corrected. Preserved
-  independent REQUEST-CHANGES reports are followed by the lead's final
-  adjudication; they are not represented as provider approvals.
-- D: examples, bridge and prototype. Original Kimi hit the Go cap; the
-  owner-approved Grok replacement bf2ffb1 passed verification, Google's
-  native review, the lead's review and all three existing browser suites.
-- Oversized or binary material refused by native review was reviewed in
-  separate native run tasks using complete, hash-bound packets. These
-  review transports and their limitations are recorded in the receipts.
-- Frozen histories, previous changelog entries and LICENSE are preserved.
-  Embedded LICENSE, NOTICE and protocol match their standalone files.
-  The final source audit records permitted historical and migration names.
-- Read [provider capacity](docs/PROVIDER-CAPACITY.md) before assigning models.
-  It preserves the owner's screenshot, dated public limits and actual Go
-  failures. The owner's 1h57m reset estimate was recorded as approximately
-  2026-10-05 13:30:02 +0200; it is historical and grants no automatic retry.
-- The earlier push security findings were recovered and checked with five
-  isolated mock probes. LIMIT-WALL still has known signal-coverage and
-  provenance limitations; these were not silently changed by the rename.
-  Read `../tmp/rename-unio/receipts/security-review-assessment.md` and
-  `security-observations.json` before defining a separate hardening task.
-- Current source and installed orchestration: Unio 0.5.0, public release
-  pending. Installed migration was approved and completed on 2026-10-05.
-  The workspace path remains `_vm/frugal-flock`; worktree links stay intact.
-  The orchestrator is stopped between authorized calls. Global doctor
-  reports missing profiles for inactive historical DeepSeek/GLM/Qwen workers;
-  active milestones use their own pinned per-run configuration.
+Read docs/VERSION-PLAN.md, docs/NEXT-MILESTONE-CONTRACTS.md and the version's
+frozen contract. Browser service -> API -> UI are dependent slices; each
+gets verification, two independent final reviews, lead review, full merged-
+tree quality gate and push before the next. Preserve version 0.5.3 throughout;
+then one bounded real browser demonstration with honest native evidence.
 
-The owner authorizes available AIs for Unio and milestone tasks, including
-cross-company reviews, integration and pushes. Routine assignments do not
-need repeated permission. The installed rename is approved and complete;
-release publication and new billing changes still require owner approval. All original failures and
-rejected reviews remain preserved; no automatic provider retries occurred.
+## Queue evidence to preserve
 
-Receipts: `../tmp/rename-unio/receipts/`; final candidates and pinned models:
-`../tmp/rename-unio/manifest.json`; task files: `../coord/tasks/`;
-original setup: `../tmp/race-limit-wall/`.
+Source lineage: Gemini d2e232a -> Opus e25ef4b -> Codex ec256d1. One distinct
+bounded invocation each. Original failed probes and corrected cases remain
+recorded; do not represent either failed predecessor as a final approval.
+The final candidate passed native 8/8, 34 permanent tests, original five
+private probes and seven further private cases. Source authors: Google,
+Anthropic and OpenAI. Grok/xAI and GLM/Z.ai reviewed the same complete
+78384-byte material separately and concurrently; both APPROVE. Root's own
+sealed approval and fresh native readiness bind the exact same four hashes.
 
-## Prompt to paste
+GLM's paid call ended exit 0; a missing reports directory in the disposable
+review view caused native archive exit 1 after its approved evidence update.
+Original failure remains. Retained real output was SHA-bound and archived
+through native Unio with exit 0, zero additional provider calls. Preserve
+review-QUEUE-INVARIANTS-1-glm.json and the -transport proof/certificate;
+never rewrite the original exit. GLM's claimed text transcription mismatch
+was a reviewer misread: packet and source both contain \ttext. Cosmetic
+schema-one test name and bare fragment are nonblocking shipping-polish notes.
 
-```text
-Continue Unio in /mnt/d/Vibe Coding/_vm/frugal-flock/repo.
-You are the lead. Read ../coord/AGENT-LOG.md FIRST (newest entries), then
-continue-with-ai-prompt.md, docs/RENAME-UNIO.md, WORKSPACE-RULES.md,
-docs/PROVIDER-CAPACITY.md and docs/DOGFOOD-WORKFLOW.md.
-Work in your own lead worktree; preserve other branches and receipts.
+## Delegation and reviews
 
-The A/B/C/D rename is complete: each merge passed its full gate and was
-pushed. Check actual current main and receipts before choosing further work;
-do not repeat the completed rename runs or automatically retry the failed
-Go calls. Define the next concrete owner-requested milestone task from TODO
-and the newest log. Known LIMIT-WALL coverage/provenance limitations need a
-separate scoped hardening task if selected.
+Private controllers/config/receipts: ../../tmp/unio-next/ from workers,
+../tmp/unio-next/ from main. manifest.json records pins and task lineage.
+run-task.py and control.py resume before calls and stop finally; use one
+invocation per frozen task/review, no automatic paid retries. Concrete
+reproduced defects get newly scoped corrective task IDs. GLM always high.
 
-Use the installed unio 0.5.0 control tool and UNIO_* environment variables.
-Resume before authorized native runs and stop after.
-Use per-run configs, pinned models, bounded wall-clock budgets and receipts.
-One invocation per task, no automatic retries; GLM 5.3 stays at high effort.
-Every slice gets another company's review, then your own review. Preserve
-rejections and distinguish provider output, verification, lead acceptance,
-merge, gate and push. The owner already permits available AI assignments.
+At least TWO independent final AI reviewers from different companies, each
+other than every source-author company, then own lead overview. Run reviews
+concurrently on exact disposable native views; compare candidate/base/task/
+worktree hashes and full material bytes. prepare-review-view.py includes
+reports/locks and genuine coordination/evidence snapshots; parallel-reviews.py
+prepares both before dispatch. Do not provide one reviewer another's verdict.
+Reviewers still follow the owner read-first rule for assignment context.
+Fixes invalidate prior approval; review the new complete candidate afresh.
+More targeted reviewers may resolve remaining gaps; no promise all bugs found.
 
-Take log timestamps from date. Quote all paths containing spaces.
-Never use pgrep -f or pkill -f with a pattern appearing in your own command.
-The installed rename is already approved. Ask before release publication or
-new billing changes; do not ask again for routine authorized assignments.
-After every checkpoint prepend a dated entry to ../coord/AGENT-LOG.md and
-update continue-with-ai-prompt.md on your own branch.
-```
+Native runtime remains installed Unio 0.5.0. Do not install current source
+globally to test it. Use per-run UNIO_CONF_DIR pinned wrappers and isolated
+project-local installations/mock providers for checks. Full merge gate:
+`TMPDIR='/mnt/d/Vibe Coding/_vm/frugal-flock/tmp' bash 'tools/quality-check.sh'`.
+Push after each successful source merge and verify exact remote SHA.
 
-## Checkpoint discipline
+## Capacity and preserved owner instructions
 
-Use actual branches and receipts rather than an old NEXT instruction.
-Update this file and the shared log when verification, integration, blocker,
-active worker or next task changes. Keep the local log append-only.
+Read docs/PROVIDER-CAPACITY.md and docs/PROVIDER-QUOTA-MONITORING.md. A fleet
+meter is roadmap work, not implemented. Codex's supported native read-only
+probe at 21:32:44 +0200 reported 99% five-hour and 29% weekly remaining;
+this is dated evidence, not current guaranteed headroom. Refresh before a
+new Codex batch with codex-capacity-probe.py --receipt-name NEW.json (unique).
+Claude status-line fields are candidate automatic inputs; no current live
+reading. Go console requires manual reading until a supported API is verified;
+Gemini/Grok remaining capacity Unknown. Tokens/cost and a reset report are
+not remaining quota. Never enable paid fallback, change billing or re-login.
+
+Owner authorized available AIs, including Opus 5.5 high. Pins: Codex
+ gpt-6.1-sol/xhigh; Gemini gemini-3.1-pro-high/high; Grok grok-4.7/high;
+GLM opencode-go/glm-5.3/high; Opus claude-opus-5-5/high. Retain actual
+structured model evidence when available. No paid model calibration retries.
+The owner's usage screenshot is preserved under artifacts/provider-usage/
+with its literal counts/costs and limits/unknowns documented in capacity notes.
+A newer native probe at 22:44:26 +0200 reported 83% five-hour and 26% weekly
+remaining; see codex-capacity-after-session-restart.json. Read the newest
+actual receipt before assignment rather than treating these as live meters.
+
+Quote paths; they contain spaces. Get all log timestamps from date. Never
+use pgrep -f/pkill -f with a self-matching pattern. No CodeGraph directory
+exists, so skip CodeGraph. Each checkpoint updates append-only AGENT-LOG and
+this own prompt. Frequent short owner updates; status questions steer the
+active work and do not cancel the five milestones.
+
+## Rename, installation and shipping boundaries
+
+A/B/C/D merged in order ce33555, c76dd7f, 8a482bc, aebe23c; every full gate
+passed and every merge was pushed. Rename receipts under tmp/rename-unio/.
+B/C independent REQUEST-CHANGES reports were corrected and adjudicated by
+lead; they are not claimed final provider approvals. Frozen histories and
+legal terms remain. Public names/headings use Unio without former-name suffix.
+
+Owner-approved installed migration completed at 14:18:59 +0200. Original
+config/auth retained; project guards/markers migrated; owned legacy commands/
+completions removed. Backup/rollback under artifacts/migration-unio/.
+Global doctor has inactive historical missing profiles; do not rewrite global
+agent settings. Workspace remains _vm/frugal-flock so worktree links work.
+Published v0.4.0 title is Unio; tag/files/history remain. No new release made.
+
+Shipping has a reproduced isolated v0.4.0 markerless completion upgrade gap:
+old agentteam completion survives installer migration; actual global is already
+clean from the approved manual cutover. Receipt upgrade-markerless-v0.4.0.json
+and original completion fingerprint c8d65ea3 are preserved. Resolve in a
+bounded native shipping-polish task with tests/reviews, or exact honest
+upgrade instructions; lead never silently edits installer source.
+A second isolated probe at 22:47:02 shows foreign command targets remain
+but their old-name alias links are deleted by target name alone. Preserve
+upgrade-foreign-links.json; SHIPPING-POLISH-1-DRAFT covers target ownership
+and unknown link preservation alongside markerless completion cleanup.
+
+Prepare version-specific exact-SHA installers/source archives, LICENSE/NOTICE,
+hashes/provenance, isolated smoke/upgrade/rollback evidence and concrete
+publication commands before asking the owner. New public releases/tags,
+global installation and billing changes require separate approval. No approval
+is needed to continue the already authorized source work and pushes.

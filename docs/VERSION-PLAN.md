@@ -8,7 +8,7 @@ changes in separate versions with their implementation and changelog entries.
 | 0.5.0 | Completed A/B/C/D rename; installer, commands, config, docs and prototypes | Source gated and pushed; installed with owner approval; public release pending |
 | 0.5.1 | Limit-policy hardening and regression coverage | Implemented; source integrated, publication pending |
 | 0.5.2 | Queue approval, reservation and recovery library | Implemented; source integrated, publication pending |
-| 0.5.3 | One real browser-to-worker workflow | Approved; contract to freeze before dispatch |
+| 0.5.3 | One real browser-to-worker workflow | Approved; browser contract frozen, dependent slices pending |
 | 0.5.4 | Checkpoint-based provider continuation | Approved; contract to freeze before dispatch |
 
 Shipping preparation follows these changes. It does not automatically create
