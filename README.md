@@ -125,9 +125,10 @@ Start with one helper and add another when you want a second perspective.
 `agents` shows what is installed, not remaining quota or sign-in status.
 `smoke` makes real test calls, so it uses some of your allowance.
 
-If your AI tool keeps asking before each `frgl-flc` command, or refuses to
-start the helpers, [allow those commands once](docs/SETUP.md#9-lead-ai-permissions)
-instead of switching its safety checks off.
+If your AI tool keeps asking before each `frgl-flc` command, or its own
+safety system refuses to run them, [allow those commands once](docs/SETUP.md#9-lead-ai-permissions)
+instead of switching its safety checks off. Frugal Flock's own refusals,
+such as `STOP is active`, say why in their message.
 
 ## FAQ
 
