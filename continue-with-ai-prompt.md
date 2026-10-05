@@ -4,34 +4,45 @@ Open the repo in your new AI session and paste the Prompt to paste below.
 Read the local agent log first; this file gives the current checkpoint.
 Earlier checkpoint notes remain in Git history and the append-only local log.
 
-Living checkpoint, updated 2026-10-05 01:25 +0200 by Claude Code lead
-(claude-opus-5-5), wt/claude-lead on agent/claude-lead, main f857d84.
+Living checkpoint, updated 2026-10-05 08:45 +0200 by Claude Code lead
+(claude-opus-5-5), wt/claude-lead on agent/claude-lead.
 The Codex closing notes below remain accurate except where this update
 supersedes them.
 
 ## Current checkpoint
 
-Claude is now the lead. The JobStore slice ran through the flock once:
-task JOB-QUEUE-STORE-2-opencode-queue (reissued from the benched
-JOB-QUEUE-STORE task, base f857d84, Claude lead review) on wt/opencode-queue,
-one owner-approved OpenCode Go GLM 5.3/max invocation, 600 seconds, no
-retries. The worker committed a complete candidate, 77faa8f, then hit the
-deadline before writing its log entry: process exit 124 (failed). Native
-verify PASS (scope OK, 4/4 checks). The lead read the full task and diff,
-probed it in workspace-local scratch and REQUESTED CHANGES through the
-material-bound local review adapter (no provider reviewer): concurrent
-first open of a new database fails for 7 of 8 openers, an interrupted
-initialization leaves a 0-byte database refused forever, a failed COMMIT
-leaves an open transaction, and the create race on a new key is untested.
-The create race itself is correct (1 row in 6 of 6 lead trials). Native
-result: process failed, validation passed, review changes_requested, not
-ready. Nothing was merged. Receipts: tmp/job-queue-dogfood/opencode-r2.
+The first durable queue slice is DONE through the flock (Claude lead).
+OpenCode Go GLM 5.3/max built bridge/job_store.py and its stdlib tests on
+wt/opencode-queue (agent/opencode-queue) via installed Frugal Flock 0.4.0,
+two owner-approved invocations, 600 s each, no retries, no paid reviewer:
 
-ONE next task now: the bounded finishing task
-coord/tasks/JOB-QUEUE-STORE-2b-opencode-queue.md (same worker and branch,
-from 77faa8f), one GLM 5.3/max invocation, 600 seconds, no retries. It
-needs a FRESH owner quota approval; the first grant is used. STOP is
-lifted for this cycle; re-set it when benching.
+- JOB-QUEUE-STORE-2 (reissue of the benched task, base f857d84): candidate
+  77faa8f committed, then the worker hit the deadline before its log entry,
+  so process exit 124 (failed). Verify PASS 4/4. The lead review requested
+  changes: concurrent first open failed for 7 of 8 openers, a crash during
+  initialization left a 0-byte database refused forever, a failed COMMIT
+  left an open transaction, and the new-key create race was untested.
+- JOB-QUEUE-STORE-2b (finishing task): 19c2804, exit 0 in 306 s, all four
+  findings fixed as frozen, four new tests that fail on 77faa8f and pass
+  on 19c2804 (3 of 3 repeats). Verify PASS 4/4, lead review APPROVE through
+  the material-bound local adapter, native result ready_for_human_review
+  true before integration (human acceptance still pending).
+
+Integration: merged into LOCAL main as its own no-ff merge 2539c64 (merged
+tree: job_store 15, plan_store 8 and plan_api tests OK, docs lint clean).
+The push to GitHub was NOT done: the lead's push was blocked by a
+permission check, so the owner pushes (or reverts) 2539c64 and merges this
+lead branch. STOP is set again; no worker is active. Receipts:
+tmp/job-queue-dogfood/opencode-r2 and opencode-r2b; probes in
+tmp/claude-lead-20261005.
+
+ONE next task: after the owner pushes 2539c64, the lead freezes the next
+bounded slice (explicit owner approval plus reservation/recovery records in
+JobStore, still no executor) and wires bridge/tests/job_store_test.py into
+tools/quality-check.sh in that same slice, then asks fresh quota.
+
+The Codex closing notes below describe the state before this lead took over.
+
 
 The owner asked to bench this session and continue with Claude. Local
 coord/STOP is set, native status reports no active workers, and both prepared
@@ -69,7 +80,7 @@ merge SHAs, tests, local receipts, native failure/success evidence and tools.
 The [older handoff](docs/SESSION-HANDOFF-2026-10-04.md) describes an earlier
 state and remains unchanged; do not treat its old NEXT as current.
 
-Original next task (now in progress, see above): implement only the durable waiting-job library/tests in
+Original next task (DONE as 2539c64, see above): durable waiting-job library/tests in
 [JOB-QUEUE-STORE](docs/JOB-QUEUE-STORE.md), through
 [the native dogfood workflow](docs/DOGFOOD-WORKFLOW.md). The main goal is
 building Frugal Flock WITH Frugal Flock, testing it while implementing it.
@@ -94,10 +105,11 @@ continue-with-ai-prompt.md, docs/SESSION-HANDOFF-2026-10-05.md,
 WORKSPACE-RULES.md, TODO.md (Near-term roadmap and section 1.5),
 docs/DOGFOOD-WORKFLOW.md and docs/JOB-QUEUE-STORE.md.
 
-State: this session is benched. coord/STOP is deliberately set; no active
-workers; prepared queue worker/reviewer counts are zero. The old quota
-question is superseded. M1 and initial M1.5 source work are complete.
-Prototype, Activity bridge and manual draft storage/API/UI are published.
+State: coord/STOP is set; no active workers. M1 and initial M1.5 source
+work are complete. Prototype, Activity bridge and manual draft storage/API/UI
+are published. The JobStore waiting-job library was built through the flock
+(GLM worker, Claude lead review) and merged as 2539c64; check that it is on
+origin/main before building on it. All quota grants so far are used.
 Do not redo those steps. Installed Frugal Flock stays v0.4.0; do not
 reinstall unreleased source. Read the handoff for actual evidence and limits.
 
@@ -115,17 +127,16 @@ exists in that worktree; never create an index unasked. All project-owned
 scratch/fixtures/receipts stay inside the workspace, TMPDIR under tmp/.
 Native credentials/settings stay in system locations; do not copy secrets.
 
-ONE NEXT TASK: durable waiting-job JobStore library/tests, no executor or
-HTTP/UI wiring, according to JOB-QUEUE-STORE. Refresh a selected clean
-worker against current main and reissue a new task ID/manifest with exact
-base/task hashes and actual lead/reviewer identity. Old Claude/GLM options
-are benched historical preparation, not launch approval. For review in
-this Claude session with no extra paid reviewer, prefer a different-provider
-worker such as prepared GLM 5.3/max. Respect the native different-agent gate.
+ONE NEXT TASK: freeze the next bounded queue slice (explicit owner
+approval plus reservation/recovery records in JobStore, no executor or
+HTTP/UI wiring) and include wiring bridge/tests/job_store_test.py into
+tools/quality-check.sh. Use a different-provider worker (wt/opencode-queue,
+GLM 5.3/max worked: 306 s for the finishing task) with a NEW task ID pinned
+to current main; respect the native different-agent gate. Put a commit-by
+time in the task: the first run timed out after committing.
 
-Ask before provider quota: one chosen worker, 180 seconds, no retries or
-paid fallback. Do not resume STOP until the owner approves continuing the
-native run. Prior quota grants are exhausted. The two-person prototype
+Ask before provider quota: one chosen worker, 600 seconds, no retries or
+paid fallback. Do not resume STOP until the owner approves the native run. The two-person prototype
 feedback prerequisite was explicitly waived; no user sessions happened.
 
 Say what you will do, keep tasks tiny, run relevant checks and read the full

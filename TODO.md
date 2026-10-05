@@ -14,11 +14,11 @@ Initial M1.5 source work is complete; broader app work continues from the
 
 ## Current handoff
 
-- Session benched by the owner on 2026-10-05; project STOP is set and no
-  native worker is active. Both next-job options have zero calls. Refresh
-  latest main/task/reviewer identity and obtain fresh quota approval before
-  resuming. Next implementation: waiting-job JobStore library/tests through
-  the installed Frugal Flock pipeline, with Claude as the new lead.
+- 2026-10-05: Claude is the lead. The waiting-job JobStore library/tests
+  were built through the installed Frugal Flock pipeline (GLM 5.3 worker,
+  two approved runs, Claude lead review) and merged as 2539c64. STOP is set.
+  Next: freeze the approval plus reservation/recovery slice (no executor)
+  and wire job_store_test.py into the routine gate; fresh quota first.
 - Name and tagline approved by the owner.
 - Canonical CLI: `frugal-flock`; short CLI: `frgl-flc`; compatibility CLI:
   `agentteam`. The Linux `flock` utility must remain untouched.
@@ -243,11 +243,11 @@ or provider call. The opt-in Save/reopen form now passes both default/manual
 browser journeys, duplicate-submit and failed-session/save/no-retry checks.
 Default stays read-only; no AI plan generation, worker/queue or merge control.
 The owner reiterated the main build-with-the-flock goal on 2026-10-05.
-The next [waiting-job queue slice](docs/JOB-QUEUE-STORE.md) must use the
-[native dogfood cadence](docs/DOGFOOD-WORKFLOW.md), with a fresh quota-approved
-worker and the current lead's in-session review. Earlier direct root code
-is not worker success. The owner benched this session; refresh prepared
-options from latest main and follow the closing handoff before a new run.
+The first [waiting-job queue slice](docs/JOB-QUEUE-STORE.md) was built with
+the [native dogfood cadence](docs/DOGFOOD-WORKFLOW.md): a quota-approved GLM
+worker, the Claude lead's in-session review and its own merge (2539c64).
+Earlier direct root code is not worker success. The next queue slice
+(approval plus reservation/recovery, no executor) follows the same cadence.
 
 
 Package a launcher that starts the service and opens the browser. Specify

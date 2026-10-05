@@ -41,10 +41,11 @@ silently replace this implementation cadence. The owner's waiver of two
 user-feedback sessions removes that prerequisite only; quota approval and
 truthful native evidence remain required. No real user sessions are claimed.
 
-Next concrete task: [durable waiting-job records](JOB-QUEUE-STORE.md), one
-native worker, 180 seconds, no retries; current-lead review with no paid reviewer.
-The queue library will not dispatch anything by itself. On 2026-10-05 the
-owner benched this session to continue with Claude. Project STOP is set;
-both prepared options have zero calls, and the pending quota question is
-superseded. Read [the closing handoff](SESSION-HANDOFF-2026-10-05.md), refresh
-main/task/actual reviewer, and obtain fresh approval before resuming a run.
+First native slice done: [durable waiting-job records](JOB-QUEUE-STORE.md)
+were built by an OpenCode Go GLM 5.3/max worker in two owner-approved runs
+of 600 seconds (the first timed out after committing and drew a
+changes-requested lead review; the finishing run passed in 306 seconds),
+reviewed in-session by the Claude lead and merged as 2539c64. Next
+concrete task: explicit owner approval plus reservation/recovery records,
+still with no executor, through the same cadence and a fresh quota grant.
+Put a commit-by time in each task so the worker's log entry fits.
