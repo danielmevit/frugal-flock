@@ -17,8 +17,7 @@ The lead stopped early because its usage limit was close.
   Unio; tagline stays until a new one is chosen; the local workspace folder
   stays `_vm/frugal-flock`. Owner still to do: register unio.io, trademark
   search for UNIO.
-- **LIMIT-WALL (runtime fix for false usage-limit walls) is ready to merge
-  except for one check.** Five-model race through `frugal-flock race`
+- **LIMIT-WALL is merged (89202b4)** after its full quality gate passed. Five-model race through `frugal-flock race`
   (GLM 5.3 high, Kimi K3 default, Qwen 3.8 Max xhigh, MiniMax M3 thinking,
   DeepSeek V4 Pro high): all exit 0, verify 5/5, every test fails on old code.
   Winner GLM, branch agent/glm-race @ 81c1bfc: lead APPROVE and Codex
@@ -55,11 +54,7 @@ docs/DOGFOOD-WORKFLOW.md. Work in your own lead worktree ../wt/claude-lead
 (branch agent/claude-lead); never redo or overwrite other branches.
 
 Next steps, in order:
-1. Read the end of ../tmp/race-limit-wall/receipts/quality-check-glm.log.
-   If it ends "quality-check: all checks passed", merge agent/glm-race
-   (LIMIT-WALL winner, 81c1bfc) into main as its own no-ff merge and push.
-   If it failed or never finished, rerun bash tools/quality-check.sh in
-   ../wt/glm-race (about 20 minutes) and fix nothing without a task.
+1. Read docs/FINDINGS-2026-10-05.md (what the model tests proved).
 2. Start the Unio rename through the flock per docs/RENAME-UNIO.md: write
    task files for slices B, C and D (see continue-with-ai-prompt.md for
    scopes), then run slice A (coord/tasks/RENAME-A.md) as a race of Codex

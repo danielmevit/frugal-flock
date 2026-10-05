@@ -22,6 +22,7 @@ separate reusable documents. They are now linked below.
 | F11 — Useful competitor ideas | Adopt evidence packages and separate result states in M1; defer expensive councils and cloud services. Original implementation only. | [Feature decisions](FEATURE-DECISIONS.md) |
 | F12 — Visual reference | Toolcraft-inspired working area and compact inspector, without copying source/templates/assets. UI follows M1. | [Toolcraft reference](TOOLCRAFT-REFERENCE.md) |
 | F13 — Capacity-aware continuation | Owner-endorsed direction: choose finishable tasks based on honest capacity signals and preserve work before limits. Proposed, not implemented. | [Continuation design](CAPACITY-AWARE-CONTINUATION.md) |
+| F14 — Live multi-AI testing (2026-10-05) | Effort setting drives speed more than model choice; GLM 5.3 high won a five-model race; second-company reviews each caught real issues; dogfooding found and fixed two engine bugs. | [Findings 2026-10-05](FINDINGS-2026-10-05.md) |
 
 ## Current state
 
