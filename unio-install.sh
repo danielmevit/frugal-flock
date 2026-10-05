@@ -21,8 +21,10 @@ CONF_DIR="${UNIO_CONF_DIR:-$HOME/.config/unio}"
 COMP_DIR="${UNIO_COMPLETION_DIR:-$HOME/.local/share/bash-completion/completions}"
 legacy_conf_dir="$HOME/.config/agentteam"
 if [ "${UNIO_CONF_DIR+x}" != x ] && [ ! -e "$CONF_DIR" ] && [ ! -L "$CONF_DIR" ] && [ -d "$legacy_conf_dir" ]; then
-  mkdir -p "$(dirname "$CONF_DIR")"
-  cp -a -- "$legacy_conf_dir" "$CONF_DIR"
+  mkdir -p "$CONF_DIR"
+  # Copy contents: the legacy path may itself be a directory symlink, but
+  # the new config must be independent. Preserve symlinks inside the tree.
+  cp -a -- "$legacy_conf_dir/." "$CONF_DIR"
   echo "Copied legacy config from $legacy_conf_dir to $CONF_DIR (original kept)."
 fi
 TPL_DIR="$CONF_DIR/templates"
@@ -2475,9 +2477,19 @@ cmd_kill() {
   # A recorded pid is not proof of identity: after a SIGKILLed run the OS can
   # reuse it, and `kill` would then take out an innocent process. Confirm the
   # session really is a Unio run before signalling it.
-  if [ -r "/proc/$pid/cmdline" ] && ! tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -Eq 'bin/unio run'; then
-    rm -f "$pf"
-    die "pid $pid is not a Unio run (stale pidfile removed) — refusing to signal it"
+  if [ -r "/proc/$pid/cmdline" ]; then
+    local -a run_argv=()
+    local interpreter script
+    mapfile -d '' -t run_argv < "/proc/$pid/cmdline" 2>/dev/null || true
+    interpreter="${run_argv[0]:-}"; script="${run_argv[1]:-}"
+    # Background re-exec uses the Bash shebang: bash <path>/unio run ... .
+    # Keep NUL argument boundaries, accepting any parent path (and spaces)
+    # without mistaking shell command text or later arguments for a script.
+    if [ "${interpreter##*/}" != bash ] || [ "${script##*/}" != unio ] \
+      || [ "${run_argv[2]:-}" != run ]; then
+      rm -f "$pf"
+      die "pid $pid is not a Unio run (stale pidfile removed) — refusing to signal it"
+    fi
   fi
   if pgrep -s "$pid" >/dev/null 2>&1; then
     pkill -TERM -s "$pid" 2>/dev/null || true

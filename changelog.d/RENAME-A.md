@@ -14,3 +14,9 @@ Original project: https://github.com/danielmevit/unio
   and exclude `.unio-worker` from Git.
 - Rename the runtime tests and update quality tools; extend branding coverage
   for cleanup boundaries, config migration and project conversion.
+- Identify background runs by their NUL-separated script and command arguments,
+  so kill works from custom install directories, including paths with spaces,
+  while refusing unrelated sessions and misleading command text.
+- Copy legacy config contents into a distinct real directory even when the
+  legacy path is a directory symlink; preserve the old link, target and internal
+  symlinks, with mock regressions for migration and background kill safety.

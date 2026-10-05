@@ -265,6 +265,61 @@ HOME="$MIGRATION_HOME" UNIO_CONF_DIR="$BRAND_SANDBOX/explicit config" \
 [ ! -e "$MIGRATION_HOME/.config/unio" ]
 ! grep -q '^Copied legacy config ' "$BRAND_SANDBOX/migration.log"
 
+# A symlinked legacy directory must become a real, independent config tree.
+MIGRATION_HOME="$BRAND_SANDBOX/symlink migration home"
+legacy_config="$MIGRATION_HOME/.config/$legacy_conf_name"
+legacy_target="$BRAND_SANDBOX/legacy config target"
+new_config="$MIGRATION_HOME/.config/unio"
+mkdir -p "$MIGRATION_HOME/.config" "$legacy_target/templates" \
+  "$legacy_target/legal" "$legacy_target/playbooks" "$legacy_target/off"
+printf 'mock=bash -c "exit 0"\n' > "$legacy_target/agents.conf"
+printf 'legacy task template\n' > "$legacy_target/templates/TASK.md"
+printf 'legacy protocol template\n' > "$legacy_target/templates/PROTOCOL.md"
+printf 'legacy notice\n' > "$legacy_target/legal/NOTICE"
+printf 'private linked playbook\n' > "$legacy_target/playbooks/custom.md"
+printf 'legacy bench state\n' > "$legacy_target/off/mock"
+ln -s custom.md "$legacy_target/playbooks/link.md"
+ln -s "$legacy_target" "$legacy_config"
+cp -a -- "$legacy_target" "$BRAND_SANDBOX/expected-symlink-target"
+legacy_link_inode=$(stat -c '%d:%i' "$legacy_config")
+check_legacy_symlink() {
+  [ -L "$legacy_config" ] || fail 'legacy config link was replaced'
+  [ "$(readlink -- "$legacy_config")" = "$legacy_target" ] || fail 'legacy config link changed'
+  [ "$(stat -c '%d:%i' "$legacy_config")" = "$legacy_link_inode" ] || fail 'legacy config link was recreated'
+  [ -L "$legacy_target/playbooks/link.md" ]
+  [ "$(readlink -- "$legacy_target/playbooks/link.md")" = custom.md ]
+  diff -r -- "$BRAND_SANDBOX/expected-symlink-target" "$legacy_target" \
+    || fail 'legacy config, templates or symlink target changed'
+}
+migrate_install
+[ "$(grep -c '^Copied legacy config ' "$BRAND_SANDBOX/migration.log")" -eq 1 ]
+[ -d "$new_config" ] && [ ! -L "$new_config" ] || fail 'migrated config must be a real directory'
+[ "$(stat -Lc '%d:%i' "$new_config")" != "$(stat -Lc '%d:%i' "$legacy_config")" ] \
+  || fail 'migrated config aliases the legacy target'
+for item in agents.conf off/mock playbooks/custom.md; do
+  cmp "$legacy_target/$item" "$new_config/$item"
+done
+[ -L "$new_config/playbooks/link.md" ]
+[ "$(readlink -- "$new_config/playbooks/link.md")" = custom.md ]
+[ "$(readlink -f -- "$new_config/playbooks/link.md")" = "$new_config/playbooks/custom.md" ]
+cmp "$REPO_DIR/docs/PROTOCOL.md" "$new_config/templates/PROTOCOL.md"
+cmp "$REPO_DIR/NOTICE" "$new_config/legal/NOTICE"
+check_legacy_symlink
+printf 'new config must stay\n' > "$new_config/agents.conf"
+printf 'new private playbook\n' > "$new_config/playbooks/link.md"
+check_legacy_symlink
+migrate_install
+! grep -q '^Copied legacy config ' "$BRAND_SANDBOX/migration.log"
+grep -Fxq 'new config must stay' "$new_config/agents.conf"
+grep -Fxq 'new private playbook' "$new_config/playbooks/custom.md"
+check_legacy_symlink
+rm -rf -- "$new_config"
+HOME="$MIGRATION_HOME" UNIO_CONF_DIR="$BRAND_SANDBOX/explicit symlink config" \
+  bash "$REPO_DIR/unio-install.sh" > "$BRAND_SANDBOX/migration.log"
+[ ! -e "$new_config" ] && [ ! -L "$new_config" ]
+! grep -q '^Copied legacy config ' "$BRAND_SANDBOX/migration.log"
+check_legacy_symlink
+
 # Init converts all existing workers, including ones absent from its arguments.
 PROJECT="$BRAND_SANDBOX/doctor"
 PROJECT_REPO="$PROJECT/custom checkout"
@@ -325,6 +380,116 @@ sed -i "s/unio guard/$legacy_guard/g" "$PROJECT_REPO/.git/hooks/pre-push"
 cmp "$BRAND_SANDBOX/owner-hook" "$PROJECT_REPO/.git/hooks/pre-commit"
 grep -Fq 'unio guard' "$PROJECT_REPO/.git/hooks/pre-push"
 
+# Run real background sessions with a local holding mock from custom paths.
+python3 -B - "$REPO_DIR" "$BRAND_SANDBOX" <<'KILL_TEST'
+import os
+from pathlib import Path
+import shlex
+import signal
+import subprocess
+import sys
+import time
+
+source, sandbox = map(Path, sys.argv[1:])
+
+def wait_for(condition, label):
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if condition():
+            return
+        time.sleep(.05)
+    raise AssertionError(label)
+
+def live(pid):
+    try:
+        stat = Path(f'/proc/{pid}/stat').read_text()
+        return stat.rpartition(')')[2].split()[0] != 'Z'
+    except FileNotFoundError:
+        return False
+
+for index, dirname in enumerate(('custom-commands', 'custom commands with spaces')):
+    base = sandbox / f'kill-case-{index}'
+    bin_dir = base / dirname
+    command = bin_dir / 'unio'
+    root = base / 'project'
+    repo = root / 'repo'
+    repo.mkdir(parents=True)
+    env = dict(os.environ, UNIO_BIN_DIR=str(bin_dir), UNIO_CONF_DIR=str(base / 'conf'),
+               UNIO_COMPLETION_DIR=str(base / 'completion'), UNIO_TIMEOUT='60',
+               UNIO_AUTO_VERIFY='0', UNIO_AUTO_SYNC='0', UNIO_AUTO_OFF='0',
+               GIT_AUTHOR_NAME='mock', GIT_COMMITTER_NAME='mock',
+               GIT_AUTHOR_EMAIL='mock@example.invalid', GIT_COMMITTER_EMAIL='mock@example.invalid')
+    subprocess.run(['bash', str(source / 'unio-install.sh')], env=env,
+                   check=True, capture_output=True, timeout=20)
+    subprocess.run(['git', 'init', '-q', '-b', 'dev'], cwd=repo, env=env, check=True)
+    subprocess.run(['git', 'commit', '-q', '--allow-empty', '-m', 'init'],
+                   cwd=repo, env=env, check=True)
+
+    def call(*args, code=0):
+        result = subprocess.run([str(command), *args], cwd=repo, env=env,
+                                capture_output=True, text=True, timeout=20)
+        assert result.returncode == code, (args, result.returncode, result.stdout, result.stderr)
+        return result
+
+    call('init', 'mock')
+    mock = base / 'hold.py'
+    marker = base / 'mock.pid'
+    mock.write_text("import os,time\nfrom pathlib import Path\n"
+                    "Path(__file__).with_name('mock.pid').write_text(str(os.getpid()))\n"
+                    "while True: time.sleep(.05)\n")
+    (base / 'conf/agents.conf').write_text('mock=python3 ' + shlex.quote(str(mock)) + '\n')
+    task = 'custom-kill'
+    (root / 'coord/tasks' / f'{task}.md').write_text(
+        f'# {task}\n## Allowed scope\n- payload.txt\n## Validate\n$ true\n')
+    pidfile = root / 'coord/reports' / f'{task}.pid'
+    leader = None
+    try:
+        call('run', '-b', 'mock', task)
+        wait_for(lambda: pidfile.exists() and bool(pidfile.read_text().strip()),
+                 'background run did not record its pid')
+        leader = int(pidfile.read_text())
+        wait_for(lambda: marker.exists() and bool(marker.read_text().strip()),
+                 'local holding mock did not start')
+        mock_pid = int(marker.read_text())
+        assert live(leader) and live(mock_pid), 'background run was not live'
+        assert os.getsid(leader) == leader == os.getsid(mock_pid), 'mock escaped the run session'
+        argv = Path(f'/proc/{leader}/cmdline').read_bytes().split(b'\0')
+        assert argv[1:3] == [os.fsencode(command), b'run'], argv
+        result = call('kill', task)
+        assert f"killed '{task}' (session {leader})" in result.stdout, result.stdout
+        assert not pidfile.exists(), 'killed run retained its pidfile'
+        wait_for(lambda: not live(leader) and not live(mock_pid), 'kill left the run or mock alive')
+    finally:
+        if leader is None and pidfile.exists() and pidfile.read_text().strip():
+            leader = int(pidfile.read_text())
+        if leader is not None and live(leader) and os.getsid(leader) == leader:
+            subprocess.run(['pkill', '-KILL', '-s', str(leader)], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    # Neither command text nor a later argv pair is the executed Unio script.
+    decoy = str(base / 'bin/unio')
+    for label, argv in (
+        ('unrelated', ['sleep', '60']),
+        ('command-text', ['bash', '-c', 'sleep 60 & wait', decoy + ' run']),
+        ('later-arguments', ['bash', '-c', 'sleep 60 & wait', decoy, 'run']),
+    ):
+        innocent = subprocess.Popen(argv, start_new_session=True, env=env,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stale = root / 'coord/reports' / f'{label}.pid'
+        try:
+            assert os.getsid(innocent.pid) == innocent.pid, 'unrelated session did not start'
+            stale.write_text(str(innocent.pid) + '\n')
+            result = call('kill', label, code=1)
+            assert 'not a Unio run' in result.stderr and 'refusing to signal it' in result.stderr
+            assert innocent.poll() is None and live(innocent.pid), 'kill signalled an unrelated session'
+            assert not stale.exists(), 'unrelated stale pidfile was not removed'
+        finally:
+            if innocent.poll() is None:
+                os.killpg(innocent.pid, signal.SIGKILL)
+            innocent.wait(timeout=5)
+    print(f'  kill: {dirname}: live run terminated; unrelated and decoy sessions preserved')
+KILL_TEST
+
 [ ! -e "$UNIO_BIN_DIR/flock" ] && [ ! -L "$UNIO_BIN_DIR/flock" ]
 [ "$(command -v flock)" = "$FLOCK_PATH" ] || fail 'Linux flock was shadowed'
 [ "$(sha256sum "$FLOCK_PATH")" = "$FLOCK_HASH" ] || fail 'Linux flock was modified'
@@ -337,4 +502,4 @@ rc=0
 UNIO_BIN_DIR="$BRAND_SANDBOX/not-a-directory/bin" \
   bash "$REPO_DIR/unio-install.sh" > "$BRAND_SANDBOX/install-error" 2>&1 || rc=$?
 [ "$rc" -eq 1 ] || fail "installation failure status changed ($rc)"
-echo 'PASS: Unio command, completion, legal copies, legacy cleanup, config and project migration, reinstall, status propagation and Linux flock'
+echo 'PASS: Unio command, completion, legal copies, legacy cleanup, independent config migration, project migration, custom-path kill safety, reinstall, status propagation and Linux flock'
