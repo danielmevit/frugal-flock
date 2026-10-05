@@ -10,3 +10,7 @@ M1 outcome, licensing and standing provider-authorization guidance.
 Final documentation polish labels the guidebook tour as adapted history
 and distinguishes the historical API header from the current Unio header,
 which slice D updates consistently and verifies with API/browser suites.
+
+Final lead review also corrects the appendix transcript label and separates
+current API instructions, original pre-rename measurements and actual later
+Unio API/browser checks into distinct subsections.

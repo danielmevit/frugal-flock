@@ -42,11 +42,10 @@ the stdlib store suite, with no new runtime dependency or global install.
 
 ## Protected opt-in create/read API (2026-10-05)
 
-Current Unio source uses `X-Unio-Session`, consistently renamed in slice D
-across the bridge server, browser client and API tests. The earlier checks
-recorded below used the historical `X-Frugal-Flock-Session` header; those
-results are preserved as earlier evidence. The Unio rename candidate was
-also checked with the existing API and browser suites on 2026-10-05.
+The procedure below describes current Unio source and its `X-Unio-Session`
+header, renamed consistently in slice D across the server, browser client
+and API tests. The historical and rename-verification results have separate
+subsections after the current procedure.
 
 Start the server with --enable-plan-drafts to enable only manual-draft
 storage in the fixed startup project. Default startup neither constructs
@@ -69,6 +68,12 @@ saved drafts remain readable using the new token. HTTP responses are no-store.
 There is no automatic request retry, AI generation, approval, job, native task
 publication, provider dispatch or merge endpoint. Saving is not quota approval.
 
+### Historical API verification before the Unio rename
+
+The following earlier 2026-10-05 measurements used the legacy
+`X-Frugal-Flock-Session` header. They describe the original API build, not
+the current procedure printed above.
+
 Eight HTTP API checks passed: save/read/reopen as literal data, default
 read-only, Origin/Host/session refusal, JSON/type/size/duplicate-field rejection,
 body framing/missing length/premature EOF, method/path/ID refusal, nonleaking
@@ -78,6 +83,15 @@ and confirmed no draft directory creation. An actual opt-in CLI restart
 saved one draft, reopened identical content/hash and refused the previous
 token. All API test writes were workspace-local fixtures; no real-project
 plan or provider call. Receipts: workspace tmp/bridge-plan-api/receipts/.
+
+### Unio rename verification (2026-10-05)
+
+The later slice D candidate bf2ffb1 uses `X-Unio-Session`. Its four stdlib
+bridge suites passed (15 server, 8 plan-store, 8 API and 15 job-store tests),
+as did the Node scenario suite and all three existing Chromium journeys:
+prototype, read-only Activity and manual drafts. These are the rename
+checks; no new production plan, provider call or earlier CLI-restart claim
+is inferred. Receipts: workspace tmp/rename-unio/receipts/.
 
 ## Manual browser form (2026-10-05)
 

@@ -1394,7 +1394,7 @@ once.
 | `docs/GUIDEBOOK.md` | This book — the complete beginner-to-daily-use manual. |
 | `docs/HANDOFF.md` | For whoever takes the project over: what to edit, the change loop, the classes of bug found so far, accounts and quota. |
 | `docs/HANDBOOK.md` | The operator's condensed handbook (same facts, terser). |
-| `docs/EXAMPLE.md` | Real transcript of every feature; replay with `examples/demo.sh`. |
+| `docs/EXAMPLE.md` | Historical transcript adapted to current Unio commands; retained output is from the older run. Replay with `examples/demo.sh`. |
 | `docs/SETUP.md` | The compact install/setup reference. |
 | `docs/PROTOCOL.md` | The normative spec the AIs follow (auto-installed into every project). |
 | `docs/MASTER-PLAN.md` | The original deep explanation + the phased roadmap + dictionary. |
