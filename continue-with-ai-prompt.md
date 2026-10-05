@@ -4,25 +4,52 @@ Open the repo in your new AI session and paste the Prompt to paste below.
 Read the local agent log first; this file gives the current checkpoint.
 Earlier checkpoint notes remain in Git history and the append-only local log.
 
-Living checkpoint, updated 2026-10-05 by Codex (gpt-6.1-sol, xhigh),
-wt/codex on agent/codex; source baseline c94e21c before the closing merge.
+Living checkpoint, updated 2026-10-05 08:45 +0200 by Claude Code lead
+(claude-opus-5-5), wt/claude-lead on agent/claude-lead.
+The Codex closing notes below remain accurate except where this update
+supersedes them.
 
 ## Current checkpoint
 
-2026-10-05, wt/opencode-queue on agent/opencode-queue: JOB-QUEUE-STORE-2 and
-2b implemented the durable waiting-job library (bridge/job_store.py with
-stdlib bridge/tests/job_store_test.py) per docs/JOB-QUEUE-STORE.md —
-idempotent enqueue against a fresh PlanStore draft hash check,
-restart-identical records, fail-closed schema/corruption/nonregular storage,
-no dispatch/executor/approval. 2b addressed the lead review of 77faa8f:
-first-open initialization is decided inside one BEGIN IMMEDIATE transaction
-(eight-thread first-open race on a brand-new workspace, crash-interrupted
-0-byte and bare SQLite files all open to schema 1; foreign, unmarked,
-version-2, reshaped and garbage files stay refused untouched), eight
-threads racing to enqueue the same new request key all get exactly one
-record, and any failed COMMIT rolls back and re-raises so the store stays
-usable. Own suite (15 tests) and plan_store_test (8) pass; docs lint clean.
-Lead re-review, owner acceptance and integration into main are pending.
+The first durable queue slice is DONE through the flock (Claude lead).
+OpenCode Go GLM 5.3/max built bridge/job_store.py and its stdlib tests on
+wt/opencode-queue (agent/opencode-queue) via installed Frugal Flock 0.4.0,
+two owner-approved invocations, 600 s each, no retries, no paid reviewer:
+
+- JOB-QUEUE-STORE-2 (reissue of the benched task, base f857d84): candidate
+  77faa8f committed, then the worker hit the deadline before its log entry,
+  so process exit 124 (failed). Verify PASS 4/4. The lead review requested
+  changes: concurrent first open failed for 7 of 8 openers, a crash during
+  initialization left a 0-byte database refused forever, a failed COMMIT
+  left an open transaction, and the new-key create race was untested.
+- JOB-QUEUE-STORE-2b (finishing task): 19c2804, exit 0 in 306 s, all four
+  findings fixed as frozen, four new tests that fail on 77faa8f and pass
+  on 19c2804 (3 of 3 repeats). Verify PASS 4/4, lead review APPROVE through
+  the material-bound local adapter, native result ready_for_human_review
+  true before integration (human acceptance still pending).
+
+Integration: its own no-ff merge 2539c64 (merged tree: job_store 15,
+plan_store 8 and plan_api tests OK, docs lint clean), pushed to origin at
+the owner's explicit request after the lead's first push attempt was held
+by a permission check. Receipts: tmp/job-queue-dogfood/opencode-r2 and
+opencode-r2b; probes in tmp/claude-lead-20261005.
+
+Owner direction, 2026-10-05: for Frugal Flock work run through Frugal
+Flock, use ALL available AIs: Codex (Sol 6.1, xhigh), OpenCode Go (GLM 5.3,
+max), the Grok CLI (high) and Antigravity (Gemini 3.1 Pro, high). Different
+vendors may review each other natively; the owner offered to act as the
+human reviewer when a decision needs one. The lead keeps the bounds: one
+invocation per task and per review, a stated timeout, no automatic retries,
+and reports every spend in the log.
+
+ONE next task: the lead freezes the next bounded slices and spreads them
+across those four vendors with cross-vendor reviews: explicit owner
+approval plus reservation/recovery records in JobStore (no executor),
+wiring bridge/tests/job_store_test.py into tools/quality-check.sh, and
+tool fixes found while dogfooding.
+
+The Codex closing notes below describe the state before this lead took over.
+
 
 The owner asked to bench this session and continue with Claude. Local
 coord/STOP is set, native status reports no active workers, and both prepared
@@ -60,7 +87,7 @@ merge SHAs, tests, local receipts, native failure/success evidence and tools.
 The [older handoff](docs/SESSION-HANDOFF-2026-10-04.md) describes an earlier
 state and remains unchanged; do not treat its old NEXT as current.
 
-ONE next task: implement only the durable waiting-job library/tests in
+Original next task (DONE as 2539c64, see above): durable waiting-job library/tests in
 [JOB-QUEUE-STORE](docs/JOB-QUEUE-STORE.md), through
 [the native dogfood workflow](docs/DOGFOOD-WORKFLOW.md). The main goal is
 building Frugal Flock WITH Frugal Flock, testing it while implementing it.
@@ -85,10 +112,10 @@ continue-with-ai-prompt.md, docs/SESSION-HANDOFF-2026-10-05.md,
 WORKSPACE-RULES.md, TODO.md (Near-term roadmap and section 1.5),
 docs/DOGFOOD-WORKFLOW.md and docs/JOB-QUEUE-STORE.md.
 
-State: this session is benched. coord/STOP is deliberately set; no active
-workers; prepared queue worker/reviewer counts are zero. The old quota
-question is superseded. M1 and initial M1.5 source work are complete.
-Prototype, Activity bridge and manual draft storage/API/UI are published.
+State: coord/STOP is set; no active workers. M1 and initial M1.5 source
+work are complete. Prototype, Activity bridge and manual draft storage/API/UI
+are published. The JobStore waiting-job library was built through the flock
+(GLM worker, Claude lead review), merged as 2539c64 and pushed.
 Do not redo those steps. Installed Frugal Flock stays v0.4.0; do not
 reinstall unreleased source. Read the handoff for actual evidence and limits.
 
@@ -106,17 +133,19 @@ exists in that worktree; never create an index unasked. All project-owned
 scratch/fixtures/receipts stay inside the workspace, TMPDIR under tmp/.
 Native credentials/settings stay in system locations; do not copy secrets.
 
-ONE NEXT TASK: durable waiting-job JobStore library/tests, no executor or
-HTTP/UI wiring, according to JOB-QUEUE-STORE. Refresh a selected clean
-worker against current main and reissue a new task ID/manifest with exact
-base/task hashes and actual lead/reviewer identity. Old Claude/GLM options
-are benched historical preparation, not launch approval. For review in
-this Claude session with no extra paid reviewer, prefer a different-provider
-worker such as prepared GLM 5.3/max. Respect the native different-agent gate.
+ONE NEXT TASK: freeze the next bounded queue slice (explicit owner
+approval plus reservation/recovery records in JobStore, no executor or
+HTTP/UI wiring) and include wiring bridge/tests/job_store_test.py into
+tools/quality-check.sh. Use a different-provider worker (wt/opencode-queue,
+GLM 5.3/max worked: 306 s for the finishing task) with a NEW task ID pinned
+to current main; respect the native different-agent gate. Put a commit-by
+time in the task: the first run timed out after committing.
 
-Ask before provider quota: one chosen worker, 180 seconds, no retries or
-paid fallback. Do not resume STOP until the owner approves continuing the
-native run. Prior quota grants are exhausted. The two-person prototype
+Provider use: the owner asked (2026-10-05) to use Codex Sol 6.1 xhigh,
+OpenCode GLM 5.3 max, Grok high and Antigravity Gemini 3.1 Pro high for
+flock work, including cross-vendor reviews. Keep one invocation per task or
+review, a stated timeout, no automatic retries or paid fallback, and log
+every spend. Ask again for anything outside that. The two-person prototype
 feedback prerequisite was explicitly waived; no user sessions happened.
 
 Say what you will do, keep tasks tiny, run relevant checks and read the full
