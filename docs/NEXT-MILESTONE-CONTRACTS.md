@@ -16,6 +16,14 @@ different reviewer companies from each other and from the candidate's source
 authors. Reviewers receive the complete frozen task and diff independently;
 do not give one reviewer another's verdict before its assessment.
 
+Run those independent reviews concurrently when provider capacity permits.
+Give each a separate disposable review workspace and receipt, with exactly
+the same candidate/base/task/worktree revision and complete material hash.
+Imported verification must preserve the genuine original evidence and record
+its provenance; never invent a successful run or verification. Separate
+review locks/results prevent contention in the native one-worker review gate.
+Compare both back to the unchanged source before aggregating or integrating.
+
 The lead combines the findings into one overview tied to the exact candidate
 SHA, tests and review receipts. Resolve blocking findings through concrete
 bounded correction tasks; preserve rejected evidence. Changed candidates
