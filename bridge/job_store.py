@@ -1,7 +1,7 @@
 # Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit)
 # https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
-"""Durable jobs awaiting owner approval; no dispatch, executor or approval."""
+"""Durable queue jobs with explicit approval and reservation; no executor or dispatch."""
 from datetime import datetime, timezone
 import os
 from pathlib import Path
@@ -43,6 +43,20 @@ CREATE_JOBS = ('CREATE TABLE jobs ('
                'reserved_at TEXT, '
                'unknown_at TEXT, '
                'cancelled_at TEXT)')
+# The only schema-1 layout ever created; anything else at version 1 is refused.
+SCHEMA1_JOBS = ('CREATE TABLE jobs ('
+                'id TEXT PRIMARY KEY, '
+                'request_key TEXT NOT NULL UNIQUE, '
+                'draft_id TEXT NOT NULL, '
+                'draft_sha256 TEXT NOT NULL, '
+                'worker TEXT NOT NULL, '
+                'created_at TEXT NOT NULL, '
+                'state TEXT NOT NULL)')
+SCHEMA1_SELECT = ('SELECT id, request_key, draft_id, draft_sha256, worker, created_at, state '
+                  'FROM jobs ORDER BY created_at, id')
+MIGRATE_JOBS = ('INSERT INTO jobs_new '
+                '(id, request_key, draft_id, draft_sha256, worker, created_at, state) '
+                'SELECT id, request_key, draft_id, draft_sha256, worker, created_at, state FROM jobs')
 SELECT_JOB = ('SELECT id, request_key, draft_id, draft_sha256, worker, created_at, state, '
                'approval_key, approved_at, reservation_key, reserved_at, unknown_at, cancelled_at '
                'FROM jobs WHERE id = ?')
@@ -60,11 +74,25 @@ INSERT_JOB = ('INSERT INTO jobs '
               'VALUES (?, ?, ?, ?, ?, ?, ?)')
 
 
+def _quote(name):
+    return '"' + name.replace('"', '""') + '"'
+
+
+def _expected_layout(create):
+    reference = sqlite3.connect(':memory:')
+    try:
+        reference.execute(create)
+        return JobStore._layout(reference)
+    finally:
+        reference.close()
+
+
 class JobStore:
     """Waiting jobs in coord/ui-jobs.sqlite3 under one owner-selected workspace.
 
-    Reading a stored job never claims its referenced draft is still current,
-    approved by the owner, or ready for dispatch; records only ever wait.
+    Reading a stored job never claims its referenced draft is still current
+    or ready for dispatch; approve and reserve recheck the draft each time.
+    Nothing here executes a job, starts a process or calls a provider.
     """
 
     def __init__(self, workspace):
@@ -109,18 +137,16 @@ class JobStore:
                     raise
             elif version == 1:
                 try:
-                    connection.execute(CREATE_JOBS.replace('CREATE TABLE jobs', 'CREATE TABLE jobs_new'))
-                    connection.execute('INSERT INTO jobs_new (id, request_key, draft_id, draft_sha256, worker, created_at, state) SELECT id, request_key, draft_id, draft_sha256, worker, created_at, state FROM jobs')
-                    connection.execute('DROP TABLE jobs')
-                    connection.execute('ALTER TABLE jobs_new RENAME TO jobs')
-                    connection.execute('PRAGMA user_version = 2')
+                    self._migrate(connection)
                     connection.execute('COMMIT')
                 except BaseException:
                     self._rollback(connection)
                     raise
             else:
-                connection.execute('ROLLBACK')
-                self._verify(connection)
+                try:
+                    self._verify(connection)
+                finally:
+                    self._rollback(connection)
         except sqlite3.Error as error:
             connection.close()
             raise ValueError('corrupt or unsupported job database') from error
@@ -154,13 +180,56 @@ class JobStore:
             pass
 
     @staticmethod
-    def _verify(connection):
+    def _layout(connection):
+        """Describe the jobs table's columns, constraints and companion objects.
+
+        Autoindex names are left out because a renamed table keeps its
+        original numbering; everything that affects stored data is kept.
+        """
+        columns = tuple(row[1:] for row in connection.execute('PRAGMA table_info(jobs)'))
+        indexes = []
+        for _, name, unique, origin, partial in connection.execute('PRAGMA index_list(jobs)').fetchall():
+            keys = tuple((row[2], row[3], row[4]) for row
+                         in connection.execute('PRAGMA index_xinfo(' + _quote(name) + ')') if row[5])
+            indexes.append((origin, unique, partial, keys))
+        others = connection.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE NOT (type = 'table' AND name = 'jobs') "
+            "AND NOT (type = 'index' AND tbl_name = 'jobs' AND sql IS NULL)").fetchone()[0]
+        return columns, tuple(sorted(indexes)), others
+
+    @classmethod
+    def _verify(cls, connection):
         version = connection.execute('PRAGMA user_version').fetchone()[0]
         if version != 2:
             raise ValueError('unsupported job database schema version')
-        columns = tuple(row[1] for row in connection.execute('PRAGMA table_info(jobs)'))
-        if columns != COLUMNS:
+        if cls._layout(connection) != _expected_layout(CREATE_JOBS):
             raise ValueError('unsupported job database schema')
+
+    @classmethod
+    def _migrate(cls, connection):
+        """Upgrade the recognized schema-1 layout inside the caller's transaction.
+
+        Every legacy record is validated before anything is written, and the
+        result is verified before the caller commits, so a refusal leaves the
+        database exactly as it was.
+        """
+        if cls._layout(connection) != _expected_layout(SCHEMA1_JOBS):
+            raise ValueError('unsupported schema-1 job database layout')
+        legacy = connection.execute(SCHEMA1_SELECT).fetchall()
+        for row in legacy:
+            if cls._record(tuple(row) + (None,) * 6)['state'] != STATE:
+                raise ValueError('corrupt schema-1 job record')
+        connection.execute(CREATE_JOBS.replace('CREATE TABLE jobs', 'CREATE TABLE jobs_new'))
+        connection.execute(MIGRATE_JOBS)
+        connection.execute('DROP TABLE jobs')
+        connection.execute('ALTER TABLE jobs_new RENAME TO jobs')
+        connection.execute('PRAGMA user_version = 2')
+        cls._verify(connection)
+        migrated = connection.execute(SELECT_JOBS).fetchall()
+        if [tuple(row[:7]) for row in migrated] != [tuple(row) for row in legacy]:
+            raise ValueError('schema-1 migration did not preserve job records')
+        for row in migrated:
+            cls._record(row)
 
     @staticmethod
     def _hex32(value, label):
@@ -227,6 +296,12 @@ class JobStore:
                     approval_key=approval_key, approved_at=approved_at,
                     reservation_key=reservation_key, reserved_at=reserved_at,
                     unknown_at=unknown_at, cancelled_at=cancelled_at)
+
+    def _require_current(self, draft_id, expected_hash):
+        with PlanStore(self._workspace) as plans:
+            draft = plans.get(draft_id)
+        if draft['content_sha256'] != expected_hash:
+            raise ValueError('draft content changed since the expected hash')
 
     def enqueue(self, draft_id, expected_hash, worker, request_key):
         """Idempotently record one job awaiting owner approval.
@@ -310,16 +385,15 @@ class JobStore:
             if record['state'] in ('reserved', 'completion_unknown', 'cancelled'):
                 raise ValueError('job cannot be approved in current state')
 
+            # Recheck the draft even on replay: an old approval is never
+            # returned as success once its draft has changed.
+            self._require_current(record['draft_id'], expected_hash)
+
             if record['state'] == 'approved':
                 if record['approval_key'] == approval_key:
                     connection.execute('ROLLBACK')
                     return record
                 raise ValueError('job already approved with a different key')
-
-            with PlanStore(self._workspace) as plans:
-                draft = plans.get(record['draft_id'])
-                if draft['content_sha256'] != expected_hash:
-                    raise ValueError('draft content changed since the expected hash')
 
             approved_at = datetime.now(timezone.utc).isoformat()
             try:
@@ -351,16 +425,15 @@ class JobStore:
             if record['approval_key'] != approval_key:
                 raise ValueError('approval key mismatch')
 
+            # Recheck the draft even on replay. A successful replay still
+            # reports newly_reserved=False, so it never authorizes a dispatch.
+            self._require_current(record['draft_id'], record['draft_sha256'])
+
             if record['state'] == 'reserved':
                 if record['reservation_key'] == reservation_key:
                     connection.execute('ROLLBACK')
                     return dict(job=record, newly_reserved=False)
                 raise ValueError('job already reserved with a different key')
-
-            with PlanStore(self._workspace) as plans:
-                draft = plans.get(record['draft_id'])
-                if draft['content_sha256'] != record['draft_sha256']:
-                    raise ValueError('draft content changed since approval')
 
             reserved_at = datetime.now(timezone.utc).isoformat()
             try:

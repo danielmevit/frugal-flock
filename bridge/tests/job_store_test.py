@@ -603,5 +603,179 @@ class JobStoreTests(unittest.TestCase):
         self.assertEqual(newly_reserved_counts, 1)
 
 
+    def legacy_workspace(self, ddl, rows=(), extra=()):
+        workspace = Path(tempfile.mkdtemp(prefix='job-legacy-', dir=self.temp.name))
+        (workspace / 'coord').mkdir()
+        connection = sqlite3.connect(workspace / 'coord' / 'ui-jobs.sqlite3')
+        try:
+            connection.execute(ddl)
+            for statement in extra:
+                connection.execute(statement)
+            for row in rows:
+                connection.execute('INSERT INTO jobs VALUES (' + ', '.join('?' for _ in row) + ')', row)
+            connection.execute('PRAGMA user_version = ' + str(2 if ddl == jobs.CREATE_JOBS else 1))
+            connection.commit()
+        finally:
+            connection.close()
+        return workspace
+
+    def assert_refused_unchanged(self, workspace):
+        path = workspace / 'coord' / 'ui-jobs.sqlite3'
+        before = path.read_bytes()
+        with self.assertRaises(ValueError):
+            jobs.JobStore(workspace)
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(sorted(p.name for p in (workspace / 'coord').iterdir()), ['ui-jobs.sqlite3'])
+
+    def test_unknown_schema1_layouts_refused_without_migration(self):
+        self.store.close()
+        legacy = jobs.SCHEMA1_JOBS
+        layouts = {
+            'extra_column': legacy[:-1] + ', extra TEXT)',
+            'missing_column': legacy.replace(', state TEXT NOT NULL', ''),
+            'no_primary_key': legacy.replace('id TEXT PRIMARY KEY', 'id TEXT NOT NULL'),
+            'no_unique_request_key': legacy.replace('request_key TEXT NOT NULL UNIQUE', 'request_key TEXT NOT NULL'),
+            'nullable_worker': legacy.replace('worker TEXT NOT NULL', 'worker TEXT'),
+            'retyped_column': legacy.replace('draft_id TEXT', 'draft_id BLOB'),
+            'case_insensitive_key': legacy.replace('request_key TEXT NOT NULL UNIQUE',
+                                                   'request_key TEXT COLLATE NOCASE NOT NULL UNIQUE'),
+            'already_schema2_columns': jobs.CREATE_JOBS,
+        }
+        for label, ddl in layouts.items():
+            with self.subTest(layout=label):
+                workspace = self.legacy_workspace(ddl)
+                if ddl == jobs.CREATE_JOBS:
+                    connection = sqlite3.connect(workspace / 'coord' / 'ui-jobs.sqlite3')
+                    connection.execute('PRAGMA user_version = 1')
+                    connection.close()
+                self.assert_refused_unchanged(workspace)
+        companions = {
+            'extra_table': 'CREATE TABLE notes (x TEXT)',
+            'extra_index': 'CREATE INDEX jobs_worker ON jobs (worker)',
+            'trigger': 'CREATE TRIGGER jobs_touch AFTER INSERT ON jobs BEGIN SELECT 1; END',
+            'view': 'CREATE VIEW waiting AS SELECT id FROM jobs',
+        }
+        for label, statement in companions.items():
+            with self.subTest(companion=label):
+                self.assert_refused_unchanged(self.legacy_workspace(legacy, extra=(statement,)))
+
+    def test_corrupt_schema1_records_roll_back_migration_unchanged(self):
+        self.store.close()
+        valid = ('1' * 32, '2' * 32, '3' * 32, '4' * 64, 'worker-one',
+                 '2026-10-05T12:00:00+00:00', 'awaiting_owner_approval')
+        corrupt = {
+            'naive_created_at': valid[:5] + ('2026-10-05T12:00:00',) + valid[6:],
+            'unparseable_created_at': valid[:5] + ('yesterday',) + valid[6:],
+            'non_waiting_state': valid[:6] + ('approved',),
+            'unknown_state': valid[:6] + ('dispatched',),
+            'bad_worker': valid[:4] + ('BAD WORKER',) + valid[5:],
+            'uppercase_id': ('A' * 32,) + valid[1:],
+            'short_hash': valid[:3] + ('4' * 63,) + valid[4:],
+            'null_id': (None,) + valid[1:],
+            'integer_draft_id': valid[:2] + (7,) + valid[3:],
+        }
+        for label, row in corrupt.items():
+            with self.subTest(record=label):
+                other = ('5' * 32, '6' * 32) + valid[2:]
+                workspace = self.legacy_workspace(jobs.SCHEMA1_JOBS, rows=(other, row))
+                self.assert_refused_unchanged(workspace)
+
+    def test_valid_schema1_migration_preserves_every_field_and_constraint(self):
+        self.store.close()
+        rows = [
+            ('1' * 32, '2' * 32, '3' * 32, '4' * 64, 'worker-one',
+             '2026-10-05T12:00:00+00:00', 'awaiting_owner_approval'),
+            ('5' * 32, '6' * 32, '7' * 32, '8' * 64, 'worker_two',
+             '2026-10-04T08:30:00.123456+02:00', 'awaiting_owner_approval'),
+        ]
+        workspace = self.legacy_workspace(jobs.SCHEMA1_JOBS, rows=rows)
+        empty = dict(approval_key=None, approved_at=None, reservation_key=None,
+                     reserved_at=None, unknown_at=None, cancelled_at=None)
+        expected = [dict(zip(jobs.COLUMNS, row), **empty) for row in sorted(rows, key=lambda r: (r[5], r[0]))]
+        with jobs.JobStore(workspace) as store:
+            self.assertEqual(store.jobs(), expected)
+        with jobs.JobStore(workspace) as reopened:
+            self.assertEqual(reopened.jobs(), expected)
+            self.assertEqual(reopened.pending(), expected)
+        connection = sqlite3.connect(workspace / 'coord' / 'ui-jobs.sqlite3')
+        try:
+            self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0], 2)
+            self.assertEqual(jobs.JobStore._layout(connection), jobs._expected_layout(jobs.CREATE_JOBS))
+            for statement, values in (
+                    ('UPDATE jobs SET approval_key = ? WHERE id IN (?, ?)', ('a' * 32, '1' * 32, '5' * 32)),
+                    ('UPDATE jobs SET request_key = ? WHERE id = ?', ('6' * 32, '1' * 32)),
+                    ('INSERT INTO jobs (id, request_key, draft_id, draft_sha256, worker, created_at, state) '
+                     'VALUES (?, ?, ?, ?, ?, ?, ?)', rows[0][:1] + ('9' * 32,) + rows[0][2:])):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(statement, values)
+        finally:
+            connection.close()
+
+    def test_schema2_without_required_constraints_refused_unchanged(self):
+        self.store.close()
+        full = jobs.CREATE_JOBS
+        layouts = {
+            'names_only': 'CREATE TABLE jobs (' + ', '.join(c + ' TEXT' for c in jobs.COLUMNS) + ')',
+            'no_primary_key': full.replace('id TEXT PRIMARY KEY', 'id TEXT NOT NULL'),
+            'no_unique_request_key': full.replace('request_key TEXT NOT NULL UNIQUE', 'request_key TEXT NOT NULL'),
+            'no_unique_approval_key': full.replace('approval_key TEXT UNIQUE', 'approval_key TEXT'),
+            'no_unique_reservation_key': full.replace('reservation_key TEXT UNIQUE', 'reservation_key TEXT'),
+            'nullable_state': full.replace('state TEXT NOT NULL', 'state TEXT'),
+            'reordered': full.replace('approved_at TEXT, reservation_key TEXT UNIQUE',
+                                      'reservation_key TEXT UNIQUE, approved_at TEXT'),
+            'defaulted_state': full.replace('state TEXT NOT NULL', "state TEXT NOT NULL DEFAULT 'approved'"),
+            'case_insensitive_key': full.replace('approval_key TEXT UNIQUE', 'approval_key TEXT COLLATE NOCASE UNIQUE'),
+        }
+        for label, ddl in layouts.items():
+            with self.subTest(layout=label):
+                workspace = self.legacy_workspace(ddl)
+                connection = sqlite3.connect(workspace / 'coord' / 'ui-jobs.sqlite3')
+                connection.execute('PRAGMA user_version = 2')
+                connection.close()
+                self.assert_refused_unchanged(workspace)
+        for label, statement in (('extra_table', 'CREATE TABLE notes (x TEXT)'),
+                                 ('partial_index', 'CREATE INDEX jobs_open ON jobs (id) WHERE state = 1'),
+                                 ('trigger', 'CREATE TRIGGER jobs_touch AFTER UPDATE ON jobs BEGIN SELECT 1; END')):
+            with self.subTest(companion=label):
+                self.assert_refused_unchanged(self.legacy_workspace(full, extra=(statement,)))
+
+    def edit_draft(self, draft, request):
+        path = self.directory / (draft['id'] + '.json')
+        saved = json.loads(path.read_text())
+        saved['request'] = request
+        path.write_text(json.dumps(saved, ensure_ascii=True, sort_keys=True, separators=(',', ':')) + '\n')
+
+    def test_identical_replays_recheck_current_draft(self):
+        draft = self.draft()
+        job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', 'a' * 32)
+        approved = self.store.approve(job['id'], draft['content_sha256'], 'worker', 'b' * 32)
+
+        self.edit_draft(draft, 'Changed after approval')
+        before = self.database.read_bytes()
+        with self.assertRaises(ValueError):
+            self.store.approve(job['id'], draft['content_sha256'], 'worker', 'b' * 32)
+        self.assertEqual(self.database.read_bytes(), before)
+        self.assertEqual(self.store.get(job['id']), approved)
+
+        self.edit_draft(draft, 'Do the bounded thing')
+        self.assertEqual(self.store.approve(job['id'], draft['content_sha256'], 'worker', 'b' * 32), approved)
+        first = self.store.reserve(job['id'], 'b' * 32, 'c' * 32)
+        self.assertTrue(first['newly_reserved'])
+
+        self.edit_draft(draft, 'Changed after reservation')
+        before = self.database.read_bytes()
+        with jobs.JobStore(self.workspace) as reopened:
+            with self.assertRaises(ValueError):
+                reopened.reserve(job['id'], 'b' * 32, 'c' * 32)
+        with self.assertRaises(ValueError):
+            self.store.reserve(job['id'], 'b' * 32, 'c' * 32)
+        self.assertEqual(self.database.read_bytes(), before)
+        self.assertEqual(self.store.get(job['id']), first['job'])
+
+        self.edit_draft(draft, 'Do the bounded thing')
+        with jobs.JobStore(self.workspace) as reopened:
+            replay = reopened.reserve(job['id'], 'b' * 32, 'c' * 32)
+        self.assertEqual(replay, dict(job=first['job'], newly_reserved=False))
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
