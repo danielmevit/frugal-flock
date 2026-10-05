@@ -4,6 +4,11 @@ Recorded 2026-10-04 from the owner's discussion. This is a product design,
 not implemented functionality and not an expansion of the frozen M1
 contract. Finish M1 verification before starting this work.
 
+M1 is now accepted. The 2026-10-05 owner request and supported-input
+investigation are recorded in the
+[provider quota monitoring roadmap](PROVIDER-QUOTA-MONITORING.md).
+Neither proposal is an implemented quota meter.
+
 ## Product promise
 
 Keep a project moving without losing work. Assign a finishable piece that

@@ -97,3 +97,12 @@ reset and authorized GLM 5.3 at high effort for this milestone run. This is
 a dated owner report, not a live probe or evidence of weekly/monthly headroom.
 One bounded task invocation and cross-company review remain required; no
 automatic retry or paid fallback is enabled.
+
+## Remaining-quota monitoring roadmap
+
+The owner requested a live indicator and proactive lead checks on
+2026-10-05. Read [PROVIDER-QUOTA-MONITORING.md](PROVIDER-QUOTA-MONITORING.md)
+for verified adapter inputs and the delivery sequence. A read-only Codex
+probe succeeded; remaining OpenCode Go capacity is still Unknown without
+an actual account-meter reading. Session costs and reset reports do not
+establish current remaining allowance. No fleet-wide meter is implemented.

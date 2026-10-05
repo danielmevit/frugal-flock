@@ -261,6 +261,11 @@ and failure recovery before claiming a command-free first use.
 ## 5. Build reliable provider handoff
 
 The owner endorsed [capacity-aware task sizing and clean continuation](docs/CAPACITY-AWARE-CONTINUATION.md).
+The [provider quota monitoring roadmap](docs/PROVIDER-QUOTA-MONITORING.md)
+records the 2026-10-05 request for remaining five-hour, weekly and monthly
+indicators, supported provider inputs, manual fallback and lead checks
+before dispatch. A Codex read-only probe worked; fleet monitoring is not
+implemented. Schedule this after the current approved milestones.
 Preserve this design for a later milestone: periodic supported readings or
 manual input, conservative scheduling, and tested recovery checkpoints.
 M1's context packet is not a backup of uncommitted files.
