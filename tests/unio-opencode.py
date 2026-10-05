@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
@@ -14,12 +14,12 @@ import tempfile
 source=Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='opencode-default-') as directory:
     base=Path(directory);root=base/'project';repo=root/'repo';repo.mkdir(parents=True)
-    env=dict(os.environ, AGENTTEAM_BIN_DIR=str(base/'bin'),AGENTTEAM_CONF_DIR=str(base/'conf'),
-             AGENTTEAM_COMPLETION_DIR=str(base/'completion'),AGENTTEAM_AUTO_VERIFY='0',
-             AGENTTEAM_AUTO_OFF='0',AGENTTEAM_AUTO_SYNC='0',GIT_AUTHOR_NAME='mock',
+    env=dict(os.environ, UNIO_BIN_DIR=str(base/'bin'),UNIO_CONF_DIR=str(base/'conf'),
+             UNIO_COMPLETION_DIR=str(base/'completion'),UNIO_AUTO_VERIFY='0',
+             UNIO_AUTO_OFF='0',UNIO_AUTO_SYNC='0',GIT_AUTHOR_NAME='mock',
              GIT_COMMITTER_NAME='mock',GIT_AUTHOR_EMAIL='mock@example.invalid',GIT_COMMITTER_EMAIL='mock@example.invalid')
-    subprocess.run(['bash',str(source/'frugal-flock-install.sh')],env=env,check=True,capture_output=True)
-    at=str(base/'bin/frugal-flock');stub=base/'stub';stub.mkdir()
+    subprocess.run(['bash',str(source/'unio-install.sh')],env=env,check=True,capture_output=True)
+    at=str(base/'bin/unio');stub=base/'stub';stub.mkdir()
     executable=stub/'opencode'
     executable.write_text('''#!/usr/bin/env python3
 import json,sys,subprocess,os
@@ -49,6 +49,6 @@ subprocess.run(['git','commit','-qm','offline OpenCode'],check=True)
     assert (base/'args.json').read_bytes()==before
     print('opencode: doctor warns on legacy direct entry without executing or changing it',flush=True)
     original=config.read_bytes()
-    subprocess.run(['bash',str(source/'frugal-flock-install.sh')],env=env,check=True,capture_output=True)
+    subprocess.run(['bash',str(source/'unio-install.sh')],env=env,check=True,capture_output=True)
     assert config.read_bytes()==original
     print('opencode: reinstall preserves existing model and command configuration',flush=True)

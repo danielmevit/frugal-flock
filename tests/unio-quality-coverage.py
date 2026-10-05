@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
@@ -23,8 +23,8 @@ import time
 
 root = Path.cwd().parent
 wt = root / 'wt/mock'
-at = str(Path(os.environ['AGENTTEAM_BIN_DIR']) / 'frugal-flock')
-conf = Path(os.environ['AGENTTEAM_CONF_DIR']) / 'agents.conf'
+at = str(Path(os.environ['UNIO_BIN_DIR']) / 'unio')
+conf = Path(os.environ['UNIO_CONF_DIR']) / 'agents.conf'
 mark = root / 'cov-provider-called'
 count = 0
 
@@ -213,7 +213,7 @@ check('failed check persisted with counts',
 
 # Worker failure stays visible next to passing checks and never becomes ready.
 configure(mock='echo cov >> hello.txt; git add hello.txt; git commit -qm cov; exit 7')
-call('run', 'mock', 'cov', code=7, env={'AGENTTEAM_AUTO_VERIFY': '1'})
+call('run', 'mock', 'cov', code=7, env={'UNIO_AUTO_VERIFY': '1'})
 configure()
 call('review', 'mock', 'cov', 'rev')
 d = data()

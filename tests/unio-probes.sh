@@ -1,49 +1,49 @@
 #!/usr/bin/env bash
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
 # =====================================================================
-# tests/agentteam-probes.sh — adversarial probes against agentteam ITSELF
+# tests/unio-probes.sh — adversarial probes against unio ITSELF
 # (SABAT-1: saboteur seat; target = the orchestration machinery, not an app).
 #
-# Every probe builds a complete agentteam project inside a throwaway
-# `mktemp -d` sandbox: the tool is installed fresh with AGENTTEAM_BIN_DIR /
-# AGENTTEAM_CONF_DIR / AGENTTEAM_COMPLETION_DIR all pointed inside the
-# sandbox, git repos live under it, and all `agentteam` calls run with cwd
-# inside it. Nothing touches the operator's real ~/.config/agentteam, real
+# Every probe builds a complete unio project inside a throwaway
+# `mktemp -d` sandbox: the tool is installed fresh with UNIO_BIN_DIR /
+# UNIO_CONF_DIR / UNIO_COMPLETION_DIR all pointed inside the
+# sandbox, git repos live under it, and all `unio` calls run with cwd
+# inside it. Nothing touches the operator's real ~/.config/unio, real
 # projects, or any path outside the sandbox. Sandboxes are removed on exit
-# (AGENTTEAM_PROBE_KEEP=1 keeps them for inspection).
+# (UNIO_PROBE_KEEP=1 keeps them for inspection).
 #
 # Mock agents are plain shell lines in agents.conf — the selftest technique;
 # zero AI quota is spent.
 #
 # Verdicts:
-#   HELD   — agentteam withstood the probe (the guarantee held)
+#   HELD   — unio withstood the probe (the guarantee held)
 #   BROKEN — a genuine defect was demonstrated; the broken promise is cited
 #
 # Exit status: 0 = everything HELD, 1 = at least one BROKEN, 2 = harness error.
 #
 # Usage:
-#   bash tests/agentteam-probes.sh            run all probes
-#   bash tests/agentteam-probes.sh --list     print probe names, run nothing
-#   bash tests/agentteam-probes.sh --only <substring>   run matching probes
+#   bash tests/unio-probes.sh            run all probes
+#   bash tests/unio-probes.sh --list     print probe names, run nothing
+#   bash tests/unio-probes.sh --only <substring>   run matching probes
 # =====================================================================
 set -uo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-INSTALLER="$HERE/../agentteam-install.sh"
+INSTALLER="$HERE/../unio-install.sh"
 [ -f "$INSTALLER" ] || { echo "harness: $INSTALLER not found" >&2; exit 2; }
 
 # Deterministic git identity inside sandboxes; short timeouts so no probe
 # can hang the suite.
-export GIT_AUTHOR_NAME=agentteam-probe GIT_AUTHOR_EMAIL=probe@agentteam.local
-export GIT_COMMITTER_NAME=agentteam-probe GIT_COMMITTER_EMAIL=probe@agentteam.local
-export AGENTTEAM_TIMEOUT=120 AGENTTEAM_VERIFY_TIMEOUT=60 AGENTTEAM_REVIEW_TIMEOUT=60
+export GIT_AUTHOR_NAME=unio-probe GIT_AUTHOR_EMAIL=probe@unio.local
+export GIT_COMMITTER_NAME=unio-probe GIT_COMMITTER_EMAIL=probe@unio.local
+export UNIO_TIMEOUT=120 UNIO_VERIFY_TIMEOUT=60 UNIO_REVIEW_TIMEOUT=60
 
-KEEP=${AGENTTEAM_PROBE_KEEP:-0}
+KEEP=${UNIO_PROBE_KEEP:-0}
 HELD_N=0 BROKEN_N=0
 SB="" AT="" REPO="" ROOT=""
 NOTE="" PROMISE=""
@@ -61,11 +61,11 @@ trap cleanup EXIT
 # ---------------------------------------------------------------- harness
 sb_boot() { # fresh sandbox + the tool installed entirely inside it
   SB=$(mktemp -d); SANDBOXES+=("$SB")
-  AGENTTEAM_BIN_DIR="$SB/bin" AGENTTEAM_CONF_DIR="$SB/conf" \
-    AGENTTEAM_COMPLETION_DIR="$SB/comp" bash "$INSTALLER" >/dev/null 2>&1 \
+  UNIO_BIN_DIR="$SB/bin" UNIO_CONF_DIR="$SB/conf" \
+    UNIO_COMPLETION_DIR="$SB/comp" bash "$INSTALLER" >/dev/null 2>&1 \
     || { echo "harness: installer failed inside sandbox" >&2; exit 2; }
-  export AGENTTEAM_CONF_DIR="$SB/conf"
-  AT="$SB/bin/agentteam"
+  export UNIO_CONF_DIR="$SB/conf"
+  AT="$SB/bin/unio"
 }
 
 sb_repo() { # $1 = path of the "repo clone" to create (base branch: dev)
@@ -76,7 +76,7 @@ sb_repo() { # $1 = path of the "repo clone" to create (base branch: dev)
 
 sb_init() { ( cd "$REPO" && "$AT" init "$@" >/dev/null 2>&1 ); }
 
-sb_conf() { cat > "$AGENTTEAM_CONF_DIR/agents.conf"; }
+sb_conf() { cat > "$UNIO_CONF_DIR/agents.conf"; }
 
 sb_task() { # $1=task id  $2=Allowed-scope body  $3=Validate body
   printf '# Task %s — worker: mock\n\n## Goal\nprobe\n\n## Context\nprobe\n\n## Allowed scope\n%s\n\n## Constraints\nnone\n\n## Validate\n%s\n\n## Done means\ncommitted\n\n## Report\nSUMMARY\n' \
@@ -263,7 +263,7 @@ p_off_on_path_traversal() {
 # --- F5: task ids allow '\n' and '"' -> ledger forgery -----------------
 # check_id blocks slash/backslash/../ but not control characters or quotes.
 # A newline inside a task id splits its ledger line in two; the tail can be
-# a fully-formed forged event that `agentteam score` then counts as truth.
+# a fully-formed forged event that `unio score` then counts as truth.
 # (A '"' in an id likewise breaks the 'one JSON object per line' format.)
 p_ledger_forgery_via_task_id_newline() {
   sb_boot; sb_repo "$SB/proj/repo"; sb_init mock || return 2
@@ -284,7 +284,7 @@ EOF
   local srow
   srow=$(at score 2>/dev/null)
   if case "$srow" in *forged*) true;; *) false;; esac; then
-    NOTE="a newline in the task id injected a fake 'merge' event — 'agentteam score' credits a worker 'forged' that never existed"
+    NOTE="a newline in the task id injected a fake 'merge' event — 'unio score' credits a worker 'forged' that never existed"
     PROMISE="PROTOCOL §3 — ledger.jsonl is 'one JSON object per event', the append-only machine history; status() even comments ids have 'no newlines/globs'"
     return 1
   fi
@@ -329,12 +329,12 @@ p_guard_hooks_misfire_linked_worktree_repo() {
     || { NOTE="HARNESS SUSPECT: cannot create linked worktree"; return 2; }
   REPO="$SB/proj/repo"; ROOT="$SB/proj"
   sb_init mock || return 2
-  grep -q 'agentteam guard' "$SB/main/.git/hooks/pre-commit" \
+  grep -q 'unio guard' "$SB/main/.git/hooks/pre-commit" \
     || { NOTE="HARNESS SUSPECT: hooks not installed"; return 2; }
   echo owner-doc > "$REPO/owner.txt"; git -C "$REPO" add owner.txt
   local cout crc=0 blocked=0 logged=0 mrc=0
   cout=$(git -C "$REPO" commit -qm "owner: doc" 2>&1) || crc=$?
-  [ "$crc" -ne 0 ] && printf '%s' "$cout" | grep -q 'agentteam guard' && blocked=1
+  [ "$crc" -ne 0 ] && printf '%s' "$cout" | grep -q 'unio guard' && blocked=1
   # and is a merge into the base still ledger-logged from repo/?
   git -C "$ROOT/wt/mock" commit -qm "mock work" --allow-empty
   git -C "$REPO" merge --no-ff agent/mock -m "merge T" >/dev/null 2>&1 || mrc=$?
@@ -389,11 +389,11 @@ p_kill_trusts_pidfile_blindly() {
   kill -0 "$innocent" 2>/dev/null || dead=1
   kill -KILL "$innocent" 2>/dev/null || true
   if [ "$dead" = 1 ]; then
-    NOTE="kill terminated an innocent session that merely held the recorded pid — the pid's identity (an agentteam run) is never verified"
+    NOTE="kill terminated an innocent session that merely held the recorded pid — the pid's identity (an unio run) is never verified"
     PROMISE="PROTOCOL §4 — 'kill <task> terminate a background run'; after a SIGKILLed run + OS pid reuse this becomes friendly fire"
     return 1
   fi
-  NOTE="kill verifies the pid belongs to an agentteam run"; return 0
+  NOTE="kill verifies the pid belongs to an unio run"; return 0
 }
 
 # --- F10: run is not refused while a verify is in flight ---------------
@@ -477,7 +477,7 @@ case "${1:-}" in
   *) echo "usage: $0 [--list] [--only <substring>]" >&2; exit 2;;
 esac
 
-echo "== agentteam adversarial probes (SABAT-1) =="
+echo "== unio adversarial probes (SABAT-1) =="
 for n in "${PROBE_NAMES[@]}"; do
   if [ -n "$ONLY" ]; then case "$n" in *"$ONLY"*) ;; *) continue;; esac; fi
   run_probe "$n"

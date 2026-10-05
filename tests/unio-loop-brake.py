@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
@@ -19,14 +19,14 @@ import time
 source = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='loop-brake-') as directory:
     base = Path(directory)
-    env = dict(os.environ, AGENTTEAM_BIN_DIR=str(base/'bin'),
-               AGENTTEAM_CONF_DIR=str(base/'conf'), AGENTTEAM_COMPLETION_DIR=str(base/'completion'),
+    env = dict(os.environ, UNIO_BIN_DIR=str(base/'bin'),
+               UNIO_CONF_DIR=str(base/'conf'), UNIO_COMPLETION_DIR=str(base/'completion'),
                GIT_AUTHOR_NAME='mock', GIT_COMMITTER_NAME='mock',
                GIT_AUTHOR_EMAIL='mock@example.invalid', GIT_COMMITTER_EMAIL='mock@example.invalid',
-               AGENTTEAM_AUTO_VERIFY='0', AGENTTEAM_AUTO_SYNC='0', AGENTTEAM_AUTO_OFF='0',
-               AGENTTEAM_TIMEOUT='20', AGENTTEAM_VERIFY_TIMEOUT='10')
-    subprocess.run(['bash',str(source/'frugal-flock-install.sh')],env=env,check=True,capture_output=True)
-    at = str(base/'bin/frugal-flock')
+               UNIO_AUTO_VERIFY='0', UNIO_AUTO_SYNC='0', UNIO_AUTO_OFF='0',
+               UNIO_TIMEOUT='20', UNIO_VERIFY_TIMEOUT='10')
+    subprocess.run(['bash',str(source/'unio-install.sh')],env=env,check=True,capture_output=True)
+    at = str(base/'bin/unio')
     root = base/'project'; repo = root/'repo'; repo.mkdir(parents=True)
     def git(*args):
         return subprocess.run(['git',*args],cwd=repo,env=env,check=True,capture_output=True)

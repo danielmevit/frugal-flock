@@ -1,0 +1,340 @@
+#!/usr/bin/env bash
+# Unio — Copyright (C) 2026 Daniel Mitev
+# Public attribution: Daniel Mevit (@danielmevit)
+# Original project: https://github.com/danielmevit/unio
+# SPDX-License-Identifier: AGPL-3.0-only
+# Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
+# See LICENSE and NOTICE; distributed without warranty.
+# Unio rename contract: entirely isolated, no providers or credentials.
+set -euo pipefail
+REPO_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+BRAND_SANDBOX=$(mktemp -d)
+trap 'rm -rf "$BRAND_SANDBOX"' EXIT
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+export UNIO_BIN_DIR="$BRAND_SANDBOX/bin with spaces"
+export UNIO_CONF_DIR="$BRAND_SANDBOX/conf with spaces"
+export UNIO_COMPLETION_DIR="$BRAND_SANDBOX/completion with spaces"
+FLOCK_PATH=$(command -v flock)
+FLOCK_HASH=$(sha256sum "$FLOCK_PATH")
+FLOCK_INODE=$(stat -Lc '%d:%i' "$FLOCK_PATH")
+legacy_commands=(frugal-flock frgl-flc agentteam)
+legacy_link_target=agentteam
+legacy_version_marker='AGENTTEAM_VERSION='
+legacy_conf_name=agentteam
+legacy_worker_marker='.agentteam-worker'
+legacy_guard='agentteam guard'
+legacy_bin_override=AGENTTEAM_BIN_DIR
+legacy_conf_override=AGENTTEAM_CONF_DIR
+legacy_completion_override=AGENTTEAM_COMPLETION_DIR
+
+install() {
+  (cd "$BRAND_SANDBOX" && bash "$REPO_DIR/unio-install.sh") > "$BRAND_SANDBOX/install.log"
+  grep -Fq 'Unio installed. Small plans. Big ideas.' "$BRAND_SANDBOX/install.log"
+}
+only_unio() {
+  local dir entry
+  for dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
+    local entries=("$dir"/*)
+    [ "${#entries[@]}" -eq 1 ] && [ "${entries[0]}" = "$dir/unio" ] \
+      || fail "install contains entries other than unio: $dir"
+    [ -f "$dir/unio" ] && [ ! -L "$dir/unio" ] || fail "unio must be a regular file: $dir"
+    for entry in "${legacy_commands[@]}"; do
+      [ ! -e "$dir/$entry" ] && [ ! -L "$dir/$entry" ] || fail "legacy command remains: $dir/$entry"
+    done
+  done
+  [ -x "$UNIO_BIN_DIR/unio" ] || fail 'unio is not executable'
+}
+
+# A standalone installer carries byte-identical legal files and protocol.
+mkdir -p "$BRAND_SANDBOX/standalone"
+cp "$REPO_DIR/unio-install.sh" "$BRAND_SANDBOX/standalone/unio-install.sh"
+bash "$BRAND_SANDBOX/standalone/unio-install.sh" > "$BRAND_SANDBOX/install.log"
+only_unio
+cmp "$REPO_DIR/LICENSE" "$UNIO_CONF_DIR/legal/LICENSE"
+cmp "$REPO_DIR/NOTICE" "$UNIO_CONF_DIR/legal/NOTICE"
+cmp "$REPO_DIR/docs/PROTOCOL.md" "$UNIO_CONF_DIR/templates/PROTOCOL.md"
+
+# Reinstalling preserves user configuration, bench state and playbooks.
+printf '# existing user config\nmock=bash -c "exit 0"\n' > "$UNIO_CONF_DIR/agents.conf"
+cp "$UNIO_CONF_DIR/agents.conf" "$BRAND_SANDBOX/expected.conf"
+mkdir -p "$UNIO_CONF_DIR/off" "$UNIO_CONF_DIR/playbooks"
+printf 'keep quota state\n' > "$UNIO_CONF_DIR/off/existing"
+printf 'keep playbooks\n' > "$UNIO_CONF_DIR/playbooks/existing.md"
+install
+cmp "$BRAND_SANDBOX/expected.conf" "$UNIO_CONF_DIR/agents.conf"
+grep -Fxq 'keep quota state' "$UNIO_CONF_DIR/off/existing"
+grep -Fxq 'keep playbooks' "$UNIO_CONF_DIR/playbooks/existing.md"
+
+# Every legacy name in both directories is removed only by the frozen rules.
+for legacy_kind in regular symlink; do
+  for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
+    for legacy_command in "${legacy_commands[@]}"; do
+      if [ "$legacy_kind" = regular ]; then
+        printf '#!/bin/bash\n%s"0.4.0"\n' "$legacy_version_marker" > "$legacy_dir/$legacy_command"
+      else
+        ln -s "$legacy_link_target" "$legacy_dir/$legacy_command"
+      fi
+    done
+  done
+  install
+  only_unio
+  [ "$(grep -c '^Removed legacy install: ' "$BRAND_SANDBOX/install.log")" -eq 6 ] \
+    || fail 'not every legacy removal was reported'
+  for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
+    for legacy_command in "${legacy_commands[@]}"; do
+      grep -Fxq "Removed legacy install: $legacy_dir/$legacy_command" "$BRAND_SANDBOX/install.log"
+    done
+  done
+done
+
+# Keep an unrelated executable at the legacy bin name, while removing links.
+printf '#!/bin/sh\necho unrelated tool\n' > "$UNIO_BIN_DIR/$legacy_link_target"
+chmod +x "$UNIO_BIN_DIR/$legacy_link_target"
+cp "$UNIO_BIN_DIR/$legacy_link_target" "$BRAND_SANDBOX/unrelated-tool"
+for legacy_command in "${legacy_commands[@]:0:2}"; do
+  ln -s "$legacy_link_target" "$UNIO_BIN_DIR/$legacy_command"
+done
+install
+cmp "$BRAND_SANDBOX/unrelated-tool" "$UNIO_BIN_DIR/$legacy_link_target"
+[ -x "$UNIO_BIN_DIR/$legacy_link_target" ] || fail 'unrelated executable lost its mode'
+[ "$(grep -c '^Removed legacy install: ' "$BRAND_SANDBOX/install.log")" -eq 2 ]
+rm -- "$UNIO_BIN_DIR/$legacy_link_target"
+
+# Files, directories and differently targeted symlinks are never ours.
+for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
+  for legacy_command in "${legacy_commands[@]}"; do
+    printf 'unrelated %s\n' "$legacy_command" > "$legacy_dir/$legacy_command"
+  done
+done
+install
+! grep -q '^Removed legacy install: ' "$BRAND_SANDBOX/install.log"
+for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
+  for legacy_command in "${legacy_commands[@]}"; do
+    grep -Fxq "unrelated $legacy_command" "$legacy_dir/$legacy_command"
+    rm -- "$legacy_dir/$legacy_command"
+    mkdir "$legacy_dir/$legacy_command"
+  done
+done
+install
+for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
+  for legacy_command in "${legacy_commands[@]}"; do
+    [ -d "$legacy_dir/$legacy_command" ] || fail 'unrelated directory removed'
+    rmdir "$legacy_dir/$legacy_command"
+    # Even a link to an owned regular file must survive a different target.
+    printf '%s"0.4.0"\n' "$legacy_version_marker" > "$BRAND_SANDBOX/owned-target"
+    ln -s "$BRAND_SANDBOX/owned-target" "$legacy_dir/$legacy_command"
+  done
+done
+install
+for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
+  for legacy_command in "${legacy_commands[@]}"; do
+    [ -L "$legacy_dir/$legacy_command" ] || fail 'unrelated symlink removed'
+    [ "$(readlink "$legacy_dir/$legacy_command")" = "$BRAND_SANDBOX/owned-target" ]
+    rm -- "$legacy_dir/$legacy_command"
+  done
+done
+only_unio
+
+cat "$REPO_DIR/NOTICE" "$REPO_DIR/LICENSE" > "$BRAND_SANDBOX/expected-license"
+export PATH="$UNIO_BIN_DIR:$PATH"
+unio help > "$BRAND_SANDBOX/help"
+grep -Fq 'Unio — Small plans. Big ideas.' "$BRAND_SANDBOX/help"
+for phrase in 'unio result <w> <task>' 'unio handoff <w> <task>' \
+    'unio agents [--json]' '2 INCOMPLETE' 'VERDICT: REQUEST-CHANGES' \
+    'NOT a backup' 'Python 3 (standard library only)' 'trusted_host' 'skip-worktree' \
+    'unio license' 'Daniel Mitev' 'Daniel Mevit (@danielmevit)' 'No warranty.'; do
+  grep -Fq -- "$phrase" "$BRAND_SANDBOX/help" || fail "help no longer mentions: $phrase"
+done
+unio license > "$BRAND_SANDBOX/entry-license"
+cmp "$BRAND_SANDBOX/expected-license" "$BRAND_SANDBOX/entry-license"
+unio version > "$BRAND_SANDBOX/version"
+grep -q '^Unio 0\.5\.0 ' "$BRAND_SANDBOX/version"
+grep -Fxq 'Small plans. Big ideas.' "$BRAND_SANDBOX/version"
+grep -Fxq "config: $UNIO_CONF_DIR/agents.conf" "$BRAND_SANDBOX/version"
+rc=0
+unio invalid-branding-command > "$BRAND_SANDBOX/error" 2>&1 || rc=$?
+[ "$rc" -eq 1 ] || fail "invalid-command status changed ($rc)"
+grep -Fq "unknown command 'invalid-branding-command'" "$BRAND_SANDBOX/error"
+unio off mock >/dev/null
+[ -f "$UNIO_CONF_DIR/off/mock" ] || fail 'config override ignored'
+unio on mock >/dev/null
+[ ! -f "$UNIO_CONF_DIR/off/mock" ] || fail 'on did not clear bench state'
+
+# Completion registers only Unio and offers real worker/task names.
+mkdir -p "$BRAND_SANDBOX/project/wt/w1" "$BRAND_SANDBOX/project/coord/tasks"
+: > "$BRAND_SANDBOX/project/coord/tasks/T1.md"
+: > "$BRAND_SANDBOX/project/coord/tasks/TEMPLATE.md"
+entry=unio
+  bash -euo pipefail -s -- "$entry" "$BRAND_SANDBOX/project" <<'COMPLETION_TEST'
+entry=$1
+source "$UNIO_COMPLETION_DIR/$entry"
+registration=$(complete -p "$entry")
+[ "$registration" = "complete -F _unio unio" ]
+function_name=${registration#* -F }
+function_name=${function_name%% *}
+declare -F "$function_name" >/dev/null
+COMP_WORDS=("$entry" '') COMP_CWORD=1
+"$function_name"
+[ "${#COMPREPLY[@]}" -gt 20 ]
+for candidate in "${COMPREPLY[@]}"; do
+  # Each offered command must occur in the installed dispatch table.
+  grep -Eq "^  ([a-z-]+\|)*${candidate}(\)|\|)" "$UNIO_BIN_DIR/unio"
+done
+COMP_WORDS=("$entry" ver) COMP_CWORD=1
+"$function_name"
+[ "${COMPREPLY[*]}" = 'verify version' ]
+COMP_WORDS=("$entry" resul) COMP_CWORD=1
+"$function_name"
+[ "${COMPREPLY[*]}" = 'result' ]
+COMP_WORDS=("$entry" hand) COMP_CWORD=1
+"$function_name"
+[ "${COMPREPLY[*]}" = 'handoff' ]
+COMP_WORDS=("$entry" agents '') COMP_CWORD=2
+"$function_name"
+[ "${COMPREPLY[*]}" = '--json' ]
+cd "$2"
+for command in verify result handoff review; do
+  COMPREPLY=(); COMP_WORDS=("$entry" "$command" '') COMP_CWORD=2
+  "$function_name"
+  [ "${COMPREPLY[*]}" = 'w1' ]
+  COMPREPLY=(); COMP_WORDS=("$entry" "$command" w1 '') COMP_CWORD=3
+  "$function_name"
+  [ "${COMPREPLY[*]}" = 'T1' ]
+done
+# Only review takes a third argument (the reviewer agent).
+for command in verify result handoff; do
+  COMPREPLY=(); COMP_WORDS=("$entry" "$command" w1 T1 '') COMP_CWORD=4
+  "$function_name"
+  [ "${#COMPREPLY[@]}" -eq 0 ]
+done
+COMPREPLY=(); COMP_WORDS=("$entry" review w1 T1 '') COMP_CWORD=4
+"$function_name"
+[ "${COMPREPLY[*]}" = 'mock' ]
+COMPLETION_TEST
+
+# Legacy environment names are ignored by the installer and runtime.
+OVERRIDE_HOME="$BRAND_SANDBOX/override home"
+env -u UNIO_BIN_DIR -u UNIO_CONF_DIR -u UNIO_COMPLETION_DIR HOME="$OVERRIDE_HOME" \
+  "$legacy_bin_override=$BRAND_SANDBOX/ignored bin" \
+  "$legacy_conf_override=$BRAND_SANDBOX/ignored config" \
+  "$legacy_completion_override=$BRAND_SANDBOX/ignored completion" \
+  bash "$REPO_DIR/unio-install.sh" > "$BRAND_SANDBOX/override.log"
+[ -x "$OVERRIDE_HOME/.local/bin/unio" ]
+[ -f "$OVERRIDE_HOME/.local/share/bash-completion/completions/unio" ]
+[ -f "$OVERRIDE_HOME/.config/unio/agents.conf" ]
+[ ! -e "$BRAND_SANDBOX/ignored bin" ]
+[ ! -e "$BRAND_SANDBOX/ignored config" ]
+[ ! -e "$BRAND_SANDBOX/ignored completion" ]
+env -u UNIO_CONF_DIR HOME="$OVERRIDE_HOME" \
+  "$legacy_conf_override=$BRAND_SANDBOX/ignored config" \
+  "$UNIO_BIN_DIR/unio" version > "$BRAND_SANDBOX/override-version"
+grep -Fxq "config: $OVERRIDE_HOME/.config/unio/agents.conf" "$BRAND_SANDBOX/override-version"
+
+# Copy legacy default config once, preserving its files and the original.
+MIGRATION_HOME="$BRAND_SANDBOX/migration home"
+legacy_config="$MIGRATION_HOME/.config/$legacy_conf_name"
+mkdir -p "$legacy_config/off" "$legacy_config/playbooks"
+printf 'mock=bash -c "exit 0"\n' > "$legacy_config/agents.conf"
+printf 'original bench state\n' > "$legacy_config/off/mock"
+printf 'private playbook\n' > "$legacy_config/playbooks/custom.md"
+ln -s custom.md "$legacy_config/playbooks/link.md"
+cp -a "$legacy_config" "$BRAND_SANDBOX/expected-legacy"
+migrate_install() {
+  env -u UNIO_CONF_DIR HOME="$MIGRATION_HOME" bash "$REPO_DIR/unio-install.sh" > "$BRAND_SANDBOX/migration.log"
+}
+migrate_install
+[ "$(grep -c '^Copied legacy config ' "$BRAND_SANDBOX/migration.log")" -eq 1 ]
+for item in agents.conf off/mock playbooks/custom.md; do
+  cmp "$legacy_config/$item" "$MIGRATION_HOME/.config/unio/$item"
+done
+[ -L "$MIGRATION_HOME/.config/unio/playbooks/link.md" ]
+[ "$(readlink "$MIGRATION_HOME/.config/unio/playbooks/link.md")" = custom.md ]
+diff -r "$BRAND_SANDBOX/expected-legacy" "$legacy_config"
+printf 'new config must stay\n' > "$MIGRATION_HOME/.config/unio/agents.conf"
+printf 'old config changed\n' > "$legacy_config/agents.conf"
+migrate_install
+! grep -q '^Copied legacy config ' "$BRAND_SANDBOX/migration.log"
+grep -Fxq 'new config must stay' "$MIGRATION_HOME/.config/unio/agents.conf"
+grep -Fxq 'old config changed' "$legacy_config/agents.conf"
+cmp "$REPO_DIR/NOTICE" "$MIGRATION_HOME/.config/unio/legal/NOTICE"
+# Explicit config selection must suppress the default migration.
+rm -rf "$MIGRATION_HOME/.config/unio"
+HOME="$MIGRATION_HOME" UNIO_CONF_DIR="$BRAND_SANDBOX/explicit config" \
+  bash "$REPO_DIR/unio-install.sh" > "$BRAND_SANDBOX/migration.log"
+[ ! -e "$MIGRATION_HOME/.config/unio" ]
+! grep -q '^Copied legacy config ' "$BRAND_SANDBOX/migration.log"
+
+# Init converts all existing workers, including ones absent from its arguments.
+PROJECT="$BRAND_SANDBOX/doctor"
+PROJECT_REPO="$PROJECT/custom checkout"
+git init -q -b dev "$PROJECT_REPO"
+git -C "$PROJECT_REPO" -c user.email=brand@test.invalid -c user.name=brand \
+  commit -q --allow-empty -m init
+(cd "$PROJECT_REPO" && unio init mock mock-other) > "$BRAND_SANDBOX/doctor-init" 2>&1
+make_legacy_project() {
+  local wt hook
+  for wt in "$PROJECT"/wt/*/; do
+    mv "$wt/.unio-worker" "$wt/$legacy_worker_marker"
+  done
+  for hook in pre-commit pre-push reference-transaction post-merge; do
+    sed "s/unio guard/$legacy_guard/g; s/\\.unio-worker/$legacy_worker_marker/g" \
+      "$PROJECT_REPO/.git/hooks/$hook" > "$BRAND_SANDBOX/legacy-hook"
+    cat "$BRAND_SANDBOX/legacy-hook" > "$PROJECT_REPO/.git/hooks/$hook"
+  done
+  sed -i '/^\.unio-worker$/d' "$PROJECT_REPO/.git/info/exclude"
+  printf '%s\n' "$legacy_worker_marker" >> "$PROJECT_REPO/.git/info/exclude"
+}
+check_project_conversion() {
+  local wt hook
+  for wt in "$PROJECT"/wt/*/; do
+    [ ! -e "$wt/$legacy_worker_marker" ] || fail 'legacy worker marker remains'
+    [ -f "$wt/.unio-worker" ] || fail 'Unio worker marker missing'
+    grep -Fxq "$(basename "$wt")" "$wt/.unio-worker"
+    git -C "$wt" check-ignore -q .unio-worker
+  done
+  grep -Fxq '.unio-worker' "$PROJECT_REPO/.git/info/exclude"
+  for hook in pre-commit pre-push reference-transaction post-merge; do
+    grep -Fq 'unio guard' "$PROJECT_REPO/.git/hooks/$hook"
+    ! grep -Fq "$legacy_guard" "$PROJECT_REPO/.git/hooks/$hook"
+    [ -x "$PROJECT_REPO/.git/hooks/$hook" ]
+  done
+  # The rewritten no-push guard still blocks a worker.
+  rc=0
+  (cd "$PROJECT/wt/mock" && bash "$PROJECT_REPO/.git/hooks/pre-push") \
+    > "$BRAND_SANDBOX/guard-out" 2>&1 || rc=$?
+  [ "$rc" -eq 1 ]
+  grep -Fq 'unio guard' "$BRAND_SANDBOX/guard-out"
+}
+make_legacy_project
+(cd "$PROJECT_REPO" && unio init mock) > "$BRAND_SANDBOX/doctor-init" 2>&1
+check_project_conversion
+make_legacy_project
+(cd "$PROJECT_REPO" && unio doctor) > "$BRAND_SANDBOX/doctor-out" 2>&1 \
+  || fail "doctor reported errors: $(cat "$BRAND_SANDBOX/doctor-out")"
+check_project_conversion
+grep -Fq 'ok    python3 found' "$BRAND_SANDBOX/doctor-out" || fail 'doctor no longer checks python3'
+# Both migration entrypoints must leave unrelated hooks untouched.
+printf '#!/bin/sh\n# custom owner hook\nexit 0\n' > "$PROJECT_REPO/.git/hooks/pre-commit"
+cp "$PROJECT_REPO/.git/hooks/pre-commit" "$BRAND_SANDBOX/owner-hook"
+(cd "$PROJECT_REPO" && unio init mock) > "$BRAND_SANDBOX/doctor-init" 2>&1
+cmp "$BRAND_SANDBOX/owner-hook" "$PROJECT_REPO/.git/hooks/pre-commit"
+# Trigger doctor migration through another owned hook.
+sed -i "s/unio guard/$legacy_guard/g" "$PROJECT_REPO/.git/hooks/pre-push"
+(cd "$PROJECT_REPO" && unio doctor) > "$BRAND_SANDBOX/doctor-out" 2>&1
+cmp "$BRAND_SANDBOX/owner-hook" "$PROJECT_REPO/.git/hooks/pre-commit"
+grep -Fq 'unio guard' "$PROJECT_REPO/.git/hooks/pre-push"
+
+[ ! -e "$UNIO_BIN_DIR/flock" ] && [ ! -L "$UNIO_BIN_DIR/flock" ]
+[ "$(command -v flock)" = "$FLOCK_PATH" ] || fail 'Linux flock was shadowed'
+[ "$(sha256sum "$FLOCK_PATH")" = "$FLOCK_HASH" ] || fail 'Linux flock was modified'
+[ "$(stat -Lc '%d:%i' "$FLOCK_PATH")" = "$FLOCK_INODE" ] || fail 'Linux flock was replaced'
+flock -n "$BRAND_SANDBOX/lock" true
+
+# Installation failures propagate from the one installer.
+: > "$BRAND_SANDBOX/not-a-directory"
+rc=0
+UNIO_BIN_DIR="$BRAND_SANDBOX/not-a-directory/bin" \
+  bash "$REPO_DIR/unio-install.sh" > "$BRAND_SANDBOX/install-error" 2>&1 || rc=$?
+[ "$rc" -eq 1 ] || fail "installation failure status changed ($rc)"
+echo 'PASS: Unio command, completion, legal copies, legacy cleanup, config and project migration, reinstall, status propagation and Linux flock'
