@@ -1,6 +1,6 @@
 # Changelog
 
-Release notes for Frugal Flock. Between releases, each task writes a short
+Release notes for Unio. Between releases, each task writes a short
 fragment in `changelog.d/`; the fragments are rolled into this file when a
 version is released.
 

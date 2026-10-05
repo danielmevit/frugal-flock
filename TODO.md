@@ -46,9 +46,11 @@ Initial M1.5 source work is complete; broader app work continues from the
   `.log` file. That interrupted run is historical, not the final task
   outcome; see the later verification and completion handoff in the report.
 - Existing local commits from before this session were preserved. The
-  GitHub repository was renamed in place from `agentteam-docs (and then frugal-flock)` to
-  [frugal-flock](https://github.com/danielmevit/unio). The rewritten
+  Historical GitHub rename: `agentteam-docs` became
+  [frugal-flock](https://github.com/danielmevit/frugal-flock). The rewritten
   README offers a beginner path, optional technical depth, and keywords.
+- On 2026-10-05, the owner approved the subsequent rename to
+  [Unio](https://github.com/danielmevit/unio); see docs/RENAME-UNIO.md.
 
 ## 1. M1 — finish quality before UX
 
@@ -75,12 +77,14 @@ accepted M1 on 2026-10-04. M2 starts when the owner asks for it.
 - Follow the README from a fresh clone. Install with
   `bash unio-install.sh`, then run `unio selftest` and
   `unio version` before connecting a live provider.
-- Keep old configuration paths, environment overrides, and command
-  compatibility. Existing local clone folders need not be renamed.
+- Unio supports only `unio`, `UNIO_*` overrides and `~/.config/unio`.
+  The installer copies legacy default config once when the new config is
+  absent and no override is selected, preserving the old config. Old aliases
+  and environment names are not supported; local clone folders stay intact.
 
 ## Near-term roadmap (owner-approved 2026-10-04)
 
-Goal: build the Unio app WITH Frugal Flock 0.4.0 (dogfooding) and watch
+Goal: build the Unio app WITH the legacy installed Frugal Flock 0.4.0 (dogfooding) and watch
 its behaviour live, so build progress, bugs and errors are visible as they
 happen. Only after a stability phase, so the team does not burn tokens in
 bug loops.

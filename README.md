@@ -132,7 +132,7 @@ Start with one helper and add another when you want a second perspective.
 
 If your AI tool keeps asking before each `unio` command, or its own
 safety system refuses to run them, [allow those commands once](docs/SETUP.md#9-lead-ai-permissions)
-instead of switching its safety checks off. Unio\'s own refusals,
+instead of switching its safety checks off. Unio's own refusals,
 such as `STOP is active`, say why in their message.
 
 ## FAQ
@@ -243,7 +243,7 @@ each tool keeps its own. Automatic switching is on the roadmap.
 <details>
 <summary>My lead AI keeps asking for permission, or a run is refused. What now?</summary>
 
-First check who refused. Unio\'s own refusals say why, for example
+First check who refused. Unio's own refusals say why, for example
 `STOP is active`, an agent that is `OFF`, or a worker that is
 `already running a task`; `unio status` shows the state. If instead the
 AI tool asks or refuses, that is its own safety system. For Claude Code,
@@ -282,9 +282,9 @@ unio status           # tasks, reports, review queue, running work
 unio tail             # follow the latest run's log
 unio score            # per-worker scorecard from the event ledger
 unio result codex T7  # stored run/verify/review evidence as JSON
-frgl-flc handoff codex T7 # context packet for the next AI, same checkout
+unio handoff codex T7 # context packet for the next AI, same checkout
 unio agents --json    # local availability; no login or quota probe
-frgl-flc off codex 5h     # bench a provider for your chosen interval
+unio off codex 5h     # bench a provider for your chosen interval
 unio on codex         # make it available again
 ```
 
@@ -311,9 +311,9 @@ Contributor checks, none of which call a live provider:
 
 ```bash
 bash tools/quality-check.sh   # everything below plus selftest and ShellCheck
-bash tests/frugal-flock-quality.sh
-bash tests/frugal-flock-branding.sh
-bash tests/agentteam-probes.sh
+bash tests/unio-quality.sh
+bash tests/unio-branding.sh
+bash tests/unio-probes.sh
 bash tools/check-docs.sh
 ```
 
@@ -347,7 +347,7 @@ terms under sections 7(b) and 7(c). Copyright (C) 2026
 [LICENSE](LICENSE) and [NOTICE](NOTICE), or run `unio license`.
 
 Commercial use and compliant forks are allowed. Covered redistributed
-derivatives must preserve the \*\*Unio\*\* name and original author
+derivatives must preserve the **Unio** name and original author
 credit in the reused material or appropriate legal notices, identify
 modified versions, and meet the license's
 source-sharing requirements; modified network versions must offer source
@@ -395,5 +395,5 @@ patterns work today.
   writer–reviewer pipelines, agent relay, best-of-N, cross-provider handoff,
   agent swarms, AI councils. Not model merging, shared quotas, or automatic
   consensus.
-- **Names and commands:** Unio, Frugal Flock, frugal-flock, frgl-flc, agentteam,
-  agentteam-docs, Claude Code, Codex, Antigravity, OpenCode, Grok, Kimi.
+- **Names and commands:** Unio, unio, Claude Code, Codex, Antigravity,
+  OpenCode, Grok, Kimi.
