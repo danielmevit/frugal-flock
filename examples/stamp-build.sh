@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
@@ -10,24 +10,27 @@
 #   bash examples/stamp-build.sh [work-dir]
 #
 # Builds a REAL, useful tool — `stamp`, a one-line git status printer — through
-# the full frugal-flock loop: freeze a contract, dispatch disjoint parallel tasks,
+# the full Unio loop: freeze a contract, dispatch disjoint parallel tasks,
 # verify, merge, sync, then let the saboteur find a genuine bug and close it
 # with a fix cycle. The workers are deterministic stand-ins (zero quota) that
 # write real, working code; the machinery, the gate, and the resulting tool are
 # all real. At the end `stamp` runs on actual repositories and its test suite
 # is green — proof the loop produces working software, not just diffs.
 set -uo pipefail
+# Captured before this script changes directory. The checkout stays in the
+# legacy local workspace directory; that directory is not renamed.
+CHECKOUT=$(cd "$(dirname "$0")/.." && pwd)
 export PATH="$HOME/.local/bin:$PATH"
-command -v frugal-flock >/dev/null || { echo "install frugal-flock first: bash frugal-flock-install.sh"; exit 1; }
+command -v unio >/dev/null || { echo "install unio first: bash unio-install.sh"; exit 1; }
 
 step() { printf '\n\033[1m════ %s ════\033[0m\n' "$*"; }
 own()  { printf '  \033[36mYOU:\033[0m %s\n' "$*"; }
 
 WORK="${1:-$(mktemp -d)}"; rm -rf "$WORK"; mkdir -p "$WORK"
 CONF="$WORK/conf"; mkdir -p "$CONF/templates"
-cp "$HOME/.config/agentteam/templates/"*.md "$CONF/templates/" 2>/dev/null \
-  || { echo "run bash frugal-flock-install.sh first (templates missing)"; exit 1; }
-export AGENTTEAM_CONF_DIR="$CONF"
+cp "$HOME/.config/unio/templates/"*.md "$CONF/templates/" 2>/dev/null \
+  || { echo "run bash unio-install.sh first (templates missing)"; exit 1; }
+export UNIO_CONF_DIR="$CONF"
 
 # Stand-in fleet: each worker runs the simulate-block hidden in its task file.
 # gamma (the saboteur) and the fixer use the same mechanism.
@@ -49,8 +52,8 @@ git -C "$WORK/stamp/repo" config user.name You
   git add -A && git commit -q -m "v0: empty stamp project" )
 cd "$WORK/stamp/repo" || exit 1
 
-echo "Building the real 'stamp' tool through frugal-flock in: $WORK"
-frugal-flock init codex opencode antigravity gamma >/dev/null 2>&1
+echo "Building the real 'stamp' tool through unio in: $WORK"
+unio init codex opencode antigravity gamma >/dev/null 2>&1
 
 step "PLAN — the owner freezes the contract before any feature work"
 own "The output format and module boundaries are the frozen contract."
@@ -70,7 +73,7 @@ git add CONTRACT.md tests/__init__.py
 git commit -q -m "contract: freeze stamp output format + module boundaries"
 own "Contract committed on dev. Sync the workshops onto it before dispatching"
 own "(a worker branched before the contract would build against stale code):"
-frugal-flock sync | sed 's/^/    /'
+unio sync | sed 's/^/    /'
 
 # ---- helper: write a task file with an embedded do-block -----------------
 task() { cat > "../coord/tasks/$1.md"; }
@@ -206,19 +209,19 @@ git commit -q -m "S2: gitread"
 do -->
 EOF
 
-frugal-flock run -b codex S1-codex >/dev/null 2>&1
-frugal-flock run -b opencode S2-opencode >/dev/null 2>&1
+unio run -b codex S1-codex >/dev/null 2>&1
+unio run -b opencode S2-opencode >/dev/null 2>&1
 sleep 3
-frugal-flock status | sed -n '/workers (review queue/,/running/p' | head -7
+unio status | sed -n '/workers (review queue/,/running/p' | head -7
 
 step "GATE — verify each, then the owner merges, then sync"
 for wt in codex:S1-codex opencode:S2-opencode; do
   w=${wt%%:*}; t=${wt#*:}
-  frugal-flock verify "$w" "$t" | grep -E 'scope|validate|verdict'
+  unio verify "$w" "$t" | grep -E 'scope|validate|verdict'
   own "reading the diff, then merging $t"
   git merge --no-ff -q "agent/$w" -m "merge $t" 2>/dev/null
 done
-frugal-flock sync >/dev/null
+unio sync >/dev/null
 
 step "DISPATCH — S3 (antigravity) wires the tool, after S1+S2 are in"
 task S3-antigravity <<'EOF'
@@ -297,16 +300,16 @@ git add stamp.py tests/test_stamp.py
 git commit -q -m "S3: stamp cli"
 do -->
 EOF
-frugal-flock run antigravity S3-antigravity >/dev/null 2>&1
-frugal-flock verify antigravity S3-antigravity | grep -E 'scope|validate|verdict'
+unio run antigravity S3-antigravity >/dev/null 2>&1
+unio verify antigravity S3-antigravity | grep -E 'scope|validate|verdict'
 own "merging S3 and syncing"
 git merge --no-ff -q agent/antigravity -m "merge S3: stamp cli" 2>/dev/null
-frugal-flock sync >/dev/null
+unio sync >/dev/null
 
 step "PROVE IT LIKE A USER — run the real tool on real repositories"
 python3 -m unittest discover -s tests 2>&1 | tail -1
 own "stamp on this very project:      $(python3 stamp.py .)"
-own "stamp on the agentteam-docs repo: $(python3 stamp.py '/mnt/d/Vibe Coding/_vm/agentteam-docs' 2>/dev/null || echo '(not present)')"
+own "stamp on this Unio checkout: $(python3 stamp.py "$CHECKOUT" 2>/dev/null || echo '(not present)')"
 
 step "SABOTAGE — spare quota hunts the fresh code for a real bug"
 task SAB-gamma <<'EOF'
@@ -336,15 +339,15 @@ git commit -q -m "SAB: crash on missing path"
 echo "FINDING: stamp('/no/such/path') raises FileNotFoundError (subprocess cwd)"
 do -->
 EOF
-frugal-flock run gamma SAB-gamma >/dev/null 2>&1
+unio run gamma SAB-gamma >/dev/null 2>&1
 own "the saboteur's finding:"
-frugal-flock report SAB-gamma 20 | grep -i finding || true
+unio report SAB-gamma 20 | grep -i finding || true
 own "confirming the finding fails against dev:"
 git merge --no-ff -q agent/gamma -m "merge SAB: adopt failing test" 2>/dev/null
 python3 -m unittest discover -s tests 2>&1 | tail -3 | head -1
 
 step "FIX — one task closes the saboteur's finding"
-frugal-flock sync >/dev/null
+unio sync >/dev/null
 task F1-codex <<'EOF'
 # Task F1 — worker: codex
 ## Goal
@@ -371,8 +374,8 @@ git add gitread.py
 git commit -q -m "F1: guard missing path"
 do -->
 EOF
-frugal-flock run codex F1-codex >/dev/null 2>&1
-frugal-flock verify codex F1-codex | grep -E 'validate|verdict'
+unio run codex F1-codex >/dev/null 2>&1
+unio verify codex F1-codex | grep -E 'validate|verdict'
 own "merging the fix"
 git merge --no-ff -q agent/codex -m "merge F1: guard missing path" 2>/dev/null
 
@@ -382,7 +385,7 @@ own "stamp on a missing path now:  $(python3 stamp.py /no/such/path)"
 own "final history:"
 git log --oneline | sed 's/^/    /'
 step "SCORECARD"
-frugal-flock score 2>/dev/null | head -8
+unio score 2>/dev/null | head -8
 
 if [ "${KEEP:-0}" = "1" ]; then
   echo; echo "kept the built tool at: $WORK/stamp/repo"

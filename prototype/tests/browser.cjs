@@ -1,6 +1,6 @@
-// Frugal Flock — Copyright (C) 2026 Daniel Mitev
+// Unio — Copyright (C) 2026 Daniel Mitev
 // Public attribution: Daniel Mevit (@danielmevit)
-// Original project: https://github.com/danielmevit/frugal-flock
+// Original project: https://github.com/danielmevit/unio
 // SPDX-License-Identifier: AGPL-3.0-only
 // Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 // See LICENSE and NOTICE; distributed without warranty.

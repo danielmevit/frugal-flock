@@ -1,4 +1,4 @@
-# Frugal Flock interactive prototype
+# Unio interactive prototype
 
 Open `index.html` in a modern browser. No install, build, account, server or
 provider call is needed. This is an original mock-data prototype, not the
@@ -66,6 +66,6 @@ A live one-worker flock dogfood task also requires fresh quota approval.
 The read-only local bridge and real provider handoff remain later milestones.
 
 Copyright (C) 2026 Daniel Mitev; public attribution Daniel Mevit
-(@danielmevit). Original: [Frugal Flock](https://github.com/danielmevit/frugal-flock).
+(@danielmevit). Original: [Unio](https://github.com/danielmevit/unio).
 AGPL-3.0-only; see the repository's LICENSE and NOTICE for full terms and
 attribution/origin requirements. Distributed without warranty.

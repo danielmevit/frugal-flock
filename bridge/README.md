@@ -1,4 +1,4 @@
-# Frugal Flock local Activity preview
+# Unio local Activity preview
 
 This source-only preview turns `watch --once --json` into a read-only local
 browser view. It shows recorded task decisions, worker-lock observations,
@@ -7,16 +7,23 @@ write coordination files. Authentication and capacity remain unknown.
 Recorded approval is separate from current readiness and human acceptance.
 
 Python 3.9 or newer with the standard library is the only server dependency.
-The owner chooses an enclosing workspace and an explicit trusted Frugal
-Flock executable that supports `watch`. The installed v0.4.0 has no watch
-command and remains unchanged. Use a disposable source build in workspace
-`tmp/`, following [the preview contract](../docs/BRIDGE-ACTIVITY.md).
+The preview defaults to the `unio` engine on PATH. Pass `--engine` to
+override that with an explicit trusted executable that supports `watch`.
+The installed v0.4.0 release has no watch command and remains unchanged.
+Use a disposable source build in workspace `tmp/`, following
+[the preview contract](../docs/BRIDGE-ACTIVITY.md).
 
-From the repository root, with absolute paths selected for this machine:
+From the repository root:
 
 ```bash
-python3 -B bridge/server.py --project /path/to/frugal-flock \
-  --engine /path/to/frugal-flock/tmp/activity-build/bin/frugal-flock
+python3 -B bridge/server.py --project /path/to/workspace
+```
+
+To override the engine, pass an absolute executable path:
+
+```bash
+python3 -B bridge/server.py --project /path/to/workspace \
+  --engine /path/to/workspace/tmp/activity-build/bin/unio
 ```
 
 The command prints its `http://127.0.0.1:PORT` address. Open that address in
@@ -32,7 +39,7 @@ Default mode serves the four static assets, `GET /api/activity` and a
 same-origin capability document at `GET /api/session`. The server
 binds 127.0.0.1; Host must match its actual address, and an Origin header
 must match that same origin. No cross-origin access, request-selected folder,
-engine, command or task exists. Default mode has no mutation endpoint. The fixed owner-selected
+engine, command or task exists. Default mode has no mutation endpoint. The selected
 engine runs on the trusted host; this is not an OS sandbox or a packaged
 launcher. Project data is sensitive to anyone with local account access.
 No remote exposure, global reinstall, native credential access, or release
@@ -75,7 +82,7 @@ cover the fixed command/cache, invalid observations, method/path/Host/Origin
 refusal before observation, assets and unavailable responses.
 
 Copyright (C) 2026 Daniel Mitev; public attribution Daniel Mevit
-(@danielmevit). Original: [Frugal Flock](https://github.com/danielmevit/frugal-flock).
+(@danielmevit). Original: [Unio](https://github.com/danielmevit/unio).
 AGPL-3.0-only; see LICENSE and NOTICE for attribution/origin terms. No warranty.
 
 ## Manual plan-draft foundation
@@ -91,7 +98,7 @@ stored literally and never interpreted as a command. See the
 
 For manual-draft API mode, add --enable-plan-drafts at startup. This creates
 coord/ui-plans/ in that fixed workspace. GET /api/session supplies a fresh
-session token; POST /api/plans requires that token in X-Frugal-Flock-Session,
+session token; POST /api/plans requires that token in X-Unio-Session,
 an exact same-origin Origin header, and JSON with only the request field.
 GET /api/plans/ID requires the same token. Saving returns draft state and a
 content hash; no AI-generated plan, native task, approval or execution occurs.

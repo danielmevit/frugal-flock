@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev
+# Unio — Copyright (C) 2026 Daniel Mitev
 # Public attribution: Daniel Mevit (@danielmevit)
-# Original project: https://github.com/danielmevit/frugal-flock
+# Original project: https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
-# frugal-flock worked-example driver — exercises EVERY feature against the real
-# installed frugal-flock, using stand-in agents (zero quota). Output becomes
+# unio worked-example driver — exercises EVERY feature against the real
+# installed unio, using stand-in agents (zero quota). Output becomes
 # docs/EXAMPLE.md.
 set -u
 export PATH="$HOME/.local/bin:$PATH"
@@ -25,7 +25,7 @@ git config user.email daniel@example.com
 git config user.name  Daniel
 
 cat > greet.py <<'EOF'
-"""greeter — the demo project for the frugal-flock worked example."""
+"""greeter — the demo project for the unio worked example."""
 
 
 def greet(name):
@@ -66,7 +66,7 @@ alpha=bash -c 'sed -n "/<!-- simulate/,/simulate -->/p" "$TASKFILE" | sed "1d;\$
 beta=bash -c 'sed -n "/<!-- simulate/,/simulate -->/p" "$TASKFILE" | sed "1d;\$d" | bash -s && echo ok'
 # slow: a long-running agent, for the background/tail/kill drill
 slow=bash -c 'echo starting long analysis; sleep 30; echo ok'
-# critic: reviewer stand-in for `frugal-flock review`
+# critic: reviewer stand-in for `unio review`
 critic=bash -c 'cat "$TASKFILE" >/dev/null; printf "1. NIT greet.py: docstring could mention the polite flag.\nScope respected; tests exercise the change; no blockers.\nVERDICT: APPROVE\nok\n"'
 # gamma: saboteur stand-in — hunts the freshest merge with a failing test
 gamma=bash -c 'printf "import unittest\nfrom greet import greet\n\n\nclass TestSabotage(unittest.TestCase):\n    def test_polite_preserves_name_capitalisation(self):\n        self.assertEqual(greet(\"McDonald\", polite=True), \"Good day, McDonald!\")\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n" > tests/test_sabotage.py && git add tests/test_sabotage.py && git commit -q -m "SAB: expose name-mangling in polite mode" && echo "SUMMARY: 1 finding — polite mode rewrites the name"; echo ok'
@@ -77,18 +77,18 @@ echo "coord/agents.conf written (project override — the global conf stays unto
 step "ACT 2 — init refuses while secrets are tracked"
 printf 'TOKEN=hunter2\n' > .env
 git add .env && git commit -q -m "oops: token in git"
-frugal-flock init alpha beta gamma slow || true
+unio init alpha beta gamma slow || true
 echo "-- fixing it like the handbook says:"
 git rm -q --cached .env && printf '.env\n' >> .gitignore
 git add .gitignore && git commit -q -m "untrack .env, ignore it"
 
 step "ACT 2b — init, for real this time"
-frugal-flock init alpha beta gamma slow
+unio init alpha beta gamma slow
 
 step "ACT 3 — roll call + smoke (stand-ins answer like any fleet)"
-frugal-flock agents
+unio agents
 echo "-- smoke:"
-frugal-flock smoke
+unio smoke
 
 # --------------------------------------------------------------- T1 cycle
 step "ACT 4 — T1: a feature task, written the machine-checkable way"
@@ -123,7 +123,7 @@ RISKS / NEEDS-REVIEW
 
 <!-- simulate
 cat > greet.py <<'EOF_G'
-"""greeter — the demo project for the frugal-flock worked example."""
+"""greeter — the demo project for the unio worked example."""
 
 
 def greet(name, polite=False):
@@ -160,22 +160,22 @@ git commit -q -m "T1: polite greeting mode"
 simulate -->
 EOF
 echo "task file written; dispatching:"
-frugal-flock run alpha T1-alpha
+unio run alpha T1-alpha
 
 step "ACT 4b — verify: the mechanical gate"
-frugal-flock verify alpha T1-alpha
+unio verify alpha T1-alpha
 
 step "ACT 4c — the receipts: diff --stat"
-frugal-flock diff alpha --stat
+unio diff alpha --stat
 
 step "ACT 4d — cross-vendor review (critic reviews alpha's work)"
-frugal-flock review alpha T1-alpha critic
+unio review alpha T1-alpha critic
 
 step "ACT 4e — the human gate: own test run, then merge, then sync"
 python3 -m unittest discover -s tests -t . 2>&1 | tail -2
 git merge --no-ff agent/alpha -m "merge T1: polite mode" -q
 echo "merged. now every workshop rebuilds on the new base:"
-frugal-flock sync
+unio sync
 
 # ------------------------------------------------------------- guard hooks
 step "ACT 5 — the guard hooks say no"
@@ -227,14 +227,14 @@ class TestEdge(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 EOF_E
-sed -i 's/the demo project for the frugal-flock worked example/tidied by beta while passing by/' greet.py
+sed -i 's/the demo project for the unio worked example/tidied by beta while passing by/' greet.py
 git add tests/test_edge.py greet.py
 git commit -q -m "T2: edge test (+ a helpful little refactor)"
 simulate -->
 EOF
-frugal-flock run beta T2-beta
+unio run beta T2-beta
 echo "-- report said done. verify says:"
-frugal-flock verify beta T2-beta || true
+unio verify beta T2-beta || true
 echo "-- rejected. owner wipes the branch; foreman will re-brief as T2b:"
 git -C ../wt/beta reset -q --hard dev
 
@@ -260,16 +260,16 @@ n/a — this run gets killed on purpose.
 ## Report
 SUMMARY
 EOF
-frugal-flock run -b slow T3-slow
+unio run -b slow T3-slow
 sleep 2
 echo "-- status while it runs (note RUNNING marker + pidfile row):"
-frugal-flock status
+unio status
 echo "-- a second run on the same worker is refused (per-worker lock):"
-frugal-flock run slow T3-slow || true
+unio run slow T3-slow || true
 echo "-- watching the live log for two seconds:"
-timeout 2 frugal-flock tail T3-slow || true
+timeout 2 unio tail T3-slow || true
 echo "-- enough. kill it:"
-frugal-flock kill T3-slow
+unio kill T3-slow
 
 # ------------------------------------------------------------------- race
 step "ACT 8 — the bake-off: race one task across two workers"
@@ -327,23 +327,23 @@ PY
 esac
 simulate -->
 EOF
-frugal-flock race T4 alpha beta
+unio race T4 alpha beta
 sleep 3
 echo "-- both done. the review queue:"
-frugal-flock status | sed -n '/== workers/,/== running/p' | head -8
+unio status | sed -n '/== workers/,/== running/p' | head -8
 echo "-- verify both, compare the diffs:"
-frugal-flock verify alpha T4-alpha | tail -3
-frugal-flock verify beta  T4-beta  | tail -3
-frugal-flock diff alpha --stat | sed -n '/committed vs/,/uncommitted/p' | head -5
-frugal-flock diff beta  --stat | sed -n '/committed vs/,/uncommitted/p' | head -6
+unio verify alpha T4-alpha | tail -3
+unio verify beta  T4-beta  | tail -3
+unio diff alpha --stat | sed -n '/committed vs/,/uncommitted/p' | head -5
+unio diff beta  --stat | sed -n '/committed vs/,/uncommitted/p' | head -6
 echo "-- beta wins (same function, plus a real test and the fragment):"
 git merge --no-ff agent/beta -m "merge T4: farewell (beta wins the race)" -q
 git -C ../wt/alpha reset -q --hard dev   # reject the losing branch
-frugal-flock sync
+unio sync
 
 # --------------------------------------------------------------- sabotage
 step "ACT 9 — the saboteur seat finds a real bug"
-frugal-flock sabotage gamma
+unio sabotage gamma
 sleep 2
 echo "-- the saboteur's report tail:"
 tail -n 12 ../coord/reports/SAB-*-gamma.md | head -14
@@ -353,12 +353,12 @@ cd ../wt/gamma && python3 -m unittest discover -s tests -t . 2>&1 | tail -4; cd 
 
 # ------------------------------------------------------- bench + red button
 step "ACT 10 — quota bench and the red button"
-frugal-flock off alpha 5h
-frugal-flock run alpha T1-alpha || true
-frugal-flock on alpha
-frugal-flock stop
-frugal-flock run alpha T1-alpha || true
-frugal-flock resume
+unio off alpha 5h
+unio run alpha T1-alpha || true
+unio on alpha
+unio stop
+unio run alpha T1-alpha || true
+unio resume
 
 # ------------------------------------------------------------- fix cycle
 step "ACT 11 — T5: the fix task closes the loop"
@@ -419,11 +419,11 @@ git add greet.py tests/test_greet.py tests/test_sabotage.py changelog.d/T5.md
 git commit -q -m "T5: stop mangling names in polite mode"
 simulate -->
 EOF
-frugal-flock run alpha T5-alpha
-frugal-flock verify alpha T5-alpha
+unio run alpha T5-alpha
+unio verify alpha T5-alpha
 git merge --no-ff agent/alpha -m "merge T5: saboteur finding fixed" -q
 git -C ../wt/gamma reset -q --hard dev   # SAB branch superseded by T5
-frugal-flock sync
+unio sync
 
 # ----------------------------------------------------------------- ledger
 step "ACT 12 — the ledger remembers everything"

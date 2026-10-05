@@ -1,5 +1,5 @@
-# Frugal Flock — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
-# https://github.com/danielmevit/frugal-flock
+# Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
+# https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
 import http.client
 import importlib.util
@@ -59,7 +59,7 @@ class PlanAPITests(unittest.TestCase):
             conn.close()
 
     def headers(self):
-        return {'Origin': self.origin, 'X-Frugal-Flock-Session': self.token, 'Content-Type': 'application/json'}
+        return {'Origin': self.origin, 'X-Unio-Session': self.token, 'Content-Type': 'application/json'}
 
     def create(self, value='Small request'):
         return self.request('POST', '/api/plans', json.dumps({'request': value}), self.headers())
@@ -75,7 +75,7 @@ class PlanAPITests(unittest.TestCase):
         self.assertEqual(code, 201)
         self.assertEqual(draft['state'], 'draft')
         self.assertEqual(draft['request'], request)
-        code, _, restored = self.request(path='/api/plans/' + draft['id'], headers={'X-Frugal-Flock-Session': self.token})
+        code, _, restored = self.request(path='/api/plans/' + draft['id'], headers={'X-Unio-Session': self.token})
         self.assertEqual(code, 200)
         self.assertEqual(restored, draft)
         with store.PlanStore(self.workspace) as reopened:
@@ -95,8 +95,8 @@ class PlanAPITests(unittest.TestCase):
         valid = self.headers()
         variants = [dict(valid, Origin='https://evil.example'), dict(valid, Origin='null'),
                     {k: v for k, v in valid.items() if k != 'Origin'},
-                    {k: v for k, v in valid.items() if k != 'X-Frugal-Flock-Session'},
-                    dict(valid, **{'X-Frugal-Flock-Session': 'wrong'}), dict(valid, Host='evil.example')]
+                    {k: v for k, v in valid.items() if k != 'X-Unio-Session'},
+                    dict(valid, **{'X-Unio-Session': 'wrong'}), dict(valid, Host='evil.example')]
         for headers in variants:
             with self.subTest(headers=headers):
                 self.assertEqual(self.request('POST', '/api/plans', '{"request":"x"}', headers)[0], 403)
@@ -126,7 +126,7 @@ class PlanAPITests(unittest.TestCase):
                 try:
                     conn.connect()
                     lines = ['POST /api/plans HTTP/1.0', 'Host: ' + self.origin.removeprefix('http://'),
-                             'Origin: ' + self.origin, 'X-Frugal-Flock-Session: ' + self.token,
+                             'Origin: ' + self.origin, 'X-Unio-Session: ' + self.token,
                              'Content-Type: application/json', *extra, '', 'x']
                     conn.send('\r\n'.join(lines).encode())
                     conn.sock.shutdown(1)  # premature EOF must fail, never save partial input

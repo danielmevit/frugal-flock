@@ -1,11 +1,11 @@
-/* Frugal Flock — Copyright (C) 2026 Daniel Mitev
- * Daniel Mevit (@danielmevit), https://github.com/danielmevit/frugal-flock
+/* Unio — Copyright (C) 2026 Daniel Mitev
+ * Daniel Mevit (@danielmevit), https://github.com/danielmevit/unio
  * SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE.
  * See LICENSE and NOTICE; distributed without warranty.
  */
 (function () {
   "use strict";
-  const { createSession, transition } = globalThis.FrugalFlockDemo;
+  const { createSession, transition } = globalThis.UnioDemo;
   let state = createSession();
   const narrow = matchMedia("(max-width:720px)");
   const disclosure = document.querySelector(".inspector-disclosure");
