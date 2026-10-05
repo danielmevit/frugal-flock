@@ -28,18 +28,25 @@ two owner-approved invocations, 600 s each, no retries, no paid reviewer:
   the material-bound local adapter, native result ready_for_human_review
   true before integration (human acceptance still pending).
 
-Integration: merged into LOCAL main as its own no-ff merge 2539c64 (merged
-tree: job_store 15, plan_store 8 and plan_api tests OK, docs lint clean).
-The push to GitHub was NOT done: the lead's push was blocked by a
-permission check, so the owner pushes (or reverts) 2539c64 and merges this
-lead branch. STOP is set again; no worker is active. Receipts:
-tmp/job-queue-dogfood/opencode-r2 and opencode-r2b; probes in
-tmp/claude-lead-20261005.
+Integration: its own no-ff merge 2539c64 (merged tree: job_store 15,
+plan_store 8 and plan_api tests OK, docs lint clean), pushed to origin at
+the owner's explicit request after the lead's first push attempt was held
+by a permission check. Receipts: tmp/job-queue-dogfood/opencode-r2 and
+opencode-r2b; probes in tmp/claude-lead-20261005.
 
-ONE next task: after the owner pushes 2539c64, the lead freezes the next
-bounded slice (explicit owner approval plus reservation/recovery records in
-JobStore, still no executor) and wires bridge/tests/job_store_test.py into
-tools/quality-check.sh in that same slice, then asks fresh quota.
+Owner direction, 2026-10-05: for Frugal Flock work run through Frugal
+Flock, use ALL available AIs: Codex (Sol 6.1, xhigh), OpenCode Go (GLM 5.3,
+max), the Grok CLI (high) and Antigravity (Gemini 3.1 Pro, high). Different
+vendors may review each other natively; the owner offered to act as the
+human reviewer when a decision needs one. The lead keeps the bounds: one
+invocation per task and per review, a stated timeout, no automatic retries,
+and reports every spend in the log.
+
+ONE next task: the lead freezes the next bounded slices and spreads them
+across those four vendors with cross-vendor reviews: explicit owner
+approval plus reservation/recovery records in JobStore (no executor),
+wiring bridge/tests/job_store_test.py into tools/quality-check.sh, and
+tool fixes found while dogfooding.
 
 The Codex closing notes below describe the state before this lead took over.
 
@@ -108,8 +115,7 @@ docs/DOGFOOD-WORKFLOW.md and docs/JOB-QUEUE-STORE.md.
 State: coord/STOP is set; no active workers. M1 and initial M1.5 source
 work are complete. Prototype, Activity bridge and manual draft storage/API/UI
 are published. The JobStore waiting-job library was built through the flock
-(GLM worker, Claude lead review) and merged as 2539c64; check that it is on
-origin/main before building on it. All quota grants so far are used.
+(GLM worker, Claude lead review), merged as 2539c64 and pushed.
 Do not redo those steps. Installed Frugal Flock stays v0.4.0; do not
 reinstall unreleased source. Read the handoff for actual evidence and limits.
 
@@ -135,8 +141,11 @@ GLM 5.3/max worked: 306 s for the finishing task) with a NEW task ID pinned
 to current main; respect the native different-agent gate. Put a commit-by
 time in the task: the first run timed out after committing.
 
-Ask before provider quota: one chosen worker, 600 seconds, no retries or
-paid fallback. Do not resume STOP until the owner approves the native run. The two-person prototype
+Provider use: the owner asked (2026-10-05) to use Codex Sol 6.1 xhigh,
+OpenCode GLM 5.3 max, Grok high and Antigravity Gemini 3.1 Pro high for
+flock work, including cross-vendor reviews. Keep one invocation per task or
+review, a stated timeout, no automatic retries or paid fallback, and log
+every spend. Ask again for anything outside that. The two-person prototype
 feedback prerequisite was explicitly waived; no user sessions happened.
 
 Say what you will do, keep tasks tiny, run relevant checks and read the full

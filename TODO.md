@@ -16,9 +16,10 @@ Initial M1.5 source work is complete; broader app work continues from the
 
 - 2026-10-05: Claude is the lead. The waiting-job JobStore library/tests
   were built through the installed Frugal Flock pipeline (GLM 5.3 worker,
-  two approved runs, Claude lead review) and merged as 2539c64. STOP is set.
-  Next: freeze the approval plus reservation/recovery slice (no executor)
-  and wire job_store_test.py into the routine gate; fresh quota first.
+  two approved runs, Claude lead review), merged and pushed as 2539c64.
+  Owner direction: use Codex, OpenCode GLM, Grok and Antigravity for flock
+  work with cross-vendor reviews. Next: approval plus reservation/recovery
+  slice (no executor) and job_store_test.py in the routine gate.
 - Name and tagline approved by the owner.
 - Canonical CLI: `frugal-flock`; short CLI: `frgl-flc`; compatibility CLI:
   `agentteam`. The Linux `flock` utility must remain untouched.

@@ -47,5 +47,12 @@ of 600 seconds (the first timed out after committing and drew a
 changes-requested lead review; the finishing run passed in 306 seconds),
 reviewed in-session by the Claude lead and merged as 2539c64. Next
 concrete task: explicit owner approval plus reservation/recovery records,
-still with no executor, through the same cadence and a fresh quota grant.
-Put a commit-by time in each task so the worker's log entry fits.
+still with no executor, through the same cadence. Put a commit-by time in
+each task so the worker's log entry fits.
+
+Owner direction, 2026-10-05: use every available AI for flock work: Codex
+(Sol 6.1, xhigh), OpenCode Go (GLM 5.3, max), the Grok CLI (high) and
+Antigravity (Gemini 3.1 Pro, high). A different vendor may perform the
+native review, in addition to the lead's full review; the owner can act as
+the human reviewer. Each task or review is one invocation with a stated
+timeout and no automatic retry, and every spend is logged.
