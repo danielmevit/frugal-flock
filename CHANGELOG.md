@@ -4,6 +4,14 @@ Release notes for Frugal Flock. Between releases, each task writes a short
 fragment in `changelog.d/`; the fragments are rolled into this file when a
 version is released.
 
+## 0.5.0 — Unio rename (UNRELEASED)
+
+- The project is renamed to Unio.
+- The command is `unio` (all old aliases like `frugal-flock` and `agentteam` are removed).
+- Configuration folder is now `~/.config/unio`. Environment variables are prefixed with `UNIO_`.
+- Updated installer to `unio-install.sh`.
+- The legacy Frugal Flock 0.4.0 build tool remains in use until owner approval.
+
 ## 0.4.0 — 2026-10-04 — trustworthy results (M1)
 
 The first published release under the Frugal Flock name. It completes M1,
