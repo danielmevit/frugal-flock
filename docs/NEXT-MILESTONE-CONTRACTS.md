@@ -8,6 +8,24 @@ then the lead's full review. Source merges receive the full quality gate and
 are pushed only on PASS. Release publication and billing changes need separate
 approval. See [version plan](VERSION-PLAN.md) for the owner-approved sequence.
 
+## Final review policy
+
+Owner direction on 2026-10-05: each final candidate from this point receives
+at least two separate AI reviews, followed by the lead's own review. Use
+different reviewer companies from each other and from the candidate's source
+authors. Reviewers receive the complete frozen task and diff independently;
+do not give one reviewer another's verdict before its assessment.
+
+The lead combines the findings into one overview tied to the exact candidate
+SHA, tests and review receipts. Resolve blocking findings through concrete
+bounded correction tasks; preserve rejected evidence. Changed candidates
+receive fresh independent reviews, never inherited approval. Add targeted
+reviewers when coverage gaps or unresolved disagreements require them.
+Tests and reviews reduce mistakes; they are not proof that every bug is found.
+Keep one invocation per review task, no automatic paid retry, and the full
+merged-tree quality gate before each push. Completed earlier checkpoints
+are not reopened solely by this prospective rule.
+
 ## Order and estimates
 
 1. Limit-policy hardening: roughly 1–3 working hours.

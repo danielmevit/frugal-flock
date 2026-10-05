@@ -116,7 +116,10 @@ CLI 2.1.289 is signed in through first-party Claude Pro. That sign-in does
 not establish remaining five-hour or weekly allowance. Do not conflate its
 subscription with OpenCode Go or assume an automatic quota adapter exists.
 
-Its first assigned task is QUEUE-APPROVAL-FIX-1: a bounded correction of five
-reproduced failures in Gemini's queue candidate. An OpenAI worker reviews the
-combined Google/Anthropic candidate, followed by the lead. Each invocation
-still receives its own receipt and deadline, with no automatic paid retry.
+Its first assigned task was QUEUE-APPROVAL-FIX-1: a bounded correction of five
+reproduced failures in Gemini's queue candidate. Its structured receipt
+confirmed Opus 5.5, high effort and one invocation. The lead then found
+additional state/layout failures and assigned a concrete Codex correction.
+Two other companies review the final combined candidate, followed by the
+lead, under the owner's new separate-review rule. Each invocation still
+receives its own receipt and deadline, with no automatic paid retry.
