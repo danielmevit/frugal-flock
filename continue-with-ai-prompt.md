@@ -9,6 +9,21 @@ wt/codex on agent/codex; source baseline c94e21c before the closing merge.
 
 ## Current checkpoint
 
+2026-10-05, wt/opencode-queue on agent/opencode-queue: JOB-QUEUE-STORE-2 and
+2b implemented the durable waiting-job library (bridge/job_store.py with
+stdlib bridge/tests/job_store_test.py) per docs/JOB-QUEUE-STORE.md —
+idempotent enqueue against a fresh PlanStore draft hash check,
+restart-identical records, fail-closed schema/corruption/nonregular storage,
+no dispatch/executor/approval. 2b addressed the lead review of 77faa8f:
+first-open initialization is decided inside one BEGIN IMMEDIATE transaction
+(eight-thread first-open race on a brand-new workspace, crash-interrupted
+0-byte and bare SQLite files all open to schema 1; foreign, unmarked,
+version-2, reshaped and garbage files stay refused untouched), eight
+threads racing to enqueue the same new request key all get exactly one
+record, and any failed COMMIT rolls back and re-raises so the store stays
+usable. Own suite (15 tests) and plan_store_test (8) pass; docs lint clean.
+Lead re-review, owner acceptance and integration into main are pending.
+
 The owner asked to bench this session and continue with Claude. Local
 coord/STOP is set, native status reports no active workers, and both prepared
 queue options are marked benched_not_launched/deferred_by_owner, ZERO worker
