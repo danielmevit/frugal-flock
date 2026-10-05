@@ -274,8 +274,11 @@ picks the agent). Timeout: `AGENTTEAM_TIMEOUT=7200 frugal-flock run ...`.
 - WSL `/mnt` quirks from your GOTCHAS don't apply on the native-ext4 VM;
   if you ever move this workflow to WSL-on-Windows-drive, re-add
   `codegraph sync` after edits and `git config core.filemode false`.
-- The master AI asks before every `frugal-flock` command, or refuses to
-  start workers → that is its own permission system; set up §9.
+- The master AI asks before every `frugal-flock` command, or its tool
+  refuses to run one → that is the tool's own permission system; set up
+  §9. A refusal printed by Frugal Flock itself (`STOP is active`, an agent
+  that is `OFF`, a worker `already running a task`) says why; check
+  `frugal-flock status`.
 
 ## 9. Lead AI permissions
 
