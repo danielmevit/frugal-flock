@@ -11,7 +11,7 @@ marked **THE CONFUSING PART** and explained slowly — those spots are
 confusing for professional developers too, so take them at reading speed.
 
 The two companion files are practical, not explanatory: `unio-install.sh`
-is the program that sets everything up, and `AGENTTEAM-README.md` is the
+is the program that sets everything up, and `README.md` is the
 short reference card for daily use. This document is the one that makes the
 other two make sense.
 
@@ -407,7 +407,7 @@ Goal: a VM where every agent answers when called.
 
 1. On the Ubuntu VM, run the installer: `bash unio-install.sh`.
 2. Install each agent CLI and log in once each (the exact commands are in
-   AGENTTEAM-README §2 — each login opens a web page where you sign in
+   [SETUP.md](SETUP.md) — each login opens a web page where you sign in
    with that service's account; the terminal remembers it afterwards).
 3. Roll call: `unio agents` — every configured row should say OK.
 4. Prove each one is alive with the one-liners: `claude -p "say ok"`,
@@ -543,7 +543,7 @@ them are optional.
 
 - **This file (MASTER-PLAN.md)** — the explanation and the roadmap. Read
   once fully; revisit the dictionary and troubleshooting as needed.
-- **AGENTTEAM-README.md** — the daily reference card: exact install
+- **README.md** — the daily reference card: exact install
   commands, per-agent login table, command list, tuning.
 - **unio-install.sh** — the installer. You run it once per VM; you
   never need to read it.

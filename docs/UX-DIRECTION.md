@@ -185,10 +185,14 @@ Keep these outcomes distinct in data and UI:
 - Human accepted or rejected the result.
 - Integration succeeded, conflicted, or has not been attempted.
 
-The current CLI can return success after automatic verification failed,
-and review process exit codes do not encode the reviewer's decision.
-The UI adapter must not convert exit zero into Ready to apply. Missing
-scope and missing checks need an explicit incomplete state.
+Before M1, the CLI could return success after failed automatic verification,
+and review exits did not encode the reviewer's decision. M1 resolved those
+engine defects: automatic verification failures now return their nonzero
+status, and review exits distinguish approved (0), changes requested or
+process failure (1), and unknown/incomplete/stale evidence (2). See
+[QUALITY-USAGE.md](QUALITY-USAGE.md) for the current contract. Process exit
+zero alone still does not mean Ready to apply; missing scope or checks
+requires an explicit incomplete state.
 
 Bind displayed evidence and human approval to the exact candidate commit,
 base commit, and worktree state. Recheck them before integration; if work

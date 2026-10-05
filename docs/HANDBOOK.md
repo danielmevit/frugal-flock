@@ -26,8 +26,9 @@ office they work in.
 Three principles it's built on:
 
 **Isolation.** Every worker gets its own complete copy of the project (a
-"git worktree") pinned to its own branch. Two workers physically cannot
-overwrite each other's files.
+"git worktree") pinned to its own branch. This separates ordinary edits
+and review receipts; it is not an OS sandbox. Configured commands retain
+host access and can reach other worktrees or files.
 
 **Receipts over reports.** Every run produces a report (the agent's own
 claim) and a diff (the exact line-by-line truth). Rule one of operating
@@ -272,11 +273,16 @@ the session are running processes and un-pushed work, which is what steps
 
 ## 6. A real example: how the scorecard got built
 
+Historical account: this build used the legacy Frugal Flock command names
+before the Unio rename. The quoted brief and commands below preserve that
+record; current instructions elsewhere use `unio`.
+
+
 This is not hypothetical — it's the compressed true story of myapp v0.1.1,
 your first shipped product. Every mechanism in this handbook appears in it.
 
 **The brief.** You gave the foreman two sentences: "a command-line tool
-that reads a Unio project's reports and git history and prints a
+that reads a Frugal Flock project's reports and git history and prints a
 per-agent scorecard. It exists so I can see which AI worker earns its
 seat." Plus a pointer to real reference data: the sandbox project's
 reports from the fleet certification.
@@ -300,7 +306,7 @@ S4 opencode     render.py    print the table
 S5 claude       aggregate + cli — wired together AFTER S1–S4 merged
 ```
 
-While they built, `unio status` showed four different AI companies
+While they built, `frugal-flock status` showed four different AI companies
 working simultaneously on four modules of one program.
 
 **The failures — all real, all caught.** Codex's first run died with an
@@ -312,7 +318,7 @@ confessed its own contract gap (a missing test file) — two workers
 correctly flagged it and waited; one fixed it slightly beyond scope, which
 you accepted once and recorded as precedent: flagging beats fixing.
 
-**The gate.** For every branch: `unio diff <w> --stat` (files match
+**The gate.** For every branch: `frugal-flock diff <w> --stat` (files match
 the assignment?), then the tests run by your own hands, then
 `git merge --no-ff`. Five branches in, zero conflicts — because scopes
 were disjoint by design.

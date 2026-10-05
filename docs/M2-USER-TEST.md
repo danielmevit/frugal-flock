@@ -1,8 +1,7 @@
 # M2 user test: two new-user prototype sessions
 
 A short facilitator guide and blank evidence sheet. The owner runs two
-15–20 minute sessions, each with one person who has not used the Frugal
-Flock CLI. The goal is to learn where the sample prototype confuses people.
+15–20 minute sessions, each with one person who has not used the Unio CLI. The goal is to learn where the sample prototype confuses people.
 It is not a sales demo.
 
 This document wires no live execution. The prototype uses original sample

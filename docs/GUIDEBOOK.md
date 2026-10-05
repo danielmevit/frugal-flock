@@ -74,7 +74,10 @@ Everything in the design comes from three rules:
 
 1. **Isolation.** Every worker gets its own complete copy of the project
    (a *git worktree* — see Glossary) pinned to its own branch. Two
-   workers physically cannot overwrite each other's files.
+   workers normally edit separate files. These workshops are coordination
+   boundaries, not OS sandboxes: configured commands retain host access
+   and can reach other worktrees or files. Review and scope checks judge
+   changes; they do not restrict filesystem access.
 2. **Receipts over reports.** Every run produces a report (the agent's
    own claim) and a diff (the exact line-by-line truth). Rule one of
    operating this system: **reports can lie, diffs can't.** Since v0.3,
@@ -272,8 +275,10 @@ claude=claude -p "$(cat "$TASKFILE")" --dangerously-skip-permissions
 Read it as: "to run agent *claude*, call the `claude` program in print
 mode, feed it the task file's text, and let it work without asking for
 per-action approval." `$TASKFILE` is filled in by Unio at run time.
-The auto-approve flags are safe **because** of the workshops and your
-merge gate — a worker can only damage its own disposable copy.
+Auto-approve gives the configured command host-level permissions. Separate
+worktrees and the merge gate help coordinate and review changes, but they
+do not contain filesystem damage. Use these defaults only on a trusted
+host with workloads and permissions the owner has explicitly accepted.
 
 Rules of the lego box:
 

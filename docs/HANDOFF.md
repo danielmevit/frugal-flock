@@ -21,8 +21,9 @@ It is not an AI and contains none. It calls the vendors' official CLIs under the
 
 Three load-bearing ideas, in the order they matter:
 
-- **Isolation** — one worktree + one `agent/<w>` branch per worker; they physically
-  cannot overwrite each other.
+- **Separate worktrees** — one worktree + one `agent/<w>` branch per worker
+  separates ordinary edits. Configured commands retain host access; worktrees
+  are coordination boundaries, not filesystem sandboxes.
 - **Receipts over reports** — every run yields the agent's claim *and* the diff.
   `unio verify` is the machine floor of that evidence. Reports lie; a real vendor
   once reported "all tests passed / NEEDS-REVIEW: None" having committed nothing at all.
@@ -115,7 +116,7 @@ new code:
 - **Errors swallowed = false confidence.** `2>/dev/null || true` around the diff meant a
   dangling `coord/base` produced PASS with no evidence. Fail closed.
 - **Names that address files must be validated.** `check_id` guards worker and task ids —
-  it was missing on agent names, making `unio on ../../x` a file-delete primitive.
+  it was missing on agent names, making the historical `frugal-flock on ../../x` a file-delete primitive.
   It also now rejects whitespace/control characters, which had allowed forged ledger rows.
 - **Wall-clock is not elapsed work.** Durations measured with `date` counted a Windows
   sleep: a ten-minute run logged 38995s and poisoned the scorecard. Timings use a
@@ -176,7 +177,11 @@ agent (`unio off <a> 30m`), reroute the seat, carry on.
 
 ## 8. Current state and open threads
 
-- v0.3.x installed; **selftest 40 green, probes 14/14 held, shellcheck 0, docs lint clean.**
+- Current rename baseline (2026-10-05): the legacy installed build tool is
+  Frugal Flock 0.4.0; source targets Unio 0.5.0, unreleased. Global install
+  and publication require separate owner approval.
+- Historical v0.3.x checkpoint: **selftest 40 green, probes 14/14 held,
+  shellcheck 0, docs lint clean.** These are older measured results.
 - `repos` (`D:\Vibe Coding\_vm\projects`) is the reference project built with it — see its
   own `HANDOFF.md`.
 - `myapp` (the scorecard, separate repo) still parses `reports/*.md`; migrating it to read

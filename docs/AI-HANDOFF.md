@@ -107,6 +107,6 @@ is future work, not a shipped scheduler or universal quota API.
 5. Add explicit human-approved integration tied to exact revisions.
 6. Test with two newcomers and compare human effort against the old CLI.
 
-Follow [TODO.md](../TODO.md) for priorities. Public visibility is not a
-license decision; the owner still needs to choose a license before calling
-the project open source.
+Follow [TODO.md](../TODO.md) for priorities. The project uses AGPL-3.0-only with the attribution/origin terms in
+LICENSE and NOTICE; see [LICENSING.md](LICENSING.md). Public visibility and
+license obligations are separate facts.

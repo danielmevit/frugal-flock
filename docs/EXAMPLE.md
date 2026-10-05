@@ -1,10 +1,11 @@
 # The worked example — every feature in one sitting
 
-This is a real, replayable transcript of **every Unio feature** run
-back-to-back against a toy Python project. Nothing here is mocked *in the
-machinery* — init, locks, hooks, verify, race, sabotage, the ledger: all
-real. The only stand-ins are the AI agents themselves, so the whole tour
-costs **zero quota** and about 20 seconds.
+This is an instructional transcript adapted from the historical July 19
+Frugal Flock demo to current Unio command names. The retained run IDs and
+output illustrate that earlier run; they are not newly measured Unio output.
+Replay it against a toy Python project to exercise the actual machinery:
+init, locks, hooks, verify, race, sabotage and the ledger. Only the AI agents
+are stand-ins, so the replay costs **zero provider quota**.
 
 Replay it yourself anytime:
 
