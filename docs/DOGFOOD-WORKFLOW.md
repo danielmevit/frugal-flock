@@ -18,8 +18,9 @@ For each next implementation slice:
    within that scope. Record model/effort, invocation count, timeout and
    no-retry bound. Ask only for an action outside the authorized scope.
    Read [PROVIDER-CAPACITY.md](PROVIDER-CAPACITY.md) before scheduling.
-3. Use the installed release's run command, with only temporary local model
-   config. Do not reinstall while it builds the next source version.
+3. Use the installed `unio run` command with temporary pinned model config.
+   Unio 0.5.0 replaced the installed legacy tool with owner approval on
+   2026-10-05. Do not reinstall during an active worker or review run.
 4. Preserve real worker logs/exits/partial changes. A failed or interrupted
    run is not a successful dogfood cycle; no automatic invocation retry.
    Diagnose, preserve and propose one bounded finishing task through the flock.

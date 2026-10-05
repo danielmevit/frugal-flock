@@ -23,8 +23,9 @@ All project-owned files belong under one workspace, per
 - Product: Unio. Tagline: Small plans. Big ideas.
 - Command: `unio` only.
 - The runtime, templates and completion are embedded in the single
-  `unio-install.sh` installer. Source targets Unio 0.5.0; global installation
-  and release require separate owner approval.
+  `unio-install.sh` installer. Unio 0.5.0 is installed in the development
+  workspace with owner approval on 2026-10-05. Public release requires
+  separate approval; see [version plan](VERSION-PLAN.md).
 - The UI and recovery flow are proposals. No frontend framework has been
   selected, and no working graphical app should be assumed to exist.
 - Existing baseline checks passed: 40 selftests, 14 adversarial probes,

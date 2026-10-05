@@ -1,10 +1,12 @@
 # Unio: approved next milestones
 
 The owner approved these five steps on 2026-10-05 after the rename landed at
-be9e257. The lead delegates implementation through the installed Frugal Flock
-0.4.0, with pinned models, bounded one-call tasks, another company's review,
+be9e257. The owner then approved installed migration before these milestones.
+Unio 0.5.0 is installed as of 2026-10-05; the lead delegates through `unio`,
+with pinned models, bounded one-call tasks, another company's review,
 then the lead's full review. Source merges receive the full quality gate and
-are pushed only on PASS. Global installation and release need separate approval.
+are pushed only on PASS. Release publication and billing changes need separate
+approval. See [version plan](VERSION-PLAN.md) for the owner-approved sequence.
 
 ## Order and estimates
 
@@ -15,9 +17,11 @@ are pushed only on PASS. Global installation and release need separate approval.
 5. Shipping preparation: roughly half a working day.
 
 These are planning ranges, not deadlines. Reviews, integration checks and
-provider availability affect elapsed time. Steps 1 and 2 have disjoint scopes
-and may run in parallel; integrate 1 before 2. Later steps are dependent slices.
-Preparation in step 5 does not authorize installation or publication.
+provider availability affect elapsed time. Run and integrate step 1 first,
+then prepare step 2 from that base. Each slice owns its version bump and
+matching existing branding assertion: 0.5.1 for step 1 and 0.5.2 for step 2.
+The installer version is the only runtime edit in the queue-library slice.
+Later steps are dependent slices. Preparation does not authorize publication.
 
 ## 1. Limit-policy contract
 
@@ -99,5 +103,6 @@ Before step 3 dispatch, freeze the protected job API, task compilation,
 executor lifecycle and truthful UI evidence interfaces in another checkpoint.
 Default activity remains read-only; new execution requires explicit approval.
 Before step 4, freeze checkpoint contents and restoration/reverification rules.
-Before installation or publication, provide reviewable migration, rollback and
-release artifacts and obtain the owner's separate approval.
+The installed rename and its rollback are already approved and complete.
+Before public release, provide reviewable release artifacts and obtain the
+owner's separate approval. Keep versioned checkpoints even before publication.

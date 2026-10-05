@@ -84,7 +84,7 @@ accepted M1 on 2026-10-04. M2 starts when the owner asks for it.
 
 ## Near-term roadmap (owner-approved 2026-10-04)
 
-Goal: build the Unio app WITH the legacy installed Frugal Flock 0.4.0 (dogfooding) and watch
+Goal: build the Unio app WITH the installed Unio tool (dogfooding) and watch
 its behaviour live, so build progress, bugs and errors are visible as they
 happen. Only after a stability phase, so the team does not burn tokens in
 bug loops.

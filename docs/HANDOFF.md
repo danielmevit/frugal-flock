@@ -177,9 +177,10 @@ agent (`unio off <a> 30m`), reroute the seat, carry on.
 
 ## 8. Current state and open threads
 
-- Current rename baseline (2026-10-05): the legacy installed build tool is
-  Frugal Flock 0.4.0; source targets Unio 0.5.0, unreleased. Global install
-  and publication require separate owner approval.
+- Current rename baseline (2026-10-05): Unio 0.5.0 is installed with owner
+  approval. Agent settings were preserved, worker markers and guards migrated,
+  and rollback artifacts saved locally. Public release requires separate
+  approval. Continue via `unio` and `UNIO_*`; see [version plan](VERSION-PLAN.md).
 - Historical v0.3.x checkpoint: **selftest 40 green, probes 14/14 held,
   shellcheck 0, docs lint clean.** These are older measured results.
 - `repos` (`D:\Vibe Coding\_vm\projects`) is the reference project built with it — see its

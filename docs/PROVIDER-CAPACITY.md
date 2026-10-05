@@ -89,3 +89,11 @@ finishing the bounded batch, preserve interrupted work, and record every
 checkpoint in the shared log with timestamps from `date`. Independent
 review must come from another company, followed by the lead's own review.
 Global installation and release publication still require fresh owner approval.
+
+## Latest owner capacity report
+
+On 2026-10-05 the owner reported that the OpenCode Go five-hour limit had
+reset and authorized GLM 5.3 at high effort for this milestone run. This is
+a dated owner report, not a live probe or evidence of weekly/monthly headroom.
+One bounded task invocation and cross-company review remain required; no
+automatic retry or paid fallback is enabled.

@@ -4,11 +4,25 @@ Read the newest workspace agent-log entries before acting. This checkpoint
 records the completed rename; earlier decisions and failures remain in Git
 history and the append-only local log.
 
-Living checkpoint, updated 2026-10-05 13:43:13 +0200 by Codex lead
+Living checkpoint, updated 2026-10-05 14:24:57 +0200 by Codex lead
 (GPT-6; exact serving variant not exposed). Source integration main:
 aebe23c. The later handoff-only commit does not alter that source.
 
 ## Current checkpoint
+
+Unio 0.5.0 is now installed with owner approval. Original agent configuration
+remains intact, migrated settings are byte-identical, and project markers and
+Git guards use Unio. Private backup/rollback: `../artifacts/migration-unio/`;
+actual receipts: `../tmp/unio-next/receipts/`. No new public release was made.
+The existing v0.4.0 release title is now Unio without a former-name suffix.
+
+The owner approved all five next milestones. Version sequence: rename 0.5.0,
+limit-policy hardening 0.5.1, queue approval/recovery 0.5.2, real browser flow
+0.5.3 and provider continuation 0.5.4. See docs/VERSION-PLAN.md and
+docs/NEXT-MILESTONE-CONTRACTS.md. No feature task has been invoked yet.
+The owner reports the OpenCode Go 5h limit has reset; use GLM 5.3 high for
+the first scoped task, then another company review and the lead review.
+This capacity report does not establish weekly/monthly headroom or billing.
 
 The owner-approved rename to Unio is complete in source. A, B, C and D were
 merged in that order. Each merge passed the complete
@@ -52,16 +66,17 @@ merged in that order. Each merge passed the complete
   provenance limitations; these were not silently changed by the rename.
   Read `../tmp/rename-unio/receipts/security-review-assessment.md` and
   `security-observations.json` before defining a separate hardening task.
-- Source target: Unio 0.5.0, unreleased. Installed orchestration tool:
-  Frugal Flock 0.4.0. No global Unio installation or release was performed.
-  The workspace path remains `_vm/frugal-flock`. The orchestrator is stopped.
-  Do not run the new source's init/doctor against this live legacy workspace
-  until a separately approved installation/migration is planned.
+- Current source and installed orchestration: Unio 0.5.0, public release
+  pending. Installed migration was approved and completed on 2026-10-05.
+  The workspace path remains `_vm/frugal-flock`; worktree links stay intact.
+  The orchestrator is stopped between authorized calls. Global doctor
+  reports missing profiles for inactive historical DeepSeek/GLM/Qwen workers;
+  active milestones use their own pinned per-run configuration.
 
 The owner authorizes available AIs for Unio and milestone tasks, including
 cross-company reviews, integration and pushes. Routine assignments do not
-need repeated permission. Global installation, release publication and new
-billing changes still require owner approval. All original failures and
+need repeated permission. The installed rename is approved and complete;
+release publication and new billing changes still require owner approval. All original failures and
 rejected reviews remain preserved; no automatic provider retries occurred.
 
 Receipts: `../tmp/rename-unio/receipts/`; final candidates and pinned models:
@@ -84,8 +99,8 @@ Go calls. Define the next concrete owner-requested milestone task from TODO
 and the newest log. Known LIMIT-WALL coverage/provenance limitations need a
 separate scoped hardening task if selected.
 
-Use the installed frugal-flock 0.4.0 control tool until global Unio installation
-is separately approved. Resume before authorized native runs and stop after.
+Use the installed unio 0.5.0 control tool and UNIO_* environment variables.
+Resume before authorized native runs and stop after.
 Use per-run configs, pinned models, bounded wall-clock budgets and receipts.
 One invocation per task, no automatic retries; GLM 5.3 stays at high effort.
 Every slice gets another company's review, then your own review. Preserve
@@ -94,7 +109,8 @@ merge, gate and push. The owner already permits available AI assignments.
 
 Take log timestamps from date. Quote all paths containing spaces.
 Never use pgrep -f or pkill -f with a pattern appearing in your own command.
-Ask the owner before global installation, release or new billing changes.
+The installed rename is already approved. Ask before release publication or
+new billing changes; do not ask again for routine authorized assignments.
 After every checkpoint prepend a dated entry to ../coord/AGENT-LOG.md and
 update continue-with-ai-prompt.md on your own branch.
 ```

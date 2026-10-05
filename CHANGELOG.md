@@ -10,7 +10,7 @@ version is released.
 - The command is `unio` (all old aliases like `frugal-flock` and `agentteam` are removed).
 - Configuration folder is now `~/.config/unio`. Environment variables are prefixed with `UNIO_`.
 - Updated installer to `unio-install.sh`.
-- The legacy Frugal Flock 0.4.0 build tool remains in use until owner approval.
+- The installer copies existing default configuration into `~/.config/unio`, preserving the original. The development workspace migrated to Unio 0.5.0 with owner approval on 2026-10-05; publication is pending.
 
 ## 0.4.0 — 2026-10-04 — trustworthy results (M1)
 

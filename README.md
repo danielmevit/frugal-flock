@@ -30,7 +30,7 @@ Unio was called Frugal Flock, and agentteam before that.
 **Available today:** a command-line tool for Linux, including Windows
 through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
 
-*(Note: The globally installed build tool remains Frugal Flock 0.4.0 (legacy build tool) until owner approval, while this source targets Unio 0.5.0. It is not yet released or installed globally.)*
+*Unio 0.5.0 is installed in the development workspace after owner approval on 2026-10-05. Its public release is pending. See [version plan](docs/VERSION-PLAN.md) for the next changes.*
 
 [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
 [FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·

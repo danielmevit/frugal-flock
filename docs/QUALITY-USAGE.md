@@ -1,10 +1,9 @@
 # Unio — quality milestone reference (M1)
 
 Milestone 1 is complete and owner-accepted; its historical record is
-[M1-STATUS.md](M1-STATUS.md). This reference describes Unio 0.5.0 source,
-which has not been globally installed or released in this rename cycle.
-The legacy installed Frugal Flock 0.4.0 remains the build tool until a
-separate owner approval. Current source provides: strict verification, revision-bound results,
+[M1-STATUS.md](M1-STATUS.md). Unio 0.5.0 was installed in this development
+workspace with owner approval on 2026-10-05; public release is pending.
+Current source provides: strict verification, revision-bound results,
 gated review, local availability JSON and same-checkout handoff packets.
 
 Examples use the only supported command, `unio`. WORKER and TASK stand for a
