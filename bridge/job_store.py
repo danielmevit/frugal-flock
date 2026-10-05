@@ -78,6 +78,17 @@ def _quote(name):
     return '"' + name.replace('"', '""') + '"'
 
 
+def _schema_tokens(sql):
+    """Keep DDL syntax that PRAGMAs omit, ignoring whitespace and name quoting.
+
+    ALTER TABLE quotes the migrated table name. Other syntax, including
+    CHECK constraints and table options, must still match the known DDL.
+    """
+    tokens = re.findall(r'"(?:[^"]|"")*"|[A-Za-z_][A-Za-z0-9_]*|[^\s]', sql)
+    return tuple((token[1:-1].replace('""', '"') if token.startswith('"') else token).lower()
+                 for token in tokens)
+
+
 def _expected_layout(create):
     reference = sqlite3.connect(':memory:')
     try:
@@ -186,7 +197,9 @@ class JobStore:
         Autoindex names are left out because a renamed table keeps its
         original numbering; everything that affects stored data is kept.
         """
-        columns = tuple(row[1:] for row in connection.execute('PRAGMA table_info(jobs)'))
+        # table_info hides generated columns; table_xinfo includes them and
+        # their hidden/generated flags so they cannot be lost in migration.
+        columns = tuple(row[1:] for row in connection.execute('PRAGMA table_xinfo(jobs)'))
         indexes = []
         for _, name, unique, origin, partial in connection.execute('PRAGMA index_list(jobs)').fetchall():
             keys = tuple((row[2], row[3], row[4]) for row
@@ -195,7 +208,10 @@ class JobStore:
         others = connection.execute(
             "SELECT COUNT(*) FROM sqlite_master WHERE NOT (type = 'table' AND name = 'jobs') "
             "AND NOT (type = 'index' AND tbl_name = 'jobs' AND sql IS NULL)").fetchone()[0]
-        return columns, tuple(sorted(indexes)), others
+        schema = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'jobs'").fetchone()
+        definition = _schema_tokens(schema[0]) if schema is not None else ()
+        return columns, tuple(sorted(indexes)), others, definition
 
     @classmethod
     def _verify(cls, connection):
@@ -274,19 +290,28 @@ class JobStore:
         if not (check_ts(approved_at) and check_ts(reserved_at) and check_ts(unknown_at) and check_ts(cancelled_at)):
             raise ValueError('corrupt job record')
 
+        if ((approval_key is None) != (approved_at is None)
+                or (reservation_key is None) != (reserved_at is None)):
+            raise ValueError('corrupt job record')
+
         if state == 'awaiting_owner_approval':
-            pass
+            if any(value is not None for value in row[7:]):
+                raise ValueError('corrupt job record')
         elif state == 'approved':
-            if approval_key is None or approved_at is None:
+            if (approval_key is None
+                    or any(value is not None for value in (reservation_key, reserved_at, unknown_at, cancelled_at))):
                 raise ValueError('corrupt job record')
         elif state == 'reserved':
-            if approval_key is None or approved_at is None or reservation_key is None or reserved_at is None:
+            if (approval_key is None or reservation_key is None
+                    or unknown_at is not None or cancelled_at is not None):
                 raise ValueError('corrupt job record')
         elif state == 'completion_unknown':
-            if approval_key is None or approved_at is None or reservation_key is None or reserved_at is None or unknown_at is None:
+            if (approval_key is None or reservation_key is None
+                    or unknown_at is None or cancelled_at is not None):
                 raise ValueError('corrupt job record')
         elif state == 'cancelled':
-            if cancelled_at is None:
+            if (cancelled_at is None
+                    or any(value is not None for value in (reservation_key, reserved_at, unknown_at))):
                 raise ValueError('corrupt job record')
         else:
             raise ValueError('corrupt job record')

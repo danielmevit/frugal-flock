@@ -34,7 +34,9 @@ Opening a database is decided inside one immediate transaction:
   columns, order, types, NOT NULL flags and defaults, a binary primary key on
   id, and binary unique constraints on request_key, approval_key and
   reservation_key, with no other tables, indexes, triggers or views. Matching
-  column names alone are not enough.
+  column names alone are not enough. Generated columns, extra CHECK
+  constraints and unknown table options are refused. Definition matching
+  ignores SQL whitespace and handles SQLite's quoted migration table name.
 - Schema 1 is migrated only when it has exactly the layout the first slice
   created. Every legacy record is validated first: hex IDs and hash, worker
   ID, a parseable creation time with a timezone, and state
@@ -46,7 +48,7 @@ Opening a database is decided inside one immediate transaction:
   file stays byte-for-byte unchanged.
 
 Schema 2 records are validated again on every read. A corrupt record makes
-that read fail rather than being reported as valid.
+that read or transition fail without rewriting the stored record.
 
 ## States and metadata
 
@@ -57,6 +59,11 @@ that read fail rather than being reported as valid.
 | reserved | One claim; execution may or may not have started | Approval plus reservation_key, reserved_at |
 | completion_unknown | Reserved attempt needs reconciliation | Reservation plus unknown_at |
 | cancelled | Waiting or approved job cancelled before reservation | cancelled_at; prior approval retained if present |
+
+These metadata lists are exhaustive: every other transition field must be
+null. Approval and reservation keys always appear with their corresponding
+timestamp. Cancelled jobs retain either both approval fields or neither,
+and never contain reservation or uncertainty metadata.
 
 Records are JSON-ready dictionaries with id, request_key, draft_id,
 draft_sha256, worker, created_at, state, approval_key, approved_at,

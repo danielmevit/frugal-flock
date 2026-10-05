@@ -2,8 +2,10 @@
 # https://github.com/danielmevit/unio
 # SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
 import concurrent.futures
+from contextlib import contextmanager, ExitStack
 from datetime import datetime, timezone
 import importlib.util
+import itertools
 import json
 import os
 from pathlib import Path
@@ -49,6 +51,20 @@ class JobStoreTests(unittest.TestCase):
             return connection.execute('SELECT COUNT(*) FROM jobs').fetchone()[0]
         finally:
             connection.close()
+
+    @contextmanager
+    def no_execution(self):
+        with ExitStack() as stack:
+            effects = [stack.enter_context(patch(target, side_effect=AssertionError(target)))
+                       for target in ('subprocess.Popen', 'os.system', 'os.posix_spawn',
+                                      'os.posix_spawnp', 'socket.socket')]
+            yield
+            for effect in effects:
+                effect.assert_not_called()
+
+    def workspace_snapshot(self, workspace):
+        return {str(path.relative_to(workspace)): path.read_bytes() if path.is_file() else None
+                for path in workspace.rglob('*')}
 
     def test_queued_job_survives_restart_and_waits_for_owner(self):
         draft = self.draft('Café sweep\n$ literal text, not a command\n- ../../private')
@@ -338,6 +354,123 @@ class JobStoreTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 store.jobs()
 
+    def test_complete_state_metadata_matrix_refuses_corruption_unchanged(self):
+        draft = self.draft()
+        job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', 'a' * 32)
+        fields = ('approval_key', 'approved_at', 'reservation_key', 'reserved_at',
+                  'unknown_at', 'cancelled_at')
+        timestamp = '2026-10-05T12:00:00+00:00'
+        values = ('b' * 32, timestamp, 'c' * 32, timestamp, timestamp, timestamp)
+        approval = frozenset(('approval_key', 'approved_at'))
+        reservation = frozenset(('reservation_key', 'reserved_at'))
+        allowed = {
+            'awaiting_owner_approval': (frozenset(),),
+            'approved': (approval,),
+            'reserved': (approval | reservation,),
+            'completion_unknown': (approval | reservation | {'unknown_at'},),
+            'cancelled': (frozenset(('cancelled_at',)), approval | {'cancelled_at'}),
+        }
+        update = 'UPDATE jobs SET state = ?, ' + ', '.join(field + ' = ?' for field in fields) + ' WHERE id = ?'
+        with jobs.JobStore(self.workspace) as reopened, self.no_execution():
+            for state, valid_shapes in allowed.items():
+                for mask in itertools.product((False, True), repeat=len(fields)):
+                    present = frozenset(field for field, enabled in zip(fields, mask) if enabled)
+                    metadata = tuple(value if enabled else None for value, enabled in zip(values, mask))
+                    with self.subTest(state=state, present=sorted(present)):
+                        with sqlite3.connect(self.database) as connection:
+                            connection.execute(update, (state,) + metadata + (job['id'],))
+                        expected = dict(job, state=state, **dict(zip(fields, metadata)))
+                        before = self.workspace_snapshot(self.workspace)
+                        reads = [('get', lambda: reopened.get(job['id'])), ('jobs', reopened.jobs)]
+                        if state == 'awaiting_owner_approval':
+                            reads.append(('pending', reopened.pending))
+                        if present in valid_shapes:
+                            self.assertEqual(reopened.get(job['id']), expected)
+                            self.assertEqual(reopened.jobs(), [expected])
+                            self.assertEqual(reopened.pending(), [expected] if state == 'awaiting_owner_approval' else [])
+                        else:
+                            operations = reads + [
+                                ('enqueue replay', lambda: self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', 'a' * 32)),
+                                ('approve', lambda: self.store.approve(job['id'], draft['content_sha256'], 'worker', 'b' * 32)),
+                                ('reserve', lambda: self.store.reserve(job['id'], 'b' * 32, 'c' * 32)),
+                                ('mark_unknown', lambda: self.store.mark_unknown(job['id'], 'c' * 32)),
+                                ('cancel', lambda: self.store.cancel(job['id'])),
+                            ]
+                            for name, operation in operations:
+                                with self.subTest(operation=name):
+                                    with self.assertRaises(ValueError):
+                                        operation()
+                                    self.assertEqual(self.database.read_bytes(), before['coord/ui-jobs.sqlite3'])
+                                    self.assertFalse(self.store._db.in_transaction)
+                        self.assertEqual(self.workspace_snapshot(self.workspace), before)
+
+    def test_transition_metadata_values_refused_unchanged(self):
+        draft = self.draft()
+        job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', 'a' * 32)
+        self.store.approve(job['id'], draft['content_sha256'], 'worker', 'b' * 32)
+        self.store.reserve(job['id'], 'b' * 32, 'c' * 32)
+        valid = self.store.mark_unknown(job['id'], 'c' * 32)
+        invalid_keys = ('B' * 32, 'd' * 31, 'g' * 32, b'd' * 32, 7)
+        invalid_times = ('2026-10-05T12:00:00', 'yesterday', b'2026-10-05T12:00:00+00:00', 7)
+        with self.no_execution():
+            for field in ('approval_key', 'approved_at', 'reservation_key', 'reserved_at', 'unknown_at', 'cancelled_at'):
+                base = dict(valid)
+                if field == 'cancelled_at':
+                    base.update(state='cancelled', reservation_key=None, reserved_at=None, unknown_at=None)
+                bad_values = invalid_keys if field.endswith('_key') else invalid_times
+                for value in bad_values:
+                    with self.subTest(field=field, value=value):
+                        corrupt = dict(base, **{field: value})
+                        with sqlite3.connect(self.database) as connection:
+                            connection.execute('UPDATE jobs SET ' + ', '.join(name + ' = ?' for name in jobs.COLUMNS[6:]) + ' WHERE id = ?',
+                                               tuple(corrupt[name] for name in jobs.COLUMNS[6:]) + (job['id'],))
+                        before = self.workspace_snapshot(self.workspace)
+                        for operation in (lambda: self.store.get(job['id']), self.store.jobs,
+                                          lambda: self.store.mark_unknown(job['id'], 'c' * 32),
+                                          lambda: self.store.cancel(job['id'])):
+                            with self.assertRaises(ValueError):
+                                operation()
+                            self.assertEqual(self.workspace_snapshot(self.workspace), before)
+
+    def test_library_created_metadata_and_replays_survive_restart_without_effects(self):
+        draft = self.draft()
+        expected = []
+        populated = [set(), {'approval_key', 'approved_at'},
+                     {'approval_key', 'approved_at', 'reservation_key', 'reserved_at'},
+                     {'approval_key', 'approved_at', 'reservation_key', 'reserved_at', 'unknown_at'},
+                     {'cancelled_at'}, {'approval_key', 'approved_at', 'cancelled_at'}]
+        with self.no_execution():
+            for index in range(6):
+                job = self.store.enqueue(draft['id'], draft['content_sha256'], 'worker', format(index, '032x'))
+                if index in (1, 2, 3, 5):
+                    job = self.store.approve(job['id'], draft['content_sha256'], 'worker', format(index + 100, '032x'))
+                if index in (2, 3):
+                    job = self.store.reserve(job['id'], job['approval_key'], format(index + 200, '032x'))['job']
+                if index == 3:
+                    job = self.store.mark_unknown(job['id'], job['reservation_key'])
+                if index in (4, 5):
+                    job = self.store.cancel(job['id'])
+                self.assertEqual({field for field in jobs.COLUMNS[7:] if job[field] is not None}, populated[index])
+                expected.append(job)
+            self.store.close()
+            before = self.workspace_snapshot(self.workspace)
+            with jobs.JobStore(self.workspace) as reopened:
+                self.assertEqual(reopened.jobs(), sorted(expected, key=lambda job: (job['created_at'], job['id'])))
+                self.assertEqual(reopened.pending(), [expected[0]])
+                for job in expected:
+                    self.assertEqual(reopened.get(job['id']), job)
+                    self.assertEqual(reopened.enqueue(draft['id'], draft['content_sha256'], 'worker', job['request_key']), job)
+                    if job['state'] == 'approved':
+                        self.assertEqual(reopened.approve(job['id'], draft['content_sha256'], 'worker', job['approval_key']), job)
+                    elif job['state'] == 'reserved':
+                        self.assertEqual(reopened.reserve(job['id'], job['approval_key'], job['reservation_key']),
+                                         dict(job=job, newly_reserved=False))
+                    elif job['state'] == 'completion_unknown':
+                        self.assertEqual(reopened.mark_unknown(job['id'], job['reservation_key']), job)
+                    elif job['state'] == 'cancelled':
+                        self.assertEqual(reopened.cancel(job['id']), job)
+            self.assertEqual(self.workspace_snapshot(self.workspace), before)
+
     def test_garbage_database_refused_without_reinitializing(self):
         self.store.close()
         self.database.write_bytes(b'this is definitely not a sqlite database')
@@ -603,7 +736,7 @@ class JobStoreTests(unittest.TestCase):
         self.assertEqual(newly_reserved_counts, 1)
 
 
-    def legacy_workspace(self, ddl, rows=(), extra=()):
+    def legacy_workspace(self, ddl, rows=(), extra=(), version=None):
         workspace = Path(tempfile.mkdtemp(prefix='job-legacy-', dir=self.temp.name))
         (workspace / 'coord').mkdir()
         connection = sqlite3.connect(workspace / 'coord' / 'ui-jobs.sqlite3')
@@ -613,7 +746,7 @@ class JobStoreTests(unittest.TestCase):
                 connection.execute(statement)
             for row in rows:
                 connection.execute('INSERT INTO jobs VALUES (' + ', '.join('?' for _ in row) + ')', row)
-            connection.execute('PRAGMA user_version = ' + str(2 if ddl == jobs.CREATE_JOBS else 1))
+            connection.execute('PRAGMA user_version = ' + str(version if version is not None else (2 if ddl == jobs.CREATE_JOBS else 1)))
             connection.commit()
         finally:
             connection.close()
@@ -622,10 +755,56 @@ class JobStoreTests(unittest.TestCase):
     def assert_refused_unchanged(self, workspace):
         path = workspace / 'coord' / 'ui-jobs.sqlite3'
         before = path.read_bytes()
-        with self.assertRaises(ValueError):
+        snapshot = self.workspace_snapshot(workspace)
+        with self.no_execution(), self.assertRaises(ValueError):
             jobs.JobStore(workspace)
         self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(self.workspace_snapshot(workspace), snapshot)
         self.assertEqual(sorted(p.name for p in (workspace / 'coord').iterdir()), ['ui-jobs.sqlite3'])
+
+    def test_check_generated_and_table_option_layouts_refused_unchanged(self):
+        for version, original in ((1, jobs.SCHEMA1_JOBS), (2, jobs.CREATE_JOBS)):
+            layouts = {
+                'table_check': original[:-1] + ', CHECK(length(worker)>0))',
+                'column_check': original.replace('worker TEXT NOT NULL', 'worker TEXT NOT NULL CHECK(length(worker)>0)'),
+                'virtual_generated': original[:-1] + ', extra TEXT GENERATED ALWAYS AS (worker) VIRTUAL)',
+                'stored_generated': original[:-1] + ', extra TEXT GENERATED ALWAYS AS (worker) STORED)',
+                'non_key_collation': original.replace('worker TEXT NOT NULL', 'worker TEXT COLLATE NOCASE NOT NULL'),
+                'conflict_policy': original.replace('id TEXT PRIMARY KEY', 'id TEXT PRIMARY KEY ON CONFLICT REPLACE'),
+                'strict': original + ' STRICT',
+                'without_rowid': original + ' WITHOUT ROWID',
+            }
+            for label, ddl in layouts.items():
+                with self.subTest(version=version, layout=label):
+                    workspace = self.legacy_workspace(ddl, version=version)
+                    self.assert_refused_unchanged(workspace)
+
+    def test_recognized_layouts_allow_whitespace_and_sqlite_migration_quoting(self):
+        row = ('1' * 32, '2' * 32, '3' * 32, '4' * 64, 'worker',
+               '2026-10-05T12:00:00+00:00', 'awaiting_owner_approval')
+        expected = dict(zip(jobs.COLUMNS, row + (None,) * 6))
+        with self.no_execution():
+            for version, original in ((1, jobs.SCHEMA1_JOBS), (2, jobs.CREATE_JOBS)):
+                formatted = (original.replace('CREATE TABLE jobs (', 'create\t table "jobs"\n(\n')
+                             .replace(', ', ',\n\t').replace(' TEXT', '\ttext'))
+                for ddl in (original, formatted):
+                    with self.subTest(version=version, ddl=ddl):
+                        workspace = self.legacy_workspace(ddl, rows=(row if version == 1 else row + (None,) * 6,), version=version)
+                        before = self.workspace_snapshot(workspace)
+                        with jobs.JobStore(workspace) as store:
+                            self.assertEqual(store.get(row[0]), expected)
+                            self.assertEqual(store.jobs(), [expected])
+                        if version == 2:
+                            self.assertEqual(self.workspace_snapshot(workspace), before)
+                        else:
+                            with sqlite3.connect(workspace / 'coord/ui-jobs.sqlite3') as connection:
+                                sql = connection.execute("SELECT sql FROM sqlite_master WHERE name = 'jobs'").fetchone()[0]
+                                self.assertIn('"jobs"', sql)
+                                self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0], 2)
+                        migrated = self.workspace_snapshot(workspace)
+                        with jobs.JobStore(workspace) as reopened:
+                            self.assertEqual(reopened.pending(), [expected])
+                        self.assertEqual(self.workspace_snapshot(workspace), migrated)
 
     def test_unknown_schema1_layouts_refused_without_migration(self):
         self.store.close()
