@@ -1,4 +1,4 @@
-# Frugal Flock — The Complete Guidebook
+# Unio — The Complete Guidebook
 
 > **Note for document tools / AI converters:** this file is plain, standard
 > Markdown. Headings `#`/`##`/`###` map to Word's Title / Heading 1 /
@@ -7,9 +7,9 @@
 > are simple pipe tables. There is no HTML and no special syntax anywhere
 > in this document.
 
-**Covers Frugal Flock v0.3.1 plus the in-progress M1 quality changes (the runtime prints 0.4.0, which is not an accepted release) · written 2026-07-19, updated 2026-10-04 · for the complete beginner**
+**Covers Unio v0.3.1 plus the in-progress M1 quality changes (the runtime prints 0.4.0, which is not an accepted release) · written 2026-07-19, updated 2026-10-04 · for the complete beginner**
 
-This is the one book that explains everything: what Frugal Flock is, how to
+This is the one book that explains everything: what Unio is, how to
 install it, how to use every command step by step, how to fix every common
 problem, and what every word means. You do not need a programming
 background — every technical term is explained the first time it appears
@@ -20,7 +20,7 @@ read chapter 2 and the Cheat Sheet (chapter 19).
 
 ## 1. How to read this book
 
-- **Never used Frugal Flock before?** Read chapters 2–4, then do chapter 5
+- **Never used Unio before?** Read chapters 2–4, then do chapter 5
   with a real terminal open. Chapters 6–9 are your daily life. Come back
   to the rest when you need it.
 - **Something is broken?** Go straight to chapter 14 (Troubleshooting).
@@ -31,27 +31,27 @@ Text that looks `like this` is something you type into the terminal, a
 file name, or exact text a program prints. Blocks that look like this:
 
 ```text
-$ frugal-flock status
+$ unio status
 ```
 
 are terminal sessions — the `$` means "you type what follows".
 
 ---
 
-## 2. What Frugal Flock is — and what it is not
+## 2. What Unio is — and what it is not
 
 ### 2.1 The idea in one paragraph
 
-Frugal Flock turns five separate AI coding subscriptions — Claude, Codex
+Unio turns five separate AI coding subscriptions — Claude, Codex
 (ChatGPT), Antigravity (Google), Grok Build (X), and OpenCode — into one
 coordinated software team on your Ubuntu machine. One AI acts as the
 **foreman** (it plans work, writes work orders, inspects results). The
 others act as **workers** (each builds its assigned piece in its own
 isolated copy of the project). And **you** are the owner — the only one
-who can accept work into the real codebase. Frugal Flock itself is the
+who can accept work into the real codebase. Unio itself is the
 office they all work in: about a thousand lines of scripting that handles
 workshops, work orders, reports, receipts checking, and safety switches.
-The intelligence is rented from your subscriptions; Frugal Flock only
+The intelligence is rented from your subscriptions; Unio only
 coordinates it.
 
 ### 2.2 What it is NOT (important)
@@ -61,7 +61,7 @@ coordinates it.
   program (`claude`, `codex`, `agy`, `opencode`, `grok`) running under
   its own subscription **login**, cached on your machine after you sign
   in once. An "API key" would mean paying per request; a login means your
-  flat monthly subscription. Frugal Flock is built entirely on logins.
+  flat monthly subscription. Unio is built entirely on logins.
 - **It does not push, deploy, or release anything.** Only you do those.
 
 ### 2.3 The three safety principles
@@ -74,7 +74,7 @@ Everything in the design comes from three rules:
 2. **Receipts over reports.** Every run produces a report (the agent's
    own claim) and a diff (the exact line-by-line truth). Rule one of
    operating this system: **reports can lie, diffs can't.** Since v0.3,
-   a machine check (`frugal-flock verify`) reads the receipts for you first.
+   a machine check (`unio verify`) reads the receipts for you first.
 3. **One human gate.** Nothing enters the real codebase without you
    merging it. The foreman recommends; you decide. This is not a
    formality — it is the entire safety model.
@@ -102,7 +102,7 @@ between runs — that is why task files must contain everything they need.
    |
  WORKERS: build, test, commit on their own branch, report
    |
- FOREMAN: machine-checks first (frugal-flock verify), reads the diffs, recommends
+ FOREMAN: machine-checks first (unio verify), reads the diffs, recommends
    |
  YOU:     read the diff yourself -> merge what passes -> reject what doesn't
 ```
@@ -116,7 +116,7 @@ your gate has gone soft — not that the team has become perfect.
 
 ### 3.1 The project layout
 
-`frugal-flock init` (or `frugal-flock new`) builds this next to any repository
+`unio init` (or `unio new`) builds this next to any repository
 clone:
 
 ```text
@@ -157,7 +157,7 @@ Inside `coord/reports/` you will find, per task:
 | `<task>.md` | The **report**: one block appended per run (plus verify and review blocks). This is the permanent history. | Append-only, forever |
 | `<task>.log` | The full raw output of the **latest** run only. | Overwritten each run |
 | `<task>.pid` | Background run's process id. | Removed when the run ends |
-| `ledger.jsonl` | The **machine ledger**: one JSON line per event — run, verify, review, race, merge — with durations and change statistics. `frugal-flock score` reads this. | Append-only, forever |
+| `ledger.jsonl` | The **machine ledger**: one JSON line per event — run, verify, review, race, merge — with durations and change statistics. `unio score` reads this. | Append-only, forever |
 
 Rule: for history, always read the `.md` report or the ledger — never the
 `.log`, which only remembers the latest run.
@@ -166,12 +166,12 @@ Next to the reports, `coord/results/<worker>/<task>.json` holds the
 **current evidence** for one task: the worker process, the validation and
 the review, each tied to the exact revision it describes (the commit, the
 base, the task file and the files in the workshop). It is rewritten as
-the task moves along; `frugal-flock result` prints it (section 7.10).
-`coord/handoffs/` holds the context packets made by `frugal-flock handoff`.
+the task moves along; `unio result` prints it (section 7.10).
+`coord/handoffs/` holds the context packets made by `unio handoff`.
 
 ### 3.3 The guard hooks (installed automatically)
 
-`frugal-flock init` installs three small git guards into the project:
+`unio init` installs three small git guards into the project:
 
 1. **pre-commit** — inside a worker's workshop, commits are only possible
    on that worker's own `agent/<name>` branch. A worker that wanders onto
@@ -181,7 +181,7 @@ the task moves along; `frugal-flock result` prints it (section 7.10).
    `merge` event is written into the ledger automatically. This is where
    the scorecard's "merges" column comes from.
 
-If your repository already has its own hooks, Frugal Flock leaves them
+If your repository already has its own hooks, Unio leaves them
 untouched and tells you so.
 
 ---
@@ -199,17 +199,17 @@ untouched and tells you so.
   any AI is called.
 - Your AI subscriptions (any subset of the five works — even one).
 
-### 4.2 Install Frugal Flock itself
+### 4.2 Install Unio itself
 
-From your clone of [Frugal Flock](https://github.com/danielmevit/frugal-flock)
-(formerly `agentteam-docs`):
+From your clone of [Unio](https://github.com/danielmevit/unio)
+(formerly `unio-docs`):
 
 ```text
-$ bash frugal-flock-install.sh
-$ frugal-flock version
-Frugal Flock 0.3.1 (/home/you/.local/bin/frugal-flock)
+$ bash unio-install.sh
+$ unio version
+Unio 0.3.1 (/home/you/.local/bin/unio)
 Small plans. Big ideas.
-config: /home/you/.config/agentteam/agents.conf
+config: /home/you/.config/unio/agents.conf
 ```
 
 If the second command says "command not found", your `~/.local/bin`
@@ -224,15 +224,15 @@ The installer creates:
 
 | Path | Purpose |
 |---|---|
-| `~/.local/bin/agentteam` | Shared implementation and legacy command |
-| `~/.local/bin/frugal-flock`, `~/.local/bin/frgl-flc` | Canonical and short commands; links to the shared implementation |
-| `~/.config/agentteam/agents.conf` | The agent config — **the file you edit** (never overwritten by updates) |
-| `~/.config/agentteam/templates/` | Role cards and task templates stamped into every new project |
-| `~/.config/agentteam/playbooks/` | Drop your standard `ai-*.md` playbooks here once; `frugal-flock new` copies them into every project |
-| `~/.local/share/bash-completion/completions/agentteam` | Shared tab-completion, with links for `frugal-flock` and `frgl-flc` (open a new terminal to activate) |
+| `~/.local/bin/unio` | Shared implementation and legacy command |
+| `~/.local/bin/unio`, `~/.local/bin/unio` | Canonical and short commands; links to the shared implementation |
+| `~/.config/unio/agents.conf` | The agent config — **the file you edit** (never overwritten by updates) |
+| `~/.config/unio/templates/` | Role cards and task templates stamped into every new project |
+| `~/.config/unio/playbooks/` | Drop your standard `ai-*.md` playbooks here once; `unio new` copies them into every project |
+| `~/.local/share/bash-completion/completions/unio` | Shared tab-completion, with links for `unio` and `unio` (open a new terminal to activate) |
 
-Tab-completion means: type `frugal-flock ru<TAB>` and the shell finishes the
-command; type `frugal-flock run <TAB>` and it lists your workers; then
+Tab-completion means: type `unio ru<TAB>` and the shell finishes the
+command; type `unio run <TAB>` and it lists your workers; then
 `<TAB>` again lists your task ids.
 
 ### 4.3 Install and log in the five AI CLIs (once each)
@@ -254,7 +254,7 @@ seat; everything else can join later.
 
 ### 4.4 The config file: `agents.conf` (the lego box)
 
-`~/.config/agentteam/agents.conf` has one line per agent:
+`~/.config/unio/agents.conf` has one line per agent:
 
 ```text
 name=shell command that runs that agent headless
@@ -268,7 +268,7 @@ claude=claude -p "$(cat "$TASKFILE")" --dangerously-skip-permissions
 
 Read it as: "to run agent *claude*, call the `claude` program in print
 mode, feed it the task file's text, and let it work without asking for
-per-action approval." `$TASKFILE` is filled in by Frugal Flock at run time.
+per-action approval." `$TASKFILE` is filled in by Unio at run time.
 The auto-approve flags are safe **because** of the workshops and your
 merge gate — a worker can only damage its own disposable copy.
 
@@ -279,13 +279,13 @@ Rules of the lego box:
 - A project can carry its own crew: create `<project>/coord/agents.conf`
   and it overrides the global file for that project only.
 - Never edit this file to handle quota problems — that is what
-  `frugal-flock off` is for (chapter 10).
+  `unio off` is for (chapter 10).
 
 ### 4.5 Prove the whole machine works — before spending any quota
 
 ```text
-$ frugal-flock selftest
-== frugal-flock selftest — sandbox: /tmp/tmp.XXXX ==
+$ unio selftest
+== unio selftest — sandbox: /tmp/tmp.XXXX ==
   ok    init scaffolds worktrees + coord
   ok    worker-branch guard hooks installed
   ...
@@ -297,18 +297,18 @@ selftest builds a throwaway project with **mock agents** (tiny scripts
 pretending to be AIs) and rehearses the entire loop — init, run, verify,
 scope-violation catching, benching, locks, background runs, kill, merge,
 sync, review, score. It costs zero quota and about fifteen seconds. Run
-it after every Frugal Flock update. If it is green, the machinery works and
-any problem you hit later is an agent problem, not a Frugal Flock problem —
+it after every Unio update. If it is green, the machinery works and
+any problem you hit later is an agent problem, not a Unio problem —
 that distinction is half of all troubleshooting.
 
 Then check the real fleet:
 
 ```text
-$ frugal-flock agents      # is each binary installed? benched or on?
-$ frugal-flock smoke       # one tiny LIVE call per agent: OK / WARN / FAIL
+$ unio agents      # is each binary installed? benched or on?
+$ unio smoke       # one tiny LIVE call per agent: OK / WARN / FAIL
 ```
 
-And before you dispatch work in a project, `frugal-flock doctor` is the
+And before you dispatch work in a project, `unio doctor` is the
 one-command preflight. It checks the base branch exists, every worker's
 binary and config line, each worktree's health (on the right branch,
 behind the base, uncommitted leftovers), stale background state, the
@@ -325,7 +325,7 @@ any CLI update or after days away.
 The repository ships a complete replayable demonstration:
 
 ```text
-$ bash examples/demo.sh /tmp/agentteam-demo
+$ bash examples/demo.sh /tmp/unio-demo
 ```
 
 It builds a toy project with a stand-in fleet and performs every feature
@@ -341,21 +341,21 @@ everything this book describes.
 
 ```text
 $ cd ~/code
-$ frugal-flock new https://github.com/you/yourproject.git myproj
+$ unio new https://github.com/you/yourproject.git myproj
 ```
 
 `new` does the whole recipe: clones the repository into `myproj/repo`,
-switches to (or creates) the `dev` branch, runs `frugal-flock init` with the
+switches to (or creates) the `dev` branch, runs `unio init` with the
 default workers, and copies every playbook from
-`~/.config/agentteam/playbooks/` into `myproj/coord/docs/`. It ends by
+`~/.config/unio/playbooks/` into `myproj/coord/docs/`. It ends by
 telling you the two follow-ups it deliberately does not do itself:
 
 ```text
 remote dev  : when ready:  cd myproj/repo && git push -u origin dev
-start       : cd myproj/repo && frugal-flock agents
+start       : cd myproj/repo && unio agents
 ```
 
-You can name the workers too: `frugal-flock new <url> myproj codex grok`.
+You can name the workers too: `unio new <url> myproj codex grok`.
 
 ### 5.2 The manual way
 
@@ -363,10 +363,10 @@ You can name the workers too: `frugal-flock new <url> myproj codex grok`.
 $ cd ~/code && mkdir myproj && cd myproj
 $ git clone <repo-url> repo && cd repo
 $ git checkout dev || git checkout -b dev
-$ frugal-flock init codex antigravity opencode grok
+$ unio init codex antigravity opencode grok
 ```
 
-`init` is idempotent — running it again is safe, and `frugal-flock init
+`init` is idempotent — running it again is safe, and `unio init
 claude` later adds one more workshop without touching the others.
 
 ### 5.3 The secrets preflight
@@ -377,8 +377,8 @@ So `init` **refuses to scaffold** while files that look like secrets
 
 ```text
   .env
-frugal-flock: possible secrets tracked in git (above) — untrack/gitignore
-them first, or rerun with AGENTTEAM_ALLOW_SECRETS=1
+unio: possible secrets tracked in git (above) — untrack/gitignore
+them first, or rerun with UNIO_ALLOW_SECRETS=1
 ```
 
 The fix takes a minute:
@@ -387,7 +387,7 @@ The fix takes a minute:
 $ git rm --cached .env
 $ echo '.env' >> .gitignore
 $ git commit -m "untrack secrets"
-$ frugal-flock init ...
+$ unio init ...
 ```
 
 Only use the override variable if you know exactly why the match is a
@@ -469,14 +469,14 @@ Two kinds of lines in a task file are not just prose — the machinery
 enforces them:
 
 - **Scope lines.** Under `## Allowed scope`, every line starting with
-  `- ` is an enforced pattern. `frugal-flock verify` compares the worker's
+  `- ` is an enforced pattern. `unio verify` compares the worker's
   actual changes against this list and flags anything outside it.
   - A plain path (`- src/feature.py`) allows exactly that file.
   - A trailing slash (`- tests/`) allows the whole folder.
   - Globs work (`- src/*.py`) and match into subfolders.
   - `changelog.d/` is always allowed automatically.
 - **Validate lines.** Under `## Validate`, every line starting with
-  `$ ` is a command that `frugal-flock verify` re-runs itself inside the
+  `$ ` is a command that `unio verify` re-runs itself inside the
   workshop — each must exit successfully. Prose in that section is fine;
   only `$ ` lines are executed.
 
@@ -518,18 +518,18 @@ JSON error instead of crashing; test proves it."
 ### 7.1 A foreground run
 
 ```text
-$ frugal-flock run codex T7-codex
+$ unio run codex T7-codex
 [codex <- codex] running task 'T7-codex' (timeout 3600s), log: .../coord/reports/T7-codex.log
 exit=0 duration=214s — report: .../coord/reports/T7-codex.md
-next: frugal-flock verify codex T7-codex   then: frugal-flock diff codex
+next: unio verify codex T7-codex   then: unio diff codex
 ```
 
-What happened: Frugal Flock checked the STOP switch, the agent's bench
+What happened: Unio checked the STOP switch, the agent's bench
 status, and the per-worker lock; warned if the worker's branch had fallen
-behind the base (stale code wastes runs — set `AGENTTEAM_AUTO_SYNC=1` to
+behind the base (stale code wastes runs — set `UNIO_AUTO_SYNC=1` to
 fast-forward it first); cleaned any stale git lock from a previously
 killed run; then ran the codex CLI inside `wt/codex/` with the task text,
-capped at `AGENTTEAM_TIMEOUT` seconds (default 3600 = 1 hour).
+capped at `UNIO_TIMEOUT` seconds (default 3600 = 1 hour).
 When it finished, a run block was appended to the report and one `run`
 event to the ledger. The task's stored result (section 7.10) was reset at
 the start and now records the worker's exit code. If the workshop could
@@ -543,17 +543,17 @@ again.
 Long task? Add `-b` and keep working:
 
 ```text
-$ frugal-flock run -b antigravity T8-antigravity
-started in background — poll: frugal-flock status   live: frugal-flock tail T8-antigravity   abort: frugal-flock kill T8-antigravity
+$ unio run -b antigravity T8-antigravity
+started in background — poll: unio status   live: unio tail T8-antigravity   abort: unio kill T8-antigravity
 ```
 
-- `frugal-flock status` — the briefing: benched agents, open tasks, recent
+- `unio status` — the briefing: benched agents, open tasks, recent
   reports, each worker's branch state with a **review queue** count
   (commits not yet merged), a `<< RUNNING` marker, and running jobs.
-- `frugal-flock tail T8-antigravity` — watch the live log; `Ctrl-C` stops
-  watching, not the run. `frugal-flock tail` with no task follows the
+- `unio tail T8-antigravity` — watch the live log; `Ctrl-C` stops
+  watching, not the run. `unio tail` with no task follows the
   newest log.
-- `frugal-flock kill T8-antigravity` — stop it cleanly. The whole session
+- `unio kill T8-antigravity` — stop it cleanly. The whole session
   is terminated (including the agent under its timeout wrapper); partial
   work stays uncommitted in the workshop; the pidfile is removed.
 - **One run per worker.** Dispatching a second task to a busy worker is
@@ -586,14 +586,14 @@ loudly: `!! exit=0 with an empty diff — no-op or overclaim`. Read reports
 comfortably with:
 
 ```text
-$ frugal-flock report T7-codex          # last 60 lines
-$ frugal-flock report T7-codex 200      # more history
+$ unio report T7-codex          # last 60 lines
+$ unio report T7-codex 200      # more history
 ```
 
 ### 7.4 `verify` — the mechanical gate (run this before reading any diff)
 
 ```text
-$ frugal-flock verify codex T7-codex
+$ unio verify codex T7-codex
 == verify codex / T7-codex ==
 scope    : OK (2 pattern(s))
 validate : 2/2 passed
@@ -629,7 +629,7 @@ edits — verify stops with exit 2 and an error instead of a verdict. The
 outcome is also stored in the task's result (section 7.10).
 
 The verdict block is also appended to the report and the ledger. Tip: set
-`AGENTTEAM_AUTO_VERIFY=1` and every run appends its own verdict
+`UNIO_AUTO_VERIFY=1` and every run appends its own verdict
 automatically. A successful worker followed by failed or incomplete
 verification returns the verification's nonzero exit. A failed worker
 keeps its own exit. This is not reviewer approval or human acceptance.
@@ -637,8 +637,8 @@ keeps its own exit. This is not reviewer approval or human acceptance.
 ### 7.5 `diff` — the receipts
 
 ```text
-$ frugal-flock diff codex --stat     # just the file list: your scope check
-$ frugal-flock diff codex            # every changed line: your real review
+$ unio diff codex --stat     # just the file list: your scope check
+$ unio diff codex            # every changed line: your real review
 ```
 
 Both show committed changes (vs the base branch) and uncommitted leftovers
@@ -648,12 +648,12 @@ uncommitted.
 ### 7.6 `review` — a rival's second opinion
 
 ```text
-$ frugal-flock review codex T7-codex
+$ unio review codex T7-codex
 ```
 
 A **different** vendor's agent receives the task order and the full
 committed diff in one prompt and returns findings plus a final
-`VERDICT: APPROVE` or `VERDICT: REQUEST-CHANGES`. Frugal Flock picks the
+`VERDICT: APPROVE` or `VERDICT: REQUEST-CHANGES`. Unio picks the
 first available non-author agent, or name one yourself as a third
 argument. Model diversity is the point: Claude reviewing Codex catches
 different mistakes than Codex reviewing itself. Use it for risky or large
@@ -697,7 +697,7 @@ fragment.
 ### 7.8 `sync` — after your merges
 
 ```text
-$ frugal-flock sync
+$ unio sync
   codex          fast-forwarded to dev
   antigravity    fast-forwarded to dev
   ...
@@ -725,8 +725,8 @@ failed attempts on the same task = the foreman must escalate to you.
 ### 7.10 `result` and `handoff` — the evidence, and the next-AI packet
 
 ```text
-$ frugal-flock result codex T7-codex       # JSON on screen; changes nothing
-$ frugal-flock handoff codex T7-codex      # writes a packet, prints its folder
+$ unio result codex T7-codex       # JSON on screen; changes nothing
+$ unio handoff codex T7-codex      # writes a packet, prints its folder
 ```
 
 `result` prints the task's stored evidence: the worker process
@@ -763,7 +763,7 @@ finding a genuine bug; and the fix cycle that closes the loop. Replay it
 on your machine anytime:
 
 ```text
-$ bash examples/demo.sh /tmp/agentteam-demo
+$ bash examples/demo.sh /tmp/unio-demo
 ```
 
 Zero quota — the fleet is stood-in by scripts, the machinery is real.
@@ -787,9 +787,9 @@ without losing anything that matters.
 
 ```text
 $ cd ~/code/<project>/repo
-$ frugal-flock status          # where did I leave off? benched agents? queue?
-$ frugal-flock doctor          # anything that would waste a run? (base, agents, stale)
-$ frugal-flock smoke           # after CLI updates or days away
+$ unio status          # where did I leave off? benched agents? queue?
+$ unio doctor          # anything that would waste a run? (base, agents, stale)
+$ unio smoke           # after CLI updates or days away
 $ claude                    # hire the foreman (or resume: claude -c)
 ```
 
@@ -821,13 +821,13 @@ then propose the next step. Wait for my go.
 ### 9.3 Ending a session (3 minutes — the save ritual)
 
 ```text
-$ frugal-flock status      # 1. "running: (none)" — never leave -b runs going
-                        #    (stragglers: frugal-flock kill <task>)
+$ unio status      # 1. "running: (none)" — never leave -b runs going
+                        #    (stragglers: unio kill <task>)
 ```
 
 This one is worth taking literally: a background run left open while the
 machine slept overnight came back ten hours later having errored out. The
-run block and the ledger now flag that case (`suspended`), and `frugal-flock
+run block and the ledger now flag that case (`suspended`), and `unio
 score` keeps such runs out of its averages — but the wasted night is not
 recoverable. Close the books before you close the lid.
 
@@ -852,22 +852,22 @@ $ exit                   # 3. everything durable is on disk
 | Foreman chat | Yes via `claude -c`, but degrades — files are canonical |
 | Running `-b` tasks | NO — finish or kill before leaving |
 | Un-pushed commits | Only on this machine until `git push` |
-| Bench timers | Yes (global, in `~/.config/agentteam/off/`) |
+| Bench timers | Yes (global, in `~/.config/unio/off/`) |
 
 ---
 
 ## 10. Quota management (the bench)
 
-Subscriptions have 5-hour windows and weekly caps. Frugal Flock treats that
+Subscriptions have 5-hour windows and weekly caps. Unio treats that
 as routine, not crisis.
 
 ```text
-$ frugal-flock off codex 5h     # window burned: benched, auto-returns in 5h
-$ frugal-flock off grok 7d      # weekly cap: benched for a week
-$ frugal-flock off opencode     # benched until you say otherwise
-$ frugal-flock on codex         # manual return anytime
-$ frugal-flock agents           # installed? on/OFF, with your chosen retry time
-$ frugal-flock agents --json    # the same, machine-readable
+$ unio off codex 5h     # window burned: benched, auto-returns in 5h
+$ unio off grok 7d      # weekly cap: benched for a week
+$ unio off opencode     # benched until you say otherwise
+$ unio on codex         # manual return anytime
+$ unio agents           # installed? on/OFF, with your chosen retry time
+$ unio agents --json    # the same, machine-readable
 ```
 
 Facts worth knowing:
@@ -877,8 +877,8 @@ Facts worth knowing:
 - A benched agent is refused work everywhere (`run`, `race`, `sabotage`),
   and the foreman is instructed to reroute per its fallback table.
 - **Automatic detection:** when a run's output mentions limit language
-  ("usage limit", "rate limit", "quota", "resets at"…), Frugal Flock prints
-  the bench suggestion. With `AGENTTEAM_AUTO_OFF=1` it benches the agent
+  ("usage limit", "rate limit", "quota", "resets at"…), Unio prints
+  the bench suggestion. With `UNIO_AUTO_OFF=1` it benches the agent
   for 5h by itself — but only when the run actually FAILED, and never
   when the task text itself is about rate limits (so building a rate
   limiter cannot bench a healthy agent).
@@ -889,16 +889,16 @@ Facts worth knowing:
   show as unknown. A bench time is the retry time you chose, not a
   provider-confirmed reset. Conf lines that use shell syntax (the shipped
   ones pass the task with `"$(cat "$TASKFILE")"`) show `installed=unknown`;
-  `frugal-flock doctor` checks that each worker's program exists.
+  `unio doctor` checks that each worker's program exists.
 
 ---
 
 ## 11. Fleet intelligence — who earns their seat
 
-### 11.1 `frugal-flock score`
+### 11.1 `unio score`
 
 ```text
-$ frugal-flock score
+$ unio score
   worker          runs   ok  fail  walls   verify  merges  avg-dur
   codex             14   13     1      1     12/13       6     311s
   antigravity        6    5     1      0       4/5       2     540s
@@ -950,15 +950,15 @@ When you want head-to-head data (or just the best version of something
 important), give the same task to several vendors at once:
 
 ```text
-$ frugal-flock race T9 codex grok
+$ unio race T9 codex grok
 ```
 
-Frugal Flock copies `coord/tasks/T9.md` into `T9-codex.md` and `T9-grok.md`
+Unio copies `coord/tasks/T9.md` into `T9-codex.md` and `T9-grok.md`
 and dispatches both in the background (isolation makes this free). Then:
 
 ```text
-$ frugal-flock verify codex T9-codex     $ frugal-flock verify grok T9-grok
-$ frugal-flock diff codex                $ frugal-flock diff grok
+$ unio verify codex T9-codex     $ unio verify grok T9-grok
+$ unio diff codex                $ unio diff grok
 ```
 
 Merge exactly **one** winner; reset the losers (`git -C ../wt/grok reset
@@ -972,7 +972,7 @@ disjoint-scope rule, because only one branch survives.
 Spare quota after a merge day? Convert it into a standing red team:
 
 ```text
-$ frugal-flock sabotage opencode
+$ unio sabotage opencode
 ```
 
 This syncs the worker (so it sees the latest merged work), generates a
@@ -988,7 +988,7 @@ a normal task on the next cycle — and the failing test joins the suite.
 ### 12.3 Doubling a strong seat
 
 Worker names resolve to agents by the part before the first dash:
-`frugal-flock init codex-2` creates a second workshop that runs the same
+`unio init codex-2` creates a second workshop that runs the same
 codex CLI — two codex tasks in parallel when codex is your bottleneck.
 
 ---
@@ -997,7 +997,7 @@ codex CLI — two codex tasks in parallel when codex is your bottleneck.
 
 ### 13.1 Updating the AI CLIs
 
-Frugal Flock bundles no AI — it calls whatever binaries are on your PATH, so
+Unio bundles no AI — it calls whatever binaries are on your PATH, so
 updating a CLI updates the fleet instantly:
 
 ```text
@@ -1012,37 +1012,37 @@ $ curl -fsSL https://x.ai/cli/install.sh | bash
 versions — it has already happened three times in this system's life.
 
 ```text
-$ frugal-flock smoke
+$ unio smoke
 ```
 
 If a row FAILs with a usage/flag dump: run `<binary> --help`, find the
 renamed flag, fix that one line in `agents.conf`. Two minutes.
 
-### 13.2 Updating Frugal Flock itself
+### 13.2 Updating Unio itself
 
 Open a terminal inside your existing clone. Its local folder may still be
-called `agentteam-docs`; it does not need to be renamed.
+called `unio-docs`; it does not need to be renamed.
 
 ```text
-$ git remote set-url origin https://github.com/danielmevit/frugal-flock.git
+$ git remote set-url origin https://github.com/danielmevit/unio.git
 $ git pull --ff-only
-$ bash frugal-flock-install.sh     # never touches your agents.conf
-$ frugal-flock selftest            # mock-agent checks, zero quota
-$ frugal-flock version             # confirm what you now run
+$ bash unio-install.sh     # never touches your agents.conf
+$ unio selftest            # mock-agent checks, zero quota
+$ unio version             # confirm what you now run
 ```
 
 If Git reports a conflict or diverged history, stop and resolve it before
 reinstalling; do not discard local work to force the update.
 
 Existing projects keep their old role cards; re-running
-`frugal-flock init <worker>` inside a project refreshes that worker's card.
+`unio init <worker>` inside a project refreshes that worker's card.
 Big MASTER.md template changes: paste them into important projects by
 hand if you want them.
 
 ### 13.3 Backups, standing policy
 
 Code: `git push` at session end — that is everything that matters.
-Config: `tar czf agentteam-conf.tgz -C ~ .config/agentteam` after conf
+Config: `tar czf unio-conf.tgz -C ~ .config/unio` after conf
 changes. Full machine snapshots are optional; the rebuild path (installer
 + five logins) is under an hour.
 
@@ -1054,23 +1054,23 @@ changes. Full machine snapshots are optional; the rebuild path (installer
 
 Almost every problem yields to the same sequence:
 
-1. `frugal-flock status` — is STOP set? someone benched? something RUNNING?
-2. `frugal-flock agents` — is the binary there? is the agent benched?
-3. Read the END of the log: `frugal-flock tail <task>` (or open
+1. `unio status` — is STOP set? someone benched? something RUNNING?
+2. `unio agents` — is the binary there? is the agent benched?
+3. Read the END of the log: `unio tail <task>` (or open
    `coord/reports/<task>.log`). The last ten lines almost always name
    the real problem: a login expired, a flag renamed, a question waiting.
-4. Read the report verdict: `frugal-flock report <task>`. Empty diff?
+4. Read the report verdict: `unio report <task>`. Empty diff?
    Uncommitted work? Wall language?
 
-And remember the great divider: **`frugal-flock selftest` green means the
+And remember the great divider: **`unio selftest` green means the
 machinery is fine** — the problem is an agent, a login, or a task file.
 
 ### 14.2 Install and setup problems
 
 | Symptom | Cause and fix |
 |---|---|
-| `frugal-flock: command not found` | `~/.local/bin` not on PATH. `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc` |
-| `not inside a Frugal Flock project` | You are in a folder with no `coord/` + `wt/` above it. `cd` into the project's `repo/` (any subfolder works). |
+| `unio: command not found` | `~/.local/bin` not on PATH. `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc` |
+| `not inside a Unio project` | You are in a folder with no `coord/` + `wt/` above it. `cd` into the project's `repo/` (any subfolder works). |
 | Tab-completion doesn't work | Open a NEW terminal (completion loads per shell). Ubuntu needs the `bash-completion` package, normally preinstalled. |
 | "Python 3 is required before run/review/smoke" | Install it: `sudo apt install python3`. Only the standard library is used; nothing else is downloaded. |
 | init: "possible secrets tracked in git" | Working as intended — see section 5.3. Untrack the file, gitignore it, run init again. |
@@ -1082,10 +1082,10 @@ machinery is fine** — the problem is an agent, a login, or a task file.
 
 | Symptom | Cause and fix |
 |---|---|
-| Worker fails instantly; log shows a usage/flag dump | The CLI updated and renamed a flag. `<binary> --help`, fix the line in `agents.conf`, rerun. `frugal-flock smoke` catches this class early. |
+| Worker fails instantly; log shows a usage/flag dump | The CLI updated and renamed a flag. `<binary> --help`, fix the line in `agents.conf`, rerun. `unio smoke` catches this class early. |
 | Log says token/login expired | `<cli> logout && <cli> login` (interactive, once), rerun the task. |
-| Worker "hangs" forever | It is waiting on a question its auto-approve flags didn't cover, or an internal print-timeout (Antigravity defaults to 5 minutes — the shipped conf raises it to 55m). Read the log end; if truly stuck: `frugal-flock kill <task>`. |
-| Log mentions rate/usage limit | The window is burned. `frugal-flock off <agent> 5h` (weekly cap: `7d`), tell the foreman to reroute, keep working. |
+| Worker "hangs" forever | It is waiting on a question its auto-approve flags didn't cover, or an internal print-timeout (Antigravity defaults to 5 minutes — the shipped conf raises it to 55m). Read the log end; if truly stuck: `unio kill <task>`. |
+| Log mentions rate/usage limit | The window is burned. `unio off <agent> 5h` (weekly cap: `7d`), tell the foreman to reroute, keep working. |
 | smoke says WARN — "replied, but not ok" | The agent answered something else. Usually harmless chatter; if persistent, run the one-liner (`claude -p "say ok"` etc.) and look at the reply. |
 | smoke says MISSING binary | The CLI is not installed or not on PATH for this shell. |
 
@@ -1093,12 +1093,12 @@ machinery is fine** — the problem is an agent, a login, or a task file.
 
 | Symptom | Cause and fix |
 |---|---|
-| `worker 'x' is already running a task` | The per-worker lock: one run per workshop. `frugal-flock status` shows what; a stray background run dies with `frugal-flock kill <task>`. |
-| `STOP is active` | Someone (you) pressed the red button. `frugal-flock resume` when you understand why it was pressed. |
-| `agent 'x' is OFF (auto-on in 137m)` | Benched. Wait, reroute, or `frugal-flock on x`. |
+| `worker 'x' is already running a task` | The per-worker lock: one run per workshop. `unio status` shows what; a stray background run dies with `unio kill <task>`. |
+| `STOP is active` | Someone (you) pressed the red button. `unio resume` when you understand why it was pressed. |
+| `agent 'x' is OFF (auto-on in 137m)` | Benched. Wait, reroute, or `unio on x`. |
 | `no task file: .../T7.md` | Task name typo, or the file is in the wrong folder. Task files live in `coord/tasks/`, and you pass the name without `.md`. |
 | Background run seems gone but no report block | It was killed (or the machine slept). The log holds whatever it printed. Rerun — tasks are rerunnable by design. |
-| git complains about `index.lock` | A killed run died mid-commit. The next `frugal-flock run` on that worker clears it automatically; manually: delete the named lock file. |
+| git complains about `index.lock` | A killed run died mid-commit. The next `unio run` on that worker clears it automatically; manually: delete the named lock file. |
 | run: "post-run snapshot failed" | The worker left a FIFO, socket, device, nested repository or submodule in its workshop. The real exit code is recorded, but the result stays not ready. Remove the file and run again. |
 
 ### 14.5 Gate problems (verify / diff / merge)
@@ -1122,8 +1122,8 @@ machinery is fine** — the problem is an agent, a login, or a task file.
 
 ### 14.6 Emergency
 
-Everything on fire: `frugal-flock stop` (all new runs refused), breathe,
-read `frugal-flock status` and the last reports, `frugal-flock resume` when you
+Everything on fire: `unio stop` (all new runs refused), breathe,
+read `unio status` and the last reports, `unio resume` when you
 understand what happened. Worst case, restore your machine snapshot —
 everything committed and pushed survives in the repository.
 
@@ -1141,48 +1141,48 @@ Setup and health:
 
 | Command | What it does |
 |---|---|
-| `frugal-flock new <repo-url> [name] [workers...]` | Bootstrap a whole project: clone → dev branch → init → playbooks copied from `~/.config/agentteam/playbooks/`. |
-| `frugal-flock init [w1 w2 ...]` | Scaffold workshops + office next to your clone (default workers: codex antigravity opencode grok). Idempotent; secrets preflight; installs guard hooks. |
-| `frugal-flock agents [--json]` | Roll call: each agent — program installed (yes / no / unknown)? on or benched? Local only; no login or quota check. `--json` = machine-readable. |
-| `frugal-flock smoke` | One tiny live call per agent from a neutral folder; OK / WARN / FAIL per row. Run after every CLI update. |
-| `frugal-flock selftest` | Rehearse the entire loop with mock agents in a throwaway sandbox — zero quota. |
-| `frugal-flock doctor` | Preflight a project: base branch, agent binaries and config lines, worktree health, stale state, disk. Catches what would waste a run. Exits nonzero on an error. |
-| `frugal-flock version` | Installed version + config path. |
+| `unio new <repo-url> [name] [workers...]` | Bootstrap a whole project: clone → dev branch → init → playbooks copied from `~/.config/unio/playbooks/`. |
+| `unio init [w1 w2 ...]` | Scaffold workshops + office next to your clone (default workers: codex antigravity opencode grok). Idempotent; secrets preflight; installs guard hooks. |
+| `unio agents [--json]` | Roll call: each agent — program installed (yes / no / unknown)? on or benched? Local only; no login or quota check. `--json` = machine-readable. |
+| `unio smoke` | One tiny live call per agent from a neutral folder; OK / WARN / FAIL per row. Run after every CLI update. |
+| `unio selftest` | Rehearse the entire loop with mock agents in a throwaway sandbox — zero quota. |
+| `unio doctor` | Preflight a project: base branch, agent binaries and config lines, worktree health, stale state, disk. Catches what would waste a run. Exits nonzero on an error. |
+| `unio version` | Installed version + config path. |
 
 Work:
 
 | Command | What it does |
 |---|---|
-| `frugal-flock run <w> <task>` | Execute `coord/tasks/<task>.md` with worker `<w>` in its workshop; blocks until done. |
-| `frugal-flock run -b <w> <task>` | Same, in the background. |
-| `frugal-flock tail [task]` | Follow a run's live log (default: newest). |
-| `frugal-flock kill <task>` | Stop a background run — the whole session, agent included. |
-| `frugal-flock report <task> [lines]` | Read a task's report (default: last 60 lines). |
-| `frugal-flock verify <w> <task>` | The mechanical gate: scope check + Validate re-run + commit sanity; verdict into report, ledger and result. Exit 0 PASS, 1 FAIL, 2 INCOMPLETE. |
-| `frugal-flock diff <w> [--stat]` | The receipts: committed and uncommitted changes vs the base branch. |
-| `frugal-flock review <w> <task> [agent]` | After a current verify PASS, a DIFFERENT vendor reviews the task order + committed diff; ends `VERDICT: APPROVE` or `REQUEST-CHANGES`. Exit 0 approved, 1 changes or reviewer failed, 2 unknown or incomplete. |
-| `frugal-flock result <w> <task>` | Print the task's stored evidence as JSON (read-only, no AI call). |
-| `frugal-flock handoff <w> <task>` | Write a context packet for the next AI under `coord/handoffs/`; not a backup. |
-| `frugal-flock sync [w]` | Bring the base branch into worker branches after merges (fast-forward / merge / skip dirty / abort on conflict). |
+| `unio run <w> <task>` | Execute `coord/tasks/<task>.md` with worker `<w>` in its workshop; blocks until done. |
+| `unio run -b <w> <task>` | Same, in the background. |
+| `unio tail [task]` | Follow a run's live log (default: newest). |
+| `unio kill <task>` | Stop a background run — the whole session, agent included. |
+| `unio report <task> [lines]` | Read a task's report (default: last 60 lines). |
+| `unio verify <w> <task>` | The mechanical gate: scope check + Validate re-run + commit sanity; verdict into report, ledger and result. Exit 0 PASS, 1 FAIL, 2 INCOMPLETE. |
+| `unio diff <w> [--stat]` | The receipts: committed and uncommitted changes vs the base branch. |
+| `unio review <w> <task> [agent]` | After a current verify PASS, a DIFFERENT vendor reviews the task order + committed diff; ends `VERDICT: APPROVE` or `REQUEST-CHANGES`. Exit 0 approved, 1 changes or reviewer failed, 2 unknown or incomplete. |
+| `unio result <w> <task>` | Print the task's stored evidence as JSON (read-only, no AI call). |
+| `unio handoff <w> <task>` | Write a context packet for the next AI under `coord/handoffs/`; not a backup. |
+| `unio sync [w]` | Bring the base branch into worker branches after merges (fast-forward / merge / skip dirty / abort on conflict). |
 
 Fleet plays:
 
 | Command | What it does |
 |---|---|
-| `frugal-flock race <task> <w1> <w2> [...]` | Same task to several workers in parallel; merge exactly one winner. |
-| `frugal-flock sabotage [worker]` | The saboteur seat: syncs the worker, then sends it hunting for real bugs in freshly merged work by writing failing tests. Name a worker, or name none and the seat rotates round-robin through your fleet so routine work keeps getting fresh eyes. |
-| `frugal-flock sabotage --all` | Runs every available vendor as saboteur in turn, one after another (never in parallel — same code, and it keeps quota manageable). Use it when a feature or release is finished: each model finds different defects, and one that two models independently find is almost certainly real. |
-| `frugal-flock score [project-root]` | Per-worker scorecard from the ledger: runs, ok/fail, walls, verify rate, merges, avg duration. |
+| `unio race <task> <w1> <w2> [...]` | Same task to several workers in parallel; merge exactly one winner. |
+| `unio sabotage [worker]` | The saboteur seat: syncs the worker, then sends it hunting for real bugs in freshly merged work by writing failing tests. Name a worker, or name none and the seat rotates round-robin through your fleet so routine work keeps getting fresh eyes. |
+| `unio sabotage --all` | Runs every available vendor as saboteur in turn, one after another (never in parallel — same code, and it keeps quota manageable). Use it when a feature or release is finished: each model finds different defects, and one that two models independently find is almost certainly real. |
+| `unio score [project-root]` | Per-worker scorecard from the ledger: runs, ok/fail, walls, verify rate, merges, avg duration. |
 
 Switches:
 
 | Command | What it does |
 |---|---|
-| `frugal-flock status` | The briefing: benched agents, tasks, reports, review queue, running jobs. |
-| `frugal-flock off <agent> [30m\|5h\|7d]` | Bench an agent (no duration = until `on`). Global across projects. |
-| `frugal-flock on <agent>` | Un-bench immediately. |
-| `frugal-flock stop` / `frugal-flock resume` | Project-wide red button: refuse / allow all new runs. |
-| `frugal-flock help` | The built-in summary of all of the above. |
+| `unio status` | The briefing: benched agents, tasks, reports, review queue, running jobs. |
+| `unio off <agent> [30m\|5h\|7d]` | Bench an agent (no duration = until `on`). Global across projects. |
+| `unio on <agent>` | Un-bench immediately. |
+| `unio stop` / `unio resume` | Project-wide red button: refuse / allow all new runs. |
+| `unio help` | The built-in summary of all of the above. |
 
 Your commands (the human gate — plain git, from `repo/`):
 
@@ -1196,18 +1196,18 @@ Your commands (the human gate — plain git, from `repo/`):
 
 ## 16. Settings reference (environment variables)
 
-Set these in front of a command (`AGENTTEAM_TIMEOUT=7200 frugal-flock run …`)
+Set these in front of a command (`UNIO_TIMEOUT=7200 unio run …`)
 or export them in `~/.bashrc` to make them permanent.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `AGENTTEAM_TIMEOUT` | 3600 | Per-run time limit, seconds. |
-| `AGENTTEAM_VERIFY_TIMEOUT` | 900 | Time limit per Validate command in `verify`. |
-| `AGENTTEAM_REVIEW_TIMEOUT` | 900 | Time limit for a `review` call. |
-| `AGENTTEAM_AUTO_OFF` | off | `1` = auto-bench an agent 5h when a FAILED run mentions usage limits (suppressed when the task itself is about limits). |
-| `AGENTTEAM_AUTO_VERIFY` | off | `1` = append verify verdict; a successful worker plus failed/incomplete checks returns nonzero. |
-| `AGENTTEAM_AUTO_SYNC` | off | `1` = fast-forward a stale worker onto the base before a run (clean worktree only). Otherwise `run` just warns. |
-| `AGENTTEAM_ALLOW_SECRETS` | off | `1` = override init's tracked-secrets refusal. Know why. |
+| `UNIO_TIMEOUT` | 3600 | Per-run time limit, seconds. |
+| `UNIO_VERIFY_TIMEOUT` | 900 | Time limit per Validate command in `verify`. |
+| `UNIO_REVIEW_TIMEOUT` | 900 | Time limit for a `review` call. |
+| `UNIO_AUTO_OFF` | off | `1` = auto-bench an agent 5h when a FAILED run mentions usage limits (suppressed when the task itself is about limits). |
+| `UNIO_AUTO_VERIFY` | off | `1` = append verify verdict; a successful worker plus failed/incomplete checks returns nonzero. |
+| `UNIO_AUTO_SYNC` | off | `1` = fast-forward a stale worker onto the base before a run (clean worktree only). Otherwise `run` just warns. |
+| `UNIO_ALLOW_SECRETS` | off | `1` = override init's tracked-secrets refusal. Know why. |
 
 Files that act as settings: `coord/base` (the integration branch name),
 `coord/agents.conf` (project-specific crew), `coord/STOP` (the red
@@ -1258,16 +1258,16 @@ project's `coord/docs/`); these are the twelve invariants translated:
 | **foreman / lead / master** | The interactive AI session that plans and delegates. Never codes, never merges. |
 | **fragment** | A one-file changelog entry in `changelog.d/`, merged into CHANGELOG.md at release. |
 | **gate** | Your review-and-merge decision. The only way code enters the base branch. |
-| **handoff packet** | A folder written by `frugal-flock handoff` so another AI can continue in the same workshop: task, result, revision, changed files, next steps. Context, not a backup. |
+| **handoff packet** | A folder written by `unio handoff` so another AI can continue in the same workshop: task, result, revision, changed files, next steps. Context, not a backup. |
 | **headless** | Running non-interactively: one prompt in, work happens, output comes back, the program exits. |
-| **hook** | A small script git runs automatically around actions (commit, push, merge). Frugal Flock installs three guards. |
+| **hook** | A small script git runs automatically around actions (commit, push, merge). Unio installs three guards. |
 | **ledger** | `coord/reports/ledger.jsonl` — machine-readable history: one JSON line per run/verify/review/race/merge. Run timings are suspend-aware: `duration_s` counts only real working time, `wall_s` is clock time, and `suspended` marks a run the machine slept through. |
 | **lock** | The per-worker "one run at a time" guarantee (`coord/.locks/`). |
 | **merge** | Bringing one branch's commits into another. Yours alone. |
 | **PATH** | The list of folders your terminal searches for programs. |
 | **quota window** | A subscription's usage allowance period (commonly 5 hours, plus weekly caps). |
 | **repo / repository** | A project folder tracked by git, including its full history. |
-| **result** | `coord/results/<worker>/<task>.json` — the task's current evidence (process, validation, review), each tied to an exact revision. Printed by `frugal-flock result`. |
+| **result** | `coord/results/<worker>/<task>.json` — the task's current evidence (process, validation, review), each tied to an exact revision. Printed by `unio result`. |
 | **scope** | The exhaustive list of files a task may touch — machine-enforced via the task's `- ` lines. |
 | **smoke test** | The cheapest possible "is it alive?" check — one tiny call per agent. |
 | **task file** | A self-contained work order in `coord/tasks/`, one per task. |
@@ -1280,25 +1280,25 @@ project's `coord/docs/`); these are the twelve invariants translated:
 ## 19. Cheat sheet — one page
 
 ```text
-SETUP (once)          bash frugal-flock-install.sh ; frugal-flock selftest
-                      log in each CLI once ; frugal-flock agents ; frugal-flock smoke
-NEW PROJECT           cd ~/code && frugal-flock new <repo-url> myproj
-SESSION START         frugal-flock status ; frugal-flock doctor ; claude
-HEALTH CHECK          frugal-flock doctor    (before dispatching: catches waste)
-DISPATCH              frugal-flock run -b <worker> <task>
-WATCH                 frugal-flock status | tail <task> | kill <task>
-JUDGE                 frugal-flock verify <w> <task> ; frugal-flock diff <w>
-                      second opinion: frugal-flock review <w> <task>
-                      evidence: frugal-flock result <w> <task>
-HANDOFF               frugal-flock handoff <w> <task>   (context for the next AI)
-ACCEPT                git merge --no-ff agent/<w> -m "merge T7: ..." ; frugal-flock sync
+SETUP (once)          bash unio-install.sh ; unio selftest
+                      log in each CLI once ; unio agents ; unio smoke
+NEW PROJECT           cd ~/code && unio new <repo-url> myproj
+SESSION START         unio status ; unio doctor ; claude
+HEALTH CHECK          unio doctor    (before dispatching: catches waste)
+DISPATCH              unio run -b <worker> <task>
+WATCH                 unio status | tail <task> | kill <task>
+JUDGE                 unio verify <w> <task> ; unio diff <w>
+                      second opinion: unio review <w> <task>
+                      evidence: unio result <w> <task>
+HANDOFF               unio handoff <w> <task>   (context for the next AI)
+ACCEPT                git merge --no-ff agent/<w> -m "merge T7: ..." ; unio sync
 REJECT                git -C ../wt/<w> reset --hard dev  + re-brief the foreman
-QUOTA                 frugal-flock off <agent> 5h|7d ; frugal-flock on <agent>
-PANIC                 frugal-flock stop  ...  frugal-flock resume
-SCOREBOARD            frugal-flock score
-EXTRA PLAYS           frugal-flock race <task> w1 w2 ; frugal-flock sabotage <w>
+QUOTA                 unio off <agent> 5h|7d ; unio on <agent>
+PANIC                 unio stop  ...  unio resume
+SCOREBOARD            unio score
+EXTRA PLAYS           unio race <task> w1 w2 ; unio sabotage <w>
 SESSION END           status (nothing running) -> foreman updates board -> git push
-AFTER ANY UPDATE      frugal-flock smoke ; after frugal-flock updates: selftest + version
+AFTER ANY UPDATE      unio smoke ; after unio updates: selftest + version
 ```
 
 ---
@@ -1337,7 +1337,7 @@ table of contents.
 **Option 2 — plain pandoc**, if you prefer to drive it yourself:
 
 ```text
-pandoc docs/GUIDEBOOK.md -o agentteam-guidebook.docx --toc --toc-depth=2
+pandoc docs/GUIDEBOOK.md -o unio-guidebook.docx --toc --toc-depth=2
 ```
 
 **Option 3 — hand it to an AI assistant.** Upload or paste this file and
@@ -1387,5 +1387,5 @@ once.
 | `docs/PROTOCOL.md` | The normative spec the AIs follow (auto-installed into every project). |
 | `docs/MASTER-PLAN.md` | The original deep explanation + the phased roadmap + dictionary. |
 | `docs/TESTPLAN.md` | The break-it campaign: attack every guarantee (`examples/breakit.sh`), then real-fleet checks, then your first real build. |
-| `frugal-flock-install.sh` | The installer. Run it; don't read it. |
+| `unio-install.sh` | The installer. Run it; don't read it. |
 | `research/multi-agent-claude-review.md` | The original architecture research and terms-of-service analysis. |

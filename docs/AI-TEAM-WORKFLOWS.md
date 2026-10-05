@@ -1,6 +1,6 @@
 # Can I make different AIs work together?
 
-Yes: Frugal Flock coordinates separate coding tools on one project, with
+Yes: Unio coordinates separate coding tools on one project, with
 you in charge. Think **one place to direct several AI helpers**, not one
 new model made by merging their brains. The current control surface is a
 command line; a friendlier visual console is planned.
@@ -28,7 +28,7 @@ handoff does not transfer private conversation memory automatically.
 Use one worker and optional reviewer first. Add parallel work only when
 tasks can be separated and the extra checking is worth the usage. Keep
 provider names visible and use the tools/accounts you actually have.
-Frugal Flock does not create subscriptions or bypass their limits.
+Unio does not create subscriptions or bypass their limits.
 
 For plain-language setup, start at the [README](../README.md). For product
 comparisons, see the [sourced research](../research/COMPETITIVE-REVIEW.md).

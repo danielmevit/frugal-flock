@@ -32,10 +32,10 @@ Installed v0.4.0 continues dogfooding and is not replaced. It cannot observe
 with watch. Build a preview CLI under the enclosing workspace's tmp/:
 
 ```bash
-AGENTTEAM_BIN_DIR=/path/to/frugal-flock/tmp/activity-build/bin \
-AGENTTEAM_CONF_DIR=/path/to/frugal-flock/tmp/activity-build/conf \
-AGENTTEAM_COMPLETION_DIR=/path/to/frugal-flock/tmp/activity-build/completion \
-  bash frugal-flock-install.sh
+UNIO_BIN_DIR=/path/to/unio/tmp/activity-build/bin \
+UNIO_CONF_DIR=/path/to/unio/tmp/activity-build/conf \
+UNIO_COMPLETION_DIR=/path/to/unio/tmp/activity-build/completion \
+  bash unio-install.sh
 ```
 
 Do not set the temporary install's config override when starting the preview

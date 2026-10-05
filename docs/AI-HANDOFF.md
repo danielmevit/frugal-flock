@@ -1,4 +1,4 @@
-# Frugal Flock — continue with another AI
+# Unio — continue with another AI
 
 This handoff is portable: it requires the public repository, not the
 previous conversation, one particular model, or private coordination logs.
@@ -17,13 +17,13 @@ All project-owned files belong under one workspace, per
 
 ## Current baseline
 
-- Public repository: https://github.com/danielmevit/frugal-flock
+- Public repository: https://github.com/danielmevit/unio
 - Published implementation/README baseline: `f962b6a`. Read the latest main
   for this handoff and the research documents added afterward.
-- Product: Frugal Flock. Tagline: Small plans. Big ideas.
-- Commands: `frugal-flock`, `frgl-flc`, and compatibility `agentteam`.
-- The runtime is embedded in `agentteam-install.sh`; the canonical
-  `frugal-flock-install.sh` is a wrapper, not a second implementation.
+- Product: Unio. Tagline: Small plans. Big ideas.
+- Commands: `unio`, `unio`, and compatibility `unio`.
+- The runtime is embedded in `unio-install.sh`; the canonical
+  `unio-install.sh` is a wrapper, not a second implementation.
 - The UI and recovery flow are proposals. No frontend framework has been
   selected, and no working graphical app should be assumed to exist.
 - Existing baseline checks passed: 40 selftests, 14 adversarial probes,

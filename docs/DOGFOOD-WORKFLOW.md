@@ -1,4 +1,4 @@
-# Build Frugal Flock with Frugal Flock
+# Build Unio with Unio
 
 The owner's main objective is to implement the next milestones through the
 flock while testing it in real use. Canary success alone is not completion
@@ -15,6 +15,7 @@ For each next implementation slice:
    provider capacity stay unknown until a real approved invocation.
 2. Ask the owner before spending provider quota, stating model/effort,
    invocation count, timeout and no-retry bound. No reply means no approval.
+   (Existing explicit invocation authorization is honored without asking again.)
 3. Use the installed release's run command, with only temporary local model
    config. Do not reinstall while it builds the next source version.
 4. Preserve real worker logs/exits/partial changes. A failed or interrupted
@@ -51,7 +52,7 @@ still with no executor, through the same cadence. Put a commit-by time in
 each task so the worker's log entry fits.
 
 Owner direction, 2026-10-05: use every available AI for flock work: Codex
-(Sol 6.1, xhigh), OpenCode Go (GLM 5.3, max), the Grok CLI (high) and
+(Sol 6.1, xhigh), OpenCode Go (GLM 5.3, high), the Grok CLI (high) and
 Antigravity (Gemini 3.1 Pro, high). A different vendor may perform the
 native review, in addition to the lead's full review; the owner can act as
 the human reviewer. Each task or review is one invocation with a stated

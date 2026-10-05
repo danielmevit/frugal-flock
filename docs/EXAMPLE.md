@@ -1,6 +1,6 @@
 # The worked example — every feature in one sitting
 
-This is a real, replayable transcript of **every Frugal Flock feature** run
+This is a real, replayable transcript of **every Unio feature** run
 back-to-back against a toy Python project. Nothing here is mocked *in the
 machinery* — init, locks, hooks, verify, race, sabotage, the ledger: all
 real. The only stand-ins are the AI agents themselves, so the whole tour
@@ -9,17 +9,17 @@ costs **zero quota** and about 20 seconds.
 Replay it yourself anytime:
 
 ```bash
-bash examples/demo.sh /tmp/agentteam-demo
+bash examples/demo.sh /tmp/unio-demo
 ```
 
-(Prerequisite: `bash frugal-flock-install.sh` once, and `frugal-flock selftest`
+(Prerequisite: `bash unio-install.sh` once, and `unio selftest`
 green.)
 
 ---
 
 ## The trick: a stand-in fleet
 
-Frugal Flock reads agent commands from `coord/agents.conf` — the
+Unio reads agent commands from `coord/agents.conf` — the
 **project-scoped override** of the global config. The demo project
 carries five stand-ins there, so the global conf with your real
 subscription CLIs stays untouched:
@@ -31,7 +31,7 @@ alpha=bash -c 'sed -n "/<!-- simulate/,/simulate -->/p" "$TASKFILE" | sed "1d;\$
 beta=...same...
 # slow: a long-running agent, for the background/tail/kill drill
 slow=bash -c 'echo starting long analysis; sleep 30; echo ok'
-# critic: reviewer stand-in for `frugal-flock review`
+# critic: reviewer stand-in for `unio review`
 critic=bash -c '...prints canned findings + VERDICT: APPROVE...'
 # gamma: saboteur stand-in — hunts the freshest merge with a failing test
 gamma=bash -c '...writes tests/test_sabotage.py, commits it...'
@@ -53,10 +53,10 @@ The project: `greeter`, one `greet.py`, one test file, a CHANGELOG.
 The demo deliberately commits a `.env` with a token, then runs init:
 
 ```text
-$ frugal-flock init alpha beta gamma slow
+$ unio init alpha beta gamma slow
   .env
-frugal-flock: possible secrets tracked in git (above) — untrack/gitignore them
-first, or rerun with AGENTTEAM_ALLOW_SECRETS=1
+unio: possible secrets tracked in git (above) — untrack/gitignore them
+first, or rerun with UNIO_ALLOW_SECRETS=1
 ```
 
 Workers run auto-approved, so tracked secrets would be copied into every
@@ -64,7 +64,7 @@ worktree. init refuses until it's fixed (`git rm --cached .env`,
 gitignore it). Then:
 
 ```text
-$ frugal-flock init alpha beta gamma slow
+$ unio init alpha beta gamma slow
 project root : ~/code/greeter
 base branch  : dev   (override: edit coord/base)
 master       : ~/code/greeter/repo  (open your master CLI here)
@@ -75,14 +75,14 @@ guard hooks  : worker worktrees commit only on agent/<w>, never push
 ## Act 2 — roll call and smoke
 
 ```text
-$ frugal-flock agents
+$ unio agents
   alpha        OK       on
   beta         OK       on
   slow         OK       on
   critic       OK       on
   gamma        OK       on
 
-$ frugal-flock smoke
+$ unio smoke
   alpha        OK
   beta         OK
   slow         OK
@@ -112,12 +112,12 @@ Every `- path` line is an enforced scope pattern; every `$ command` line
 gets re-run by verify. Dispatch and check:
 
 ```text
-$ frugal-flock run alpha T1-alpha
+$ unio run alpha T1-alpha
 [alpha <- alpha] running task 'T1-alpha' (timeout 3600s), log: …/T1-alpha.log
 exit=0 duration=0s — report: …/coord/reports/T1-alpha.md
-next: frugal-flock verify alpha T1-alpha   then: frugal-flock diff alpha
+next: unio verify alpha T1-alpha   then: unio diff alpha
 
-$ frugal-flock verify alpha T1-alpha
+$ unio verify alpha T1-alpha
 == verify alpha / T1-alpha ==
 scope    : OK (2 pattern(s))
 validate : 1/1 passed
@@ -131,13 +131,13 @@ The receipts, then a **rival vendor's opinion** (`critic` reviews
 access):
 
 ```text
-$ frugal-flock diff alpha --stat
+$ unio diff alpha --stat
 == committed vs dev ==
  changelog.d/T1.md   | 1 +
  greet.py            | 4 +++-
  tests/test_greet.py | 3 +++
 
-$ frugal-flock review alpha T1-alpha critic
+$ unio review alpha T1-alpha critic
 1. NIT greet.py: docstring could mention the polite flag.
 Scope respected; tests exercise the change; no blockers.
 VERDICT: APPROVE
@@ -150,7 +150,7 @@ then re-base every workshop:
 
 ```text
 $ git merge --no-ff agent/alpha -m "merge T1: polite mode"
-$ frugal-flock sync
+$ unio sync
   alpha          fast-forwarded to dev
   beta           fast-forwarded to dev
   gamma          fast-forwarded to dev
@@ -164,7 +164,7 @@ physically rejected:
 
 ```text
 $ git switch -c evil-experiment && git commit -m "off-branch commit"
-agentteam guard: worker 'alpha' must commit on agent/alpha (currently on: evil-experiment)
+unio guard: worker 'alpha' must commit on agent/alpha (currently on: evil-experiment)
 ```
 
 (A matching pre-push hook stops workers pushing at all.)
@@ -176,7 +176,7 @@ T2 allows `tests/test_edge.py` only. The worker adds the test — and
 success; the machine disagrees:
 
 ```text
-$ frugal-flock verify beta T2-beta
+$ unio verify beta T2-beta
 == verify beta / T2-beta ==
 scope    : VIOLATION — out-of-scope changes:
              greet.py
@@ -192,23 +192,23 @@ lying report died at the gate without anyone reading a diff.
 ## Act 6 — background runs: the lock, tail, kill
 
 ```text
-$ frugal-flock run -b slow T3-slow
-started in background — poll: frugal-flock status   live: frugal-flock tail T3-slow   abort: frugal-flock kill T3-slow
+$ unio run -b slow T3-slow
+started in background — poll: unio status   live: unio tail T3-slow   abort: unio kill T3-slow
 
-$ frugal-flock status
+$ unio status
 == workers (review queue vs dev) ==
   alpha          [agent/alpha]  unreviewed commits: 0   uncommitted files: 0
   slow           [agent/slow]   unreviewed commits: 0   uncommitted files: 0     << RUNNING
 == running ==
-  T3-slow (background, pid 21656) — tail: frugal-flock tail T3-slow   abort: frugal-flock kill T3-slow
+  T3-slow (background, pid 21656) — tail: unio tail T3-slow   abort: unio kill T3-slow
 
-$ frugal-flock run slow T3-slow
-frugal-flock: worker 'slow' is already running a task (frugal-flock status)
+$ unio run slow T3-slow
+unio: worker 'slow' is already running a task (unio status)
 
-$ frugal-flock tail T3-slow
+$ unio tail T3-slow
 starting long analysis
 
-$ frugal-flock kill T3-slow
+$ unio kill T3-slow
 killed 'T3-slow' (session 21656) — partial work may sit uncommitted in the worktree
 ```
 
@@ -220,14 +220,14 @@ whole session — including the agent under `timeout`.
 Same task, two workers, in parallel; isolation makes it free:
 
 ```text
-$ frugal-flock race T4 alpha beta
-race on. compare: frugal-flock verify/diff per worker — merge exactly one winner, reject the rest.
+$ unio race T4 alpha beta
+race on. compare: unio verify/diff per worker — merge exactly one winner, reject the rest.
 
-$ frugal-flock status        # the review queue fills
+$ unio status        # the review queue fills
   alpha          [agent/alpha]  unreviewed commits: 1
   beta           [agent/beta]   unreviewed commits: 1
 
-$ frugal-flock diff alpha --stat          $ frugal-flock diff beta --stat
+$ unio diff alpha --stat          $ unio diff beta --stat
  greet.py | 4 ++++                      changelog.d/T4.md   | 1 +
                                         greet.py            | 4 ++++
                                         tests/test_greet.py | 6 ++++++
@@ -245,7 +245,7 @@ existing test passed anyway — they only used lowercase names. Spare
 quota goes hunting:
 
 ```text
-$ frugal-flock sabotage gamma
+$ unio sabotage gamma
 syncing 'gamma' so the saboteur sees the latest merged work:
   gamma          fast-forwarded to dev
 saboteur dispatched: SAB-20260719-221927-gamma
@@ -266,17 +266,17 @@ the launcher-bug lesson, institutionalized.
 ## Act 9 — bench and the red button
 
 ```text
-$ frugal-flock off alpha 5h
+$ unio off alpha 5h
 agent 'alpha' OFF — auto-on in 300m
-$ frugal-flock run alpha T5-alpha
-frugal-flock: agent 'alpha' is OFF (auto-on in 300m) — reassign the task or: frugal-flock on alpha
-$ frugal-flock on alpha
+$ unio run alpha T5-alpha
+unio: agent 'alpha' is OFF (auto-on in 300m) — reassign the task or: unio on alpha
+$ unio on alpha
 
-$ frugal-flock stop
+$ unio stop
 STOP set — new runs blocked (running tasks finish or hit timeout)
-$ frugal-flock run alpha T5-alpha
-frugal-flock: STOP is active (frugal-flock resume to clear)
-$ frugal-flock resume
+$ unio run alpha T5-alpha
+unio: STOP is active (unio resume to clear)
+$ unio resume
 ```
 
 ## Act 10 — the fix task closes the loop
@@ -285,12 +285,12 @@ T5 fixes the saboteur's finding, corrects the old test that had encoded
 the bug as truth, and adopts the sabotage test into the suite:
 
 ```text
-$ frugal-flock run alpha T5-alpha && frugal-flock verify alpha T5-alpha
+$ unio run alpha T5-alpha && unio verify alpha T5-alpha
 scope    : OK (3 pattern(s))
 validate : 1/1 passed
 verdict  : PASS
 $ git merge --no-ff agent/alpha -m "merge T5: saboteur finding fixed"
-$ frugal-flock sync
+$ unio sync
 ```
 
 ## Act 11 — the ledger remembers everything

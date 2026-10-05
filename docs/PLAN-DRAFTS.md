@@ -49,7 +49,7 @@ manual_drafts true/false and a random token only in enabled mode. Host must
 match the bound address; any Origin must match. No CORS permission is given.
 
 POST /api/plans requires an exact same-origin Origin and one matching
-X-Frugal-Flock-Session header. It accepts only application/json with one
+X-Unio-Session header. It accepts only application/json with one
 request field, explicit nonambiguous Content-Length at most 32 KiB, no
 Transfer-Encoding, valid UTF-8/JSON and no duplicate JSON fields. Body reads
 have a five-second deadline. A complete valid save returns 201 and the

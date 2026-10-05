@@ -1,0 +1,1 @@
+* **Documentation**: Updated explicit documentation files to reflect the Unio rename, removed obsolete aliases, and regenerated Word manuals (GUIDEBOOK.docx and TESTPLAN.docx) using tools/make-docx.sh. Preserved historical context and the legacy path `/mnt/d/Vibe Coding/_vm/frugal-flock`.

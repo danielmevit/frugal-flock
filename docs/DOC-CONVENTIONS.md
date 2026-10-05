@@ -79,7 +79,7 @@ lines with a space, and pandoc reproduces it correctly (several docs here
 rely on it):
 
 ```text
-Re-run `frugal-flock init
+Re-run `unio init
 <worker>` to refresh that worker's card.
 ```
 
@@ -90,7 +90,7 @@ Just make sure it is closed.
 A `|` inside a table cell splits it into two columns. Write `\|`:
 
 ```text
-| `frugal-flock off <agent> [30m\|5h\|7d]` | Bench an agent. |
+| `unio off <agent> [30m\|5h\|7d]` | Bench an agent. |
 ```
 
 Pipes inside code spans are safe, but escaping is harmless and clearer.
@@ -126,12 +126,12 @@ detail, including a prompt for converting by AI instead.
 
 ## When PROTOCOL.md changes
 
-`docs/PROTOCOL.md` is duplicated inside `agentteam-install.sh` as the
+`docs/PROTOCOL.md` is duplicated inside `unio-install.sh` as the
 template that gets installed into every project's `coord/docs/`. The two
 copies must stay byte-identical. After editing either one:
 
 ```text
-bash frugal-flock-install.sh                                  # rewrite templates
-cp ~/.config/agentteam/templates/PROTOCOL.md docs/PROTOCOL.md
-diff ~/.config/agentteam/templates/PROTOCOL.md docs/PROTOCOL.md   # must be empty
+bash unio-install.sh                                  # rewrite templates
+cp ~/.config/unio/templates/PROTOCOL.md docs/PROTOCOL.md
+diff ~/.config/unio/templates/PROTOCOL.md docs/PROTOCOL.md   # must be empty
 ```
