@@ -886,12 +886,15 @@ Facts worth knowing:
   quota belongs to the subscription, not to a project.
 - A benched agent is refused work everywhere (`run`, `race`, `sabotage`),
   and the foreman is instructed to reroute per its fallback table.
-- **Automatic detection:** when a run's output mentions limit language
-  ("usage limit", "rate limit", "quota", "resets at"…), Unio prints
-  the bench suggestion. With `UNIO_AUTO_OFF=1` it benches the agent
-  for 5h by itself — but only when the run actually FAILED, and never
-  when the task text itself is about rate limits (so building a rate
-  limiter cannot bench a healthy agent).
+- **Limit observations:** a failed run's normalized final 60 log lines
+  can trigger a warning and a suggested bench command. Failure for this
+  helper means a nonzero actual exit or no commits and no uncommitted
+  files. The warning and ledger `wall=1` mean suspected limit language;
+  printed file text can also match. The raw log keeps the evidence.
+  Worker output never benches an agent. `UNIO_AUTO_OFF` is retained for
+  compatibility with no effect; use `unio off` explicitly after checking
+  the provider's actual state. Successful work stays `wall=0` regardless
+  of printed limit phrases, and receipts retain the real exit.
 - Boring work goes to the bench-warmers; interesting work *waits* for the
   strong agents to come back.
 - `agents` is a local check only: it never runs an agent and never asks a
@@ -1216,7 +1219,7 @@ or export them in `~/.bashrc` to make them permanent.
 | `UNIO_TIMEOUT` | 3600 | Per-run time limit, seconds. |
 | `UNIO_VERIFY_TIMEOUT` | 900 | Time limit per Validate command in `verify`. |
 | `UNIO_REVIEW_TIMEOUT` | 900 | Time limit for a `review` call. |
-| `UNIO_AUTO_OFF` | off | `1` = auto-bench an agent 5h when a FAILED run mentions usage limits (suppressed when the task itself is about limits). |
+| `UNIO_AUTO_OFF` | ignored | Accepted for compatibility; worker output never changes availability. Use explicit `unio off` / `unio on`. |
 | `UNIO_AUTO_VERIFY` | off | `1` = append verify verdict; a successful worker plus failed/incomplete checks returns nonzero. |
 | `UNIO_AUTO_SYNC` | off | `1` = fast-forward a stale worker onto the base before a run (clean worktree only). Otherwise `run` just warns. |
 | `UNIO_ALLOW_SECRETS` | off | `1` = override init's tracked-secrets refusal. Know why. |

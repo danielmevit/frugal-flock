@@ -61,10 +61,13 @@ survived) or **CRACKED** (it did not). The full run:
   HELD    push blocked (no remote / guard) — nothing left the machine
   HELD    base branch 'dev' is untouched (still 1 commit)
 
-== GUARANTEE 5 — quota walls (failure protocol): detected and benched ==
-  HELD    wall language detected and surfaced
-  HELD    AUTO_OFF benched the walled agent
-  HELD    a benched agent is refused new work
+== GUARANTEE 5 — suspected limits: warn without changing availability; bench explicitly ==
+  HELD    the failed mock keeps its real exit (1)
+  HELD    the warning reports suspected limit language, not a confirmed quota
+  HELD    UNIO_AUTO_OFF=1 leaves availability unchanged after worker output
+  HELD    explicit unio off benches the mock agent
+  HELD    the explicitly benched agent is refused new work
+  HELD    explicit unio on restores the original availability
 
 == GUARANTEE 6 — the human gate (I3): only YOU merge; merges are logged ==
   HELD    owner merge advanced dev (the good branch)
@@ -88,14 +91,16 @@ survived) or **CRACKED** (it did not). The full run:
   HELD    doctor runs to a verdict on a live project
 
 == VERDICT ==
-held: 23    cracked: 0
-unio held its weight under every attack.
+held: 26    cracked: 0
+Unio held its weight under every attack.
 ```
 
 If it ends `cracked: 0`, the machinery is sound and it keeps the sandbox
 only when something breaks (so you can inspect it). Read the script
 itself — it is short, and seeing *how* each attack is mounted is half the
-value.
+value. Guarantee 5 checks a suspected-limit warning, unchanged availability
+and explicit operator benching. Worker text never confirms quota or benches
+an agent; `UNIO_AUTO_OFF` is accepted with no effect.
 
 ### The honest limit Part A also teaches
 

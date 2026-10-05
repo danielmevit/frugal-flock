@@ -150,7 +150,7 @@ runs the codex CLI, so you can have two codex workshops.
 | `UNIO_TIMEOUT=7200 unio run ...` | Per-run time limit in seconds (default 3600). |
 | `UNIO_VERIFY_TIMEOUT=900` | Per-command time limit for verify's Validate re-runs. |
 | `UNIO_REVIEW_TIMEOUT=900` | Time limit for a cross-vendor review call. |
-| `UNIO_AUTO_OFF=1` | Auto-bench an agent for 5h when a FAILED run's output mentions usage limits. (A successful run on a task that is itself about rate limits no longer benches anyone.) |
+| `UNIO_AUTO_OFF` | Accepted for compatibility with no effect. A failed run can warn about suspected limit language; check the provider and use `unio off` explicitly. Worker output never changes availability. |
 | `UNIO_AUTO_VERIFY=1` | Append verification after the run. A successful worker plus failed/incomplete checks returns the check's nonzero exit; worker failures keep their own exit. This is not approval. |
 | `UNIO_AUTO_SYNC=1` | Fast-forward a stale worker onto the base branch before a run (when its worktree is clean), so it never builds against outdated code. Without it, `run` just warns. |
 | `UNIO_ALLOW_SECRETS=1` | Override init's refusal when secret-looking files are tracked. Know exactly why before using it. |

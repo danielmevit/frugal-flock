@@ -201,10 +201,12 @@ unio agents          # shows on/OFF + auto-on countdown per agent
 ```
 
 Mechanics: `run` refuses OFF agents with a clear message, expired timers
-clear themselves, `status` lists benched agents first. After every run the
-log is scanned for limit language ("rate limit", "usage limit", "quota",
-"resets at"...) and prints the exact `off` command to use; set
-`UNIO_AUTO_OFF=1` to auto-bench an agent for 5h when that fires.
+clear themselves, `status` lists benched agents first. A failed run's
+normalized final 60 log lines can trigger a suspected-limit warning and
+an `off` suggestion. A nonzero exit or empty work qualifies for this
+helper; the real exit remains in receipts. Check actual provider state
+before benching explicitly. `UNIO_AUTO_OFF` has no effect: worker output
+never changes availability, and the warning is not confirmed quota data.
 MASTER.md tells the master to check availability before delegating and
 reroute by the fallback policy (codex→claude/grok, antigravity→codex,
 grok→codex, opencode→any idle) — work never queues on a dead agent.

@@ -102,12 +102,16 @@ an arbitrary shell endpoint or copy provider tokens into browser storage.
 Status: current limitation; model honestly in the UI. Since M1,
 `agents --json` reports sign-in and capacity as unknown instead of guessing.
 
-The engine provides binary detection, manual/timed benching, and optional
-failed-run limit-message detection. These are not proof of a valid login
+The engine provides binary detection, manual/timed benching, and heuristic
+failed-run limit-message warnings. These are not proof of a valid login
 or a provider's remaining allowance. An operator-selected retry interval
 is not a confirmed provider reset time. See `cmd_agents`, `cmd_off`, and
-the `LIMIT_RE`/`UNIO_AUTO_OFF` handling in
+the `LIMIT_RE` handling in
 [the engine](../unio-install.sh).
+`UNIO_AUTO_OFF` is accepted for compatibility with no effect; worker
+output never changes availability. Supported remaining-quota inputs and
+future lead checks are described in the
+[quota monitoring roadmap](PROVIDER-QUOTA-MONITORING.md).
 
 Required states: installed, sign-in needed, available, limited, unavailable,
 or unknown, with evidence and timestamps when available. Show no invented

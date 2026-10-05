@@ -267,12 +267,12 @@ access) drive the system with one program, `unio`:
 | `unio on antigravity` | "Back in the game." |
 | `unio stop` / `unio resume` | The red button: block ALL new runs project-wide / release it. |
 
-Two safety behaviors run automatically. Every result report ends with the
-work log's tail plus a git status — and the log is scanned for phrases like
-"usage limit" or "resets at"; if found, it prints the exact `off` command
-you should probably run (or benches the agent by itself for 5 hours if you
-set `UNIO_AUTO_OFF=1`). And a work order for a benched agent is
-refused loudly, never silently queued.
+Every result report includes the work log's normalized final 60 lines and
+the checkout state. A failed run with limit language in that window can
+warn and suggest an `off` command. This is suspected language, including
+possibly printed file text, so check the provider before benching manually.
+`UNIO_AUTO_OFF` has no effect; worker output never changes availability.
+A work order for an explicitly benched agent is refused loudly.
 
 ---
 
