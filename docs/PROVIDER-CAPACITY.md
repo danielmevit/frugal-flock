@@ -29,6 +29,21 @@ why repeated context also matters. Avoid reading the entire historical log
 into every task; provide the relevant newest entries and a self-contained
 scope. Keep complete review material when correctness requires it.
 
+## Worker runs and provider requests
+
+One worker or reviewer invocation means one pinned CLI session for its task.
+That session can exchange many model requests while reading files, editing,
+running tools and checking results. One invocation is not one provider
+request, one token budget or one completed task. Historical private receipts
+that count `invocations` or `provider_invocations` count those CLI sessions;
+they do not establish the number of underlying model requests.
+
+Use the provider's actual usage meter for allowance consumption. Preserve
+task attempts, observed model requests/tokens and quota readings as separate
+measurements. Repeated context and high effort can consume allowance even
+while the lead sees only one active worker. The one-invocation rule prevents
+automatic task retries; it does not cap that session to a single model turn.
+
 ## Public Go limits, checked 2026-10-05
 
 [OpenCode's official Go documentation](https://opencode.ai/docs/go/) defines
