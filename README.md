@@ -8,21 +8,29 @@ you already have.
 
 ## What this makes possible
 
-- **Bring your agents together.** Connect tools such as Claude Code,
-  Codex, Grok, Antigravity and OpenCode in one shared project workspace.
-- **Let one agent coordinate the work.** A lead plans the next steps,
-  delegates tasks and brings in other agents when their help is useful.
-- **Make progress in parallel.** Agents can work on separate tasks at the
-  same time, each in its own copy of the project.
-- **Improve the work through independent reviews.** Agents from different
-  AI labs can review changes in several rounds, helping find bugs,
-  security issues and opportunities to improve the code and product.
-- **See what is ready and what needs attention.** Keep tasks, progress,
-  checks and review findings together so decisions have evidence behind them.
-- **Keep work moving with clear handoffs.** Preserve results and next steps
-  so another agent can continue when a session ends or a usage limit is reached.
-- **Stay in control.** Set the goal, pause or stop new work, and decide which
-  changes enter your project.
+- **Bring your AI agents into one team.** Connect agents from different AI
+  labs through tools such as Claude Code, Codex, Grok, Antigravity and
+  OpenCode. Give them a shared workspace for your project.
+- **Give one AI agent the lead.** The lead turns your goal into manageable
+  tasks, chooses workers and delegates the work. It coordinates their next
+  steps within the plan you have approved.
+- **Work on several tasks at once.** Workers can build separate parts of
+  the project in parallel, each in its own copy. The lead keeps related
+  tasks in order and brings their results together for review.
+- **Strengthen code and security with worker reviews.** AI agent workers
+  from different AI labs can check one another's changes independently.
+  Multiple review rounds help find bugs, security issues and ways to improve
+  the code and product before you accept the work.
+- **See what is finished and what needs attention.** Keep tasks, progress,
+  checks and review findings together. See which changes passed their
+  checks and which still need fixes or a decision.
+- **Carry work forward when limits interrupt.** Clear handoffs record
+  completed work, checks and next steps. The lead can pass the next task
+  to another available agent when a session ends or an agent reaches its
+  usage limit, reducing the need to explain the project again.
+- **Keep control from start to finish.** You set the direction and decide
+  how much freedom the lead has. Pause new work when needed, ask for changes
+  and choose what becomes part of your project.
 
 **Available today:** a command-line tool for Linux, including Windows
 through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
