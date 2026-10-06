@@ -46,7 +46,7 @@ is preserved as an earlier checkpoint.
   its command-spelling corrections are included in the final commit.
 - The first native worker stopped at a provider limit; its edits were
   preserved and handed to a finishing worker. History is in
-  `../coord/reports/FF-BRAND-codex.md`; the latest CLI log is in the sibling
+  `coord/reports/FF-BRAND-codex.md` in the enclosing workspace; the latest CLI log is in the sibling
   `.log` file. That interrupted run is historical, not the final task
   outcome; see the later verification and completion handoff in the report.
 - Existing local commits from before this session were preserved. The

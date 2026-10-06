@@ -5,8 +5,7 @@ says otherwise, workspace paths below start at the enclosing workspace
 and `docs/` paths start at the repository root. Read the development
 [index](README.md) for the roadmap and standing workspace rules.
 
-From a worker checkout root, read newest ../../coord/AGENT-LOG.md first;
-from the main checkout root, read ../coord/AGENT-LOG.md. History there is append-only. Read actual newer worker branches
+Read newest coord/AGENT-LOG.md in the enclosing workspace first. History there is append-only. Read actual newer worker branches
 before changing anything; never reset or overwrite them. This living prompt
 keeps current decisions; complete receipts and prior notes remain private.
 
@@ -15,18 +14,30 @@ The dated living checkpoint below is current; Codex lead (GPT-6; exact serving v
 ## Current checkpoint
 
 <!-- LIVE_CHECKPOINT_START -->
-Approved milestones checkpoint from date: 2026-10-06 10:29:48 +0200; partial: documentation cleanup ready for integration; Opus prompt source task still active. Reorganized internal Markdown under docs/development with navigation indexes; public-facing root files retained. Tests: All existing document lint and all four nested docs PASS; 48 local links checked with no missing target; private helper syntax PASS. Default recursive docs lint correction added to the undispatched shipping draft. Next: Commit the reviewed documentation-only migration, then collect the existing Opus source result and separate Grok/GLM reviews. Receipts: tmp/unio-next/.
+Approved milestones checkpoint from date: 2026-10-06 10:43:26 +0200; partial: candidate requires verification and review. Completed one native Unio task attempt PROMPT-TRANSPORT-1 on claude-prompt-transport. Tests: Actual native exit 0; run receipt and raw worker log preserved; no retry. Next: Inspect actual diff and native result; verify before independent cross-company review. Receipts: tmp/unio-next/.
 <!-- LIVE_CHECKPOINT_END -->
 
-## Owner resume after capacity reset
+## Current source and completed service review
 
-The owner resumed on 2026-10-06 after reporting the five-hour limit reset.
-Preserved Opus candidate cbb6e958b10bc81104e03518633cbf4d46e102a0 is clean
-with actual native source exit 0. Fresh native verification now precedes
-independent simultaneous Gemini/Google and Grok/xAI reviews on identical
-material. Their wrappers resume before each call and stop finally. Read
-../../coord/LEAD-HANDOFF-AFTER-OPUS-2026-10-06.md for preserved evidence;
-its session pause is superseded by this explicit owner resume.
+The owner resumed on 2026-10-06. Browser service correction cbb6e958 was
+verified and reviewed independently by Grok/xAI and GLM/Z.ai, then by the
+lead. All native checks/reviews passed; the full merged-tree gate passed
+and main was pushed at 2e20effd44b26a04ada58dc0e0c61be32744d599.
+The owner-authorized supplemental Gemini restart also approved, but ran
+Validate commands despite its read-only instruction. Preserve that deviation
+and the original E2BIG startup failure; Gemini is supplemental evidence.
+These service reviews are complete. Do not dispatch them again.
+
+The one Opus-high PROMPT-TRANSPORT-1 product task has committed 6064d6c;
+its final source-process exit is still pending at this checkpoint. Its
+controller performs fresh native verify and separate Grok/GLM reviews only
+after actual successful source completion. API, UI and the actual browser
+demonstration remain pending. Read the newest local log and actual receipts
+before resuming any controller; never duplicate an existing invocation.
+
+Read coord/LEAD-HANDOFF-AFTER-OPUS-2026-10-06.md in the enclosing workspace
+for the preserved earlier handoff. Its pause and scheduled service reviews
+are historical and superseded by the resume/completed service evidence.
 
 ## Milestones and versions
 
@@ -71,8 +82,7 @@ schema-one test name and bare fragment are nonblocking shipping-polish notes.
 
 ## Delegation and reviews
 
-Private controllers/config/receipts: ../../tmp/unio-next/ from workers,
-../tmp/unio-next/ from main. manifest.json records pins and task lineage.
+Private controllers/config/receipts: tmp/unio-next/ in the enclosing workspace. manifest.json records pins and task lineage.
 run-task.py and control.py resume before calls and stop finally; use one
 invocation per frozen task/review, no automatic paid retries. Concrete
 reproduced defects get newly scoped corrective task IDs. GLM always high.
@@ -83,7 +93,7 @@ concurrently on exact disposable native views; compare candidate/base/task/
 worktree hashes and full material bytes. prepare-review-view.py includes
 reports/locks and genuine coordination/evidence snapshots; parallel-reviews.py
 prepares both before dispatch. Do not provide one reviewer another's verdict.
-Original controller-browser-service-1 records actual timeout 124 and preserved commit bb722da. Corrective task BROWSER-SERVICE-FIX-1 repairs reproduced Unicode storage preflight failure; Owner changed the undispatched final pair to Gemini/Google and Grok/xAI; review follows in the next resumed session.
+Original controller-browser-service-1 records actual timeout 124 and preserved commit bb722da. Corrective task BROWSER-SERVICE-FIX-1 repaired the reproduced Unicode storage preflight failure; its completed Grok/GLM final reviews and supplemental owner-authorized Gemini review are recorded above. No further service review is scheduled.
 verify-then-parallel-reviews.py requires its successful exit/clean commit;
 freeze-dependent-browser.py requires each upstream full gate and exact push.
 browser-service-lead-probes.py runs only on a committed source candidate.
@@ -129,46 +139,45 @@ actual outcome/diff and author final approval before prompt-fix integration.
 
 ## Capacity and preserved owner instructions
 
-Newest supported zero-model reading at 2026-10-06 09:07:25 +0200 confirms
-99% five-hour and 14% weekly remaining after the owner reported reset.
-See codex-capacity-after-five-hour-reset-20261006.json; older dated readings
-below are historical. Keep source and independent reviews delegated.
+The single latest supported reading recorded here is 2026-10-06 10:10:05
++0200: 63% five-hour and 8% weekly remaining, from
+codex-capacity-after-service-reviews-20261006.json. It is dated evidence,
+not guaranteed live headroom. Reserve OpenAI quota for lead oversight and
+refresh supported metadata before new OpenAI assignments. Other providers'
+remaining capacity is Unknown until supported metadata or a dated owner
+reading establishes it. A fresh conversation does not reset account limits.
 
-Newest supported zero-model capacity reading: 2026-10-06 00:23:28 +0200,
-14% five-hour and 15% weekly remaining. Receipt codex-capacity-after-owner-
-resume-20261006.json. The owner explicitly requested delegating implementation
-to Opus to preserve lead tokens; current Opus correction is already active.
-Independent reviews use other providers; lead retains final oversight.
+These readings are historical; none is the current meter:
 
-Read docs/PROVIDER-CAPACITY.md and docs/PROVIDER-QUOTA-MONITORING.md. A fleet
-meter is roadmap work, not implemented. Codex's supported native read-only
-probe at 21:32:44 +0200 reported 99% five-hour and 29% weekly remaining;
-this is dated evidence, not current guaranteed headroom. Refresh before a
-new Codex batch with codex-capacity-probe.py --receipt-name NEW.json (unique).
+| Observed time (+0200) | Five-hour remaining | Weekly remaining | Receipt |
+| --- | --- | --- | --- |
+| 2026-10-06 09:07:25 | 99% | 14% | codex-capacity-after-five-hour-reset-20261006.json |
+| 2026-10-06 00:23:28 | 14% | 15% | codex-capacity-after-owner-resume-20261006.json |
+| 2026-10-05 23:33:11 | 44% | 20% | codex-capacity-during-browser-service.json |
+| 2026-10-05 22:44:26 | 83% | 26% | codex-capacity-after-session-restart.json |
+| 2026-10-05 21:32:44 | 99% | 29% | codex-capacity-probe.json |
+
+Read docs/PROVIDER-CAPACITY.md and docs/PROVIDER-QUOTA-MONITORING.md from
+the repository root. A fleet meter is roadmap work, not implemented.
 Claude status-line fields are candidate automatic inputs; no current live
 reading. Go console requires manual reading until a supported API is verified;
 Gemini/Grok remaining capacity Unknown. Tokens/cost and a reset report are
 not remaining quota. Never enable paid fallback, change billing or re-login.
 
-Owner authorized available AIs, including Opus 5.5 high. Pins: Codex
- gpt-6.1-sol/xhigh; Gemini gemini-3.1-pro-high/high; Grok grok-4.7/high;
+The owner authorized available AIs, including Opus 5.5 high, and requested
+worker delegation to preserve lead quota. Pins: Codex gpt-6.1-sol/xhigh;
+Gemini gemini-3.1-pro-high/high; Grok grok-4.7/high;
 GLM opencode-go/glm-5.3/high; Opus claude-opus-5-5/high. Retain actual
 structured model evidence when available. No paid model calibration retries.
-The owner's usage screenshot is preserved under artifacts/provider-usage/
-with its literal counts/costs and limits/unknowns documented in capacity notes.
-A newer native probe at 22:44:26 +0200 reported 83% five-hour and 26% weekly
-remaining; see codex-capacity-after-session-restart.json. Read the newest
-actual receipt before assignment rather than treating these as live meters.
-At 23:33:11 +0200 the read-only probe reported 44% five-hour and 20%
-weekly remaining; codex-capacity-during-browser-service.json is now newest.
-Undispatched review pairs use other companies to reserve OpenAI headroom
-for the lead and concrete corrections; manifest.json records the choices.
+The usage screenshot remains under artifacts/provider-usage/ in the workspace
+with literal counts/costs and limits/unknowns documented in capacity notes.
 
 Quote paths; they contain spaces. Get all log timestamps from date. Never
 use pgrep -f/pkill -f with a self-matching pattern. No CodeGraph directory
 exists, so skip CodeGraph. Each checkpoint updates append-only AGENT-LOG and
-this own prompt. Frequent short owner updates; status questions steer the
-active work and do not cancel the five milestones.
+this own prompt. Frequent short owner updates; status questions steer active
+work and do not cancel the approved milestones. Continue source work and
+publication only within the current owner-authorized scope.
 
 ## Rename, installation and shipping boundaries
 
