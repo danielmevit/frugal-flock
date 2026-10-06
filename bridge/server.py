@@ -141,7 +141,14 @@ class ActivityHandler(BaseHTTPRequestHandler):
             if not self.token_allowed():
                 return
             if self.path == '/api/jobs':
-                return self.respond(200, json.dumps(dict(schema_version=1, jobs=self.server.execution.jobs()), ensure_ascii=True).encode())
+                try:
+                    return self.respond(200, json.dumps(dict(schema_version=1, jobs=self.server.execution.jobs()), ensure_ascii=True).encode())
+                except Exception as e:
+                    status = getattr(e, 'status', 503)
+                    code = getattr(e, 'code', 'native_unavailable')
+                    if type(e).__name__ != 'ExecutionError':
+                        status, code = 503, 'native_unavailable'
+                    return self.error_response(status, code)
             identity = self.path.removeprefix('/api/jobs/')
             if re.fullmatch('[0-9a-f]{32}', identity) is None:
                 return self.error_response(400, 'invalid_request')
@@ -291,8 +298,11 @@ def open_preview(origin):
 
 
 def serve_preview(server, open_browser=False):
-    mode = 'manual draft preview' if getattr(server, 'plans', None) is not None else 'read-only Activity preview'
-    print(server.origin + ' — ' + mode + '; no provider dispatch', flush=True)
+    if getattr(server, 'execution', None) is not None:
+        print(server.origin + ' — explicit execution preview; an approved job can start one configured worker run and one configured review', flush=True)
+    else:
+        mode = 'manual draft preview' if getattr(server, 'plans', None) is not None else 'read-only Activity preview'
+        print(server.origin + ' — ' + mode + '; no provider dispatch', flush=True)
     if open_browser:
         # A slow desktop opener must not delay the listening observation service.
         threading.Thread(target=open_preview, args=(server.origin,), daemon=True).start()

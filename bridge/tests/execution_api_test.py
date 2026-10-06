@@ -230,5 +230,98 @@ class ExecutionAPITests(unittest.TestCase):
         }), self.headers())
         self.assertEqual(code, 400)
 
+    def test_query_strings_refused(self):
+        code, _, draft = self.request('POST', '/api/plans', json.dumps({'request': 'foo4'}), self.headers())
+        request_key = uuid.uuid4().hex
+        
+        # GET /api/jobs
+        self.assertEqual(self.request('GET', '/api/jobs?q=1', headers=self.headers())[0], 400)
+        
+        # POST /api/jobs
+        self.assertEqual(self.request('POST', '/api/jobs?q=1', json.dumps({'draft_id': draft['id'], 'expected_hash': draft['content_sha256'], 'request_key': request_key}), self.headers())[0], 404)
+        
+        # Create a job to test ID routes
+        code, _, job = self.request('POST', '/api/jobs', json.dumps({'draft_id': draft['id'], 'expected_hash': draft['content_sha256'], 'request_key': request_key}), self.headers())
+        job_id = job['job']['id']
+        
+        # GET /api/jobs/ID
+        self.assertEqual(self.request('GET', f'/api/jobs/{job_id}?q=1', headers=self.headers())[0], 400)
+        
+        # POST /api/jobs/ID/cancel
+        self.assertEqual(self.request('POST', f'/api/jobs/{job_id}/cancel?q=1', '{}', self.headers())[0], 404)
+
+    def test_unknown_missing_fields_post(self):
+        code, _, draft = self.request('POST', '/api/plans', json.dumps({'request': 'foo5'}), self.headers())
+        request_key = uuid.uuid4().hex
+        valid_body = {'draft_id': draft['id'], 'expected_hash': draft['content_sha256'], 'request_key': request_key}
+        
+        # missing field
+        missing = {k: v for k, v in valid_body.items() if k != 'draft_id'}
+        self.assertEqual(self.request('POST', '/api/jobs', json.dumps(missing), self.headers())[0], 400)
+        
+        # unknown field
+        unknown = dict(valid_body, unknown='field')
+        self.assertEqual(self.request('POST', '/api/jobs', json.dumps(unknown), self.headers())[0], 400)
+
+    def test_get_routes_origin_cache_control(self):
+        # omitted Origin accepted, Cache-Control no-store
+        headers = self.headers()
+        del headers['Origin']
+        code, h, _ = self.request('GET', '/api/jobs', headers=headers)
+        self.assertEqual(code, 200)
+        self.assertEqual(h.get('Cache-Control'), 'no-store')
+        
+        # mismatched Origin rejected
+        headers['Origin'] = 'http://evil.example'
+        code, _, _ = self.request('GET', '/api/jobs', headers=headers)
+        self.assertEqual(code, 403)
+
+    def test_list_route_error_mapping(self):
+        from unittest.mock import patch
+        with patch.object(self.execution, 'jobs', side_effect=ValueError("Test Value Error")):
+            code, _, body = self.request('GET', '/api/jobs', headers=self.headers())
+            self.assertEqual(code, 503)
+            self.assertEqual(body['error'], 'native_unavailable')
+            
+        from execution_service import ExecutionError
+        with patch.object(self.execution, 'jobs', side_effect=ExecutionError('storage_unavailable')):
+            code, _, body = self.request('GET', '/api/jobs', headers=self.headers())
+            self.assertEqual(code, 503)
+            self.assertEqual(body['error'], 'storage_unavailable')
+
+    def test_startup_mode_labels(self):
+        from unittest.mock import patch
+        import io
+        import sys
+        
+        class MockServer:
+            origin = 'http://127.0.0.1:8000'
+            def serve_forever(self): pass
+            def server_close(self): pass
+        
+        # execution mode
+        srv = MockServer()
+        srv.execution = True
+        out = io.StringIO()
+        with patch('sys.stdout', out):
+            server.serve_preview(srv)
+        self.assertIn('explicit execution preview; an approved job can start one configured worker run and one configured review', out.getvalue())
+        self.assertNotIn('no provider dispatch', out.getvalue())
+        
+        # manual mode
+        srv = MockServer()
+        srv.plans = True
+        out = io.StringIO()
+        with patch('sys.stdout', out):
+            server.serve_preview(srv)
+        self.assertIn('manual draft preview; no provider dispatch', out.getvalue())
+        
+        # default read-only mode
+        srv = MockServer()
+        out = io.StringIO()
+        with patch('sys.stdout', out):
+            server.serve_preview(srv)
+        self.assertIn('read-only Activity preview; no provider dispatch', out.getvalue())
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

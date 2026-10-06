@@ -116,4 +116,14 @@ provider worker was used for this UI source step.
 
 ## Execution mode
 
-The explicit execution mode requires `--enable-execution` (which also enables manual drafts) and all of its concrete startup arguments: `--worker`, `--reviewer`, `--worker-company`, `--reviewer-company`, `--config-dir`, and `--task-template`. This enforces a strict trusted-host/local-session boundary. The fixed startup configuration dictates the exact engine, project, worker, reviewer, companies, template and configurations to use. The HTTP request and local browser session can never provide or select paths, identifiers, bindings or templates. The loopback UI can only instruct the service to act on the immutable startup configuration and its tracked draft bindings.
+The explicit execution mode requires `--enable-execution` (which also enables manual drafts) and all of its concrete startup arguments: `--worker`, `--reviewer`, `--worker-company`, `--reviewer-company`, `--config-dir`, and `--task-template`. The server binds loopback only and requires the exact Host, same-origin Origin for POST and the per-start session token; configured worker, reviewer and Validate commands run with the operator's host access, and worktrees are not OS sandboxes.
+
+Example startup:
+
+```bash
+python3 -B bridge/server.py --project /path/to/workspace --enable-execution \
+  --worker claude-worker --worker-company Anthropic --reviewer gemini-reviewer --reviewer-company Google \
+  --config-dir /path/to/workspace/config --task-template /path/to/workspace/template.json
+```
+
+The fixed startup configuration dictates the exact engine, project, worker, reviewer, companies, template and configurations to use. The HTTP request and local browser session can never provide or select paths, identifiers, bindings or templates. The loopback UI can only instruct the service to act on the immutable startup configuration and its tracked draft bindings. In execution mode, Start can launch one real configured provider run and Review one configured reviewer call, which use provider allowance; there is no automatic retry.

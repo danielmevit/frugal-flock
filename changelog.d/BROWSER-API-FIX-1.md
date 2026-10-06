@@ -1,0 +1,1 @@
+- Corrected explicit execution mode label, improved API validation mapping, and documented boundaries in README.
