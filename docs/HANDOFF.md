@@ -39,7 +39,8 @@ Three load-bearing ideas, in the order they matter:
 - **Receipts over reports** — every run yields the agent's claim *and* the diff.
   `unio verify` is the machine floor of that evidence. Reports lie; a real vendor
   once reported "all tests passed / NEEDS-REVIEW: None" having committed nothing at all.
-- **One human gate** — nothing enters the base branch without a human merge.
+- **Owner-controlled integration** — changes enter the base branch only
+  with owner approval, including any standing authorization for the lead.
 
 ## 2. Repository layout — what to edit
 
@@ -201,14 +202,10 @@ agent (`unio off <a> 30m`), reroute the seat, carry on.
 - `myapp` (the scorecard, separate repo) still parses `reports/*.md`; migrating it to read
   `ledger.jsonl` is the natural next real task.
 
-## 9. Handoff prompt (fill in)
+## 9. Current continuation prompt
 
-> You're taking over **Unio** in the repository under the legacy local workspace
-> `/mnt/d/Vibe Coding/_vm/frugal-flock/repo`. Read
-> `docs/HANDOFF.md`, then `docs/PROTOCOL.md` (normative) and `docs/GUIDEBOOK.md` (the
-> manual). The product is `unio-install.sh` — never edit the installed copy. Every
-> change: `bash -n` → install → `unio selftest` → `bash tests/unio-probes.sh` →
-> `./tools/check-docs.sh` → shellcheck at 0 warnings, and pin each fix with a new check.
-> Work on `main`; commit with a message that explains the *class* of bug, not just the
-> line. Prefer non-Claude vendors for any dispatched work, and never point the `claude`
-> agent at `~/.claude4`.
+Use [the living continuation prompt](development/continue-with-ai-prompt.md).
+It records current branches, approved actions, evidence and one next task.
+The earlier v0.3.x prompt is superseded: the CLI installer and browser
+bridge both form the project, and current workspace rules determine the
+worktree and available agents.

@@ -14,7 +14,7 @@ The dated living checkpoint below is current; Codex lead (GPT-6; exact serving v
 ## Current checkpoint
 
 <!-- LIVE_CHECKPOINT_START -->
-Approved milestones checkpoint from date: 2026-10-06 11:12:45 +0200; partial: corrected documentation preparing for fresh independent Gemini and Opus reviews. Applied owner-selected AI agents from different AI labs wording and security/code-quality/efficient-work purpose to current public introductions and handoffs; corrected reproduced receipt, source-status and queue-roadmap defects. Tests: Explicit lint for all 10 changed/current nested documents PASS; git diff --check PASS. Product source is unchanged; pending prompt-fix final reviews are not represented as approvals. Original two rejected doc candidates remain immutable. Next: Freeze complete docs candidate and task, native verify, then one concurrent independent Gemini/Opus pair. Receipts: tmp/unio-next/.
+Approved milestones checkpoint from date: 2026-10-06 11:23:16 +0200; partial: revised public-copy candidate needs fresh independent reviews; product-doc correction active. Rewrote the public opening around actual Unio capabilities without treating the owner examples as a three-item constraint; detailed review mechanics now follow later. Tests: Docs lint/whitespace PASS before final technical paragraph; corrected remaining live company phrasing and obsolete handoff instructions. Opus identified real old-prompt inconsistencies; Gemini returned duplicate verdicts (native unknown) and false quota/source findings; original reports preserved. Owner request to omit former public branding supersedes historical rename-contract README sentence; frozen historical contract unchanged. Latest supported meter 11:18:09 is 23% five-hour/2% weekly, zero model calls. Next: Freeze the expanded owner-directed copy and concrete handoff corrections, then native verify and new independent complete-candidate reviews. Receipts: tmp/unio-next/.
 <!-- LIVE_CHECKPOINT_END -->
 
 ## Current source and completed service review
@@ -41,6 +41,10 @@ for the preserved earlier handoff. Its pause and scheduled service reviews
 are historical and superseded by the resume/completed service evidence.
 
 ## Product purpose and owner-selected wording
+
+The owner's core-function examples are direction, not a three-item limit.
+Choose the strongest actual capabilities and use a natural number of plain
+bullets in the introduction; explain the detailed mechanics later.
 
 Use **AI agents from different AI labs** in current public introductions
 and handoffs. Keep API/configuration identifiers unchanged and preserve
@@ -140,20 +144,23 @@ Source 0.5.0-0.5.2 is already on GitHub main; latest public release was v0.4.0
 at 09:59:59. No v0.5.x tag/release exists yet. Never claim partial browser
 complete, publish private logs/configs, or rewrite immutable old tag/assets.
 
-Latest supported OpenAI meter: 2026-10-06T10:10:05+02:00, 63% five-hour and
-8% weekly remaining; receipt codex-capacity-after-service-reviews-20261006.json.
+Latest supported OpenAI meter: 2026-10-06T11:18:09+02:00, 23% five-hour and
+2% weekly remaining; receipt codex-capacity-after-public-docs-20261006.json.
 Reserve lead allowance for oversight and delegate source. Earlier readings
-below are historical. Current controller service-integration-and-prompt-
-transport-fix checks actual native readiness, merges service, runs full gate,
-pushes exact main, freezes Opus correction, performs its one 1800s source call,
-then fresh verify and independent parallel Grok/GLM reviews. Root must inspect
-actual outcome/diff and author final approval before prompt-fix integration.
+below are historical. The service-integration-and-prompt-transport-fix
+controller completed the service integration and the original prompt source
+invocation/verification, then ended exit 1 because Grok requested a concrete
+availability-documentation correction. Original source exit 0, verification
+6/6, GLM approval and Grok changes-requested remain preserved. The separate
+PROMPT-AVAILABILITY-DOC-1 controller handles that newly scoped correction;
+read its actual receipts and the newest dated checkpoint before any action.
+
 
 ## Capacity and preserved owner instructions
 
-The single latest supported reading recorded here is 2026-10-06 10:10:05
-+0200: 63% five-hour and 8% weekly remaining, from
-codex-capacity-after-service-reviews-20261006.json. It is dated evidence,
+The single latest supported reading recorded here is 2026-10-06 11:18:09
++0200: 23% five-hour and 2% weekly remaining, from
+codex-capacity-after-public-docs-20261006.json. It is dated evidence,
 not guaranteed live headroom. Reserve OpenAI quota for lead oversight and
 refresh supported metadata before new OpenAI assignments. Other providers'
 remaining capacity is Unknown until supported metadata or a dated owner
@@ -163,6 +170,7 @@ These readings are historical; none is the current meter:
 
 | Observed time (+0200) | Five-hour remaining | Weekly remaining | Receipt |
 | --- | --- | --- | --- |
+| 2026-10-06 10:10:05 | 63% | 8% | codex-capacity-after-service-reviews-20261006.json |
 | 2026-10-06 09:07:25 | 99% | 14% | codex-capacity-after-five-hour-reset-20261006.json |
 | 2026-10-06 00:23:28 | 14% | 15% | codex-capacity-after-owner-resume-20261006.json |
 | 2026-10-05 23:33:11 | 44% | 20% | codex-capacity-during-browser-service.json |

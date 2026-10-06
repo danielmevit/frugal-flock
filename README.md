@@ -2,28 +2,27 @@
 
 **Small plans. Big ideas.**
 
-Unio connects AI agents from different AI labs through coding tools such as
-Claude Code (Anthropic), Codex (OpenAI), Grok (xAI), Antigravity (Google)
-and OpenCode (which runs models such as Kimi), into one shared work
-environment for your project.
+Unio brings AI agents from different AI labs into one coordinated team
+to build, review and improve your project, using the AI tools and plans
+you already have.
 
-On their own, these tools never meet. Each works in its own window, on its
-own subscription, unaware of the others. Unio gives them a common
-place to work:
+## What this makes possible
 
-- **One leads, the others help.** One AI plans the work and hands out
-  tasks; the others act as its subagents, whichever AI lab builds them.
-- **Each helper gets its own copy of the project**, so several can work at
-  the same time without overwriting each other.
-- **Tasks, results and history live in shared files**, not inside any one
-  AI's chat, so any AI can see what the others did and pick up where they
-  stopped.
-- **Every result is checked**, and only you decide what goes into the real
-  project.
-
-The name says it plainly: *Unio* (Latin for oneness and union) unites AI
-agents from different AI labs into one team, run on the plans you
-already have instead of one expensive one.
+- **Bring your agents together.** Connect tools such as Claude Code,
+  Codex, Grok, Antigravity and OpenCode in one shared project workspace.
+- **Let one agent coordinate the work.** A lead plans the next steps,
+  delegates tasks and brings in other agents when their help is useful.
+- **Make progress in parallel.** Agents can work on separate tasks at the
+  same time, each in its own copy of the project.
+- **Improve the work through independent reviews.** Agents from different
+  AI labs can review changes in several rounds, helping find bugs,
+  security issues and opportunities to improve the code and product.
+- **See what is ready and what needs attention.** Keep tasks, progress,
+  checks and review findings together so decisions have evidence behind them.
+- **Keep work moving with clear handoffs.** Preserve results and next steps
+  so another agent can continue when a session ends or a usage limit is reached.
+- **Stay in control.** Set the goal, pause or stop new work, and decide which
+  changes enter your project.
 
 **Available today:** a command-line tool for Linux, including Windows
 through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
@@ -33,23 +32,6 @@ through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
 [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
 [FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·
 [What's next](#whats-next)
-
-## What this makes possible
-
-- **Use strengths from different AI labs.** Let one agent build a feature
-  and an agent from another lab review it, or assign each the kind of task
-  it handles best.
-- **Improve security and code quality.** Independent reviews can uncover
-  security issues and defects; task checks and revision-bound evidence help
-  you assess the result. Multiple reviewers can still miss the same issue.
-- **Reduce repeated work.** Bounded tasks, preserved results and clear
-  handoffs help manage AI usage and avoid rebuilding context. Extra reviews
-  consume allowance too; measure whether they reduce rework.
-- **Keep going when one AI hits its limit.** Give the next task to an AI
-  from another AI lab instead of stopping for the day.
-- **Run several AIs at once** on separate parts of the same project.
-- **See everything in one place:** who did what, what passed its checks,
-  and what still needs you.
 
 ## A task, step by step
 
@@ -179,8 +161,9 @@ One is enough to start. Settings are included for Claude Code, Codex,
 Antigravity, OpenCode (for models such as GLM and Kimi) and Grok. Any
 command-line AI that can take a task without a chat window can join with
 one line in `~/.config/unio/agents.conf`, for example
-`mycli=mycli -p "$(cat "$TASKFILE")"`. A second tool connecting an agent from another AI lab
-lets one AI review another's work.
+`mycli=mycli -p "$(cat "$TASKFILE")"`. Prefer a supported stdin or file
+option for large tasks; see the [transport guidance](docs/SETUP.md). An
+agent from another AI lab can review the work independently.
 
 </details>
 
@@ -223,8 +206,8 @@ sends your prompts and code to its provider. `unio stop` blocks new runs;
 Every task names the files it may change and the checks that must pass.
 `unio verify` re-runs those checks and fails the task if one fails or
 anything changed outside the allowed files; nothing is undone, so you can
-inspect it. Once verify passes, `unio review` can ask another company's
-AI to judge the committed change. The result records separately whether the
+inspect it. Once verify passes, `unio review` can ask an agent from another AI lab
+to judge the committed change. The result records separately whether the
 AI finished, the checks passed and the review approved. Your own decision
 comes last: a finished run is never taken as proof the work is right.
 
@@ -233,7 +216,7 @@ comes last: a finished run is never taken as proof the work is right.
 <details>
 <summary>What happens when an AI hits its usage limit?</summary>
 
-Pause it and give the next task to another company's AI.
+Pause it and give the next task to an agent from another AI lab.
 `unio off codex 5h` stops new tasks from going to Codex for five hours,
 and `unio handoff codex T7` writes a context note about task T7: what
 was done, what passed and what is left. The lead then gives the work to
@@ -277,6 +260,19 @@ shared API-key service.
   rotating bug hunts. They use extra provider capacity and are optional.
 - **Availability controls:** bench a provider by hand or for a set time.
   Limit-message detection flags failed runs; it is not a quota meter.
+
+For a layered review workflow, the lead can assign several reviewers from
+different AI labs to the same complete change. Run their reviews independently
+and compare findings before deciding what needs a correction. Each native
+review records a decision for the exact task, base and committed change;
+a later edit makes that evidence stale. The tool provides these checks and
+records, while the lead coordinates additional review rounds.
+
+Reviewers can disagree or miss the same defect. Use executable checks and
+inspect actual evidence alongside their findings. More calls consume more
+allowance; bounded tasks and written handoffs help avoid repeated work, but
+lower total usage depends on the results. Automatic checkpoint recovery and
+universal multi-review enforcement are not shipped features.
 
 Everyday commands once a project is set up:
 
@@ -365,19 +361,19 @@ limits apply subject to applicable law. Read the
 
 ## Keywords
 
-The idea in one line: **AI coding tools from different companies, linked
-into one workspace on your project, with a person directing them.** Working together here means
+The idea in one line: **AI agents from different AI labs, coordinated in one workspace
+to build, review and improve your project.** Working together here means
 coordinated tasks and reviewed handoffs, not shared conversation memory.
 The [plain-English workflow guide](docs/AI-TEAM-WORKFLOWS.md) explains which
 patterns work today.
 
-- **Subagents across providers:** subagents from different AI companies,
+- **Subagents across providers:** subagents from different AI labs,
   multi-provider subagents, cross-vendor subagents, lead agent with
   subagents, delegate work to subagents, parallel subagents, subagent
   orchestration, Claude Code and Codex as subagents, AI coding agent fleet,
   orchestrator and worker agents.
 - **AI teamwork in plain language:** make AI assistants work together, a
-  team of AI helpers, coordinate AI tools from different companies, use
+  team of AI helpers, coordinate AI agents from different AI labs, use
   several AI models on one project, one AI builds and another reviews,
   human-controlled AI collaboration.
 - **Everyday goals:** build with AI on a budget, AI help for a side project,

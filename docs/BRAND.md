@@ -34,10 +34,9 @@ Owner-selected wording (2026-10-06). Keep the README and the following
 intended GitHub description consistent; changing this document alone does
 not update repository metadata. The topics below were set on 2026-10-04:
 
-- Description: "Connect AI agents from different AI labs into one
-  workspace: Claude Code, Codex, Grok, Antigravity and OpenCode work
-  as a lead and subagents, each in its own copy of your project, with
-  checked results and you approving every merge."
+- Description: "Bring AI agents from different AI labs into one team. A lead
+  delegates parallel work, independent reviews help improve code and security,
+  and shared tasks, checks and handoffs keep the project moving."
 - Topics: 10 precise tags, not the maximum of 20. Each must describe what
   Unio does; generic filler (llm, ai-workflow) and jargon
   (human-in-the-loop) dilute it: ai-orchestration, agent-orchestration,
