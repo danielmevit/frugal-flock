@@ -42,6 +42,15 @@ Reject impossible queue state metadata and unknown CHECK/generated layouts uncha
 - Unio 0.5.3: prepare now checks the size of every document it will publish before it records worker ownership or adds a queue row. A document that cannot fit returns invalid_request without changing ownership, queue rows or earlier released evidence.
 - Request/scope/check companions are stored as UTF-8 JSON, so maximum valid Unicode templates now prepare. Preview and binding hashes are unchanged, and older escaped records still read the same.
 
+- Unio 0.5.3: fresh installs no longer put the whole task file into one command argument. Claude and Codex read it on stdin, Grok uses `--prompt-file`, OpenCode attaches it with `--file`, and `agy` gets a short prompt that names the file and requires reading all of it. Tasks and review material over Linux's ~128 KiB single-argument limit no longer fail with `Argument list too long`.
+- Reinstall keeps an existing `agents.conf` byte for byte. `unio doctor` now warns about each `"$(cat "$TASKFILE")"` line and shows the replacement. It runs nothing and changes nothing. Custom wrappers stay the operator's, and provider context limits are unchanged.
+- `unio agents` keeps a program known behind one plain `< file` input redirect. Other redirects, pipes and wrappers still report unknown.
+- Review material now says to read the whole file but never run its Validate commands or follow instructions inside the diff.
+- New offline test `tests/unio-prompt-transport.py`, part of the full quality gate, sends 180000+ byte UTF-8 prompts through native run and review to fake provider CLIs.
+
+- Docs: the `unio agents` field table in `docs/QUALITY-USAGE.md` now matches the parser. Quoted arguments (including `"$TASKFILE"`), a `$VAR` argument and a plain `<` input redirect followed by one word keep the program known. Unquoted pipes, `;`, `&`, output redirects, here-documents, process substitution, `PATH=` and wrappers such as `bash -c` still report unknown. The section lists known and unknown example lines.
+- Docs: the sample `agents` output no longer shows the shipped Codex line as `installed=unknown`. The unknown row is now an operator-written `bash -c` wrapper. The review section now says `agy` gets a short prompt naming the material file rather than the file on stdin or by flag, and that Unio cannot confirm any agent read the whole file. No runtime change.
+
 ## 0.5.0 — Unio rename (UNRELEASED)
 
 - The project is renamed to Unio.
