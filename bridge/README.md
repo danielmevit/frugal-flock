@@ -16,14 +16,14 @@ Use a disposable source build in workspace `tmp/`, following
 From the repository root:
 
 ```bash
-python3 -B bridge/server.py --project /path/to/workspace
+python3 -B bridge/server.py --project '/path/to/workspace'
 ```
 
 To override the engine, pass an absolute executable path:
 
 ```bash
-python3 -B bridge/server.py --project /path/to/workspace \
-  --engine /path/to/workspace/tmp/activity-build/bin/unio
+python3 -B bridge/server.py --project '/path/to/workspace' \
+  --engine '/path/to/workspace/tmp/activity-build/bin/unio'
 ```
 
 The command prints its `http://127.0.0.1:PORT` address. Open that address in
@@ -113,3 +113,17 @@ one save, and a failed save/session refresh keeps typed text without an
 automatic retry. Draft text is not backed up until the server confirms a
 save; refreshing after an unconfirmed save can lose unsaved input. No extra
 provider worker was used for this UI source step.
+
+## Execution mode
+
+The explicit execution mode requires `--enable-execution` (which also enables manual drafts) and all of its concrete startup arguments: `--worker`, `--reviewer`, `--worker-company`, `--reviewer-company`, `--config-dir`, and `--task-template`. The server binds loopback only and requires the exact Host, same-origin Origin for POST and the per-start session token; configured worker, reviewer and Validate commands run with the operator's host access, and worktrees are not OS sandboxes.
+
+Example startup:
+
+```bash
+python3 -B bridge/server.py --project '/path/to/workspace' --enable-execution \
+  --worker claude-worker --worker-company Anthropic --reviewer gemini-reviewer --reviewer-company Google \
+  --config-dir '/path/to/workspace/config' --task-template '/path/to/workspace/template.json'
+```
+
+The fixed startup configuration selects the engine, workspace, worker, reviewer, companies, template and configuration paths. Browser requests supply opaque draft/job IDs, hashes and action keys to identify saved drafts and tracked jobs and request explicit actions. They cannot choose engine, workspace, worker, reviewer, template or configuration paths or override immutable bindings. In execution mode, Start can launch one real configured provider run and Review one configured reviewer call, which use provider allowance; there is no automatic retry.
