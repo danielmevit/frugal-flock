@@ -8,12 +8,17 @@ candidate SHA, evidence, blockers, active workers and one next task.
 All project-owned work stays inside `/mnt/d/Vibe Coding/_vm/frugal-flock`.
 The main checkout is its `repo/` folder; workers use `wt/NAME/`.
 Follow [the standing workspace rules](WORKSPACE-RULES.md).
-Current owner direction (2026-10-06): finish the browser milestone and publish
-Unio v0.5.3 after checks. The browser execution service is gated and pushed;
-large-prompt transport, API, UI, a real browser demonstration and shipping
-checks follow. Checkpoint continuation remains v0.5.4. Use the
-[current continuation prompt](continue-with-ai-prompt.md) for active workers
-and exact evidence. The [2026-10-05 closing handoff](../SESSION-HANDOFF-2026-10-05.md)
+Current owner direction (2026-10-06): complete and publish browser v0.5.3,
+then build checkpoint continuation v0.5.4 through native Unio workers and
+independent reviews. Completed 0.5.x publication and installation of the
+latest verified release are authorized. The historical 0.5.0, 0.5.1 and
+0.5.2 releases are now public; [0.5.2](https://github.com/danielmevit/unio/releases/tag/v0.5.2)
+is the latest completed release. The browser execution service and large-
+prompt transport are gated and pushed; API, UI, the real browser workflow
+and shipping checks remain in progress at this dated checkpoint. Read the
+[current continuation prompt](continue-with-ai-prompt.md) and newest private
+coordination entries before assigning work. The
+[2026-10-05 closing handoff](../SESSION-HANDOFF-2026-10-05.md)
 is preserved as an earlier checkpoint.
 
 ## Earlier checkpoint (2026-10-05)

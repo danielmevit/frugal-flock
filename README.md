@@ -35,7 +35,7 @@ you already have.
 **Available today:** a command-line tool for Linux, including Windows
 through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
 
-*Development source is at 0.5.3; the browser milestone is still in progress. Publication follows its completed checks. See the [version plan](docs/VERSION-PLAN.md) for source and release status.*
+*The latest completed release is [Unio 0.5.2](https://github.com/danielmevit/unio/releases/tag/v0.5.2). Development source is at 0.5.3 while the browser milestone is being completed. See the [version plan](docs/VERSION-PLAN.md) for source and release status.*
 
 [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
 [FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·
