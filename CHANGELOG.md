@@ -34,6 +34,14 @@ The adversarial demo honors UNIO_BIN_DIR and the incoming UNIO_CONF_DIR for its 
 
 Reject impossible queue state metadata and unknown CHECK/generated layouts unchanged; preserve recognized migrations and valid replays with exhaustive corruption regressions.
 
+## 0.5.3 — browser execution service (UNRELEASED)
+
+- Unio 0.5.3: add explicit native ExecutionService with durable worker ownership, once-only launch/review intents and revision-bound evidence/acceptance.
+- Add disposable Git/native-mock regressions and quality-gate registration; HTTP/browser integration and the live demonstration remain separate slices.
+
+- Unio 0.5.3: prepare now checks the size of every document it will publish before it records worker ownership or adds a queue row. A document that cannot fit returns invalid_request without changing ownership, queue rows or earlier released evidence.
+- Request/scope/check companions are stored as UTF-8 JSON, so maximum valid Unicode templates now prepare. Preview and binding hashes are unchanged, and older escaped records still read the same.
+
 ## 0.5.0 — Unio rename (UNRELEASED)
 
 - The project is renamed to Unio.
