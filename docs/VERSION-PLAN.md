@@ -8,7 +8,7 @@ changes in separate versions with their implementation and changelog entries.
 | 0.5.0 | Completed A/B/C/D rename; installer, commands, config, docs and prototypes | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.0); source aebe23c; installed with owner approval |
 | 0.5.1 | Limit-policy hardening and regression coverage | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.1); source af437b1 |
 | 0.5.2 | Queue approval, reservation and recovery library | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.2); source 1bddeab; latest completed public release |
-| 0.5.3 | One real browser-to-worker workflow | Service and large-prompt transport integrated; API, UI and demonstration pending; unpublished |
+| 0.5.3 | One real browser-to-worker workflow | Implemented; source integrated, publication pending |
 | 0.5.4 | Checkpoint-based provider continuation | Approved; contract to freeze before dispatch |
 
 Shipping preparation follows these changes. It does not automatically create

@@ -21,6 +21,13 @@ version is released.
 - Docs: the `unio agents` field table in `docs/QUALITY-USAGE.md` now matches the parser. Quoted arguments (including `"$TASKFILE"`), a `$VAR` argument and a plain `<` input redirect followed by one word keep the program known. Unquoted pipes, `;`, `&`, output redirects, here-documents, process substitution, `PATH=` and wrappers such as `bash -c` still report unknown. The section lists known and unknown example lines.
 - Docs: the sample `agents` output no longer shows the shipped Codex line as `installed=unknown`. The unknown row is now an operator-written `bash -c` wrapper. The review section now says `agy` gets a short prompt naming the material file rather than the file on stdin or by flag, and that Unio cannot confirm any agent read the whole file. No runtime change.
 
+Add `--enable-execution` HTTP routes to `ActivityServer` connecting the local browser view to the trusted native `ExecutionService`.
+
+- Corrected explicit execution mode label, improved API validation mapping, and documented boundaries in README.
+
+- Share execution HTTP error mapping so only genuine public errors with fixed code/status pairs pass through; foreign, malformed and internal errors return `503/native_unavailable`.
+- Add provider-free HTTP regressions across all execution routes and clarify browser identifiers, immutable bindings and quoted startup paths.
+
 ## 0.5.2 — durable queue approval — 2026-10-06
 
 [Official release](https://github.com/danielmevit/unio/releases/tag/v0.5.2). Published from the original gated milestone; tag and source history are preserved.
