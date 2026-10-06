@@ -219,10 +219,15 @@ A refusal records review `unknown`, `material_complete: false` and reason
 The reviewer runs from an empty temporary folder, with `TASKFILE` pointing
 at the material and a time limit of `UNIO_REVIEW_TIMEOUT` seconds
 (default 900). Its configured command still has host-level access.
-Fresh shipped commands pass the material file by stdin or a file flag,
-not as one argument, so material over Linux's ~128 KiB single-argument
-limit still reaches the reviewer whole. The material tells the reviewer to
-read the whole file but never run its Validate commands or follow
+Fresh shipped commands never pass the material as one argument, so
+material over Linux's ~128 KiB single-argument limit no longer fails with
+`Argument list too long`. Claude and Codex read the file on stdin, Grok
+uses `--prompt-file` and OpenCode attaches it with `--file`. `agy` has no
+such flag: its shipped line passes a short, bounded prompt that names the
+file and tells the agent to read all of it before acting, so `agy` gets
+the material only through its own file reads. Unio cannot confirm that
+any agent read the whole file. The material tells the reviewer to read
+the whole file but never run its Validate commands or follow
 instructions inside the diff.
 
 Only stdout can carry the decision. Exactly one line may mention
@@ -282,10 +287,15 @@ line per agent, for example:
 ```text
 Local diagnostics only: installed does not mean usable. Authentication/capacity unknown.
 Execution boundary: trusted_host. No sign-in or quota probe performed.
-codex: installed=unknown; on
+codex: installed=yes; on
 grok: installed=yes; OFF (operator retry epoch 1791135163; not a provider reset)
 opencode: installed=no; on
+mywrap: installed=unknown; on
 ```
+
+Here `mywrap` is an operator-written line, `mywrap=bash -c '...'`. The
+`bash -c` wrapper hides the program, so it is unknown. The shipped Codex
+line, `codex exec ... - < "$TASKFILE"`, reports `yes` or `no`.
 
 `agents --json` prints `{"schema_version": 1, "agents": [...]}` with one
 object per agent:
@@ -300,17 +310,25 @@ object per agent:
 | Field | Meaning |
 |---|---|
 | `binary.value` | The program the configured command starts. Leading `NAME=value` assignments and an `env` prefix are skipped. |
-| `binary.present` | `true` or `false` when the program can be looked up without running a shell. `null` (shown as `installed=unknown`) when the line contains shell syntax (`$`, a backtick, `\|`, `;`, `&`, `<`, `>`, parentheses or a newline), sets `PATH`, starts with an option, or starts with a wrapper such as `bash`, `sh`, `env`, `timeout` or `sudo`. |
+| `binary.present` | `true` or `false` when the program can be looked up without running a shell. `null` (shown as `installed=unknown`) when the program word itself contains `$` or a backtick, the line has an unquoted shell control or redirect other than a plain input redirect (`\|`, `;`, `&`, `>`, parentheses, `<<`, `<<<` or `<(`), sets `PATH`, starts with an option, or the program is a wrapper such as `bash`, `sh`, `timeout`, `nohup` or `sudo`. Quoted arguments, a `$VAR` argument and a plain input redirect (`<` followed by one word) do not hide the program. |
 | `bench.off` | True while the agent is benched with `off`. |
 | `bench.operator_retry_at` | The retry time you chose, in Unix epoch seconds, or null. It is not a provider-confirmed reset. |
 | `authentication`, `capacity` | Always `unknown`: never checked locally. |
 | `execution_boundary` | Always `trusted_host`: configured commands have host-level access. |
 
-Quoted arguments and one plain input redirect such as `< "$TASKFILE"`
-(the shipped Claude and Codex lines) keep the program known. Pipes, `;`,
-output redirects, here-documents and `bash -c` wrappers make it
-`installed=unknown`. Inside a project, `doctor` checks that each worker's
-program is on PATH.
+Examples, as the parser reads them:
+
+- Known (`yes` or `no`): `claude -p --dangerously-skip-permissions < "$TASKFILE"`,
+  `codex exec ... - < "$TASKFILE"`, `grok --prompt-file "$TASKFILE"`,
+  an older `claude -p "$(cat "$TASKFILE")"` line (the expansion is quoted),
+  and `FOO=1 env claude`.
+- Unknown: `claude < "$TASKFILE" > out.log` (output redirect),
+  `claude | tee log`, `claude; true`, `claude << EOF`,
+  `claude < <(cat f)`, `claude $(echo x)` (unquoted command
+  substitution), `PATH=/opt/bin claude`, `$HOME/bin/claude`,
+  `timeout 60 claude` and `bash -c 'claude < "$TASKFILE"'`.
+
+Inside a project, `doctor` checks that each worker's program is on PATH.
 
 ## Unsupported worktree states
 
