@@ -296,7 +296,27 @@ runtime UI files are unchanged.
 
 The focused execution Chromium suite passed on its first corrected run,
 including the gated observer regression and every original journey assertion.
-The remaining Validate checks are pending at this committed checkpoint.
+The coherent correction was committed as `bf0c96ad341581f9401d3d7265ec2e14ef1d52da`
+before the remaining slower checks. Default Activity, manual draft and prototype
+Chromium suites also passed on their first runs for this correction.
+
+The execution API suite then ran alone, after all browser suites exited:
+20/21 tests passed in 188.553 seconds, with exit 1. Its unchanged happy-path
+test timed out at line 258 waiting for the acceptance response under the
+existing 15-second HTTP timeout. The server subsequently attempted a 200
+response and logged a broken pipe after the client disconnected. Acceptance
+rechecks bindings and reads native evidence twice, each result call having its
+own 15-second deadline; this identifies the response path, not a proven cause
+of the elapsed time. The isolated failure means concurrent browser checks
+cannot explain this run. No API/service file or timeout was changed, and the
+failed check was not retried. Its raw failure remains in the native Source
+tool output. Resolving this separate API acceptance latency requires a scoped
+follow-up; the browser interception correction does not establish that the
+mandatory validation gate is clear.
+
+Scoped documentation lint and whitespace checks passed. Six of the seven
+Validate commands passed; the execution API command remains failed.
+
 The complete inherited UI still has Google + OpenAI author labs. Fresh native
 verification, two independent nonauthor subscription-lab reviews and the
 lead's own review remain required before integration. These offline checks do
