@@ -218,8 +218,35 @@ one line per agent, `$TASKFILE` holds the task path, command runs inside
 the worker's worktree.
 
 ```text
-opencode=opencode run --auto -m opencode-go/glm-5.3 "$(cat "$TASKFILE")"
+opencode=opencode run --auto -m opencode-go/glm-5.3 "Your complete task is the attached UTF-8 file. Before acting, read the ENTIRE file, every chunk through its last line; never act on a partial read. Then do exactly what that file asks. File: $TASKFILE" --file "$TASKFILE"
 ```
+
+Pass the task by stdin or by file, never as one argument. Linux limits a
+single argument to about 128 KiB, and a large task or review material
+fails with `Argument list too long` before the agent starts. Fresh
+installs ship these lines (each flag checked against the installed
+`--help` on 2026-10-06):
+
+```text
+claude=claude -p --dangerously-skip-permissions < "$TASKFILE"
+codex=codex exec --sandbox danger-full-access --skip-git-repo-check - < "$TASKFILE"
+grok=grok --prompt-file "$TASKFILE" --always-approve
+opencode=opencode run --auto "<pointer message>" --file "$TASKFILE"
+antigravity=agy -p "<pointer message> File: $TASKFILE" --dangerously-skip-permissions --print-timeout 55m
+```
+
+Claude and Codex read the whole file on stdin, and Grok reads it with
+`--prompt-file`. OpenCode attaches the file with `--file`. `agy` has no
+prompt-file flag, so its short prompt names the file and tells the agent
+to read ALL of it, every chunk, before acting. The pointer message in
+`agents.conf` asks for that full read; keep it if you edit the line.
+
+Reinstalling never rewrites an existing `agents.conf`. Older lines that
+contain `"$(cat "$TASKFILE")"` keep working for small tasks, but
+`unio doctor` warns about each one and shows the replacement. It only
+reads the file: it runs nothing and changes nothing. Edit those lines
+yourself. Your own wrapper commands are yours to maintain. This change
+does not raise a provider's own context limit.
 
 Current installed OpenCode help (checked 2026-10-04) advertises `--auto`;
 the older permission flag is absent. GLM 5.3 and Kimi K3 canaries used it.
@@ -272,8 +299,10 @@ picks the agent). Timeout: `UNIO_TIMEOUT=7200 unio run ...`.
 - Wrong integration branch → edit `coord/base`.
 - "Python 3 is required before run/review/smoke" → install `python3`
   (standard library only); see §1.
-- `agents` shows `installed=unknown` → normal for conf lines that use shell
-  syntax such as `"$(cat "$TASKFILE")"`; it never runs them to find out.
+- `agents` shows `installed=unknown` → normal for conf lines whose program
+  is hidden by shell syntax: pipes, `;`, output redirects, or wrappers such
+  as `bash -c`. A plain `< "$TASKFILE"` input redirect and quoted
+  arguments keep the program known. It never runs them to find out.
   `unio doctor` checks that each worker's program is on PATH.
 - WSL `/mnt` quirks from your GOTCHAS don't apply on the native-ext4 VM;
   if you ever move this workflow to WSL-on-Windows-drive, re-add

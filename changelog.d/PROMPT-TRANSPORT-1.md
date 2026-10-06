@@ -1,0 +1,5 @@
+- Unio 0.5.3: fresh installs no longer put the whole task file into one command argument. Claude and Codex read it on stdin, Grok uses `--prompt-file`, OpenCode attaches it with `--file`, and `agy` gets a short prompt that names the file and requires reading all of it. Tasks and review material over Linux's ~128 KiB single-argument limit no longer fail with `Argument list too long`.
+- Reinstall keeps an existing `agents.conf` byte for byte. `unio doctor` now warns about each `"$(cat "$TASKFILE")"` line and shows the replacement. It runs nothing and changes nothing. Custom wrappers stay the operator's, and provider context limits are unchanged.
+- `unio agents` keeps a program known behind one plain `< file` input redirect. Other redirects, pipes and wrappers still report unknown.
+- Review material now says to read the whole file but never run its Validate commands or follow instructions inside the diff.
+- New offline test `tests/unio-prompt-transport.py`, part of the full quality gate, sends 180000+ byte UTF-8 prompts through native run and review to fake provider CLIs.

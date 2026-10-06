@@ -25,8 +25,9 @@ with tempfile.TemporaryDirectory(prefix='opencode-default-') as directory:
 import json,sys,subprocess,os
 from pathlib import Path
 assert sys.argv[1]=='run' and sys.argv[2]=='--auto', sys.argv
-assert len(sys.argv)==4 and 'permission canary' in sys.argv[3], sys.argv
-Path(os.environ['OPENCODE_ARGS_RECEIPT']).write_text(json.dumps(sys.argv[1:]))
+assert len(sys.argv)==6 and sys.argv[4:]==['--file',os.environ['TASKFILE']], sys.argv
+assert 'read the ENTIRE file' in sys.argv[3] and 'permission canary' not in sys.argv[3], sys.argv
+Path(os.environ['OPENCODE_ARGS_RECEIPT']).write_text(json.dumps(dict(args=sys.argv[1:],task=Path(sys.argv[5]).read_text())))
 Path('canary.txt').write_text('ready\\n')
 subprocess.run(['git','add','canary.txt'],check=True)
 subprocess.run(['git','commit','-qm','offline OpenCode'],check=True)
@@ -40,8 +41,9 @@ subprocess.run(['git','commit','-qm','offline OpenCode'],check=True)
     call('run','opencode','flags');call('verify','opencode','flags')
     result=json.loads(call('result','opencode','flags').stdout)
     assert result['process']['state']=='succeeded' and result['validation']['state']=='passed'
-    assert json.loads((base/'args.json').read_text())[1]=='--auto'
-    print('opencode: fresh source default dispatches --auto and task text, native verification passed',flush=True)
+    receipt=json.loads((base/'args.json').read_text())
+    assert receipt['args'][1]=='--auto' and receipt['task']==(root/'coord/tasks/flags.md').read_text()
+    print('opencode: fresh source default dispatches --auto and the full task file via --file, native verification passed',flush=True)
     config=base/'conf/agents.conf';config.write_text('# user settings\nopencode=opencode run --dangerously-skip-permissions -m owner-choice\n')
     before=(base/'args.json').read_bytes()
     doctor=call('doctor').stdout.decode()

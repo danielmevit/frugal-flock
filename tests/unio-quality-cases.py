@@ -307,6 +307,15 @@ mapping={a['name']:a for a in json.loads(call('agents','--json').stdout)['agents
 check('quoted shell syntax in arguments still resolves the program',mapping['shipped']['binary']['present'] is True
       and 'shipped: installed=yes' in call('agents').stdout)
 check('operators or expansion in the program stay unknown',all(mapping[n]['binary']['present'] is None for n in ('chained','piped','expanded','variable')))
+# Fresh lines read the task on stdin: one plain input redirect keeps the program
+# known; any other redirect, here-doc or process substitution stays unknown.
+configuration(extra='stdin=/usr/bin/true -p < "$TASKFILE"\nmissingstdin=/no/such/binary - < "$TASKFILE"\n'
+                    'stdout=/usr/bin/true > out\nheredoc=/usr/bin/true <<EOF\nprocsub=/usr/bin/true < <(cat x)\n'
+                    'redirchain=/usr/bin/true < "$TASKFILE"; /usr/bin/false\n')
+mapping={a['name']:a for a in json.loads(call('agents','--json').stdout)['agents']}
+check('plain stdin redirect keeps the program known',mapping['stdin']['binary']=={'value':'/usr/bin/true','present':True}
+      and mapping['missingstdin']['binary']['present'] is False)
+check('other redirects stay unknown',all(mapping[n]['binary']['present'] is None for n in ('stdout','heredoc','procsub','redirchain')))
 conf.write_text('mock=FOO="a b" /usr/bin/true -p "$(cat "$TASKFILE")"\nnoop=/no/such/binary\n')
 out=subprocess.run([at,'doctor'],capture_output=True,text=True)
 out=out.stdout+out.stderr
