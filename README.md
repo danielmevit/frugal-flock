@@ -1,12 +1,10 @@
-# Unio: connect AI agents from different AI labs into one workspace
+# Unio — Give your AI subscriptions a group project.
 
-**Small plans. Big ideas.**
+Unio brings AI agents from different AI labs together to build and improve
+your project. A lead delegates the work, other agents review the changes,
+and you stay in control.
 
-Unio brings AI agents from different AI labs into one coordinated team
-to build, review and improve your project, using the AI tools and plans
-you already have.
-
-## What this makes possible
+## What Unio Does
 
 - **Bring your AI agents into one team.** Connect agents from different AI
   labs through tools such as Claude Code, Codex, Grok, Antigravity and
@@ -231,7 +229,9 @@ was done, what passed and what is left. The lead then gives the work to
 another AI with that note. The note is context only: unfinished, uncommitted
 changes stay in Codex's copy. [Handoff packets](docs/QUALITY-USAGE.md#handoff-packets)
 explain the details. Unio does not get around limits or share plans;
-each tool keeps its own. Automatic switching is on the roadmap.
+each tool keeps its own. [Automatic recovery saves](docs/WORK-SAVING.md) and
+supervised checkpoint continuation are planned for v0.5.4; they are not
+provided by the current handoff command.
 
 </details>
 

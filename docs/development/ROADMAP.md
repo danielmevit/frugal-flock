@@ -12,7 +12,11 @@ continuation before expanding the coordination engine.
 | Order | Milestone | Intended result | Status |
 | --- | --- | --- | --- |
 | First | v0.5.3: browser-to-worker workflow | Prepare and approve a task, start a worker once, inspect results and reviews, and accept the exact verified changes. Add actual worker output and console access as described in the [worker progress contract](../WORKER-PROGRESS.md). | Backend and API integrated; UI, progress addition, full workflow and shipping checks in progress. |
-| Next | v0.5.4: recoverable continuation | Preserve actual unfinished files, decisions and check results so another agent can continue safely when the first stops or hits a limit. | Approved; implementation contract must be frozen before dispatch. |
+| Next | v0.5.4: recoverable continuation | Save recoverable work during runs and on failure, with a finish reserve; preserve actual files, decisions and checks so another agent can continue safely after a stop or usage limit. | Approved; implementation contract must be frozen before dispatch. |
+
+The v0.5.4 scope now includes [automatic work saving](../WORK-SAVING.md),
+requested after a real worker reached its quota before committing. This is
+a planned feature; existing handoffs remain context rather than backups.
 
 After these two milestones, build the following in this order. They are
 approved planning priorities; implementation boundaries, release numbers and
@@ -75,8 +79,8 @@ independent reviews. Completed 0.5.x publication and installation of the
 latest verified release are authorized. The historical 0.5.0, 0.5.1 and
 0.5.2 releases are now public; [0.5.2](https://github.com/danielmevit/unio/releases/tag/v0.5.2)
 is the latest completed release. The browser execution service and large-
-prompt transport are gated and pushed; API, UI, the real browser workflow
-and shipping checks remain in progress at this dated checkpoint. Read the
+prompt transport and API are gated and pushed. UI, worker progress, the real
+browser workflow and shipping checks remain in progress at this dated checkpoint. Read the
 [current continuation prompt](continue-with-ai-prompt.md) and newest private
 coordination entries before assigning work. The
 [2026-10-05 closing handoff](../SESSION-HANDOFF-2026-10-05.md)
