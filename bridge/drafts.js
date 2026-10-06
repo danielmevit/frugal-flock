@@ -57,6 +57,7 @@
     identity.value = data.id;
     location.hash = "draft=" + data.id;
     result.hidden = false;
+    document.dispatchEvent(new CustomEvent("saved-draft", { detail: data }));
   }
   async function operation(save) {
     if (busy || !token) return;

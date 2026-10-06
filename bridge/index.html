@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="activity.css" />
     <script defer src="activity.js"></script>
     <script defer src="drafts.js"></script>
+    <script defer src="jobs.js"></script>
   </head>
   <body>
     <main>
@@ -29,7 +30,7 @@
       </p>
       <section id="manual-drafts" hidden aria-labelledby="draft-title">
         <h2 id="draft-title">Manual task draft</h2>
-        <p class="small">
+        <p class="small" id="draft-help">
           Save your request locally in this project's coordination folder. This
           stores your text only. No AI planning, worker start or quota approval
           occurs.
@@ -58,6 +59,20 @@
             <button id="reopen-draft" type="submit">Reopen draft</button>
           </div>
         </form>
+        <form id="reopen-job-form" hidden>
+          <label for="job-id">Reopen a job by ID</label>
+          <div class="draft-reopen">
+            <input
+              id="job-id"
+              required
+              pattern="[0-9a-f]{32}"
+              maxlength="32"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button id="reopen-job" type="submit">Reopen job</button>
+          </div>
+        </form>
         <p id="draft-status" role="status" aria-live="polite"></p>
         <div id="draft-result" hidden>
           <h3>Saved manual draft</h3>
@@ -66,6 +81,29 @@
             <summary>Draft ID and saved content hash</summary>
             <p id="draft-reference" class="small"></p>
           </details>
+        </div>
+        <div id="execution-panel" hidden>
+          <h3>Execution</h3>
+          <div class="execution-actions" id="execution-actions">
+            <button id="job-prepare" type="button" hidden>Prepare</button>
+            <button id="job-approve" type="button" hidden>Approve</button>
+            <button id="job-start" type="button" hidden>Start</button>
+            <button id="job-verify" type="button" hidden>Verify</button>
+            <button id="job-review" type="button" hidden>Review</button>
+            <button id="job-accept" type="button" hidden>Accept</button>
+            <button id="job-stop" type="button" hidden>Stop</button>
+            <button id="job-cancel" type="button" hidden>Cancel</button>
+            <button id="job-refresh" type="button" hidden>Refresh Job</button>
+          </div>
+          <p id="job-status" role="status" aria-live="polite"></p>
+          <div id="job-preview" hidden>
+            <h4>Preview</h4>
+            <pre id="job-preview-text"></pre>
+          </div>
+          <div id="job-result" hidden>
+            <h4>Result</h4>
+            <pre id="job-result-text"></pre>
+          </div>
         </div>
       </section>
       <section aria-labelledby="tasks-title">

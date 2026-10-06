@@ -127,3 +127,5 @@ python3 -B bridge/server.py --project '/path/to/workspace' --enable-execution \
 ```
 
 The fixed startup configuration selects the engine, workspace, worker, reviewer, companies, template and configuration paths. Browser requests supply opaque draft/job IDs, hashes and action keys to identify saved drafts and tracked jobs and request explicit actions. They cannot choose engine, workspace, worker, reviewer, template or configuration paths or override immutable bindings. In execution mode, Start can launch one real configured provider run and Review one configured reviewer call, which use provider allowance; there is no automatic retry.
+
+The UI exposes an execution panel that transitions an approved draft through its journey: Draft, Prepare, Approve, Start, Verify, Review, and Accept. Jobs are tied to opaque IDs and session keys to prevent duplicate actions. Actions update UI state based on exact job status and native readiness observations.
