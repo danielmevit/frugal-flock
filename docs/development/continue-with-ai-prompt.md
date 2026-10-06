@@ -45,14 +45,16 @@ no billing/authentication changes or unfinished milestone publication.
   integrated, fully gated and pushed at c7ffb64. The old availability-table
   rejection remains preserved; no repeat prompt-transport source task.
 - Gemini's first API candidate 2bb6938 passed native 7/7. Grok review failed
-  with an actual 402 exhausted balance; GLM timed out124. Neither is an
+  with an actual 402 exhausted balance; GLM timed out 124. Neither is an
   approval. The lead found startup-label/error-mapping/documentation defects
   and froze distinct BROWSER-API-FIX-1. Its source call is in flight at this
   checkpoint; read its actual exit/verification/reviews before proceeding.
-- Root prepares REPO-PUBLISHED-COPY-1 with the approved expanded README,
+- Root prepares REPO-PUBLISHED-COPY-FIX-1 with the approved expanded README,
   development-doc organization and actual release status. Preserve previous
   docs candidates and failed/supplemental reviews; do not reuse their
-  approvals for this changed candidate.
+  approvals for this changed candidate. Its earlier local verification
+  omitted the deleted TODO.md/WORKSPACE-RULES.md scope entries; that real
+  failure is preserved, and the new scoped task includes all removed paths.
 - Claude continuation lead OPUS-LEAD-CONTINUATION-053-1 is already running.
   Do not restart or duplicate it. It owns API -> UI -> real browser demo ->
   shipping fixes and completed public v0.5.3. Never merge its lead branch.
@@ -128,7 +130,7 @@ Supported zero-model Codex reading at 2026-10-06T12:54:35+02:00:
 **71% five-hour / 95% weekly remaining**, recorded in
 codex-capacity-during-unattended-20261006.json. This supersedes earlier
 scarce readings; refresh supported metadata before relying on it. Grok
-Build returned an actual balance-exhausted402 at12:20:29; no retry or
+Build returned an actual balance-exhausted 402 at 12:20:29; no retry or
 billing change. GLM's two timeouts are failures, not proven quota readings.
 OpenCode Go remaining capacity is Unknown; a listed model does not prove
 available allowance. Claude/Gemini remaining quota is also Unknown.
@@ -152,14 +154,14 @@ privately in artifacts/provider-usage/. Tokens/cost/reset reports are not
 remaining quota, and a new conversation does not reset account limits.
 
 Available pinned options include Codex gpt-6.1-sol/xhigh, Gemini
-3.1-pro-high/high, Opus5.5/high, GLM5.3/high and previously used OpenCode
+3.1-pro-high/high, Opus 5.5/high, GLM 5.3/high and previously used OpenCode
 DeepSeek, Moonshot AI, Alibaba and MiniMax models. Choose two nonauthor labs
 from actual capacity and preserve model/effort/exit evidence. Catalog entries
 and requested pins are not confirmation that a paid run completed.
 
 ## Installation and shipping
 
-Installed global runtime remains Unio0.5.0 at this checkpoint. Global latest-
+Installed global runtime remains Unio 0.5.0 at this checkpoint. Global latest-
 release installation is now owner-authorized but serialized while native
 work is idle, with exact official tag/download/gated-source checks, backup,
 configuration preservation, version/help/legal/offline selftest and rollback
