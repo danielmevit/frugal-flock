@@ -113,7 +113,9 @@ unio agents
 Open your favourite AI coding tool in `my-project/repo` and ask:
 
 ```text
-Read MASTER.md and the project instructions. Help me plan one small change.
+Read MASTER.md and the project instructions. Read docs/ai/START_HERE.md
+if present; use the supplied lead routing and effort guides before assigning
+work. Help me plan one small change.
 Check which workers are available, explain how you will test the result,
 and wait for my approval before starting work. Do not merge for me.
 ```
