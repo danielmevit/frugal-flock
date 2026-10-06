@@ -1,89 +1,146 @@
 # Continue Unio with another AI
 
-This file is maintained under `docs/development/`. Workspace paths start
-at the enclosing workspace; `docs/` paths start at the repository root.
-Read the development [index](README.md), then newest coord/AGENT-LOG.md
-and actual newer worker branches. Never overwrite another agent's work.
-This is a dated development handoff; newer native receipts take precedence.
-
-Before assigning any AI, read [lead routing and spending](LEAD-ROUTING.md)
-and [model effort](MODEL-EFFORT.md). Use the latest owner instructions and
-actual capacity evidence; never infer eligibility from an installed CLI.
+Read [lead routing and spending](LEAD-ROUTING.md), [model effort](MODEL-EFFORT.md)
+and [workspace rules](WORKSPACE-RULES.md) before planning assignments. Then read
+the newest `coord/AGENT-LOG.md` entries and actual newer worker branches in the
+enclosing workspace. Never overwrite another agent's work. This handoff is a
+dated snapshot; current native receipts take precedence. Without that workspace,
+start with the [development index](README.md) and official repository history.
 
 ## Current checkpoint
 
 <!-- LIVE_CHECKPOINT_START -->
-Dated from date: 2026-10-06T13:03:12+02:00. Canonical main is clean and pushed at
-c7ffb642ef9e69e149ca502b4e64cd7bb496b118. The prompt transport and availability-
-documentation correction are integrated after their real full quality gate.
-Historical Unio 0.5.0, 0.5.1 and 0.5.2 are publicly released and their six
-assets each were downloaded and hash-verified. Latest completed public
-release is 0.5.2. Browser API/UI/demo and checkpoint milestones are unfinished.
+Dated from date: 2026-10-06T22:46:57+02:00. GitHub main was2cf8c2bda70efd16db2dfeafa537aea210c43a94.
+Local main6b8814e22f49c194c151e809a075d9e6fd888399 contains the independently
+reviewed new README/tagline, official priorities and planned work-saving docs.
+Its full quality gate/push controller is active at this dated checkpoint;
+read its actual receipt before claiming public delivery. Public lead routing
+and startup documentation is a separate reviewed-candidate workflow. Local
+workspace/master and installed lead-template instructions already point to
+readable policy/effort copies; the installed Unio runtime remains0.5.0.
+Public releases0.5.0,0.5.1,0.5.2 exist; latest public release is0.5.2.
+Browser0.5.3 and recovery0.5.4 remain unfinished.
 <!-- LIVE_CHECKPOINT_END -->
 
 ## Owner authorization and public purpose
 
-The owner approved the fuller README explanations in e533362 and selected
-**AI agents from different AI labs**. Explain coordination, delegation,
-parallel work, code and security reviews, evidence, handoffs through limits,
-and owner control in plain language; technical detail follows later.
-Independent reviews help find defects and improve the product. They consume
-allowance and cannot guarantee every mistake is found. Unio's current
-same-checkout handoff is context, not a backup or automatic recovery.
+Use **AI agents from different AI labs**. The approved title is **Unio — Give
+your AI subscriptions a group project.** Explain coordination, delegation,
+parallel work, independent code/security reviews, evidence, handoffs through
+limits and owner control in plain language, followed by technical detail.
+Reviews reduce risk; they cannot guarantee every mistake is found. Current
+same-checkout handoffs preserve context; automatic recovery is still planned.
 
-The latest 2026-10-06 owner instruction authorizes unattended sequential
-milestones, completed official 0.5.x releases and installation of the latest
-verified release on this machine. Read
-coord/OWNER-UNATTENDED-RELEASE-INSTALL-AUTHORIZATION-2026-10-06.md and
-coord/ROOT-UNATTENDED-STEERING-2026-10-06.md. Earlier no-global-install and
-v0.5.3-only limits are superseded. No further questions within this scope;
-no billing/authentication changes or unfinished milestone publication.
+The owner authorizes unattended sequential milestones, publishing completed
+0.5.x releases and installing the latest verified public release on this
+machine. Read `coord/OWNER-UNATTENDED-RELEASE-INSTALL-AUTHORIZATION-2026-10-06.md`
+and the latest `coord/ROOT-UNATTENDED-STEERING-2026-10-06.md`. Earlier preparation-
+only restrictions are superseded. Ask no additional routine permission within
+that scope. No extra token charges, purchases or billing/auth changes are
+authorized. Go remains the OpenCode subscription route; verified-free exact
+MiMo/LongCat Zen routes may handle routine supporting work. Pin helper models
+free too and recheck pricing before each new assignment. Other Zen routes are
+not covered. Stronger available subscription agents are preferred for complex
+work and final assessment. Follow the complete lead-routing policy.
 
-## Completed source and active work
+## Completed source and remaining work
 
-- Browser service cbb6e958 passed native checks, Grok/Z.ai independent
-  reviews and lead overview, then full gate and push at 2e20effd. The
-  supplemental Gemini review approved but executed Validate despite its
-  read-only instruction. Keep that deviation and its earlier E2BIG failure.
-- Prompt source 6064d6c and docs correction fb2d3da were verified/reviewed,
-  integrated, fully gated and pushed at c7ffb64. The old availability-table
-  rejection remains preserved; no repeat prompt-transport source task.
-- Gemini's first API candidate 2bb6938 passed native 7/7. Grok review failed
-  with an actual 402 exhausted balance; GLM timed out 124. Neither is an
-  approval. The lead found startup-label/error-mapping/documentation defects
-  and froze distinct BROWSER-API-FIX-1. Its source call is in flight at this
-  checkpoint; read its actual exit/verification/reviews before proceeding.
-- Root prepares REPO-PUBLISHED-COPY-FIX-1 with the approved expanded README,
-  development-doc organization and actual release status. Preserve previous
-  docs candidates and failed/supplemental reviews; do not reuse their
-  approvals for this changed candidate. Its earlier local verification
-  omitted the deleted TODO.md/WORKSPACE-RULES.md scope entries; that real
-  failure is preserved, and the new scoped task includes all removed paths.
-- Claude continuation lead OPUS-LEAD-CONTINUATION-053-1 is already running.
-  Do not restart or duplicate it. It owns API -> UI -> real browser demo ->
-  shipping fixes and completed public v0.5.3. Never merge its lead branch.
-- Unattended successor waits for that lead's actual successful completion
-  and verified public v0.5.3, installs/tests it while idle, then starts ONE
-  distinct checkpoint-v0.5.4 lead and installs verified public v0.5.4 afterward.
-  Do not launch a competing checkpoint leader. Read its current controller
-  receipt and actual global-install receipts before claiming any installation.
+Browser service, prompt transport and corrected execution API are integrated,
+fully gated and pushed in main2cf8c2b. Preserve old failures and rejected
+candidates; do not rerun the original prompt/API source tasks.
+
+The Google UI candidate1788aa06d02bb347a6aef2b5ed0e351825cda794 is preserved.
+The first Codex design task reached its five-hour limit before committing;
+its original dirty files and failure are archived unchanged. A distinct
+completion task committed ecbb32d5f710dc51dff65093cda2ca6b15859006 with actual
+source exit0, but fresh native verification failed6/7 at the session-refresh
+browser check. This candidate is not accepted or shipped. Do not turn the
+original design failure or verification failure into a success claim.
+
+The lead reproduced an asynchronous test-job-ID race privately: delayed Node
+response observation misses the injected403 route although the UI already
+has the correct job ID. A private deterministic comparison passed the original
+journey after binding the rendered ID; it is diagnostic evidence only. The
+new bounded BROWSER-UI-READINESS-FIX-1 native Codexhigh task is queued behind
+the actual docs gate/push. Its new worker starts at clean imported2b1b49e,
+preserving previous UI commits. Read its actual run/verify receipts first;
+never launch a duplicate. Freeze new dependent source against the actual
+gated base and retain every source-author AI lab in the complete delta.
+
+After the UI correction, worker progress/CLI output with a separate files
+view, shipping polish and a real bounded browser journey still need completion.
+Shipping includes standalone startup-policy packaging, guide discoverability,
+owned legacy upgrade cleanup and factual release docs. Separate drafts exist
+under `coord/tasks/`; do not dispatch an unfrozen draft. Supervisor-owned
+periodic/failure saves, early finish reserve and portable checkpoint recovery
+are required in the later0.5.4 milestone, not delivered by this document.
+
+Old Opus/Codex delegated lead runs and successors ended unsuccessfully;
+there is no live delegated milestone lead to restart. Root's latest private
+manifest/controller receipts record the actual current continuation. Never
+merge a generic lead branch or mistake an old armed-controller entry for a
+live successful release pipeline.
 
 ## Milestones and versions
 
-| Version | Work | State at this checkpoint |
+| Version | Work | State at this dated checkpoint |
 | --- | --- | --- |
 | 0.5.0 | Complete Unio rename | Published; original gated aebe23c |
 | 0.5.1 | Limit-policy hardening | Published; original gated af437b1 |
-| 0.5.2 | Queue approval/reservation/recovery | Published; original gated 1bddeab; latest public release |
-| 0.5.3 | Real browser-to-worker workflow | Service/transport gated and pushed; API/UI/demo/shipping incomplete |
-| 0.5.4 | Checkpoint-based continuation | Approved next distinct milestone; contract to freeze before source dispatch |
+| 0.5.2 | Queue approval/reservation/recovery | Published; original gated1bddeab; latest public release |
+| 0.5.3 | Browser-to-worker workflow | Service/transport/API gated and pushed; UI/output/demo/shipping pending |
+| 0.5.4 | Recoverable continuation | Required automatic work-saving/checkpoint feature remains planned |
 
-Read docs/VERSION-PLAN.md, docs/NEXT-MILESTONE-CONTRACTS.md and the frozen
-version contract. Historical release assets retain original gated snapshots;
-current source records their later publication without rewriting those tags.
-Root completed historical backfill; do not duplicate those publications.
+Read [version plan](../VERSION-PLAN.md), [milestone contracts](../NEXT-MILESTONE-CONTRACTS.md)
+and [priorities](ROADMAP.md#approved-delivery-priorities). Historical release
+assets retain their original gated source snapshots; do not duplicate their
+publication, rewrite tags or claim latest fixes existed in old releases.
 
-## Queue evidence to preserve
+## Delegation, reviews and integration
+
+Use native Unio for source-worker/reviewer calls. Leads write contracts, docs,
+private orchestration and probes; workers implement runtime source. Resume
+before calls and stop afterward. Keep one bounded invocation per frozen task
+and reviewer, with no automatic retries. Genuine defects get new scoped
+corrections. Freeze model/effort/configuration; GLM stays high.
+
+Require two independent final reviews from different nonauthor AI labs, then
+the lead's own complete overview. Prepare both review views before calls with
+identical full material and four revision hashes, excluding current peer
+verdicts/findings. Keep original logs and failed receipts privately. Changed
+candidates need fresh complete reviews. Supplementary routine checks do not
+replace competent final security assessment or guarantee all errors are found.
+
+After every merge, run `bash tools/quality-check.sh`, require actual exit0 and
+the final all-checks-passed sentinel, push and verify the exact remote SHA.
+Never change canonical main while a gate is running. Advancing the base can
+make native worker evidence stale even for disjoint documentation; retain
+that failure honestly and freeze genuinely new dependent scope correctly.
+Quote paths; timestamps come from `date`. Never self-match `pgrep -f`/`pkill -f`.
+Use CodeGraph only if the owner has indexed the repository. Log every checkpoint
+and update the actual lead's own continuation file.
+
+## Actual availability observations
+
+These are dated observations, not current meters. Refresh supported read-only
+account metadata before scheduling; do not infer capacity from installation.
+
+- Codex supported zero-model reading at2026-10-06T22:25:18+02:00 showed54% of
+  the five-hour and61% of the weekly allowance remaining. New calls consume it.
+- OpenCodeGo weekly limit is exhausted by the owner's2026-10-06 report. Its
+  rounded5d8h reset estimate is not proof that capacity returned.
+- Claude/Opus reported its weekly limit on2026-10-06; its provider-reported
+  Oct8 reset is still a future estimate until genuine restored capacity.
+- Grok returned balance-exhausted402; Antigravity returned insufficient-auth-
+  scope403. Neither is fixed by elapsed time, more effort or a model catalog.
+- Exact free Zen MiMo/LongCat routes completed prior routine docs reviews;
+  zero pricing was rechecked. Verify their current price before a new call.
+
+No fleet-wide automatic quota indicator or runtime pricing enforcement is
+implemented. Do not purchase extra capacity or change sign-in to make progress.
+
+## Historical queue evidence to preserve
+
 
 Source lineage: Gemini d2e232a -> Opus e25ef4b -> Codex ec256d1. One distinct
 bounded invocation each. Original failed probes and corrected cases remain
@@ -103,83 +160,15 @@ never rewrite the original exit. GLM's claimed text transcription mismatch
 was a reviewer misread: packet and source both contain \ttext. Cosmetic
 schema-one test name and bare fragment are nonblocking shipping-polish notes.
 
-## Delegation, reviews and integration
+## Private evidence pointers
 
-Use native Unio for every source-worker/reviewer invocation. Leads write
-contracts, docs, private orchestration and probes; workers implement runtime
-source. Pins and actual receipts live in tmp/unio-next/manifest.json and
-receipts/. Resume before calls and stop finally. One invocation per frozen
-task/reviewer; no automatic paid retries. Concrete reproduced defects get
-new scoped corrective task IDs. GLM always high.
-
-Require two independent final reviews from different AI labs, neither an
-author of the candidate, then the lead's own full overview. Prepare both
-native review views before calls, compare all four revision hashes and full
-material bytes, and exclude current peer findings/verdicts from the review-
-facing log. Keep the original log privately with its hash. Reviews with
-peer-verdict exposure remain supplemental. Fixes require fresh complete
-candidate reviews. Additional AI reviewers may fill a missing check; they
-cannot guarantee all bugs are caught.
-
-After every source merge run the full quality gate, require actual exit0
-AND its final all-checks-passed sentinel, then push and verify exact remote
-SHA. No concurrent canonical-main mutations during a gate. Quote paths;
-they contain spaces. Use timestamps from date. Never self-match pgrep -f
-or pkill -f. No CodeGraph index exists; skip it. Add dated append-only log
-entries and update the lead's own living prompt after each step.
-
-## Capacity
-
-Supported zero-model Codex reading at 2026-10-06T12:54:35+02:00:
-**71% five-hour / 95% weekly remaining**, recorded in
-codex-capacity-during-unattended-20261006.json. This supersedes earlier
-scarce readings; refresh supported metadata before relying on it. Grok
-Build returned an actual balance-exhausted 402 at 12:20:29; no retry or
-billing change. GLM's two timeouts are failures, not proven quota readings.
-OpenCode Go remaining capacity is Unknown; a listed model does not prove
-available allowance. Claude/Gemini remaining quota is also Unknown.
-
-These readings are historical; none is the current meter:
-
-| Observed time (+0200) | Five-hour remaining | Weekly remaining | Receipt |
-| --- | --- | --- | --- |
-| 2026-10-06 11:18:09 | 23% | 2% | codex-capacity-after-public-docs-20261006.json |
-| 2026-10-06 10:10:05 | 63% | 8% | codex-capacity-after-service-reviews-20261006.json |
-| 2026-10-06 09:07:25 | 99% | 14% | codex-capacity-after-five-hour-reset-20261006.json |
-| 2026-10-06 00:23:28 | 14% | 15% | codex-capacity-after-owner-resume-20261006.json |
-| 2026-10-05 23:33:11 | 44% | 20% | codex-capacity-during-browser-service.json |
-| 2026-10-05 22:44:26 | 83% | 26% | codex-capacity-after-session-restart.json |
-| 2026-10-05 21:32:44 | 99% | 29% | codex-capacity-before-browser.json |
-| 2026-10-05 14:54:14 | 64% | 39% | codex-capacity-probe.json |
-
-Read docs/PROVIDER-CAPACITY.md and docs/PROVIDER-QUOTA-MONITORING.md. Fleet
-remaining-quota monitoring is roadmap work. The usage screenshot is preserved
-privately in artifacts/provider-usage/. Tokens/cost/reset reports are not
-remaining quota, and a new conversation does not reset account limits.
-
-Available pinned options include Codex gpt-6.1-sol/xhigh, Gemini
-3.1-pro-high/high, Opus 5.5/high, GLM 5.3/high and previously used OpenCode
-DeepSeek, Moonshot AI, Alibaba and MiniMax models. Choose two nonauthor labs
-from actual capacity and preserve model/effort/exit evidence. Catalog entries
-and requested pins are not confirmation that a paid run completed.
-
-## Installation and shipping
-
-Installed global runtime remains Unio 0.5.0 at this checkpoint. Global latest-
-release installation is now owner-authorized but serialized while native
-work is idle, with exact official tag/download/gated-source checks, backup,
-configuration preservation, version/help/legal/offline selftest and rollback
-on a real installation failure. Do not race the armed root supervisor.
-
-Shipping retains two real isolated upgrade findings: markerless v0.4.0
-completion survives, and unknown old-name aliases can be removed by name
-alone. Preserve upgrade-markerless-v0.4.0.json and upgrade-foreign-links.json.
-Repair them through a bounded native shipping task with tests and independent
-reviews before claiming the v0.5.3 upgrade ready. Current global was already
-cleaned during the owner-approved 0.5.0 cutover; that is separate evidence.
-
-Build exact-SHA installer/source/LICENSE/NOTICE/checksum/provenance artifacts
-only after the final genuine full gate and push. Verify isolated smoke and
-upgrade/backup restore plus downloaded official asset hashes. No private
-logs/config/authentication in public artifacts; preserve old immutable tags.
-Read actual public releases and installation receipts before updating status.
+Inside the enclosing workspace, start with `tmp/unio-next/manifest.json` and
+`tmp/unio-next/receipts/`. Check actual controller process/status/exit before
+acting. Relevant receipts include `controller-roadmap-recovery-docs-integration-20261006.json`,
+`github-roadmap-readme-recovery-exact-20261006.json`,
+`ui-readiness-queued-after-docs-20261006.json`,
+`run-BROWSER-UI-READINESS-FIX-1.json`, and `verify-BROWSER-UI-READINESS-FIX-1.log`.
+A missing receipt means no evidence of completion. Public/local guide delivery
+has its own task and evidence; never label a prepared policy as a published
+runtime feature. Source archives, native auth stores and raw review logs stay
+private; this repository contains the usable instructions and factual handoff.
