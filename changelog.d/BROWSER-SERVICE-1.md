@@ -1,0 +1,2 @@
+- Unio 0.5.3: add explicit native ExecutionService with durable worker ownership, once-only launch/review intents and revision-bound evidence/acceptance.
+- Add disposable Git/native-mock regressions and quality-gate registration; HTTP/browser integration and the live demonstration remain separate slices.

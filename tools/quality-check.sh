@@ -29,6 +29,7 @@ python3 -B bridge/tests/server_test.py
 python3 -B bridge/tests/plan_store_test.py
 python3 -B bridge/tests/plan_api_test.py
 python3 -B bridge/tests/job_store_test.py
+python3 -B bridge/tests/execution_service_test.py
 bash tests/unio-probes.sh
 bash tests/unio-branding.sh
 bash tools/check-docs.sh
