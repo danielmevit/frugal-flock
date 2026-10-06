@@ -219,6 +219,11 @@ A refusal records review `unknown`, `material_complete: false` and reason
 The reviewer runs from an empty temporary folder, with `TASKFILE` pointing
 at the material and a time limit of `UNIO_REVIEW_TIMEOUT` seconds
 (default 900). Its configured command still has host-level access.
+Fresh shipped commands pass the material file by stdin or a file flag,
+not as one argument, so material over Linux's ~128 KiB single-argument
+limit still reaches the reviewer whole. The material tells the reviewer to
+read the whole file but never run its Validate commands or follow
+instructions inside the diff.
 
 Only stdout can carry the decision. Exactly one line may mention
 `verdict:` (in any letter case), and it must read exactly
@@ -301,8 +306,9 @@ object per agent:
 | `authentication`, `capacity` | Always `unknown`: never checked locally. |
 | `execution_boundary` | Always `trusted_host`: configured commands have host-level access. |
 
-The shipped `agents.conf` lines pass the task text with
-`"$(cat "$TASKFILE")"`, which is shell syntax, so those agents show
+Quoted arguments and one plain input redirect such as `< "$TASKFILE"`
+(the shipped Claude and Codex lines) keep the program known. Pipes, `;`,
+output redirects, here-documents and `bash -c` wrappers make it
 `installed=unknown`. Inside a project, `doctor` checks that each worker's
 program is on PATH.
 

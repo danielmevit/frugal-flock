@@ -269,12 +269,18 @@ name=shell command that runs that agent headless
 For example the Claude line:
 
 ```text
-claude=claude -p "$(cat "$TASKFILE")" --dangerously-skip-permissions
+claude=claude -p --dangerously-skip-permissions < "$TASKFILE"
 ```
 
 Read it as: "to run agent *claude*, call the `claude` program in print
-mode, feed it the task file's text, and let it work without asking for
-per-action approval." `$TASKFILE` is filled in by Unio at run time.
+mode, feed it the task file on its input, and let it work without asking
+for per-action approval." `$TASKFILE` is filled in by Unio at run time.
+The task travels by input or by file, never as one long argument: Linux
+refuses any single argument over about 128 KiB, and big tasks or review
+material would fail with `Argument list too long`. Fresh installs pass
+the file this way for every agent. Older `agents.conf` files keep their
+`"$(cat "$TASKFILE")"` lines; `unio doctor` warns about each one and
+shows the replacement (docs/SETUP.md §6).
 Auto-approve gives the configured command host-level permissions. Separate
 worktrees and the merge gate help coordinate and review changes, but they
 do not contain filesystem damage. Use these defaults only on a trusted
@@ -900,9 +906,10 @@ Facts worth knowing:
 - `agents` is a local check only: it never runs an agent and never asks a
   provider about login or quota, so authentication and capacity always
   show as unknown. A bench time is the retry time you chose, not a
-  provider-confirmed reset. Conf lines that use shell syntax (the shipped
-  ones pass the task with `"$(cat "$TASKFILE")"`) show `installed=unknown`;
-  `unio doctor` checks that each worker's program exists.
+  provider-confirmed reset. Conf lines whose program is hidden by shell
+  syntax (pipes, `;`, output redirects, `bash -c` wrappers) show
+  `installed=unknown`. The shipped `< "$TASKFILE"` input redirect does
+  not. `unio doctor` checks that each worker's program exists.
 
 ---
 

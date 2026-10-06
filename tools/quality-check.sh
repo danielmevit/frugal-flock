@@ -25,6 +25,7 @@ python3 tests/unio-loop-brake.py
 python3 tests/unio-limit-wall.py
 python3 tests/unio-watch.py
 python3 tests/unio-opencode.py
+python3 -B tests/unio-prompt-transport.py
 python3 -B bridge/tests/server_test.py
 python3 -B bridge/tests/plan_store_test.py
 python3 -B bridge/tests/plan_api_test.py
