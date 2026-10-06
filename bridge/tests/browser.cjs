@@ -35,7 +35,7 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     results: [
       {
         worker: "opencode-m2",
-        task: "<img src=x onerror=alert(1)>",
+        task: "<img src=x onerror=alert(1)> " + "long_literal_task_".repeat(90),
         recorded_at: "2026-10-04T21:00:00Z",
         activity: "failed",
         worker_lock: "free",
@@ -60,7 +60,7 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
         limit_signal: "runner_log_pattern",
       },
     ],
-    warnings: [],
+    warnings: ["Literal <script>alert(1)</script> " + "long_observer_warning_".repeat(90)],
     evidence: "recorded; use result to recheck revision and readiness",
   };
   fs.writeFileSync(snapshotFile, JSON.stringify(document));
@@ -117,7 +117,7 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
         : {},
     );
     context = await browser.newContext({
-      viewport: { width: 1440, height: 1000 },
+      viewport: { width: 1440, height: 900 },
       reducedMotion: "reduce",
     });
     const page = await context.newPage();
@@ -129,6 +129,18 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     await page.waitForFunction(() =>
       document.getElementById("status").textContent.includes("STOP active"),
     );
+    await page.waitForFunction(() => document.getElementById("mode-label").textContent === "Read-only");
+    assert.equal(await page.locator("#manual-drafts").isVisible(), false);
+    assert.equal(await page.locator("#selected-work").isVisible(), false);
+    assert.ok((await page.locator(".notice").textContent()).includes("Read-only preview"));
+    await page.keyboard.press("Tab");
+    assert.equal(await page.locator(":focus").textContent(), "Skip to workspace");
+    await page.keyboard.press("Enter");
+    assert.equal(await page.locator(":focus").getAttribute("id"), "workspace");
+    await page.keyboard.press("Tab");
+    assert.equal(await page.locator(":focus").getAttribute("id"), "refresh");
+    assert.ok(await page.locator("#refresh").evaluate((el) => getComputedStyle(el).outlineStyle !== "none"));
+    await page.keyboard.press("Enter");
     assert.ok(
       (await page.locator("#tasks").textContent()).includes(
         "Process failed · exit 124",
@@ -196,6 +208,11 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     );
+    await page.getByText("Recent recorded events and warnings", {exact:true}).click();
+    assert.ok((await page.locator("#events").textContent()).includes("Literal <script>"));
+    assert.equal(await page.locator("#events script").count(), 0);
+    assert.ok(await page.locator("#events").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     if (process.env.M2_SCREENSHOTS)
       await page.screenshot({
         path: path.join(process.env.M2_SCREENSHOTS, "activity-mobile.png"),
