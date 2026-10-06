@@ -143,16 +143,23 @@ open(os.path.join('${fixture}', 'coord', 'base'), 'w').write('main\\n')
       if (request.method() === "POST") posts++;
     });
     
-    let currentJobId;
-    page.on("response", async (response) => {
-      const url = response.url();
-      if (url.endsWith("/api/jobs") && response.request().method() === "POST" && response.ok()) {
-        try {
-          const json = await response.json();
-          if (json && json.job && json.job.id) currentJobId = json.job.id;
-        } catch(e) {}
-      }
-    });
+    const isPreparedResponse = (response) => response.url() === origin + "/api/jobs"
+      && response.request().method() === "POST" && response.ok();
+    // Hold the old asynchronous identity observer until explicit recovery has
+    // completed. This forces the original race without sleeps or extra timeouts.
+    let observedJobId, releasePreparedObserver, completePreparedObservation;
+    const preparedObserverGate = new Promise((resolve) => releasePreparedObserver = resolve);
+    const preparedObservation = new Promise((resolve) => completePreparedObservation = resolve);
+    const observePreparedJob = (response) => {
+      if (!isPreparedResponse(response)) return;
+      page.off("response", observePreparedJob);
+      completePreparedObservation((async () => {
+        await preparedObserverGate;
+        observedJobId = (await response.json()).job.id;
+        return observedJobId;
+      })());
+    };
+    page.on("response", observePreparedJob);
 
     const calls = (verb) => fs.readFileSync(path.join(fixture, "calls.jsonl"), "utf8")
       .trim().split("\n").map(JSON.parse).filter((argv) => argv[0] === verb);
@@ -213,8 +220,15 @@ open(os.path.join('${fixture}', 'coord', 'base'), 'w').write('main\\n')
     await stage("preview");
     assert.equal(await page.locator("#draft-text").textContent(), literal);
     // Prepare retains its original explicit journey assertion.
+    const preparedResponse = page.waitForResponse(isPreparedResponse);
     await page.getByRole("button", {name:"Prepare preview",exact:true}).click();
+    const preparedView = await (await preparedResponse).json();
+    const currentJobId = preparedView.job.id;
+    assert.match(currentJobId, /^[0-9a-f]{32}$/);
     await page.waitForFunction(() => document.getElementById("job-status").textContent.includes("Job prepared."));
+    assert.equal(await page.locator("#job-id").inputValue(), currentJobId,
+      "Rendered identity matches the authoritative completed prepare response");
+    assert.equal(observedJobId, undefined, "Response observer is still deliberately blocked");
     assert.ok(await page.locator("#job-preview").isVisible());
     assert.ok((await page.locator("#job-preview-text").textContent()).includes("Malicious"));
     assert.equal(await page.locator("#job-request-text").textContent(), literal);
@@ -224,14 +238,30 @@ open(os.path.join('${fixture}', 'coord', 'base'), 'w').write('main\\n')
     await stage("approve");
     const approve = page.getByRole("button", {name:"Approve run",exact:true});
     // A rotated session never repeats a write and retains the same opaque intent.
-    await page.route(origin + `/api/jobs/${currentJobId}/approve`, (route) => route.fulfill({status:403,json:{schema_version:1,error:"session_refused"}}), {times:1});
+    const approvalUrl = origin + `/api/jobs/${currentJobId}/approve`;
+    const interceptedApprovals = [];
+    await page.route(approvalUrl, (route) => {
+      const request = route.request();
+      assert.equal(request.method(), "POST");
+      assert.equal(request.url(), approvalUrl);
+      interceptedApprovals.push(request.postDataJSON());
+      return route.fulfill({status:403,json:{schema_version:1,error:"session_refused"}});
+    }, {times:1});
     const beforeSession = posts;
+    const sessionReads = () => requests.filter((r) => r.url === origin + "/api/session" && r.method === "GET").length;
+    const beforeSessionReads = sessionReads();
+    const refusedApproval = page.waitForResponse((response) => response.url() === approvalUrl && response.request().method() === "POST");
     await approve.click();
+    assert.equal((await refusedApproval).status(), 403, "The intended approval response was injected");
+    assert.equal(interceptedApprovals.length, 1, "Exactly one approval POST reached the 403 interceptor");
     await page.waitForFunction(() => document.getElementById("job-status").textContent.includes("Session refreshed"));
+    assert.equal(observedJobId, undefined, "Session recovery does not depend on the delayed observer");
+    assert.equal(sessionReads(), beforeSessionReads + 1, "403 explicitly refreshes the session once");
     assert.equal(posts, beforeSession + 1);
     assert.equal(await approve.isDisabled(), true);
     const approvalKey = await page.evaluate((id) => sessionStorage.getItem(`unio_job_${id}_approval_key`), currentJobId);
     assert.match(approvalKey, /^[0-9a-f]{32}$/);
+    assert.equal(interceptedApprovals[0].approval_key, approvalKey);
     assert.equal(requests.find((r) => r.url.endsWith("/approve")).body.approval_key, approvalKey);
     assert.equal(await page.getByLabel("Describe the work to save").inputValue(), literal);
     await inspect("session-error");
@@ -239,6 +269,10 @@ open(os.path.join('${fixture}', 'coord', 'base'), 'w').write('main\\n')
     await page.waitForFunction(() => document.getElementById("job-status").textContent.includes("Job refreshed."));
     assert.equal(posts, beforeSession + 1);
     assert.equal(await approve.isEnabled(), true);
+    assert.equal(observedJobId, undefined, "Explicit GET-only job recovery completes before observer assignment");
+    assert.equal(calls("run").length, 0, "Refused approval and read recovery never launch a worker");
+    releasePreparedObserver();
+    assert.equal(await preparedObservation, currentJobId, "The delayed observer eventually sees the same prepared job");
     // Double click approve protection, with explicit busy accessibility.
     let releaseApproval;
     const approvalGate = new Promise((resolve) => releaseApproval = resolve);
@@ -408,7 +442,7 @@ open(os.path.join('${fixture}', 'coord', 'base'), 'w').write('main\\n')
     assert.ok(requests.every((r) => r.url.startsWith(origin + "/") && ["GET","POST"].includes(r.method)));
     assert.ok(requests.filter((r) => r.method === "POST").every((r) => /\/api\/(plans|jobs)/.test(r.url)));
     if (process.env.M2_SCREENSHOTS) fs.writeFileSync(path.join(process.env.M2_SCREENSHOTS,"execution-audit.json"), JSON.stringify({providerCalls:0,fixture,observations:visual},null,2));
-    console.log("Execution browser: literal exact preview, all explicit stages, approve double-click/busy lock, session rotation and lost-start response/reload GET-only recovery, stable opaque keys, native readiness/revision guards, honest failed/stale/unknown/live states, keyboard focus, desktop/narrow wrapping and no provider calls passed");
+    console.log("Execution browser: literal exact preview, all explicit stages, deterministic 403 interception with gated response observer, approve double-click/busy lock, session rotation and lost-start response/reload GET-only recovery, stable opaque keys, native readiness/revision guards, honest failed/stale/unknown/live states, keyboard focus, desktop/narrow wrapping and no provider calls passed");
   } finally {
     if (context) await context.close();
     if (browser) await browser.close();

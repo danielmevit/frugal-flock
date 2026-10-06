@@ -1,0 +1,2 @@
+Bind approval interception to the awaited prepared-job identity and assert the exact injected 403 POST; gate the asynchronous response observer through explicit session and GET-only job recovery to regress the scheduling race without sleeps or timeout changes.
+Preserve all inherited UI/runtime behavior and original receipts; offline validation and independent nonauthor subscription-lab reviews remain separate from acceptance or shipping.

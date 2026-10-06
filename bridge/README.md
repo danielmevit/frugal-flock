@@ -271,3 +271,33 @@ These are offline regression results, not live workflow completion. The
 original failed native Source remains failed. Version 0.5.3 remains pending,
 with fresh native verification, two independent nonauthor-lab reviews and
 the lead's full overview still required before integration.
+
+## BROWSER-UI-READINESS-FIX-1 correction (2026-10-06)
+
+Fresh mandatory verification of the preserved completion failed 6/7: the
+execution browser check registered its injected approval URL before an
+asynchronous response observer assigned the prepared job ID. The real approval
+POST used the correct rendered ID and missed that interceptor. The private
+delayed-observer diagnostic exited 1; the private rendered-ID comparison exited
+0, with a nonfailing shutdown broken-pipe warning. Those fixtures are diagnostic
+evidence, not product verification or a real provider run. Original source and
+verification receipts remain unchanged.
+
+The corrected browser check awaits the successful prepare response, validates
+its opaque job ID and checks that the rendered ID matches before registering
+the approval interceptor. It asserts that exactly one POST reaches that exact
+URL, receives the injected 403 and carries the saved approval key. A promise
+gate holds the response observer unassigned through session refresh and the
+explicit GET-only job refresh, then confirms the observer eventually sees the
+same ID. This forces the scheduling race without sleeps, retries or changed
+timeouts. All original execution, literal rendering, saved-intent, busy,
+keyboard, mobile and native revision/readiness assertions remain in place;
+runtime UI files are unchanged.
+
+The focused execution Chromium suite passed on its first corrected run,
+including the gated observer regression and every original journey assertion.
+The remaining Validate checks are pending at this committed checkpoint.
+The complete inherited UI still has Google + OpenAI author labs. Fresh native
+verification, two independent nonauthor subscription-lab reviews and the
+lead's own review remain required before integration. These offline checks do
+not establish acceptance, a live provider demonstration or public shipping.
