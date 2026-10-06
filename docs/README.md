@@ -6,6 +6,8 @@
 | Learn the workflow | [Worked example](EXAMPLE.md) · [Handbook](HANDBOOK.md) |
 | Understand checks and reviews | [Quality guide](QUALITY-USAGE.md) · [Task protocol](PROTOCOL.md) |
 | Develop or continue work on Unio | [Development index](development/README.md) |
+| See the approved development order | [Roadmap priorities](development/ROADMAP.md#approved-delivery-priorities) · [Version plan](VERSION-PLAN.md) |
+| Understand planned live worker output | [Worker progress and console contract](WORKER-PROGRESS.md) |
 | Read findings and design decisions | [Findings index](RESEARCH-FINDINGS.md) · [Feature decisions](FEATURE-DECISIONS.md) |
 | Understand licensing | [Licensing guide](LICENSING.md) · [License](../LICENSE) · [Notice](../NOTICE) |
 

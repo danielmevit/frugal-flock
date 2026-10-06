@@ -1,8 +1,10 @@
 # Capacity-aware continuation — next-milestone proposal
 
-Recorded 2026-10-04 from the owner's discussion. This is a product design,
-not implemented functionality and not an expansion of the frozen M1
-contract. Finish M1 verification before starting this work.
+Recorded 2026-10-04 from the owner's discussion, with delivery order updated
+on 2026-10-06. This is a product design, not implemented functionality or an
+expansion of the frozen M1 contract. M1 is accepted. The current approved
+sequence is browser v0.5.3, recoverable checkpoint continuation v0.5.4, then
+allowance monitoring and the other [delivery priorities](development/ROADMAP.md#approved-delivery-priorities).
 
 M1 is now accepted. The 2026-10-05 owner request and supported-input
 investigation are recorded in the
@@ -85,10 +87,12 @@ future recoverable checkpoint/migration feature.
 
 ## Delivery and tests
 
-After M1: implement manual capacity input and one supported read-only
-adapter; then a dry-run scheduler; then checkpoint/restore and supervised
-continuation; only then optional automatic routing. Keep UI simulation
-clearly separate from real provider control.
+After the approved browser v0.5.3 and checkpoint continuation v0.5.4
+milestones, implement manual capacity input and one supported read-only
+adapter. Then add a dry-run scheduler and integrate its recommendations with
+the verified checkpoint/restore workflow for supervised continuation. Only
+consider automatic routing after those boundaries are tested and the owner
+approves a policy. Keep UI simulation separate from real provider control.
 
 Test stale/missing/out-of-range telemetry, overlapping limit windows,
 shared-account workers, sudden limits during edits/tests/checkpoint writes,

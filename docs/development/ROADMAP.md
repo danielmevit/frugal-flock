@@ -1,6 +1,67 @@
 # Unio roadmap and development priorities
 
-Small plans. Big ideas.
+Give your AI subscriptions a group project.
+
+## Approved delivery priorities
+
+Owner-approved on 2026-10-06. The goal is more verified work from existing
+subscriptions, with fewer interruptions and less rework. Finish the current
+browser milestone; its UI work continues. Then deliver recoverable
+continuation before expanding the coordination engine.
+
+| Order | Milestone | Intended result | Status |
+| --- | --- | --- | --- |
+| First | v0.5.3: browser-to-worker workflow | Prepare and approve a task, start a worker once, inspect results and reviews, and accept the exact verified changes. Add actual worker output and console access as described in the [worker progress contract](../WORKER-PROGRESS.md). | Backend and API integrated; UI, progress addition, full workflow and shipping checks in progress. |
+| Next | v0.5.4: recoverable continuation | Preserve actual unfinished files, decisions and check results so another agent can continue safely when the first stops or hits a limit. | Approved; implementation contract must be frozen before dispatch. |
+
+After these two milestones, build the following in this order. They are
+approved planning priorities; implementation boundaries, release numbers and
+delivery dates will be assigned to bounded milestones separately.
+
+1. **Remaining allowance monitoring.** Show five-hour, weekly and monthly
+   windows, reset times and the age of each reading. Use supported automatic
+   readings where available and timestamped manual input elsewhere. Keep
+   stale or missing capacity visible as Unknown. Account for workers sharing
+   a subscription and reserve allowance for checks, reviews and saving work.
+   See the [quota monitoring plan](../PROVIDER-QUOTA-MONITORING.md).
+2. **More reliable agent connections.** Check authentication, model routes,
+   effort settings and prompt delivery where supported. Isolate per-run
+   state, distinguish connection errors from exhausted allowances, and fail
+   locally on known problems where possible. Preserve actual failures and
+   reviewer protections instead of spending requests on blind retries.
+3. **Smarter delegation and scheduling.** Divide larger goals into
+   finishable tasks with explicit dependencies and file ownership. Run
+   independent work together, serialize conflicting changes, and size tasks
+   conservatively using current capacity. Explain agent selection and follow
+   the owner's allowed routing policy. See the
+   [capacity-aware continuation plan](../CAPACITY-AWARE-CONTINUATION.md).
+4. **A built-in parallel review pipeline.** Make independent reviews from
+   different AI labs a normal Unio workflow, using identical revisions and
+   complete material in separate review views. Connect structured findings
+   to tests and security checks, followed by the lead's own overview. Add
+   targeted reviews when actual gaps require them; reviews reduce mistakes
+   without promising to find every bug.
+5. **Better reasoning and context efficiency.** Use high or the supported
+   middle effort by default, escalating when the task warrants it. Give
+   workers focused, complete task context, reuse still-valid evidence, and
+   avoid duplicated investigation and repeated repository scans. Keep the
+   complete material required for final reviews and record actual model
+   controls rather than assuming every route supports the same levels.
+6. **Performance measurements that guide decisions.** Extend existing
+   ledger and score information to track requests, tokens, elapsed time and
+   rework per accepted change, including review and recovery overhead. Choose
+   agents using evidence for the kind of task and compare team workflows
+   against a single-agent baseline.
+
+Task design and reasoning budgets deserve measurement before optimizing
+local script overhead. One recorded GLM review took 437 seconds at max and
+174 at high, without a better max result. This is a limited local comparison,
+not a universal model benchmark. See the
+[recorded findings](../FINDINGS-2026-10-05.md#glm-53-speed-setup-versus-model).
+
+The sections below preserve milestone history and detailed design context.
+Use this approved order and the [version plan](../VERSION-PLAN.md) for current
+sequencing; dated checkpoints describe what was known at their timestamps.
 
 Checkpoint rule: one bounded correction at a time; test, commit, then
 update [the continuation prompt](continue-with-ai-prompt.md) with the exact
@@ -233,9 +294,11 @@ contract for exact exit codes and regression cases.
 Current checkpoint (2026-10-06): queue approval, reservation and recovery
 completed v0.5.2 with full checks and push at `1bddeab`. The v0.5.3 browser
 execution service is verified, independently reviewed and pushed at
-`2e20eff`; the API, UI and real browser demonstration remain to be done.
-See the [living prompt](continue-with-ai-prompt.md) for the active transport
-correction and subsequent worker assignments. The foundation history below
+`2e20eff`; the API was subsequently integrated at `32f75ee`, with the full
+merged-tree gate and push at `2cf8c2b`. UI design, the owner-requested worker
+progress addition, the real browser demonstration and shipping checks remain
+in progress. See the [living prompt](continue-with-ai-prompt.md) and newest
+coordination entries for active assignments. The foundation history below
 records earlier limitations, not the current queue/service state.
 
 Start with read-only project, agent, and activity views. Then add a fixed,

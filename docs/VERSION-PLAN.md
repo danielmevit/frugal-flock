@@ -8,8 +8,17 @@ changes in separate versions with their implementation and changelog entries.
 | 0.5.0 | Completed A/B/C/D rename; installer, commands, config, docs and prototypes | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.0); source aebe23c; installed with owner approval |
 | 0.5.1 | Limit-policy hardening and regression coverage | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.1); source af437b1 |
 | 0.5.2 | Queue approval, reservation and recovery library | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.2); source 1bddeab; latest completed public release |
-| 0.5.3 | One real browser-to-worker workflow | Implemented; source integrated, publication pending |
+| 0.5.3 | One real browser-to-worker workflow, including worker output and console access | Execution service and API integrated; UI, progress addition, workflow validation and publication in progress |
 | 0.5.4 | Checkpoint-based provider continuation | Approved; contract to freeze before dispatch |
+
+The owner approved the [delivery priorities](development/ROADMAP.md#approved-delivery-priorities)
+on 2026-10-06: finish 0.5.3, deliver 0.5.4, then allowance monitoring, agent
+connection reliability, smarter delegation, a built-in parallel review
+pipeline, reasoning/context efficiency and measured performance. Later
+release numbers and dates are not assigned yet. The
+[worker progress contract](WORKER-PROGRESS.md) records the newly requested
+browser feature; its implementation is a separate bounded native worker
+slice after the current UI design run, which continues unchanged.
 
 Shipping preparation follows these changes. It does not automatically create
 a new version or publish a release. The published v0.4.0 title is now
