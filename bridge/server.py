@@ -65,12 +65,18 @@ class Observer:
 
 class ActivityServer(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, port, observer, plans=None):
+    def __init__(self, port, observer, plans=None, execution=None):
         super().__init__(('127.0.0.1',port), ActivityHandler)
         self.observer = observer
         self.plans = plans
-        self.session_token = secrets.token_urlsafe(32) if plans is not None else None
+        self.execution = execution
+        self.session_token = secrets.token_urlsafe(32) if (plans is not None or execution is not None) else None
         self.origin = 'http://127.0.0.1:' + str(self.server_port)
+
+    def server_close(self):
+        if self.execution is not None:
+            self.execution.close()
+        super().server_close()
 
 
 class ActivityHandler(BaseHTTPRequestHandler):
@@ -114,7 +120,9 @@ class ActivityHandler(BaseHTTPRequestHandler):
             return
         if self.path == '/api/session':
             return self.respond(200, json.dumps(dict(schema_version=1,
-                manual_drafts=self.server.plans is not None, token=self.server.session_token)).encode())
+                manual_drafts=self.server.plans is not None,
+                execution=self.server.execution is not None,
+                token=self.server.session_token)).encode())
         if self.server.plans is not None and self.path.startswith('/api/plans/'):
             if not self.token_allowed():
                 return
@@ -128,6 +136,27 @@ class ActivityHandler(BaseHTTPRequestHandler):
             except (ValueError, OSError):
                 return self.error_response(503, 'draft_unavailable')
             return self.respond(200, json.dumps(draft, ensure_ascii=True).encode())
+
+        if self.server.execution is not None and self.path.startswith('/api/jobs'):
+            if not self.token_allowed():
+                return
+            if self.path == '/api/jobs':
+                return self.respond(200, json.dumps(dict(schema_version=1, jobs=self.server.execution.jobs()), ensure_ascii=True).encode())
+            identity = self.path.removeprefix('/api/jobs/')
+            if re.fullmatch('[0-9a-f]{32}', identity) is None:
+                return self.error_response(400, 'invalid_request')
+            try:
+                job = self.server.execution.get(job_id=identity)
+                return self.respond(200, json.dumps(job, ensure_ascii=True).encode())
+            except ValueError:
+                return self.error_response(400, 'invalid_request')
+            except Exception as e:
+                status = getattr(e, 'status', 503)
+                code = getattr(e, 'code', 'native_unavailable')
+                if type(e).__name__ != 'ExecutionError':
+                    status, code = 503, 'native_unavailable'
+                return self.error_response(status, code)
+
         if self.path == '/api/activity':
             snapshot = self.server.observer.read()
             if snapshot is None: return self.error_response(503,'activity_unavailable')
@@ -136,17 +165,28 @@ class ActivityHandler(BaseHTTPRequestHandler):
                   '/activity.js':('activity.js','text/javascript; charset=utf-8'),
                   '/drafts.js':('drafts.js','text/javascript; charset=utf-8'),
                   '/activity.css':('activity.css','text/css; charset=utf-8')}
-        if self.path not in routes: return self.error_response(404,'not_found')
-        name,content_type = routes[self.path]
-        return self.respond(200,(ASSETS/name).read_bytes(),content_type)
+        if self.path in routes:
+            name, content_type = routes[self.path]
+            return self.respond(200, (ASSETS/name).read_bytes(), content_type)
+        if self.path == '/jobs.js':
+            try:
+                return self.respond(200, (ASSETS/'jobs.js').read_bytes(), 'text/javascript; charset=utf-8')
+            except FileNotFoundError:
+                return self.error_response(404, 'not_found')
+        return self.error_response(404, 'not_found')
 
     def do_POST(self):
-        if self.server.plans is None:
+        if self.server.plans is None and self.server.execution is None:
             return self.error_response(405, 'read_only')
         if not self.origin_allowed(write=True) or not self.token_allowed():
             return
-        if self.path != '/api/plans':
+        if not (self.path == '/api/plans' or self.path.startswith('/api/jobs')):
             return self.error_response(404, 'not_found')
+        if self.path.startswith('/api/jobs') and self.server.execution is None:
+            return self.error_response(404, 'not_found')
+        if self.path == '/api/plans' and self.server.plans is None:
+            return self.error_response(404, 'not_found')
+
         if self.headers.get('Transfer-Encoding') is not None:
             return self.error_response(400, 'invalid_body')
         lengths = self.headers.get_all('Content-Length') or []
@@ -169,15 +209,70 @@ class ActivityHandler(BaseHTTPRequestHandler):
             return self.error_response(408, 'body_timeout')
         except (ValueError, OSError):
             return self.error_response(400, 'invalid_body')
-        if not isinstance(body, dict) or set(body) != {'request'}:
+        if not isinstance(body, dict):
             return self.error_response(400, 'invalid_request')
+
+        if self.path == '/api/plans':
+            if set(body) != {'request'}:
+                return self.error_response(400, 'invalid_request')
+            try:
+                draft = self.server.plans.create(body['request'])
+            except ValueError:
+                return self.error_response(400, 'invalid_request')
+            except OSError:
+                return self.error_response(503, 'draft_unavailable')
+            return self.respond(201, json.dumps(draft, ensure_ascii=True).encode())
+
+        # /api/jobs endpoints
         try:
-            draft = self.server.plans.create(body['request'])
+            if self.path == '/api/jobs':
+                if set(body) != {'draft_id', 'expected_hash', 'request_key'}:
+                    return self.error_response(400, 'invalid_request')
+                job = self.server.execution.prepare(**body)
+                return self.respond(201, json.dumps(job, ensure_ascii=True).encode())
+
+            parts = self.path.split('/')
+            if len(parts) == 5 and parts[1] == 'api' and parts[2] == 'jobs':
+                job_id = parts[3]
+                action = parts[4]
+                if re.fullmatch('[0-9a-f]{32}', job_id) is None:
+                    return self.error_response(400, 'invalid_request')
+
+                if action == 'approve':
+                    if set(body) != {'expected_hash', 'approval_key', 'preview_hash'}:
+                        return self.error_response(400, 'invalid_request')
+                    job = self.server.execution.approve(job_id=job_id, **body)
+                elif action == 'start':
+                    if set(body) != {'approval_key', 'reservation_key'}:
+                        return self.error_response(400, 'invalid_request')
+                    job = self.server.execution.start(job_id=job_id, **body)
+                elif action in ('verify', 'review', 'stop'):
+                    if set(body) != {'action_key'}:
+                        return self.error_response(400, 'invalid_request')
+                    # use getattr so it handles stop, verify, review
+                    method = getattr(self.server.execution, action)
+                    job = method(job_id=job_id, **body)
+                elif action == 'accept':
+                    if set(body) != {'revision_hash', 'action_key'}:
+                        return self.error_response(400, 'invalid_request')
+                    job = self.server.execution.accept(job_id=job_id, **body)
+                elif action == 'cancel':
+                    if set(body) != set():
+                        return self.error_response(400, 'invalid_request')
+                    job = self.server.execution.cancel(job_id=job_id)
+                else:
+                    return self.error_response(404, 'not_found')
+                return self.respond(200, json.dumps(job, ensure_ascii=True).encode())
+
+            return self.error_response(404, 'not_found')
         except ValueError:
             return self.error_response(400, 'invalid_request')
-        except OSError:
-            return self.error_response(503, 'draft_unavailable')
-        return self.respond(201, json.dumps(draft, ensure_ascii=True).encode())
+        except Exception as e:
+            status = getattr(e, 'status', 503)
+            code = getattr(e, 'code', 'native_unavailable')
+            if type(e).__name__ != 'ExecutionError':
+                status, code = 503, 'native_unavailable'
+            return self.error_response(status, code)
 
     def reject_method(self):
         self.error_response(405,'read_only')
@@ -230,6 +325,13 @@ def main():
     parser.add_argument('--port',type=int,default=0,help='loopback port, 0 chooses an unused port')
     parser.add_argument('--open-browser',action='store_true',help='optionally open this loopback read-only preview in the default browser')
     parser.add_argument('--enable-plan-drafts',action='store_true',help='opt in to manual draft storage only; never starts workers')
+    parser.add_argument('--enable-execution',action='store_true',help='opt in to execution mode')
+    parser.add_argument('--worker',type=str,help='worker label')
+    parser.add_argument('--reviewer',type=str,help='reviewer label')
+    parser.add_argument('--worker-company',type=str,help='worker company label')
+    parser.add_argument('--reviewer-company',type=str,help='reviewer company label')
+    parser.add_argument('--config-dir',type=Path,help='config dir path')
+    parser.add_argument('--task-template',type=Path,help='task template path')
     options = parser.parse_args()
     if not 0 <= options.port <= 65535: parser.error('port must be 0 through 65535')
     project = options.project.absolute()
@@ -239,17 +341,29 @@ def main():
         engine = resolve_engine(options.engine)
     except ValueError as error:
         parser.error(str(error))
+
+    execution_opts = [options.worker, options.reviewer, options.worker_company, options.reviewer_company, options.config_dir, options.task_template]
+    if any(opt is not None for opt in execution_opts) and not options.enable_execution:
+        parser.error('partial execution settings without explicit mode refuse at startup')
+    if options.enable_execution and not all(opt is not None for opt in execution_opts):
+        parser.error('--enable-execution requires all execution startup inputs')
+
     plans = None
+    execution = None
     try:
-        if options.enable_plan_drafts:
+        if options.enable_plan_drafts or options.enable_execution:
             from plan_store import PlanStore
             plans = PlanStore(project)
-        server = ActivityServer(options.port, Observer(project, engine), plans=plans)
+        if options.enable_execution:
+            from execution_service import ExecutionService
+            execution = ExecutionService(project, engine, options.worker, options.reviewer, options.config_dir, options.task_template, options.worker_company, options.reviewer_company)
+        server = ActivityServer(options.port, Observer(project, engine), plans=plans, execution=execution)
         serve_preview(server, options.open_browser)
     finally:
         if plans is not None:
             plans.close()
-
+        if execution is not None:
+            execution.close()
 
 if __name__ == '__main__':
     main()

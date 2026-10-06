@@ -113,3 +113,7 @@ one save, and a failed save/session refresh keeps typed text without an
 automatic retry. Draft text is not backed up until the server confirms a
 save; refreshing after an unconfirmed save can lose unsaved input. No extra
 provider worker was used for this UI source step.
+
+## Execution mode
+
+The explicit execution mode requires `--enable-execution` (which also enables manual drafts) and all of its concrete startup arguments: `--worker`, `--reviewer`, `--worker-company`, `--reviewer-company`, `--config-dir`, and `--task-template`. This enforces a strict trusted-host/local-session boundary. The fixed startup configuration dictates the exact engine, project, worker, reviewer, companies, template and configurations to use. The HTTP request and local browser session can never provide or select paths, identifiers, bindings or templates. The loopback UI can only instruct the service to act on the immutable startup configuration and its tracked draft bindings.
