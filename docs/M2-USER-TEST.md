@@ -127,7 +127,7 @@ No sessions have been conducted; both records remain blank for optional
 future feedback. This guide does not authorize provider quota or replace
 validation, review, explicit run approval or human acceptance. Installed-release
 dogfood outcomes stay in the [contract/evidence](M2-DOGFOOD-PLAN.md).
-See [TODO](../TODO.md) section 2. A blank record is not feedback evidence.
+See [Roadmap](development/ROADMAP.md) section 2. A blank record is not feedback evidence.
 
 ## Next-task decision
 

@@ -82,7 +82,7 @@ On another machine, choose its own enclosing `unio` or `frugal-flock` folder and
 the same relationships. Do not hard-code this computer's drive into runtime
 code. Read this rule before creating files or additional workspaces.
 
-Before assigning any provider, read [docs/PROVIDER-CAPACITY.md](docs/PROVIDER-CAPACITY.md)
+Before assigning any provider, read [docs/PROVIDER-CAPACITY.md](../PROVIDER-CAPACITY.md)
 and the newest log entries. Existing owner authorization for available AI
 work on Unio and milestones persists; do not request it again for routine
 assignments. Preserve invocation budgets, no-retry rules and review evidence.

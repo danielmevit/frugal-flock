@@ -5,7 +5,7 @@
 Repository: https://github.com/danielmevit/frugal-flock (public).
 Brand: Frugal Flock — Small plans. Big ideas.
 
-Start future sessions with [the continuation prompt](../continue-with-ai-prompt.md).
+Start future sessions with [the continuation prompt](development/continue-with-ai-prompt.md).
 The owner requested smaller checkpoints and an updated living prompt at
 each one. The latest request is project-state cleanup and handoff only.
 No implementation or new worker dispatch is authorized by this document.
@@ -111,7 +111,7 @@ Local workspace: `D:\Vibe Coding\_vm\frugal-flock`, or
 `/mnt/d/Vibe Coding/_vm/frugal-flock` in WSL. Its main checkout is `repo/`,
 Codex's implementation checkout is `wt/codex/`, and coordination is `coord/`.
 Private references/prototypes are in `artifacts/`; disposable project
-checks belong in `tmp/`. Read [WORKSPACE-RULES.md](../WORKSPACE-RULES.md).
+checks belong in `tmp/`. Read [WORKSPACE-RULES.md](development/WORKSPACE-RULES.md).
 
 Native task `FF-QUALITY-kimi` and its append-only reports retain their
 historical names and frozen scope/Validate commands. The native attempt
@@ -179,6 +179,6 @@ installation. Passing scripted checks is not full milestone acceptance.
 
 ## Copy-paste prompt
 
-Open [continue-with-ai-prompt.md](../continue-with-ai-prompt.md), copy the
+Open [continue-with-ai-prompt.md](development/continue-with-ai-prompt.md), copy the
 text under **Prompt to paste**, and paste it into the next AI chat. This is
 the single current prompt; this report supplies its supporting evidence.

@@ -303,7 +303,7 @@ Every exit code and field is in the [quality reference](docs/QUALITY-USAGE.md).
 | See a worked example | [Replayable tour](docs/EXAMPLE.md) |
 | Understand task contracts and coordination | [Agent protocol](docs/PROTOCOL.md) |
 | Read the release notes | [Changelog](CHANGELOG.md) |
-| Work on Unio itself | [Maintainer handoff](docs/HANDOFF.md) · [Doc conventions](docs/DOC-CONVENTIONS.md) |
+| Work on Unio itself | [Development index](docs/development/README.md) · [Maintainer handoff](docs/HANDOFF.md) · [Doc conventions](docs/DOC-CONVENTIONS.md) |
 | Test the engine's guardrails | [Test plan](docs/TESTPLAN.md) · [Word copy](docs/TESTPLAN.docx) |
 | Read the background research | [Architecture research](research/multi-agent-claude-review.md) · [Original plan](docs/MASTER-PLAN.md) |
 
@@ -331,12 +331,12 @@ needed to rebuild the Word manuals with `tools/make-docx.sh`.
   and review results, followed by guided "continue with another AI" when
   one reaches its limit.
 
-The [UX proposal](docs/UX-DIRECTION.md) and [next steps](TODO.md) explain the
+The [UX proposal](docs/UX-DIRECTION.md) and [next steps](docs/development/ROADMAP.md) explain the
 scope and order; the [brand notes](docs/BRAND.md) explain the name.
 
 Continuing this project with another AI? Paste the prompt from
-[continue-with-ai-prompt.md](continue-with-ai-prompt.md) and follow the
-[workspace rules](WORKSPACE-RULES.md). The [M1 status](docs/M1-STATUS.md)
+[continue-with-ai-prompt.md](docs/development/continue-with-ai-prompt.md) and follow the
+[workspace rules](docs/development/WORKSPACE-RULES.md). The [M1 status](docs/M1-STATUS.md)
 and [findings index](docs/RESEARCH-FINDINGS.md) hold the details.
 
 ## License

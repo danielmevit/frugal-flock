@@ -1,19 +1,32 @@
 # Continue Unio with another AI
 
-Read newest ../../coord/AGENT-LOG.md first from a worker, or ../coord/AGENT-LOG.md
-from repo/. History there is append-only. Read actual newer worker branches
+This file is maintained under `docs/development/`. Unless a Markdown link
+says otherwise, workspace paths below start at the enclosing workspace
+and `docs/` paths start at the repository root. Read the development
+[index](README.md) for the roadmap and standing workspace rules.
+
+From a worker checkout root, read newest ../../coord/AGENT-LOG.md first;
+from the main checkout root, read ../coord/AGENT-LOG.md. History there is append-only. Read actual newer worker branches
 before changing anything; never reset or overwrite them. This living prompt
 keeps current decisions; complete receipts and prior notes remain private.
 
-Living checkpoint: 2026-10-05 21:39:01 +0200; Codex lead (GPT-6; exact serving variant not exposed).
+The dated living checkpoint below is current; Codex lead (GPT-6; exact serving variant not exposed).
 
 ## Current checkpoint
 
 <!-- LIVE_CHECKPOINT_START -->
-Queue 0.5.2 full gate PASS; pushed 1bddeabfa25db09522020f238febb89fced92cde.
-Browser contract frozen; BROWSER-SERVICE-1 prepared for one native Codex call.
-No browser implementation candidate exists yet. Read the private manifest.
+Approved milestones checkpoint from date: 2026-10-06 10:29:48 +0200; partial: documentation cleanup ready for integration; Opus prompt source task still active. Reorganized internal Markdown under docs/development with navigation indexes; public-facing root files retained. Tests: All existing document lint and all four nested docs PASS; 48 local links checked with no missing target; private helper syntax PASS. Default recursive docs lint correction added to the undispatched shipping draft. Next: Commit the reviewed documentation-only migration, then collect the existing Opus source result and separate Grok/GLM reviews. Receipts: tmp/unio-next/.
 <!-- LIVE_CHECKPOINT_END -->
+
+## Owner resume after capacity reset
+
+The owner resumed on 2026-10-06 after reporting the five-hour limit reset.
+Preserved Opus candidate cbb6e958b10bc81104e03518633cbf4d46e102a0 is clean
+with actual native source exit 0. Fresh native verification now precedes
+independent simultaneous Gemini/Google and Grok/xAI reviews on identical
+material. Their wrappers resume before each call and stop finally. Read
+../../coord/LEAD-HANDOFF-AFTER-OPUS-2026-10-06.md for preserved evidence;
+its session pause is superseded by this explicit owner resume.
 
 ## Milestones and versions
 
@@ -26,9 +39,9 @@ docs, orchestration and extra probes; workers implement product source.
 | 0.5.0 | Complete Unio rename | Gated/pushed; installed with owner approval |
 | 0.5.1 | Limit-policy hardening | Full gate PASS; pushed af437b1 |
 | 0.5.2 | Queue approval/reservation/recovery | Full gate PASS; pushed 1bddeab |
-| 0.5.3 | Real browser-to-worker workflow | Contract frozen; service task prepared, not yet dispatched |
+| 0.5.3 | Real browser-to-worker workflow | Service gated/pushed; prompt transport active; API, UI and demonstration pending |
 | 0.5.4 | Checkpoint-based provider continuation | Private contract draft; no worker dispatched |
-| Shipping | Concrete release artifacts/upgrade evidence | Prepare after milestones; publication needs approval |
+| Shipping | Concrete release artifacts/upgrade evidence | Completed browser v0.5.3 publication authorized; global upgrade needs approval |
 
 Read docs/VERSION-PLAN.md, docs/NEXT-MILESTONE-CONTRACTS.md and the version's
 frozen contract. Browser service -> API -> UI are dependent slices; each
@@ -70,6 +83,12 @@ concurrently on exact disposable native views; compare candidate/base/task/
 worktree hashes and full material bytes. prepare-review-view.py includes
 reports/locks and genuine coordination/evidence snapshots; parallel-reviews.py
 prepares both before dispatch. Do not provide one reviewer another's verdict.
+Original controller-browser-service-1 records actual timeout 124 and preserved commit bb722da. Corrective task BROWSER-SERVICE-FIX-1 repairs reproduced Unicode storage preflight failure; Owner changed the undispatched final pair to Gemini/Google and Grok/xAI; review follows in the next resumed session.
+verify-then-parallel-reviews.py requires its successful exit/clean commit;
+freeze-dependent-browser.py requires each upstream full gate and exact push.
+browser-service-lead-probes.py runs only on a committed source candidate.
+Checkpoint/shipping tasks remain drafts. The conditional local artifact
+controller is prepare-release-artifacts.py; it never publishes or installs globally.
 Reviewers still follow the owner read-first rule for assignment context.
 Fixes invalidate prior approval; review the new complete candidate afresh.
 More targeted reviewers may resolve remaining gaps; no promise all bugs found.
@@ -80,7 +99,46 @@ project-local installations/mock providers for checks. Full merge gate:
 `TMPDIR='/mnt/d/Vibe Coding/_vm/frugal-flock/tmp' bash 'tools/quality-check.sh'`.
 Push after each successful source merge and verify exact remote SHA.
 
+## Owner-selected public release scope (2026-10-06)
+
+The owner explicitly requested latest-findings updates and publication, then
+selected: **Finish the browser milestone and publish v0.5.3**. Publication of
+that completed, fully checked release is authorized; do not ask again.
+Checkpoint work remains the subsequent 0.5.4 milestone; this is not permission
+to publish 0.5.4 or globally upgrade installed Unio 0.5.0.
+
+First finish the product PROMPT-TRANSPORT-1 correction (owner-requested main
+fix for the reproduced E2BIG default prompt expansion), then protected browser
+API, UI, actual bounded browser demonstration and necessary shipping fixes.
+Read coord/RELEASE-UNIO-053-PLAN.md and the separate
+coord/tasks/SHIPPING-POLISH-1-V053-DRAFT.md; original 0.5.4 drafts are history.
+prepare-release-artifacts.py now accepts selected 0.5.3 only with actual
+browser-milestone completion proof plus exact final full gate/source/remote.
+Source 0.5.0-0.5.2 is already on GitHub main; latest public release was v0.4.0
+at 09:59:59. No v0.5.x tag/release exists yet. Never claim partial browser
+complete, publish private logs/configs, or rewrite immutable old tag/assets.
+
+Latest supported OpenAI meter: 2026-10-06T10:10:05+02:00, 63% five-hour and
+8% weekly remaining; receipt codex-capacity-after-service-reviews-20261006.json.
+Reserve lead allowance for oversight and delegate source. Earlier readings
+below are historical. Current controller service-integration-and-prompt-
+transport-fix checks actual native readiness, merges service, runs full gate,
+pushes exact main, freezes Opus correction, performs its one 1800s source call,
+then fresh verify and independent parallel Grok/GLM reviews. Root must inspect
+actual outcome/diff and author final approval before prompt-fix integration.
+
 ## Capacity and preserved owner instructions
+
+Newest supported zero-model reading at 2026-10-06 09:07:25 +0200 confirms
+99% five-hour and 14% weekly remaining after the owner reported reset.
+See codex-capacity-after-five-hour-reset-20261006.json; older dated readings
+below are historical. Keep source and independent reviews delegated.
+
+Newest supported zero-model capacity reading: 2026-10-06 00:23:28 +0200,
+14% five-hour and 15% weekly remaining. Receipt codex-capacity-after-owner-
+resume-20261006.json. The owner explicitly requested delegating implementation
+to Opus to preserve lead tokens; current Opus correction is already active.
+Independent reviews use other providers; lead retains final oversight.
 
 Read docs/PROVIDER-CAPACITY.md and docs/PROVIDER-QUOTA-MONITORING.md. A fleet
 meter is roadmap work, not implemented. Codex's supported native read-only
@@ -101,6 +159,10 @@ with its literal counts/costs and limits/unknowns documented in capacity notes.
 A newer native probe at 22:44:26 +0200 reported 83% five-hour and 26% weekly
 remaining; see codex-capacity-after-session-restart.json. Read the newest
 actual receipt before assignment rather than treating these as live meters.
+At 23:33:11 +0200 the read-only probe reported 44% five-hour and 20%
+weekly remaining; codex-capacity-during-browser-service.json is now newest.
+Undispatched review pairs use other companies to reserve OpenAI headroom
+for the lead and concrete corrections; manifest.json records the choices.
 
 Quote paths; they contain spaces. Get all log timestamps from date. Never
 use pgrep -f/pkill -f with a self-matching pattern. No CodeGraph directory
@@ -136,6 +198,6 @@ and unknown link preservation alongside markerless completion cleanup.
 
 Prepare version-specific exact-SHA installers/source archives, LICENSE/NOTICE,
 hashes/provenance, isolated smoke/upgrade/rollback evidence and concrete
-publication commands before asking the owner. New public releases/tags,
-global installation and billing changes require separate approval. No approval
-is needed to continue the already authorized source work and pushes.
+publication commands before publishing the owner-authorized completed v0.5.3.
+Other public releases/tags, global installation and billing changes require
+separate approval. Continue the already authorized source work and pushes.

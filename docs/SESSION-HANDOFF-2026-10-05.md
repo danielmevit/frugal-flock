@@ -9,9 +9,9 @@ not a historical SHA, for the next implementation baseline.
 ## Read first and current operating state
 
 Read local coord/AGENT-LOG.md FIRST. Then read the current
-[continuation prompt](../continue-with-ai-prompt.md), this handoff,
-[workspace rules](../WORKSPACE-RULES.md), the Near-term roadmap and section
-1.5 in [TODO](../TODO.md), [dogfood workflow](DOGFOOD-WORKFLOW.md), and the
+[continuation prompt](development/continue-with-ai-prompt.md), this handoff,
+[workspace rules](development/WORKSPACE-RULES.md), the Near-term roadmap and section
+1.5 in [Roadmap](development/ROADMAP.md), [dogfood workflow](DOGFOOD-WORKFLOW.md), and the
 [next queue contract](JOB-QUEUE-STORE.md).
 
 The enclosing workspace is /mnt/d/Vibe Coding/_vm/frugal-flock. Its main

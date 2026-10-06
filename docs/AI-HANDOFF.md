@@ -9,11 +9,11 @@ Latest state: M1 (the quality milestone) is implemented, merged into main
 and accepted by the owner on 2026-10-04; see [M1 status](M1-STATUS.md).
 The [2026-10-04 continuation report](SESSION-HANDOFF-2026-10-04.md) records
 the earlier, pre-merge state and is kept as history.
-For subsequent sessions use [the continuation prompt](../continue-with-ai-prompt.md),
+For subsequent sessions use [the continuation prompt](development/continue-with-ai-prompt.md),
 the single living prompt refreshed after every small checkpoint. Copy its
 prompt section into the next AI chat, and read the local agent log first.
 All project-owned files belong under one workspace, per
-[WORKSPACE-RULES.md](../WORKSPACE-RULES.md).
+[WORKSPACE-RULES.md](development/WORKSPACE-RULES.md).
 
 ## Current baseline
 
@@ -83,7 +83,7 @@ turn the main interface into a wall of terminals or quota charts.
 
 ## Copy-paste prompt
 
-Use [continue-with-ai-prompt.md](../continue-with-ai-prompt.md). Keeping the
+Use [continue-with-ai-prompt.md](development/continue-with-ai-prompt.md). Keeping the
 copy-paste text in one place prevents older handoffs from sending the next
 AI to an obsolete branch, folder, or milestone. This document supplies
 product context and later acceptance criteria, not a second competing prompt.
@@ -108,6 +108,6 @@ is future work, not a shipped scheduler or universal quota API.
 5. Add explicit human-approved integration tied to exact revisions.
 6. Test with two newcomers and compare human effort against the old CLI.
 
-Follow [TODO.md](../TODO.md) for priorities. The project uses AGPL-3.0-only with the attribution/origin terms in
+Follow [Roadmap](development/ROADMAP.md) for priorities. The project uses AGPL-3.0-only with the attribution/origin terms in
 LICENSE and NOTICE; see [LICENSING.md](LICENSING.md). Public visibility and
 license obligations are separate facts.

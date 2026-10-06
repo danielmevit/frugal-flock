@@ -1,4 +1,4 @@
-# Unio — next steps
+# Unio roadmap and development priorities
 
 Small plans. Big ideas.
 
@@ -8,11 +8,15 @@ candidate SHA, evidence, blockers, active workers and one next task.
 All project-owned work stays inside `/mnt/d/Vibe Coding/_vm/frugal-flock`.
 The main checkout is its `repo/` folder; workers use `wt/NAME/`.
 Follow [the standing workspace rules](WORKSPACE-RULES.md).
-Current owner request (2026-10-05): bench this session and hand off to Claude.
-Initial M1.5 source work is complete; broader app work continues from the
-[closing handoff](docs/SESSION-HANDOFF-2026-10-05.md).
+Current owner direction (2026-10-06): finish the browser milestone and publish
+Unio v0.5.3 after checks. The browser execution service is gated and pushed;
+large-prompt transport, API, UI, a real browser demonstration and shipping
+checks follow. Checkpoint continuation remains v0.5.4. Use the
+[current continuation prompt](continue-with-ai-prompt.md) for active workers
+and exact evidence. The [2026-10-05 closing handoff](../SESSION-HANDOFF-2026-10-05.md)
+is preserved as an earlier checkpoint.
 
-## Current handoff
+## Earlier checkpoint (2026-10-05)
 
 - 2026-10-05: Claude is the lead. The waiting-job JobStore library/tests
   were built through the installed Frugal Flock 0.4.0 (legacy build tool) pipeline (GLM 5.3 worker,
@@ -22,12 +26,12 @@ Initial M1.5 source work is complete; broader app work continues from the
   slice (no executor) and job_store_test.py in the routine gate.
 - Name and tagline approved by the owner.
 - Canonical CLI: `unio` (old aliases `frugal-flock`, `frgl-flc`, and `agentteam` are removed). The Linux `flock` utility must remain untouched.
-- Naming contract: [Brand](docs/BRAND.md).
-- UX proposal: [UX direction](docs/UX-DIRECTION.md). The proposed graphical
+- Naming contract: [Brand](../BRAND.md).
+- UX proposal: [UX direction](../UX-DIRECTION.md). The proposed graphical
   app is not implemented yet.
-- Research and evidence: [Findings index](docs/RESEARCH-FINDINGS.md),
-  [competitor comparison](research/COMPETITIVE-REVIEW.md), and
-  [engine findings](docs/ENGINE-FINDINGS.md).
+- Research and evidence: [Findings index](../RESEARCH-FINDINGS.md),
+  [competitor comparison](../../research/COMPETITIVE-REVIEW.md), and
+  [engine findings](../ENGINE-FINDINGS.md).
 - Continue with another AI: [copy-paste prompt](continue-with-ai-prompt.md).
 - The rename implementation, commit
   `9314639e79dc8bb9edde151f54cfdf35837c3024`, and the UX documents are now
@@ -50,13 +54,13 @@ Initial M1.5 source work is complete; broader app work continues from the
   [frugal-flock](https://github.com/danielmevit/frugal-flock). The rewritten
   README offers a beginner path, optional technical depth, and keywords.
 - On 2026-10-05, the owner approved the subsequent rename to
-  [Unio](https://github.com/danielmevit/unio); see docs/RENAME-UNIO.md.
+  [Unio](https://github.com/danielmevit/unio); see [the rename contract](../RENAME-UNIO.md).
 
 ## 1. M1 — finish quality before UX
 
 The owner explicitly moved reliability ahead of the prototype. Follow
-[QUALITY-M1-CONTRACT.md](docs/QUALITY-M1-CONTRACT.md), frozen at `e230ad4`,
-and [the current checkpoint](docs/M1-STATUS.md). Complete strict verification,
+[QUALITY-M1-CONTRACT.md](../QUALITY-M1-CONTRACT.md), frozen at `e230ad4`,
+and [the current checkpoint](../M1-STATUS.md). Complete strict verification,
 revision-bound results, reviewer verdict parsing, honest availability,
 trusted-host warnings, and manual same-checkout context packets. Pass
 mock-only regressions and independent source review before owner integration.
@@ -69,7 +73,7 @@ All five M1 items are implemented and merged into main as of 2026-10-04:
 strict verification, structured evidence, gated review, local availability,
 manual context packets, both correctness fixes, the acceptance-coverage
 audit, and updated help, protocol, docs and Word manuals. The final gate
-results are in [the current checkpoint](docs/M1-STATUS.md). The owner
+results are in [the current checkpoint](../M1-STATUS.md). The owner
 accepted M1 on 2026-10-04. M2 starts when the owner asks for it.
 
 ### Clean-clone baseline check
@@ -119,7 +123,7 @@ Do the M1.5 stability phase, approved by the owner on 2026-10-04, in this
 order, one small tested checkpoint each:
 1. Live canary: a throwaway repo, one tiny task per agent through run,
    verify, review and result. Tiny tasks only; it uses provider quota.
-   Offline preparation is recorded in [the canary checkpoint](docs/M1.5-LIVE-CANARY.md).
+   Offline preparation is recorded in [the canary checkpoint](../M1.5-LIVE-CANARY.md).
    Antigravity passed its first canary in 22 seconds on 2026-10-04;
    the earlier silent stall did not recur. One worker call, no retry.
    Grok also passed in 35 seconds, one worker call, 2/2 checks and lead review.
@@ -147,7 +151,7 @@ order, one small tested checkpoint each:
    Source implementation complete: 26 focused mock checks, standalone
    packaging/aliases/completion, ShellCheck/syntax and full docs lint passed.
    Observed all six recorded canaries without changing coordination hashes
-   or calling providers. [Usage and JSON contract](docs/WATCH-USAGE.md).
+   or calling providers. [Usage and JSON contract](../WATCH-USAGE.md).
    Current readiness still requires `result`; capacity stays unknown.
    Stability follow-up: fresh OpenCode source defaults/examples now use
    --auto, confirmed by current native help and Go canaries. Offline native
@@ -180,14 +184,14 @@ Cover five connected moments:
 5. Review the result and approve or request changes.
 
 Use the calm minimal direction in the UX proposal and the
-[Toolcraft composition reference](docs/TOOLCRAFT-REFERENCE.md). Build original
+[Toolcraft composition reference](../TOOLCRAFT-REFERENCE.md). Build original
 components; do not run its scaffold or import its implementation. Keep technical logs and
 advanced controls in detail views. The original plan asked two people new
 to the CLI to test the prototype before live execution. The owner explicitly
 waived that feedback gate on 2026-10-04 because no testers are available:
 use judgment and automated checks. No user sessions have taken place.
 
-Prototype source is implemented in [prototype/](prototype/README.md),
+Prototype source is implemented in [prototype/](../../prototype/README.md),
 2026-10-04 by Codex (`gpt-6.1-sol`, xhigh): original HTML/CSS/JS, no runtime
 dependency, all five connected moments, sample data labeled in every state.
 Four state tests and the full Chromium browser journey passed, including
@@ -195,12 +199,12 @@ explicit replacement/apply, revision invalidation, Stop, focus, escaped text,
 mobile inspector collapse and no external requests/page errors. Refresh
 restarts the demo; no real provider, checkpoint or project action occurs.
 The owner waived the two-person feedback gate on 2026-10-04; the optional
-[facilitator guide](docs/M2-USER-TEST.md) retains two blank records. No
+[facilitator guide](../M2-USER-TEST.md) retains two blank records. No
 feedback sessions are claimed. Installed-release dogfood: GLM's one keyboard worker
 hit its 180s limit with zero work, preserved as failed; root finished locally
 and the browser/state checks passed. Claude Opus 5.5/high's separate guide
 cycle passed in 83s with 2/2 validation and in-session root review. No retries
-or paid reviewer. [Evidence and limits](docs/M2-DOGFOOD-PLAN.md).
+or paid reviewer. [Evidence and limits](../M2-DOGFOOD-PLAN.md).
 Proceed to small live-control slices using judgment and automated checks.
 Explicit run/quota approval, truthful evidence and separate acceptance still apply.
 
@@ -226,18 +230,18 @@ validated set of operations for plans and runs, a durable job queue, and
 progress that survives browser refreshes. Keep credentials in native CLI
 authentication stores and bind control to the local machine.
 
-The first [read-only Activity preview](bridge/README.md) is implemented in
+The first [read-only Activity preview](../../bridge/README.md) is implemented in
 source: one fixed watch JSON observation endpoint and original browser view,
 loopback only, no dispatch or coordination writes. Seven stdlib HTTP tests
 and browser failure/recovery/escaping/mobile checks passed. An actual project
 observation showed the preserved GLM failure and approved Claude guide,
 with all 36 coordination-file hashes unchanged. Runtime/global profile
-hashes remain unchanged. [Contract and source-build usage](docs/BRIDGE-ACTIVITY.md).
+hashes remain unchanged. [Contract and source-build usage](../BRIDGE-ACTIVITY.md).
 Folder selection/launcher/setup, durable queue and live controls are not
 implemented. The owner waived the two-user feedback gate; provider calls
 still require explicit quota approval. Optional --open-browser now opens the
 bound read-only URL with a manual fallback; eleven focused checks passed.
-The [manual draft storage foundation](docs/PLAN-DRAFTS.md) is implemented
+The [manual draft storage foundation](../PLAN-DRAFTS.md) is implemented
 and passed eight checks: persisted immutable records/content hashes, no
 native tasks or approval/dispatch. A protected --enable-plan-drafts API now
 adds only manual create/read, exact Origin/Host/session checks and bounded
@@ -247,8 +251,8 @@ or provider call. The opt-in Save/reopen form now passes both default/manual
 browser journeys, duplicate-submit and failed-session/save/no-retry checks.
 Default stays read-only; no AI plan generation, worker/queue or merge control.
 The owner reiterated the main build-with-the-flock goal on 2026-10-05.
-The first [waiting-job queue slice](docs/JOB-QUEUE-STORE.md) was built with
-the [native dogfood cadence](docs/DOGFOOD-WORKFLOW.md): a quota-approved GLM
+The first [waiting-job queue slice](../JOB-QUEUE-STORE.md) was built with
+the [native dogfood cadence](../DOGFOOD-WORKFLOW.md): a quota-approved GLM
 worker, the Claude lead's in-session review and its own merge (2539c64).
 Earlier direct root code is not worker success. The next queue slice
 (approval plus reservation/recovery, no executor) follows the same cadence.
@@ -260,8 +264,8 @@ and failure recovery before claiming a command-free first use.
 
 ## 5. Build reliable provider handoff
 
-The owner endorsed [capacity-aware task sizing and clean continuation](docs/CAPACITY-AWARE-CONTINUATION.md).
-The [provider quota monitoring roadmap](docs/PROVIDER-QUOTA-MONITORING.md)
+The owner endorsed [capacity-aware task sizing and clean continuation](../CAPACITY-AWARE-CONTINUATION.md).
+The [provider quota monitoring roadmap](../PROVIDER-QUOTA-MONITORING.md)
 records the 2026-10-05 request for remaining five-hour, weekly and monthly
 indicators, supported provider inputs, manual fallback and lead checks
 before dispatch. A Codex read-only probe worked; fleet monitoring is not
@@ -281,8 +285,8 @@ percentages or silently enable paid API fallbacks.
 
 ## 6. Measure the benefit before expanding
 
-Use the [feature decisions](docs/FEATURE-DECISIONS.md) to select relevant
-competitor ideas. The [workflow guide](docs/AI-TEAM-WORKFLOWS.md) explains
+Use the [feature decisions](../FEATURE-DECISIONS.md) to select relevant
+competitor ideas. The [workflow guide](../AI-TEAM-WORKFLOWS.md) explains
 common AI-team patterns without implying they are all implemented.
 
 Compare a small set of real tasks with the existing CLI workflow and one
@@ -302,7 +306,7 @@ journey is useful and understandable.
   with optional paid agreements for proprietary use. Section 7(b)/(c) terms
   preserve the Unio name/author credit and prohibit origin
   misrepresentation in covered copies/variants. Full terms/NOTICE
-  ship with the installer; see [licensing guidance](docs/LICENSING.md).
+  ship with the installer; see [licensing guidance](../LICENSING.md).
 - Add concise contribution and issue-reporting guidance.
 - Define contributor permissions before accepting outside code if paid
   proprietary licensing is planned; AGPL alone does not grant relicensing rights.

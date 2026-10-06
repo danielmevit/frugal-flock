@@ -16,7 +16,7 @@ separate reusable documents. They are now linked below.
 | F5 — Trustworthy results | Process exit, checks, reviewer decision, human acceptance, and integration are different outcomes. M1 resolved the E1–E3 receipt and outcome defects; preserve the earlier findings as historical evidence. | [Engine findings E1–E3](ENGINE-FINDINGS.md) |
 | F6 — Safety | Git worktrees and scope checks are not OS isolation; broad-permission defaults need explicit boundaries. | [Engine finding E4](ENGINE-FINDINGS.md) |
 | F7 — Capacity and continuity | No universal quota meter; automatic checkpointed provider continuation is not yet implemented. | [Engine findings E5–E6](ENGINE-FINDINGS.md) |
-| F8 — Delivery sequence | Owner revised priority: M1 quality first, then mock UX, protected read-only bridge, bounded live runs, checkpointed continuation. | [M1 status](M1-STATUS.md) · [Prioritized next steps](../TODO.md) |
+| F8 — Delivery sequence | Owner revised priority: M1 quality first, then mock UX, protected read-only bridge, bounded live runs, checkpointed continuation. | [M1 status](M1-STATUS.md) · [Prioritized next steps](development/ROADMAP.md) |
 | F9 — Discovery language | Explain a group of different AI assistants working on one project, not only technical orchestration terms. | [README keywords](../README.md#keywords) |
 | F10 — Related workflow types | Explain supervisor/worker, parallel, sequential, writer/reviewer, races, and continuation; distinguish unsupported consensus and quota pooling. | [Plain-language workflows](AI-TEAM-WORKFLOWS.md) |
 | F11 — Useful competitor ideas | Adopt evidence packages and separate result states in M1; defer expensive councils and cloud services. Original implementation only. | [Feature decisions](FEATURE-DECISIONS.md) |

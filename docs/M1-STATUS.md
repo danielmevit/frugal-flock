@@ -99,7 +99,7 @@ alone with `git revert -m 1` and the merge SHA:
 | `dba78ce` | Agent binary resolution, deterministic timing tests, selftest cleanup race | Claude Code lead, Claude Opus 5.5 |
 
 Every agent reads the local `../coord/AGENT-LOG.md` first and adds a dated
-entry after each checkpoint. See [WORKSPACE-RULES.md](../WORKSPACE-RULES.md).
+entry after each checkpoint. See [WORKSPACE-RULES.md](development/WORKSPACE-RULES.md).
 
 ## Final gate (item 5), 2026-10-04
 
@@ -163,7 +163,7 @@ edge is covered. No owner integration has occurred.
 Final candidate `80feafb` also passed the native frozen gate (scope OK,
 5/5 commands). Independent focused results: 16 basic + 64 contract checks.
 The exact next small task and checkpoint-maintenance rule are in the root
-[continuation prompt](../continue-with-ai-prompt.md).
+[continuation prompt](development/continue-with-ai-prompt.md).
 
 ## Later implementation checkpoints
 
@@ -220,5 +220,5 @@ M2 (the UI prototype, see TODO) may start when the owner asks for it.
 M1 adds dependable CLI evidence and a manual context packet. It does not
 add a GUI, automatic provider migration, full dirty-file backup, an OS
 sandbox, or automatic merging. No global installation is part of this task.
-Use [the continuation prompt](../continue-with-ai-prompt.md) to start the
+Use [the continuation prompt](development/continue-with-ai-prompt.md) to start the
 next AI session; [AI-HANDOFF.md](AI-HANDOFF.md) is supporting product context.

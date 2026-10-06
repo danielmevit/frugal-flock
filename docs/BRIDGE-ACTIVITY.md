@@ -1,6 +1,6 @@
 # First local bridge slice: read-only Activity
 
-This implements only the first read-only Activity view in [TODO](../TODO.md)
+This implements only the first read-only Activity view in [Roadmap](development/ROADMAP.md)
 section 4. It uses the existing [watch schema](WATCH-USAGE.md), with original
 HTML/CSS/JS and a Python standard-library server. It is a source preview,
 not a release, a command-free launcher or a live execution UI.
