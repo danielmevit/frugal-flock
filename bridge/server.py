@@ -97,6 +97,21 @@ class ActivityHandler(BaseHTTPRequestHandler):
     def error_response(self, code, error):
         self.respond(code,json.dumps(dict(schema_version=1,error=error)).encode())
 
+    def execution_error_response(self, error):
+        status, code = 503, 'native_unavailable'
+        try:
+            from execution_service import ERRORS, ExecutionError
+            # Establish actual inheritance before reading mutable public fields;
+            # a class name or a spoofed __class__ cannot grant public-error status.
+            if issubclass(type(error), ExecutionError):
+                public_code, public_status = error.code, error.status
+                if (type(public_code) is str and type(public_status) is int
+                        and ERRORS.get(public_code) == public_status):
+                    status, code = public_status, public_code
+        except Exception:
+            pass  # Broken error properties/imports remain fixed internal errors.
+        return self.error_response(status, code)
+
     def origin_allowed(self, write=False):
         if self.headers.get_all('Host') != [self.server.origin.removeprefix('http://')]:
             self.error_response(403, 'host_refused')
@@ -144,25 +159,15 @@ class ActivityHandler(BaseHTTPRequestHandler):
                 try:
                     return self.respond(200, json.dumps(dict(schema_version=1, jobs=self.server.execution.jobs()), ensure_ascii=True).encode())
                 except Exception as e:
-                    status = getattr(e, 'status', 503)
-                    code = getattr(e, 'code', 'native_unavailable')
-                    if type(e).__name__ != 'ExecutionError':
-                        status, code = 503, 'native_unavailable'
-                    return self.error_response(status, code)
+                    return self.execution_error_response(e)
             identity = self.path.removeprefix('/api/jobs/')
             if re.fullmatch('[0-9a-f]{32}', identity) is None:
                 return self.error_response(400, 'invalid_request')
             try:
                 job = self.server.execution.get(job_id=identity)
                 return self.respond(200, json.dumps(job, ensure_ascii=True).encode())
-            except ValueError:
-                return self.error_response(400, 'invalid_request')
             except Exception as e:
-                status = getattr(e, 'status', 503)
-                code = getattr(e, 'code', 'native_unavailable')
-                if type(e).__name__ != 'ExecutionError':
-                    status, code = 503, 'native_unavailable'
-                return self.error_response(status, code)
+                return self.execution_error_response(e)
 
         if self.path == '/api/activity':
             snapshot = self.server.observer.read()
@@ -272,14 +277,8 @@ class ActivityHandler(BaseHTTPRequestHandler):
                 return self.respond(200, json.dumps(job, ensure_ascii=True).encode())
 
             return self.error_response(404, 'not_found')
-        except ValueError:
-            return self.error_response(400, 'invalid_request')
         except Exception as e:
-            status = getattr(e, 'status', 503)
-            code = getattr(e, 'code', 'native_unavailable')
-            if type(e).__name__ != 'ExecutionError':
-                status, code = 503, 'native_unavailable'
-            return self.error_response(status, code)
+            return self.execution_error_response(e)
 
     def reject_method(self):
         self.error_response(405,'read_only')

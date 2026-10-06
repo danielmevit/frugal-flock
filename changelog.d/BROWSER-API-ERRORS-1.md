@@ -1,0 +1,2 @@
+- Share execution HTTP error mapping so only genuine public errors with fixed code/status pairs pass through; foreign, malformed and internal errors return `503/native_unavailable`.
+- Add provider-free HTTP regressions across all execution routes and clarify browser identifiers, immutable bindings and quoted startup paths.

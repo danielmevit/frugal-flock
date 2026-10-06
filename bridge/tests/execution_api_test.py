@@ -10,12 +10,13 @@ import tempfile
 import threading
 import subprocess
 import unittest
+from unittest.mock import patch
 import uuid
 import sys
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from plan_store import PlanStore
-from execution_service import ExecutionService
+from execution_service import ExecutionError, ExecutionService
 import server
 
 # We can import MOCK from execution_service_test directly since it's just a test helper
@@ -90,6 +91,119 @@ class ExecutionAPITests(unittest.TestCase):
 
     def headers(self):
         return {'Origin': self.origin, 'X-Unio-Session': self.token, 'Content-Type': 'application/json'}
+
+    def assert_execution_error(self, error, status=503, code='native_unavailable'):
+        """Exercise every HTTP boundary with a backend that cannot launch work."""
+        job_id, draft_id, key, digest = 'a' * 32, 'b' * 32, 'c' * 32, 'd' * 64
+        routes = [
+            ('jobs', 'GET', '/api/jobs', None),
+            ('get', 'GET', f'/api/jobs/{job_id}', None),
+            ('prepare', 'POST', '/api/jobs', dict(draft_id=draft_id, expected_hash=digest, request_key=key)),
+            ('approve', 'POST', f'/api/jobs/{job_id}/approve', dict(expected_hash=digest, approval_key=key, preview_hash=digest)),
+            ('start', 'POST', f'/api/jobs/{job_id}/start', dict(approval_key=key, reservation_key=key)),
+            ('verify', 'POST', f'/api/jobs/{job_id}/verify', dict(action_key=key)),
+            ('review', 'POST', f'/api/jobs/{job_id}/review', dict(action_key=key)),
+            ('stop', 'POST', f'/api/jobs/{job_id}/stop', dict(action_key=key)),
+            ('accept', 'POST', f'/api/jobs/{job_id}/accept', dict(revision_hash='e' * 40, action_key=key)),
+            ('cancel', 'POST', f'/api/jobs/{job_id}/cancel', {}),
+        ]
+        for method, verb, path, body in routes:
+            with self.subTest(method=method):
+                with patch.object(self.execution, method, side_effect=error) as invoke:
+                    response_status, headers, response = self.request(
+                        verb, path, json.dumps(body) if body is not None else None, self.headers())
+                self.assertEqual(response_status, status)
+                self.assertEqual(response, dict(schema_version=1, error=code))
+                self.assertEqual(headers.get('Cache-Control'), 'no-store')
+                self.assertTrue(headers.get('Content-Type', '').startswith('application/json'))
+                arguments = dict(body or {})
+                if method not in ('jobs', 'prepare'):
+                    arguments['job_id'] = job_id
+                invoke.assert_called_once_with(**arguments)
+        self.assertFalse((self.workspace / 'calls.jsonl').exists())
+
+    def test_foreign_same_name_errors_are_internal(self):
+        for base in (Exception, ValueError):
+            with self.subTest(base=base.__name__):
+                foreign_type = type('ExecutionError', (base,), {})
+                error = foreign_type('PRIVATE exception text /private/path')
+                error.code, error.status = 'ROOT_PRIVATE_ERROR_MARKER', 499
+                self.assert_execution_error(error)
+
+    def test_foreign_error_fields_are_never_accessed(self):
+        accessed = []
+
+        def unreadable(error, field):
+            if field in ('code', 'status', '__class__'):
+                accessed.append(field)
+                raise RuntimeError('PRIVATE property failure')
+            return Exception.__getattribute__(error, field)
+
+        foreign_type = type('ExecutionError', (Exception,), {'__getattribute__': unreadable})
+        self.assert_execution_error(foreign_type('PRIVATE exception text'))
+        self.assertEqual(accessed, [])
+
+    def test_foreign_class_attribute_cannot_impersonate_public_error(self):
+        foreign_type = type('ExecutionError', (Exception,), {
+            '__class__': property(lambda error: ExecutionError),
+            'code': 'conflict', 'status': 409,
+        })
+        self.assert_execution_error(foreign_type('PRIVATE exception text'))
+
+    def test_valid_public_error_pairs_are_preserved(self):
+        pairs = dict(invalid_request=400, job_not_found=404, conflict=409, draft_stale=409,
+                     binding_stale=409, worker_unavailable=409, stopped=409, not_ready=409,
+                     outcome_unknown=409, storage_unavailable=503, native_unavailable=503)
+        for code, status in pairs.items():
+            with self.subTest(code=code):
+                self.assert_execution_error(ExecutionError(code), status, code)
+
+    def test_generic_backend_exceptions_are_internal(self):
+        for exception_type in (Exception, ValueError, TypeError, OSError, RuntimeError):
+            with self.subTest(exception=exception_type.__name__):
+                error = exception_type('PRIVATE exception text /private/path')
+                error.code, error.status = 'conflict', 409
+                self.assert_execution_error(error)
+
+    def test_malformed_public_error_fields_are_internal(self):
+        class StringField(str):
+            pass
+
+        class IntegerField(int):
+            pass
+
+        malformed = [
+            ('code', 'ROOT_PRIVATE_ERROR_MARKER'), ('code', None), ('code', 409),
+            ('code', ['conflict']), ('code', {'private': 'path'}), ('code', b'conflict'),
+            ('code', StringField('conflict')),
+            ('status', 499), ('status', 400), ('status', None), ('status', '409'),
+            ('status', 409.0), ('status', True), ('status', [409]),
+            ('status', {'private': 'path'}), ('status', IntegerField(409)),
+        ]
+        for field, value in malformed:
+            with self.subTest(field=field, value=value):
+                error = ExecutionError('conflict')
+                setattr(error, field, value)
+                self.assert_execution_error(error)
+        for field in ('code', 'status'):
+            with self.subTest(missing=field):
+                error = ExecutionError('conflict')
+                delattr(error, field)
+                self.assert_execution_error(error)
+
+    def test_public_error_property_failures_are_internal(self):
+        for field in ('code', 'status'):
+            for exception_type in (AttributeError, ValueError, RuntimeError):
+                with self.subTest(field=field, exception=exception_type.__name__):
+                    def unreadable(error, name):
+                        if name == field:
+                            raise exception_type('PRIVATE property failure /private/path')
+                        return Exception.__getattribute__(error, name)
+
+                    public_type = type('UnreadableExecutionError', (ExecutionError,), {
+                        '__getattribute__': unreadable,
+                    })
+                    self.assert_execution_error(public_type('conflict'))
 
     def test_happy_request_mapping(self):
         code, _, draft = self.request('POST', '/api/plans', json.dumps({'request': 'foo'}), self.headers())
