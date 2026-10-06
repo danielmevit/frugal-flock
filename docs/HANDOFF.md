@@ -13,11 +13,23 @@ any model at this file and say: *"You're taking over Unio — read
 Unio turns several AI coding subscriptions (Claude, Codex, Grok, OpenCode/Kimi,
 Antigravity) into one coordinated team on a single Ubuntu/WSL machine. One AI is the
 **foreman** (plans, writes work orders, verifies); the others are **workers**, each
-building in its own git worktree; the **human owner** is the only one who merges.
+building in its own Git worktree. Integration requires the **human owner's**
+approval, including any standing authorization for the lead to merge.
 
-It is not an AI and contains none. It calls the vendors' official CLIs under their
-**subscription logins** — no API keys anywhere, ever. Anything that looks like an
-"API" in the docs means the `unio` subcommand surface, nothing more.
+Unio connects **AI agents from different AI labs** through coding CLIs.
+Each tool keeps its own authentication and allowance; Unio does not pool
+subscriptions. The browser bridge also exposes a protected local HTTP API.
+
+Its value includes security and code quality: independent agents review
+changes and checks preserve evidence tied to the exact revision. Bounded
+tasks and written handoffs also help avoid repeated work and manage usage.
+Additional reviews cost allowance and can miss defects. For current Unio
+development, use two independent final reviewers from different AI labs,
+separate from the source authors, then the lead's own overview. Run those
+reviews concurrently on identical frozen material without peer findings.
+Use the [living prompt](development/continue-with-ai-prompt.md) for current
+work, receipts and owner authorization; the hardening examples below are
+historical context, not current milestone status.
 
 Three load-bearing ideas, in the order they matter:
 
@@ -31,7 +43,7 @@ Three load-bearing ideas, in the order they matter:
 
 ## 2. Repository layout — what to edit
 
-> **The product is one file.** `unio-install.sh` *embeds* the entire `unio`
+> **The CLI is embedded in one file.** `unio-install.sh` *embeds* the entire `unio`
 > tool (installed to `~/.local/bin/unio`), every template (MASTER/WORKER/TASK/
 > SABOTEUR/PROTOCOL), the agents.conf defaults, and bash completion. Editing the
 > installed copy at `~/.local/bin/unio` is always wrong — it is overwritten on the
@@ -39,7 +51,8 @@ Three load-bearing ideas, in the order they matter:
 
 | Path | What it is |
 |---|---|
-| `unio-install.sh` | **The product.** ~1900 lines: the tool + templates + completion. |
+| `unio-install.sh` | The CLI runtime, templates and completion. |
+| `bridge/` | Local browser service and UI; see its [README](../bridge/README.md). |
 | `docs/PROTOCOL.md` | Normative spec for the AIs. **Duplicated inside the installer** as the template shipped into every project — the two must stay byte-identical. |
 | `docs/GUIDEBOOK.md` | The complete manual (also built to `.docx`). `docs/HANDBOOK.md` is its terse twin. |
 | `docs/TESTPLAN.md`, `examples/` | The break-it campaign and replayable demos. |

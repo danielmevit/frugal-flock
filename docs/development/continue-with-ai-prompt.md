@@ -14,7 +14,7 @@ The dated living checkpoint below is current; Codex lead (GPT-6; exact serving v
 ## Current checkpoint
 
 <!-- LIVE_CHECKPOINT_START -->
-Approved milestones checkpoint from date: 2026-10-06 10:43:26 +0200; partial: candidate requires verification and review. Completed one native Unio task attempt PROMPT-TRANSPORT-1 on claude-prompt-transport. Tests: Actual native exit 0; run receipt and raw worker log preserved; no retry. Next: Inspect actual diff and native result; verify before independent cross-company review. Receipts: tmp/unio-next/.
+Approved milestones checkpoint from date: 2026-10-06 11:12:45 +0200; partial: corrected documentation preparing for fresh independent Gemini and Opus reviews. Applied owner-selected AI agents from different AI labs wording and security/code-quality/efficient-work purpose to current public introductions and handoffs; corrected reproduced receipt, source-status and queue-roadmap defects. Tests: Explicit lint for all 10 changed/current nested documents PASS; git diff --check PASS. Product source is unchanged; pending prompt-fix final reviews are not represented as approvals. Original two rejected doc candidates remain immutable. Next: Freeze complete docs candidate and task, native verify, then one concurrent independent Gemini/Opus pair. Receipts: tmp/unio-next/.
 <!-- LIVE_CHECKPOINT_END -->
 
 ## Current source and completed service review
@@ -28,16 +28,28 @@ Validate commands despite its read-only instruction. Preserve that deviation
 and the original E2BIG startup failure; Gemini is supplemental evidence.
 These service reviews are complete. Do not dispatch them again.
 
-The one Opus-high PROMPT-TRANSPORT-1 product task has committed 6064d6c;
-its final source-process exit is still pending at this checkpoint. Its
-controller performs fresh native verify and separate Grok/GLM reviews only
-after actual successful source completion. API, UI and the actual browser
-demonstration remain pending. Read the newest local log and actual receipts
+The PROMPT-TRANSPORT-1 source commit is 6064d6c21a40c0064f5601fd85ac9af39f534c5f.
+Its one Opus-high source invocation exited 0, and fresh native verification
+passed 6/6. Final review/integration status belongs in the dated living
+checkpoint above and the exact local receipts, rather than a second mutable
+status paragraph. API, UI and the actual browser demonstration have not yet
+been integrated at this document's correction checkpoint. Read actual receipts
 before resuming any controller; never duplicate an existing invocation.
 
 Read coord/LEAD-HANDOFF-AFTER-OPUS-2026-10-06.md in the enclosing workspace
 for the preserved earlier handoff. Its pause and scheduled service reviews
 are historical and superseded by the resume/completed service evidence.
+
+## Product purpose and owner-selected wording
+
+Use **AI agents from different AI labs** in current public introductions
+and handoffs. Keep API/configuration identifiers unchanged and preserve
+dated evidence. Unio supports security and code quality through independent
+reviews, checks and revision-bound evidence; bounded tasks and durable
+handoffs support efficient work and reduce repeated effort. Extra reviews
+consume allowance, and no review process guarantees every defect is found.
+This owner's two-reviewer policy is a development practice, not automatic
+universal enforcement or a host sandbox claim.
 
 ## Milestones and versions
 
@@ -87,8 +99,8 @@ run-task.py and control.py resume before calls and stop finally; use one
 invocation per frozen task/review, no automatic paid retries. Concrete
 reproduced defects get newly scoped corrective task IDs. GLM always high.
 
-At least TWO independent final AI reviewers from different companies, each
-other than every source-author company, then own lead overview. Run reviews
+At least TWO independent final AI reviewers from different AI labs, each
+other than every source-author AI lab, then own lead overview. Run reviews
 concurrently on exact disposable native views; compare candidate/base/task/
 worktree hashes and full material bytes. prepare-review-view.py includes
 reports/locks and genuine coordination/evidence snapshots; parallel-reviews.py
@@ -155,7 +167,8 @@ These readings are historical; none is the current meter:
 | 2026-10-06 00:23:28 | 14% | 15% | codex-capacity-after-owner-resume-20261006.json |
 | 2026-10-05 23:33:11 | 44% | 20% | codex-capacity-during-browser-service.json |
 | 2026-10-05 22:44:26 | 83% | 26% | codex-capacity-after-session-restart.json |
-| 2026-10-05 21:32:44 | 99% | 29% | codex-capacity-probe.json |
+| 2026-10-05 21:32:44 | 99% | 29% | codex-capacity-before-browser.json |
+| 2026-10-05 14:54:14 | 64% | 39% | codex-capacity-probe.json |
 
 Read docs/PROVIDER-CAPACITY.md and docs/PROVIDER-QUOTA-MONITORING.md from
 the repository root. A fleet meter is roadmap work, not implemented.

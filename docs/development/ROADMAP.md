@@ -225,6 +225,14 @@ contract for exact exit codes and regression cases.
 
 ## 4. Add the local application bridge
 
+Current checkpoint (2026-10-06): queue approval, reservation and recovery
+completed v0.5.2 with full checks and push at `1bddeab`. The v0.5.3 browser
+execution service is verified, independently reviewed and pushed at
+`2e20eff`; the API, UI and real browser demonstration remain to be done.
+See the [living prompt](continue-with-ai-prompt.md) for the active transport
+correction and subsequent worker assignments. The foundation history below
+records earlier limitations, not the current queue/service state.
+
 Start with read-only project, agent, and activity views. Then add a fixed,
 validated set of operations for plans and runs, a durable job queue, and
 progress that survives browser refreshes. Keep credentials in native CLI
@@ -254,8 +262,9 @@ The owner reiterated the main build-with-the-flock goal on 2026-10-05.
 The first [waiting-job queue slice](../JOB-QUEUE-STORE.md) was built with
 the [native dogfood cadence](../DOGFOOD-WORKFLOW.md): a quota-approved GLM
 worker, the Claude lead's in-session review and its own merge (2539c64).
-Earlier direct root code is not worker success. The next queue slice
-(approval plus reservation/recovery, no executor) follows the same cadence.
+Earlier direct root code is not worker success. Queue approval plus
+reservation/recovery subsequently completed in v0.5.2; the execution
+service followed in v0.5.3, as recorded in the current checkpoint above.
 
 
 Package a launcher that starts the service and opens the browser. Specify

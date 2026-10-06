@@ -5,11 +5,15 @@ Small plans. Big ideas.
 ## Name and promise
 
 The owner selected Unio as the product name and approved the
-tagline above. Unio connects AI coding tools from different
-companies into one workspace: one AI leads, the others work as its
+tagline above. Unio connects AI agents from different AI labs
+into one workspace through their coding tools: one AI leads, the others work as its
 subagents in separate copies of the project, and a person approves what is
-merged. Unio means union or oneness: a team of AIs from different companies, run
+merged. Unio means union or oneness: a team of AI agents from different AI labs, run
 frugally on the plans people already have.
+
+Independent reviews support security and code quality; bounded tasks,
+checks and durable handoffs support efficient work. These benefits depend
+on the chosen workflow and evidence, rather than the number of agents.
 
 The promise is to reduce the interruption and coordination work caused by
 limited plans. Provider limits still apply. More agents do not guarantee
@@ -22,15 +26,16 @@ provider's quota or conversation memory.
 |---------|------|
 | Product and window title | Unio |
 | Tagline | Small plans. Big ideas. |
-| One-sentence description (README title, GitHub) | Connect AI coding tools from different companies into one workspace |
+| One-sentence description (README title, GitHub) | Connect AI agents from different AI labs into one workspace |
 | Canonical terminal command | `unio` |
 | Installer entrypoint | `unio-install.sh` |
 
-GitHub repository metadata, set 2026-10-04. Keep the description, README
-title and these topics consistent when the product description changes:
+Owner-selected wording (2026-10-06). Keep the README and the following
+intended GitHub description consistent; changing this document alone does
+not update repository metadata. The topics below were set on 2026-10-04:
 
-- Description: "Connect AI coding tools from different companies into one
-  workspace: Claude Code, Codex, Grok, Antigravity and OpenCode (Kimi) work
+- Description: "Connect AI agents from different AI labs into one
+  workspace: Claude Code, Codex, Grok, Antigravity and OpenCode work
   as a lead and subagents, each in its own copy of your project, with
   checked results and you approving every merge."
 - Topics: 10 precise tags, not the maximum of 20. Each must describe what

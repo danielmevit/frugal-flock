@@ -1,8 +1,8 @@
-# Unio: connect AI coding tools from different companies into one workspace
+# Unio: connect AI agents from different AI labs into one workspace
 
 **Small plans. Big ideas.**
 
-Unio links AI coding tools from different companies, such as
+Unio connects AI agents from different AI labs through coding tools such as
 Claude Code (Anthropic), Codex (OpenAI), Grok (xAI), Antigravity (Google)
 and OpenCode (which runs models such as Kimi), into one shared work
 environment for your project.
@@ -12,7 +12,7 @@ own subscription, unaware of the others. Unio gives them a common
 place to work:
 
 - **One leads, the others help.** One AI plans the work and hands out
-  tasks; the others act as its subagents, whichever company makes them.
+  tasks; the others act as its subagents, whichever AI lab builds them.
 - **Each helper gets its own copy of the project**, so several can work at
   the same time without overwriting each other.
 - **Tasks, results and history live in shared files**, not inside any one
@@ -22,15 +22,13 @@ place to work:
   project.
 
 The name says it plainly: *Unio* (Latin for oneness and union) unites AI
-coding tools from different companies into one team, run on the plans you
+agents from different AI labs into one team, run on the plans you
 already have instead of one expensive one.
-
-Unio was called Frugal Flock, and agentteam before that.
 
 **Available today:** a command-line tool for Linux, including Windows
 through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
 
-*Unio 0.5.0 is installed in the development workspace after owner approval on 2026-10-05. Its public release is pending. See [version plan](docs/VERSION-PLAN.md) for the next changes.*
+*Development source is at 0.5.3; the browser milestone is still in progress. Publication follows its completed checks. See the [version plan](docs/VERSION-PLAN.md) for source and release status.*
 
 [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
 [FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·
@@ -38,11 +36,17 @@ through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
 
 ## What this makes possible
 
-- **Use the best of each company.** Let one company's AI build a feature
-  and another company's AI review it, or give each the kind of task it
-  handles best.
+- **Use strengths from different AI labs.** Let one agent build a feature
+  and an agent from another lab review it, or assign each the kind of task
+  it handles best.
+- **Improve security and code quality.** Independent reviews can uncover
+  security issues and defects; task checks and revision-bound evidence help
+  you assess the result. Multiple reviewers can still miss the same issue.
+- **Reduce repeated work.** Bounded tasks, preserved results and clear
+  handoffs help manage AI usage and avoid rebuilding context. Extra reviews
+  consume allowance too; measure whether they reduce rework.
 - **Keep going when one AI hits its limit.** Give the next task to an AI
-  from another company instead of stopping for the day.
+  from another AI lab instead of stopping for the day.
 - **Run several AIs at once** on separate parts of the same project.
 - **See everything in one place:** who did what, what passed its checks,
   and what still needs you.
@@ -57,7 +61,7 @@ Say you want to add search to a small website:
 3. **The helpers work**, each in a separate copy of the project, so their
    changes never get mixed up.
 4. **The work is checked.** Unio runs the agreed checks and keeps
-   the evidence. A helper from another company can review the changes too.
+   the evidence. An agent from another AI lab can review the changes too.
 5. **You decide.** Keep the changes, ask for fixes, or drop them. A
    finished AI run is not proof the work is right; the checks and your
    review are.
@@ -175,7 +179,7 @@ One is enough to start. Settings are included for Claude Code, Codex,
 Antigravity, OpenCode (for models such as GLM and Kimi) and Grok. Any
 command-line AI that can take a task without a chat window can join with
 one line in `~/.config/unio/agents.conf`, for example
-`mycli=mycli -p "$(cat "$TASKFILE")"`. A second tool from another company
+`mycli=mycli -p "$(cat "$TASKFILE")"`. A second tool connecting an agent from another AI lab
 lets one AI review another's work.
 
 </details>

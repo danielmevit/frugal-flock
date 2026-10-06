@@ -15,13 +15,22 @@ command line; a friendlier visual console is planned.
 | One finishes a step, then hands instructions to the next. | Sequential workflow; relay; pipeline | Manually coordinated tasks/reports; not an automatic workflow graph. |
 | Give the same problem to two helpers and compare. | Competitive runs; best-of-N; agent race | Existing race command; a person picks a candidate, with extra provider usage. |
 | Ask a helper to find problems in the result. | Adversarial testing; red-team review | Existing sabotage workflow for defect hunting, not a security guarantee. |
-| Let another company's AI continue when mine runs out. | Cross-provider handoff; failover | Manual takeover is possible; M1 targets a context packet. Automatic checkpointed recovery is planned. |
+| Let an agent from another AI lab continue when mine runs out. | Cross-provider handoff; failover | Manual takeover is possible; M1 targets a context packet. Automatic checkpointed recovery is planned. |
 | Have several AIs discuss, vote, and agree. | Council; debate; consensus; swarm | Not an implemented consensus engine. Agreement would not prove correctness. |
 | Make all my subscriptions one shared allowance. | Quota pooling | Not supported. Each provider keeps its own limits, access rules, and billing. |
 | Combine model weights into a smarter model. | Model merging; mixture-of-experts | Not this product. It coordinates tools rather than training or merging models. |
 
 These are related search terms, not interchangeable promises. A task
 handoff does not transfer private conversation memory automatically.
+
+## Security, quality and efficient work
+
+Agents from different AI labs can review the same change independently,
+looking for defects, security issues and unnecessary work. Task checks and
+revision-bound evidence let the lead assess their findings. Agreement is
+not proof of correctness, and additional calls consume allowance. Bounded
+assignments and durable handoffs help reduce repeated work; measure that
+benefit rather than assuming more agents save tokens.
 
 ## Where to start
 

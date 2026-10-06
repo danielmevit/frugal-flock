@@ -213,7 +213,7 @@ the audit findings were fixed (see the audit for regressions):
 - A live provider run is still an owner decision; every check so far uses
   mock agents.
 
-M2 (the UI prototype, see TODO) may start when the owner asks for it.
+M2 (the UI prototype, see the [roadmap](development/ROADMAP.md)) may start when the owner asks for it.
 
 ## Boundaries
 

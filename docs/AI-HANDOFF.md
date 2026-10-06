@@ -5,7 +5,7 @@ previous conversation, one particular model, or private coordination logs.
 If the next AI cannot access GitHub, attach this file and the documents
 listed in its reading order.
 
-Latest state: M1 (the quality milestone) is implemented, merged into main
+Historical baseline: M1 (the quality milestone) is implemented, merged into main
 and accepted by the owner on 2026-10-04; see [M1 status](M1-STATUS.md).
 The [2026-10-04 continuation report](SESSION-HANDOFF-2026-10-04.md) records
 the earlier, pre-merge state and is kept as history.
@@ -15,7 +15,23 @@ prompt section into the next AI chat, and read the local agent log first.
 All project-owned files belong under one workspace, per
 [WORKSPACE-RULES.md](development/WORKSPACE-RULES.md).
 
-## Current baseline
+## Product purpose and review practice
+
+Unio connects AI agents from different AI labs. It also supports security
+and code quality through independent reviews and task checks, and efficient
+work through bounded assignments, preserved evidence and clear handoffs.
+Extra review calls use allowance; fewer defects and less repeated work must
+be assessed from actual results. Worktrees remain coordination boundaries,
+not host security sandboxes.
+
+For current Unio development, the owner requires two independent final AI
+reviews from different AI labs, separate from the source authors, followed
+by the lead's own overview. Run them concurrently on the same frozen
+revision and complete material without sharing peer findings. Corrected
+candidates need fresh reviews. This is the development policy, not a
+universal automatic requirement of the tool or a guarantee of correctness.
+
+## Historical baseline (2026-10-05)
 
 - Public repository: https://github.com/danielmevit/unio
 - Published implementation/README baseline: `f962b6a`. Read the latest main
@@ -32,7 +48,7 @@ All project-owned files belong under one workspace, per
   branding smoke, ShellCheck, and documentation lint. Re-run appropriate
   checks for new changes; do not reuse those results as proof of new work.
 
-## Next milestone and boundaries
+## Earlier milestone plan and boundaries
 
 The owner changed the order: **M1 quality first, UX second**. Complete and
 independently verify [QUALITY-M1-CONTRACT.md](QUALITY-M1-CONTRACT.md), frozen
@@ -62,7 +78,7 @@ One project workspace should contain the conversation and relevant plan,
 activity, and review cards. Keep the actual provider names visible; do not
 turn the main interface into a wall of terminals or quota charts.
 
-## Later prototype acceptance criteria
+## Earlier prototype acceptance criteria
 
 - The complete journey is clickable and repeatable, with a reset-to-demo
   action and no dead-end primary buttons.
@@ -98,7 +114,7 @@ facts in older research may need rechecking before future product decisions.
 The [capacity-aware continuation proposal](CAPACITY-AWARE-CONTINUATION.md)
 is future work, not a shipped scheduler or universal quota API.
 
-## Later milestones — not part of this handoff cleanup
+## Earlier milestone order — consult the living prompt for completion status
 
 1. After M1 acceptance, build and test the mock-data prototype described above.
 2. Build a protected, localhost-only, read-only adapter before live controls;
