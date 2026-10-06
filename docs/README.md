@@ -5,6 +5,7 @@
 | Install and configure Unio | [Setup](SETUP.md) · [Complete guide](GUIDEBOOK.md) |
 | Learn the workflow | [Worked example](EXAMPLE.md) · [Handbook](HANDBOOK.md) |
 | Understand checks and reviews | [Quality guide](QUALITY-USAGE.md) · [Task protocol](PROTOCOL.md) |
+| Lead a team within your spending rules | [Lead routing policy](development/LEAD-ROUTING.md) |
 | Choose an agent's reasoning effort | [Model effort guide](development/MODEL-EFFORT.md) |
 | Develop or continue work on Unio | [Development index](development/README.md) |
 | See the approved development order | [Roadmap priorities](development/ROADMAP.md#approved-delivery-priorities) · [Version plan](VERSION-PLAN.md) |

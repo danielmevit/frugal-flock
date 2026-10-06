@@ -9,6 +9,7 @@ ordinary use, start with the [project README](../../README.md) or the
 | [Roadmap](ROADMAP.md) | Priorities, milestones and future development |
 | [Continue with another AI](continue-with-ai-prompt.md) | Current handoff, evidence and next actions |
 | [Workspace rules](WORKSPACE-RULES.md) | Standing instructions for contributors and AI workers |
+| [Lead routing and spending](LEAD-ROUTING.md) | Agent roles, verified-free chores, subscription limits and startup rules |
 | [Model effort](MODEL-EFFORT.md) | Lead defaults, supported controls and justified escalation |
 | [Version plan](../VERSION-PLAN.md) | Work assigned to each version |
 | [Milestone contracts](../NEXT-MILESTONE-CONTRACTS.md) | Implementation and acceptance boundaries |

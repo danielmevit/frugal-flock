@@ -138,3 +138,15 @@ additional state/layout failures and assigned a concrete Codex correction.
 Two other companies review the final combined candidate, followed by the
 lead, under the owner's new separate-review rule. Each invocation still
 receives its own receipt and deadline, with no automatic paid retry.
+
+## Lead startup routing policy (2026-10-06)
+
+Read [lead routing and spending](development/LEAD-ROUTING.md) and
+[model effort](development/MODEL-EFFORT.md) before every new assignment.
+The owner permits the exact verified-free Zen MiMo/LongCat routes for routine
+chores; OpenCode subscription models still use Go. No extra per-token spend,
+paid fallback or billing/auth changes are authorized. Pin helper models too
+and recheck zero input/output/cache prices before each free-route call.
+Prefer stronger actually-available subscription agents for complex work and
+final assessment. Unknown quota and old reset estimates remain Unknown;
+this policy does not restore capacity or implement an automatic meter.

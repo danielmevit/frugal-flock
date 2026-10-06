@@ -158,6 +158,9 @@ Unio matters once AIs change your code:
 The AIs were always reachable. Unio makes their work isolated,
 checked, recorded and easy to hand over.
 
+Leads should read the [routing and spending policy](docs/development/LEAD-ROUTING.md)
+and [model effort guide](docs/development/MODEL-EFFORT.md) before assigning work.
+
 </details>
 
 <details>

@@ -6,6 +6,10 @@ Read the development [index](README.md), then newest coord/AGENT-LOG.md
 and actual newer worker branches. Never overwrite another agent's work.
 This is a dated development handoff; newer native receipts take precedence.
 
+Before assigning any AI, read [lead routing and spending](LEAD-ROUTING.md)
+and [model effort](MODEL-EFFORT.md). Use the latest owner instructions and
+actual capacity evidence; never infer eligibility from an installed CLI.
+
 ## Current checkpoint
 
 <!-- LIVE_CHECKPOINT_START -->

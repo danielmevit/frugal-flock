@@ -6,6 +6,9 @@ the lead's own next session when that session's settings are controllable.
 Owner instructions and the project's run, retry and spending rules take
 precedence. This guide does not authorize another invocation.
 
+Read [lead routing and spending](LEAD-ROUTING.md) alongside this guide.
+A listed model is an inventory entry, not authorization to use a paid route.
+
 ## Default and escalation
 
 Start with **high**, or the supported **middle level** for a model whose
