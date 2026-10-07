@@ -4,7 +4,9 @@ Release notes for Unio. Between releases, each task writes a short
 fragment in `changelog.d/`; the fragments are rolled into this file when a
 version is released.
 
-## 0.5.3 — browser workspace and work policies
+## 0.5.3 — browser workspace and work policies — 2026-10-08
+
+[Official release](https://github.com/danielmevit/unio/releases/tag/v0.5.3). Published from exact source `ae61bf3d11ff` after the full release gate, packaged installer checks and upgrade/rollback checks.
 
 - Observe actual native launch attempts across timeout/replay tests. Keep real
   deadlines and Unknown/no-retry behavior when a Python mock is killed before

@@ -4,15 +4,13 @@ Unio has two independent settings: the pace of work and the budget available
 for coordinating it. Choose them deliberately; a larger subscription does
 not require a slower workflow, and a smaller one should not exhaust the lead.
 
-Implementation status: approved command and behavior contract on 2026-10-07;
-the command/state slice (mode, tier, policy, lead and account commands,
-persistence in `coord/work-policy.json`, visibility and worker
-instructions) and the native guard slice are both implemented in
-development source, which reports `workflow_enforcement` as
-`native_workflows`. Released Unio 0.5.2 does not yet have these switches.
+Available in [Unio 0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3): mode, tier, policy, lead and
+account commands, persistence in `coord/work-policy.json`, visibility, worker
+instructions and native workflow admission. Policy reports
+`workflow_enforcement` as `native_workflows`.
 Foreground/background Source runs and independent reviews hold one locked
 slot per shared budget group, admitted before any provider call. Commands
-below describe the development functionality.
+below describe the released functionality.
 
 ## Choose the pace
 

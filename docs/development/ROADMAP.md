@@ -32,7 +32,7 @@ continuation before expanding the coordination engine.
 
 | Order | Milestone | Intended result | Status |
 | --- | --- | --- | --- |
-| First | v0.5.3: browser-to-worker workflow | Prepare and approve a task, start a worker once, inspect results and reviews, and accept the exact verified changes. Add actual worker output and console access as described in the [worker progress contract](../WORKER-PROGRESS.md). | Backend and API integrated; UI, progress addition, full workflow and shipping checks in progress. |
+| First | v0.5.3: browser-to-worker workflow | Prepare and approve a task, start a worker once, inspect results and reviews, and accept the exact verified changes. Add actual worker output and console access as described in the [worker progress contract](../WORKER-PROGRESS.md). | [Delivered in v0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3), including UI, output/files, the real worker journey and release checks. |
 | Next | v0.5.4: recoverable continuation | Save recoverable work during runs and on failure, then let an owner-enabled supervisor restart the lead CLI after its allowance cooldown using the saved handoff. | Approved; work-saving and lead-restart contracts must be frozen before dispatch. |
 
 The v0.5.4 scope now includes [automatic work saving](../WORK-SAVING.md),
@@ -107,16 +107,15 @@ candidate SHA, evidence, blockers, active workers and one next task.
 All project-owned work stays inside `/mnt/d/Vibe Coding/_vm/frugal-flock`.
 The main checkout is its `repo/` folder; workers use `wt/NAME/`.
 Follow [the standing workspace rules](WORKSPACE-RULES.md).
-Current owner direction (2026-10-06): complete and publish browser v0.5.3,
-then build checkpoint continuation v0.5.4 through native Unio workers and
-independent reviews. Completed 0.5.x publication and installation of the
-latest verified release are authorized. The historical 0.5.0, 0.5.1 and
-0.5.2 releases are now public; [0.5.2](https://github.com/danielmevit/unio/releases/tag/v0.5.2)
-is the latest completed release. The browser execution service and large-
-prompt transport and API are gated and pushed. UI, worker progress, the real
-browser workflow and shipping checks remain in progress at this dated checkpoint. Read the
-[current continuation prompt](continue-with-ai-prompt.md) and newest private
-coordination entries before assigning work. The
+Current delivery checkpoint (2026-10-08): [v0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3)
+is published and installed from exact gated source `ae61bf3d11ff`. It includes
+the browser workflow, worker output/files and native work modes and tiers.
+The earlier 0.5.0, 0.5.1 and 0.5.2 releases remain available. Next is work
+saving and checkpoint continuation in 0.5.4, followed by lead cooldown restart.
+Completed 0.5.x publication and installation are authorized. The newest
+session policy uses personal lead review without extra AI reviewer jobs.
+Read the [current continuation prompt](continue-with-ai-prompt.md) and newest
+private coordination entries before assigning work. The
 [2026-10-05 closing handoff](../SESSION-HANDOFF-2026-10-05.md)
 is preserved as an earlier checkpoint.
 
@@ -329,14 +328,12 @@ contract for exact exit codes and regression cases.
 
 ## 4. Add the local application bridge
 
-Current checkpoint (2026-10-06): queue approval, reservation and recovery
-completed v0.5.2 with full checks and push at `1bddeab`. The v0.5.3 browser
-execution service is verified, independently reviewed and pushed at
-`2e20eff`; the API was subsequently integrated at `32f75ee`, with the full
-merged-tree gate and push at `2cf8c2b`. UI design, the owner-requested worker
-progress addition, the real browser demonstration and shipping checks remain
-in progress. See the [living prompt](continue-with-ai-prompt.md) and newest
-coordination entries for active assignments. The foundation history below
+Current checkpoint (2026-10-08): queue approval, reservation and recovery
+shipped in v0.5.2. The complete browser milestone is now released as
+[v0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3), including execution service/API, UI, protected
+output/files and the real funded browser demonstration. Release packaging
+and upgrade/rollback checks passed. See the [living prompt](continue-with-ai-prompt.md)
+for the next work-saving milestone. The foundation history below
 records earlier limitations, not the current queue/service state.
 
 Start with read-only project, agent, and activity views. Then add a fixed,

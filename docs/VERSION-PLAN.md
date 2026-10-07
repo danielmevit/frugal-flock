@@ -8,8 +8,8 @@ changes in separate versions with their implementation and changelog entries.
 | 0.5.0 | Completed A/B/C/D rename; installer, commands, config, docs and prototypes | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.0); source aebe23c; installed with owner approval |
 | 0.5.1 | Limit-policy hardening and regression coverage | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.1); source af437b1 |
 | 0.5.2 | Queue approval, reservation and recovery library | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.2); source 1bddeab |
-| 0.5.3 | One real browser-to-worker workflow alongside browser output/files; owner-approved work modes yolo/medium/safe and subscription tiers low/medium/high with native shared-budget workflow accounting | Implementation, focused native checks and the real browser workflow completed; final release validation and publication pending |
-| 0.5.4 | Automatic recovery saves, checkpoint continuation and lead CLI cooldown restart | Approved; saving and lead-restart contracts to freeze before dispatch |
+| 0.5.3 | One real browser-to-worker workflow alongside browser output/files; owner-approved work modes yolo/medium/safe and subscription tiers low/medium/high with native shared-budget workflow accounting | [Published 2026-10-08](https://github.com/danielmevit/unio/releases/tag/v0.5.3); exact source ae61bf3d11ff; full gate, artifact and upgrade checks passed; installed with owner approval |
+| 0.5.4 | Automatic recovery saves, checkpoint continuation and lead CLI cooldown restart | Approved; [work-saving contract](development/WORK-SAVING-CONTRACT.md) frozen; runtime implementation pending |
 
 The owner approved the [delivery priorities](development/ROADMAP.md#approved-delivery-priorities)
 on 2026-10-06: finish 0.5.3, deliver 0.5.4, then allowance monitoring, agent

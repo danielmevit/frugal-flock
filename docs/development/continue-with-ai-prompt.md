@@ -6,34 +6,26 @@ Read [the development index](README.md), [lead routing](LEAD-ROUTING.md),
 In an existing team workspace, read the newest coordination log and actual
 worker branches before changing anything. Preserve prior work and failures.
 
-## Current delivery checkpoint — 2026-10-07
+## Current delivery checkpoint — 2026-10-08
 
-Public and installed releases0.5.0,0.5.1 and0.5.2 are complete. The latest
-public release remains0.5.2 at this checkpoint. Browser0.5.3 now includes the
-real browser-to-worker workflow, protected output and tracked files, native
-work modes and shared-budget workflow capacity. Focused checks and a real
-funded AGY browser journey passed. The complete gate on e47d805 passed.
+[Unio 0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3) is published and installed from exact source
+`ae61bf3d11ffc0701d32c1efcf90bccd18b267a6`. It delivers the real browser-to-worker workflow,
+protected output and tracked files, work modes and native shared-budget
+workflow capacity. The full merged-tree gate, five packaged installer
+checks, upgrade/configuration preservation and backup restoration passed.
+All six downloaded release assets matched their prepared hashes.
 
-A separate shipping upgrade check exposed old completion retention and deletion
-of aliases to unrelated targets. Gemini correction d13a98a passed frozen native
-checks and the original upgrade/rollback procedure; Root reviewed and integrated
-it. The subsequent combined gate exposed a timeout fixture measuring whole-command
-Git bookkeeping rather than actual provider lifetime. Codex correction
-c595706 passed Source, all three native checks and the lead's personal review.
-It requires actual live child identity/session observation and bounded harness
-failure paths. Preserve earlier passed checks and rejected candidates;
-none is a published0.5.3. FINAL-6 passed that32-check guard, then failed one of60 execution-service
-cases when its150ms deadline killed a Python mock before its entry log.
-Gemini correction7fed7cd passed Source, three native checks and personal review;
-it observes actual Popen attempts and preserves real Unknown/no-retry behavior.
-The revised accepted source still needs its full gate and exact public assets
-before publication and installation. Read the [version plan](../VERSION-PLAN.md)
-and current repository/release state before claiming delivery.
+Codex gpt-6.1-sol at xhigh completed the owner-authorized timeout fixture
+correction, with all three native checks and personal lead approval.
+Keep earlier failed runs and rejected drafts; the temporary extra Codex
+workflow exception is complete and normal low-tier rules apply.
 
-Next is0.5.4: actual recovery saves first, then checkpoint continuation and
-[lead CLI cooldown restart](LEAD-COOLDOWN-RESTART.md). Follow the approved
-[work-saving plan](../WORK-SAVING.md). No automatic save or restart is delivered
-by0.5.3. Existing worker limit handling remains unchanged.
+Next is 0.5.4: implement manual capture/inspect/restore against the frozen
+[work-saving contract](WORK-SAVING-CONTRACT.md), then automatic recovery
+saves and authorized continuation, followed by
+[lead CLI cooldown restart](LEAD-COOLDOWN-RESTART.md). These features remain
+planned; existing worker limit handling stays unchanged. Read the
+[version plan](../VERSION-PLAN.md) and actual latest state before dispatch.
 
 ## How to continue
 

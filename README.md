@@ -40,7 +40,7 @@ allows one workflow per shared account, while independent accounts work together
 through WSL, plus a [local browser workspace](bridge/README.md) in the source
 archive. Use it to prepare and run tasks, follow worker output and inspect files.
 
-*Install the [latest published release](https://github.com/danielmevit/unio/releases/latest). This source tree is at 0.5.3. See the [version plan](docs/VERSION-PLAN.md) for milestone and publication status.*
+*Install [Unio 0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3), the latest published release. See the [version plan](docs/VERSION-PLAN.md) for the next milestones.*
 
 [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
 [FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·
@@ -153,11 +153,13 @@ unio account opencode go-primary  # aliases sharing one budget
 unio policy                       # current state (--json for machines)
 ```
 
-These commands exist in development source (0.5.3) and are a core product
-benefit: deliberate pace and protecting the lead budget instead of ad-hoc
-delegation. Released Unio 0.5.2 still lacks them. This slice provides guidance, state, and native workflow enforcement (`workflow_enforcement` is `native_workflows`) via strict slots and budget groups. Guard is now truly native but external/unmanaged sessions remain uncounted.
+Available in Unio 0.5.3, these controls let you choose the pace and protect
+shared subscription budgets. Unio counts its native worker and review workflows
+and the registered lead. Sessions launched outside Unio remain uncounted.
 
-Fresh master/installed readable guide explicitly says verified-free OpenCode routes are worker-only and never a lead/cooldown replacement, an enduring rule. Lead reads policy before planning.
+New projects include instructions for the lead to read the active policy before
+delegating. Verified-free OpenCode models handle routine support; they never
+become the lead, main feature owner or final approver.
 
 ## FAQ
 
