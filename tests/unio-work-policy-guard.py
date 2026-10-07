@@ -427,13 +427,81 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         # Add bounded --kill-after=5s to Source/review timeouts
         env['MOCK_TRAP'] = "1"
         env['UNIO_TIMEOUT'] = "2" # 2s timeout
-        t0 = time.time()
-        out_timeout = unio('run', 'mock1', 'task1')
-        t1 = time.time()
-        check('timeout enforced', out_timeout.returncode != 0 and (t1 - t0) < 15, out_timeout) # 2s + 5s kill-after
+        env['MOCK_PID_FILE'] = str(repo / 'mock.pid')
+        (repo / 'mock.pid').unlink(missing_ok=True)
+
+        unio_wrapper = repo / 'unio_wrapper.sh'
+        unio_wrapper.write_text(f"#!/bin/bash\nsleep 5\n\"{at}\" \"$@\"\nres=$?\nsleep 5\nexit $res\n")
+        unio_wrapper.chmod(0o755)
+
+        mock_wrapper = repo / 'mock_wrapper.sh'
+        mock_wrapper.write_text(f"#!/bin/bash\necho $$ > \"$MOCK_PID_FILE\"\nexec bash '{mock_script}'\n")
+        mock_wrapper.chmod(0o755)
+
+        conf_dir_file = base / 'conf' / 'agents.conf'
+        agents_content = conf_dir_file.read_text().replace(f"bash '{mock_script}'", f"bash '{mock_wrapper}'", 1)
+        conf_dir_file.write_text(agents_content)
+
+        t0_wall = time.monotonic()
+
+        proc = subprocess.Popen([str(unio_wrapper), 'run', 'mock1', 'task1'],
+                                cwd=repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        owned.append(proc)
+
+        mock_pid = 0
+        t_start = 0
+        for _ in range(200): # up to 20s
+            if (repo / 'mock.pid').exists():
+                try:
+                    mock_pid = int((repo / 'mock.pid').read_text().strip())
+                    if mock_pid > 0:
+                        t_start = time.monotonic()
+                        break
+                except ValueError:
+                    pass
+            time.sleep(0.1)
+            if proc.poll() is not None:
+                break
+
+        check('mock provider started', mock_pid > 0)
+
+        t_end = 0
+        for _ in range(200): # up to 20s
+            try:
+                os.kill(mock_pid, 0)
+                time.sleep(0.1)
+            except OSError:
+                t_end = time.monotonic()
+                break
+
+        check('mock provider terminated', t_end > 0)
+
+        try:
+            out_stdout, out_stderr = proc.communicate(timeout=40)
+        except subprocess.TimeoutExpired:
+            kill_recorded(proc.pid)
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                pass
+            raise
+
+        t1_wall = time.monotonic()
+
+        # Restore mock1 config
+        conf_dir_file.write_text(conf_dir_file.read_text().replace(f"bash '{mock_wrapper}'", f"bash '{mock_script}'"))
+
+        duration = t_end - t_start
+        out_msg = f"mock duration: {duration:.2f}s, wall: {t1_wall-t0_wall:.2f}s\nstdout:\n{out_stdout}\nstderr:\n{out_stderr}"
+
+        # 124 timeout, 137 killed by SIGKILL
+        check('timeout enforced', proc.returncode in (124, 137) and duration <= 9, out_msg)
+        check('delayed fixture bookkeeping exceeds old assertion', (t1_wall - t0_wall) > 15, out_msg)
+        check('no leftover live mock child', not any(Path(f'/proc/{pid}').exists() for pid in descendants(mock_pid) + [mock_pid]))
 
         del env['UNIO_TIMEOUT']
         del env['MOCK_TRAP']
+        del env['MOCK_PID_FILE']
         out_next = unio('run', 'mock1', 'task1')
         check('slot released on timeout/failure', out_next.returncode == 0, out_next)
 
