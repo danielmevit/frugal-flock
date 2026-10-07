@@ -35,10 +35,20 @@ legacy_commands=(frugal-flock frgl-flc agentteam)
 legacy_link_target=agentteam
 legacy_version_marker='AGENTTEAM_VERSION='
 for legacy_dir in "$BIN_DIR" "$COMP_DIR"; do
+  target_owned=false
+  target_path="$legacy_dir/$legacy_link_target"
+  if [ ! -L "$target_path" ] && [ -f "$target_path" ]; then
+    if grep -qF "$legacy_version_marker" "$target_path"; then
+      target_owned=true
+    elif [ "$legacy_dir" = "$COMP_DIR" ] && [ "$(wc -c < "$target_path")" -eq 2326 ] && [ "$(sha256sum "$target_path" | cut -d' ' -f1)" = "c8d65ea3f3b696760ebdfe7e03f7f8fee646f9f99b85abee8e38197569cb7c29" ]; then
+      target_owned=true
+    fi
+  fi
   for legacy_command in "${legacy_commands[@]}"; do
     legacy_path="$legacy_dir/$legacy_command"
-    if { [ -L "$legacy_path" ] && [ "$(readlink -- "$legacy_path")" = "$legacy_link_target" ]; } \
-      || { [ ! -L "$legacy_path" ] && [ -f "$legacy_path" ] && grep -qF "$legacy_version_marker" "$legacy_path"; }; then
+    if { [ -L "$legacy_path" ] && [ "$(readlink -- "$legacy_path")" = "$legacy_link_target" ] && $target_owned; } \
+      || { [ ! -L "$legacy_path" ] && [ -f "$legacy_path" ] && grep -qF "$legacy_version_marker" "$legacy_path"; } \
+      || { [ "$legacy_command" = "$legacy_link_target" ] && $target_owned; }; then
       rm -- "$legacy_path"
       echo "Removed legacy install: $legacy_path"
     fi
