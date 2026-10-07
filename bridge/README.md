@@ -409,9 +409,13 @@ failure retry. The initial coherent source checkpoint was committed as
 target, followed by the request-boundary correction
 `ee639222c0cf19f54f288ce2338fd67d0caf9de6` before remaining browser checks.
 Default Activity, manual draft and prototype Chromium suites passed on their
-first current-candidate runs. The execution API check is now running once,
-after all browser processes exited. Scoped docs lint and the complete
-frozen-base whitespace check passed; final results will be committed separately.
+first current-candidate runs. The execution API check ran once,
+after all browser processes exited. It passed 21/21 in 179.914 seconds, exit 0,
+including the happy-path acceptance response. That current pass does not
+establish the cause or resolution of the earlier source/native failures.
+Final scoped docs lint and the complete frozen-base whitespace check passed.
+All seven final-candidate Validate commands passed; the earlier failed checks
+and original receipts remain evidence. No check called a live provider.
 
 Native verification of this candidate has not run in this worker.
 The complete inherited UI still has Google + OpenAI
