@@ -1,6 +1,11 @@
 # Unio — UX direction
 
-Small plans. Big ideas.
+Give your AI subscriptions a group project.
+
+The [dark theme and live work map](development/LIVE-WORKSPACE-VIEW.md)
+records the owner's 2026-10-08 request and the proposed connected overview.
+These additions are planned for the existing browser workspace; the sections
+below preserve the earlier UX proposal and prototype context.
 
 ## Status and intended user
 

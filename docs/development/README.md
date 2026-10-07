@@ -7,6 +7,7 @@ ordinary use, start with the [project README](../../README.md) or the
 | Document | Purpose |
 | --- | --- |
 | [Roadmap](ROADMAP.md) | Priorities, milestones and future development |
+| [Dark theme and live work map](LIVE-WORKSPACE-VIEW.md) | Planned browser themes and a focused, connected overview of agents and tasks |
 | [Continue with another AI](continue-with-ai-prompt.md) | Current handoff, evidence and next actions |
 | [Workspace rules](WORKSPACE-RULES.md) | Standing instructions for contributors and AI workers |
 | [AI session startup](../ai/START_HERE.md) | Public entry point for lead and worker reading instructions |

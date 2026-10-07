@@ -2,6 +2,16 @@
 
 Give your AI subscriptions a group project.
 
+## Browser appearance and live work overview
+
+Requested on 2026-10-08: a dark theme and an optional live map of connected
+agents and tasks. The [UI direction](LIVE-WORKSPACE-VIEW.md) proposes an
+active-work view with grouped history, stable node positions and details on
+selection so large projects remain readable. Use recorded relationships and
+actual observations; the existing activity feed refreshes every two seconds.
+These UI additions are planned, with a release number to be assigned when
+their scope is frozen. Recoverable continuation remains the next priority.
+
 ## Work modes and lead budget
 
 On 2026-10-07 the owner approved [YOLO, medium and safe work modes](../WORK-MODES.md)
