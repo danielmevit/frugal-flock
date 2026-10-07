@@ -33,24 +33,53 @@ These tiers describe the usable subscription budget for this project's lead
 and workers. They are owner-selected planning profiles, not particular paid
 plans, prices, model quality levels, reasoning levels or measured quota.
 
-| Tier | Native Source workers at once | Instructions for the lead |
+| Tier | Independent workflows per shared provider/account budget | Instructions for the lead |
 | --- | --- | --- |
-| `low` | 1 | Delegate feature implementation. Keep the lead on planning, a concise review, integration and handoffs. Do not spawn extra agents on the lead's own subscription for routine work. Prefer an eligible worker on another existing funded subscription where available. |
-| `medium` | 2 | Delegate implementation and parallelize independent tasks when useful. Use at most one additional agent on the lead's subscription when its expected value and observed capacity justify it. |
-| `high` | 4 | Allow more independent work in parallel. Use at most two additional agents on the lead's subscription when useful; a high tier is not permission to create busywork or run every task at maximum effort. |
+| `low` | 1, including the lead | Delegate implementation to other available providers. Keep the lead on planning, concise review, integration and handoffs. Do not start another independent feature, test job or worker on the lead's provider. |
+| `medium` | 2, including the lead | Allow a second independent workflow on a provider when its capacity justifies it. Prefer useful work on other funded providers before consuming the lead's reserve. |
+| `high` | 4, including the lead | Allow more independent workflows when useful and capacity permits. Do not create busywork or run every assignment at maximum effort. |
 
-`low` is the default. Native Source concurrency is enforced across foreground
-and background `unio run` calls in the same workspace. A busy budget rejects a
-new dispatch before a provider call; it does not queue, retry or kill existing
-workers. Changing a tier does not cancel active runs. New dispatches use the
-new tier and count all already occupied native slots.
+`low` is the default. This is a limit per shared budget group, not a limit
+on the whole team: Codex can lead while Claude and GLM work on separate
+assignments, provided their budgets are separate and available.
 
-Lead self-delegation and effort guidance are instructions, not a claim that
-Unio controls an already running lead CLI. External agents launched directly
-outside Unio are not covered by its native concurrency limit. Different
-workers can share the same subscription; creating another worker does not
-create more quota. Supported capacity readings and dated manual readings
-remain distinct from this chosen profile. Missing capacity stays Unknown.
+The unit is an **independent workflow**: a lead session, a Source assignment
+or an independent review assignment. Subagents may help with that workflow
+when its task and permissions allow them. They must not become separate
+Unio feature or test assignments under the same provider in low tier. They
+still consume that provider's allowance; use them only when useful. Unio's
+native locks count top-level workflows, not every child process or internal
+model request, and do not bypass a task's explicit no-subagents rule.
+
+Use `unio lead codex` to register the lead's provider reservation; it counts
+as one workflow in that budget group until explicitly cleared with
+`unio lead none`. Registration is a planning reservation, not a claim to
+have detected the lead process or its quota. A new lead reads and reconciles
+the reservation before delegation. Without registration, native worker
+limits still apply, but Unio cannot count an unmanaged lead CLI.
+
+Worker labels use their configured agent prefix, such as codex in
+codex-backend, to identify the default budget group. Operators can group
+aliases or gateways sharing quota with `unio account AGENT GROUP`. For
+example, distinct OpenCode model aliases using one Go subscription must
+map to the same group. These names identify shared limits, not credentials;
+Unio never guesses account ownership or reads authentication to group them.
+
+Native concurrency is enforced across foreground and background Source
+calls and independent native review calls within the workspace. A busy
+budget rejects dispatch before a provider call; it does not queue, retry
+or kill existing workers. Changing tier or grouping does not cancel active
+runs. Existing runs retain their group; changing an occupied agent's group
+or the registered lead's group must refuse until its reservation is clear.
+New dispatches use the current tier and count already occupied group slots.
+
+Lead and worker guidance is supplied to the AI, but Unio does not control
+an already running lead CLI or external agents launched directly outside
+Unio. The first implementation counts registered native workflows in this
+workspace; cross-workspace/account-wide scheduling and automatic account
+identification remain future work. Supported capacity readings and dated
+manual readings remain separate from this chosen profile. Missing capacity
+stays Unknown. Higher tiers never create extra allowance.
 
 Start model effort at high or the supported middle, with a supported middle
 for routine coordination. Escalate only for demonstrated reasoning difficulty
@@ -67,6 +96,7 @@ From a Unio project, the command surface is:
 ```bash
 unio mode yolo
 unio tier low
+unio lead codex
 unio policy
 unio policy --json
 
@@ -77,6 +107,12 @@ unio tier high
 # Show the current value without changing it.
 unio mode
 unio tier
+unio lead
+unio account
+
+# Group two configured aliases sharing the same budget.
+unio account opencode go-primary
+unio account glm go-primary
 ```
 
 Allowed mode values are exactly `yolo`, `medium`, `safe`; allowed tier values
@@ -88,9 +124,11 @@ silently resetting settings. Setter operations validate before writing and
 replace the file atomically under a shared lock.
 
 The policy JSON has schema 1 with `mode`, `tier`, an optional update timestamp,
-the effective native worker limit, lead delegation guidance and an explicit
+the effective per-group workflow limit, lead reservation, account mappings,
+lead delegation guidance and an explicit
 capacity value of `unknown`; it does not manufacture subscription readings.
-Human output states the active mode, tier, worker limit and lead expectations.
+Human output states the active mode, tier, per-group workflow limit, lead
+reservation, account mappings and lead expectations.
 `unio init`, `unio status` and help expose the controls. Completion offers
 valid switch values.
 
@@ -111,7 +149,7 @@ runs retain their snapshot when a setting changes.
 Unio does not autonomously choose arbitrary tests or launch additional AI
 reviewers from a mode switch. The lead uses the selected guidance to design
 the next task, and the native runner enforces its explicit validation rules
-and Source concurrency. Browser selectors and per-account scheduling can
+and per-group workflow concurrency. Browser selectors and per-account scheduling can
 build on the same policy later; this first implementation establishes the
 core CLI, persistence, visibility and worker instructions.
 
