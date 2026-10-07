@@ -34,12 +34,17 @@ version is released.
   `--prompt-file`, OpenCode uses `--file`, and Antigravity receives a short file
   pointer. Existing custom agent configuration is preserved; doctor reports
   legacy substitutions without changing or running them.
+- Keep whole-file transport regressions current with the effective policy header:
+  compare delivered bytes and the unchanged original separately for all five
+  source/reviewer routes, preserving bounds and no-shell-execution checks.
 - Validate and bound browser storage documents before recording ownership;
   store request/scope/check companions as UTF-8 JSON. HTTP errors use fixed public
   mappings and browser recovery reads state without automatic POST retries.
 - Clarify main implementation and routine free-worker roles, correct Gemini Pro
   to its native High/Low variants, document 90–120-minute implementation budgets,
   and use the new tagline across README, installed help, version and attribution.
+  Document a ready queue so independent tasks continue across available accounts
+  while other workers are busy; low tier remains one workflow per shared account.
 
 The browser remains a local source preview. See [the release overview](docs/RELEASE-0.5.3.md)
 and [startup guide](bridge/README.md). Automatic recovery saves and lead cooldown
