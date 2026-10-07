@@ -71,17 +71,7 @@ verified provenance. Fledge/Exo identity is likewise not established here.
 | MiMo V2.6 Flash: LEAD-POLICY-STARTUP-DOCS-1 review, 2026-10-06 | Native exit 0, complete material, APPROVE; candidate subsequently integrated. | It completed this bounded documentation review. This does not establish defect-detection accuracy or coding ability. |
 | LongCat 2.5 Preview: ROADMAP-PRIORITIES-1 review, 2026-10-06 | Native exit 0 and APPROVE. | It completed one scoped roadmap assessment at high effort. |
 | LongCat 2.5 Preview: LEAD-POLICY-STARTUP-DOCS-1 review, 2026-10-06 | Native exit 0, complete material, APPROVE at medium effort; candidate subsequently integrated. | It completed a second documentation review; the sample remains small. |
-| Nemotron 3 Ultra: B| Exo Free | `opencode/exo-free` | Official free listing; missing locally | Not observed | Availability check before any assignment |
-| Fledge Alpha Free | `opencode/fledge-alpha-free` | Native input/output/cache all 0 | low, high, max | Bounded coding or test-generation trial |
-| Ling 3.1 Flash Free | `opencode/ling-3.1-flash-free` | Native input/output/cache all 0 | low, medium, high | Code/document analysis or focused test trial |
-| LongCat 2.5 Preview Free | `opencode/longcat-2.5-preview-free` | Native input/output/cache all 0 | low, medium, high | Documentation consistency, context-heavy audit, then bounded code trial |
-| Space Bunny Free | `opencode/space-bunny-free` | Native input/output/cache all 0 | low, medium, high, xhigh, max | Small code or UI trial; identity not verified |
-| MiMo-V2.6-Flash Free | `opencode/mimo-v2.6-flash-free` | Native input/output/cache all 0 | No exposed override | Routine CLI/configuration, docs and bounded code changes |
-| Muse Spark 1.3 Free | `opencode/muse-spark-1.3-contributor-free` | Native input/output/cache all 0 | minimal, low, medium, high, xhigh | Bounded multi-file code trial |
-| Ling 3.0 Flash Fin Free | `opencode/ling-3.0-flash-fin-free` | Native input/output/cache all 0 | low, medium, high | Document/data interpretation trial; do not infer expertise from its name |
-| Nemotron 3.5 Lightning Free | `opencode/nemotron-3.5-lightning-free` | Native input/output/cache all 0 | No exposed override | Small implementation or targeted regression-test trial |
-| Nemotron 3 Ultra Free | `opencode/nemotron-3-ultra-free` | Native input/output/cache all 0 | No exposed override | Code analysis or a scoped implementation trial |
-| Big Pickle | `opencode/big-pickle` | Native input/output/cache all 0 | No exposed override | Routine formatting/docs or a small code trial; identity not verified |ER-API-ERRORS-1 review, 2026-10-06 | Native exit 0, complete material, APPROVE. | It completed a code-review call; approval alone does not establish that it found all defects or that the whole workflow was shipped. |
+| Nemotron 3 Ultra: BROWSER-API-ERRORS-1 review, 2026-10-06 | Native exit 0, complete material, APPROVE. | It completed a code-review call; approval alone does not establish that it found all defects or that the whole workflow was shipped. |
 | MiMo V2.6 Flash: WORK-POLICY-1 Source, 2026-10-07 | A real Unio command/state implementation assignment is currently active. | This is the first current production-code trial; verification, review and integration are pending. |
 
 The underlying private receipts remain in the workspace. Do not publish raw
