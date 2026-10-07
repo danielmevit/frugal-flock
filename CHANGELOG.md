@@ -27,6 +27,8 @@ version is released.
 - Preserve caller stderr after closing control descriptors and keep EXIT cleanup
   roots/pidfiles as quoted data after their function locals expire. Generated
   runtime ShellCheck passes; a new check proves fd closure and stderr visibility.
+- Preserve the loop-brake overlap scenario with explicit two-slot mock capacity,
+  then restore low tier. The real low-tier contract remains enforced.
 - Transport large UTF-8 tasks and review material without placing the entire
   file in one command argument. Claude and Codex use stdin, Grok uses
   `--prompt-file`, OpenCode uses `--file`, and Antigravity receives a short file
