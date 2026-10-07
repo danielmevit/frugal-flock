@@ -3,7 +3,7 @@
 The owner approved these five steps on 2026-10-05 after the rename landed at
 be9e257. The owner then approved installed migration before these milestones.
 Unio 0.5.0 is installed as of 2026-10-05; the lead delegates through `unio`,
-with pinned models, bounded one-call tasks, another company's review,
+with pinned models, bounded one-call tasks, another AI lab's review,
 then the lead's full review. Source merges receive the full quality gate and
 are pushed only on PASS. Release publication and billing changes need separate
 approval. See [version plan](VERSION-PLAN.md) for the owner-approved sequence.
@@ -12,7 +12,7 @@ approval. See [version plan](VERSION-PLAN.md) for the owner-approved sequence.
 
 Owner direction on 2026-10-05: each final candidate from this point receives
 at least two separate AI reviews, followed by the lead's own review. Use
-different reviewer companies from each other and from the candidate's source
+different reviewer AI labs from each other and from the candidate's source
 authors. Reviewers receive the complete frozen task and diff independently;
 do not give one reviewer another's verdict before its assessment.
 
@@ -33,6 +33,10 @@ Tests and reviews reduce mistakes; they are not proof that every bug is found.
 Keep one invocation per review task, no automatic paid retry, and the full
 merged-tree quality gate before each push. Completed earlier checkpoints
 are not reopened solely by this prospective rule.
+
+For the current 2026-10-07 session, the owner's latest instruction is personal
+lead review without spawning extra reviewer workers. Preserve real historical
+reviews, but do not claim fresh independent AI-lab approval for that exception.
 
 ## Order and estimates
 
@@ -124,6 +128,15 @@ concurrent reservations and replay, unknown/cancel transitions, invalid or corru
 metadata, and absence of native tasks/processes/provider side effects.
 
 ## Later contracts
+
+The owner added [lead CLI cooldown restart](development/LEAD-COOLDOWN-RESTART.md)
+on 2026-10-07 as a continuation slice after automatic work saving in v0.5.4.
+A supervisor outside the lead process waits for its actual reset plus one
+minute, or five hours and one minute when a known five-hour reset is unknown,
+then starts the configured lead from its saved handoff. Repeated lead limits
+create new waits. Explicit stop and completion prevent further restarts.
+Worker benching, routing and retry policy stay unchanged. Freeze the adapter,
+durable state, ownership and mock-clock acceptance contract before dispatch.
 
 Before step 3 dispatch, freeze the protected job API, task compilation,
 executor lifecycle and truthful UI evidence interfaces in another checkpoint.
