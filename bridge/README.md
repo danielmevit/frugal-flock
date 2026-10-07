@@ -442,7 +442,8 @@ repeated Git overhead and narrow headroom, without proving the complete cause
 of the failures.
 
 The service now uses four rather than seven Git subprocesses per worker
-observation: one fixed `rev-parse` reads the owned common directory, peeled
+observation, before the unchanged preparation/start clean/base queries: one fixed
+`rev-parse` reads the owned common directory, peeled
 HEAD commit and full branch name; one `ls-files --stage -v -z` reads both
 unmerged stages and hidden-edit flags. The repository common directory and
 sparse configuration remain fresh separate reads. Strict framing, field and
@@ -472,6 +473,14 @@ boundary as the preserved diagnostic, excluding mock-engine internal calls.
 | Review | 11.314 / 41 | 6.749 / 26 | 5.356 |
 | Accept | 12.228 / 40 | 6.617 / 25 | 4.375 |
 
+The cost regression also passed inside the complete API suite, run after the
+service suite and before any browser suite. That second measurement recorded
+start 9.130s/25 calls, verify 8.641s/26, review 8.962s/26 and accept 9.410s/25
+(6.125 seconds in acceptance subprocesses). Both runs retain two acceptance
+result reads and five worker observations. The regression prints raw JSON
+rows with request timings, statuses, subprocess/Git counts and time, result
+reads and fresh observation counts for retention with source check output.
+
 The regression bounds subprocess counts while requiring the original fresh
 observation and result-read counts. Additional guards exercise malformed
 metadata/index/config output, real foreign repositories and unmerged indices,
@@ -480,6 +489,18 @@ readiness and hidden-index changes between native observations. Existing UI
 journeys and regressions are unchanged. Timing is measured evidence, not a
 guarantee for every filesystem or a substitute for security checks.
 
-Focused and full source validation outcomes are recorded separately below
-after completion. Fresh native verification and the owner's personal lead
-review remain required; this worker does not accept, merge, push or release.
+The six focused service regressions passed in 77.646 seconds and the separate
+cost journey passed once in 32.330 seconds. The full service suite passed 57/57
+in 360.031 seconds; the full API suite passed 22/22 in 193.493 seconds, including
+all 21 inherited cases plus the new cost journey. This total includes an extra
+complete journey and is not directly comparable to the historical 21-case
+suite duration. Execution, default Activity, manual drafts and prototype
+Chromium suites all passed on their first changed-candidate runs, with every
+inherited journey/regression unchanged. Final scoped docs lint and complete
+frozen-base whitespace checks passed: all eight Source Validate commands
+passed. The coherent runtime/tests/docs checkpoint was committed as
+`f9ef4c6b3ca8e1de6f5b0a16aefa78dac86e559e` before slow full checks; a final
+documentation commit records their actual outcomes. No live providers,
+additional AI invocations or retries were used. Fresh native verification and
+the owner's personal lead review remain required; this worker does not accept,
+merge, push or release.
