@@ -43,7 +43,12 @@ subprocess.run(['git','commit','-qm','offline OpenCode'],check=True)
     assert result['process']['state']=='succeeded' and result['validation']['state']=='passed'
     receipt=json.loads((base/'args.json').read_text())
     original = (root/'coord/tasks/flags.md').read_text()
-    assert receipt['args'][1]=='--auto' and receipt['original']==original and receipt['task'].endswith('--- original run material follows ---\n' + original)
+    assert receipt['args'][1]=='--auto' and receipt['original']==original
+    delimiter = '--- original run material follows ---\n'
+    assert delimiter in receipt['task']
+    header = receipt['task'][:receipt['task'].index(delimiter) + len(delimiter)]
+    assert header.startswith('# Unio work-policy header (effective prompt; the original task is unchanged)\n')
+    assert receipt['task'] == header + original
     print('opencode: fresh source default dispatches --auto and the full task file via --file, native verification passed',flush=True)
     config=base/'conf/agents.conf';config.write_text('# user settings\nopencode=opencode run --dangerously-skip-permissions -m owner-choice\n')
     before=(base/'args.json').read_bytes()
