@@ -51,6 +51,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
     repo.mkdir(parents=True)
 
     owned = []
+    detached = []
     open_streams = []
 
     def descendants(pid):
@@ -66,53 +67,73 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
                 found.extend(descendants(child))
         return found
 
+    def kill_recorded(pid):
+        # Sessions captured at creation. Never select processes by command text.
+        if pid <= 1:
+            return
+        try:
+            leader = os.getsid(pid) == pid
+        except ProcessLookupError:
+            return
+        if leader:
+            signals = (signal.SIGTERM, signal.SIGKILL)
+            for sig in signals:
+                try:
+                    os.killpg(pid, sig)
+                except ProcessLookupError:
+                    return
+                if sig == signal.SIGTERM:
+                    deadline = time.time() + 2
+                    while time.time() < deadline:
+                        try:
+                            os.kill(pid, 0)
+                        except ProcessLookupError:
+                            return
+                        time.sleep(0.05)
+            return
+        tree = [pid, *descendants(pid)]
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            for item in tree:
+                try:
+                    os.kill(item, sig)
+                except ProcessLookupError:
+                    pass
+            if sig == signal.SIGTERM:
+                time.sleep(0.2)
+
     def stop_owned():
-        targets = []
-        for proc in owned:
-            if proc.poll() is None:
-                targets.append(proc.pid)
-                targets.extend(descendants(proc.pid))
-        reports = root / 'coord' / 'reports'
-        if reports.is_dir():
-            for pidfile in reports.glob('*.pid'):
-                try:
-                    pid = int(pidfile.read_text().strip())
-                except (OSError, ValueError):
-                    continue
-                try:
-                    parts = Path('/proc/%s/cmdline' % pid).read_bytes().split(b'\0')
-                except OSError:
-                    continue
-                if (len(parts) >= 3 and parts[1].decode(errors='replace') == at
-                        and parts[2] == b'run'):
-                    targets.append(pid)
-                    targets.extend(descendants(pid))
         seen = []
-        for pid in targets:
-            if pid > 0 and pid not in seen:
+        for proc in owned:
+            if proc.poll() is None and proc.pid not in seen:
+                seen.append(proc.pid)
+        for pid in detached:
+            if pid > 1 and pid not in seen:
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    continue
                 seen.append(pid)
         for pid in seen:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        deadline = time.time() + 3
-        for proc in owned:
-            remain = max(0.1, deadline - time.time())
-            try:
-                proc.wait(timeout=remain)
-            except subprocess.TimeoutExpired:
-                pass
-        for pid in seen:
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            kill_recorded(pid)
         for proc in owned:
             try:
                 proc.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 pass
+
+    def note_detached(task):
+        pidfile = root / 'coord' / 'reports' / ('%s.pid' % task)
+        for _ in range(50):
+            if pidfile.is_file():
+                try:
+                    pid = int(pidfile.read_text().strip())
+                except (OSError, ValueError):
+                    pid = 0
+                if pid > 1:
+                    detached.append(pid)
+                    return pid
+            time.sleep(0.1)
+        return 0
 
     def git(*args):
         return subprocess.run(['git', *args], cwd=repo, env=env,
@@ -128,8 +149,20 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
                                     start_new_session=True)
             owned.append(proc)
             return proc
-        return subprocess.run([at, *args], cwd=cwd or repo, env=env,
-                              capture_output=True, text=True, timeout=40)
+        proc = subprocess.Popen([at, *args], cwd=cwd or repo, env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, start_new_session=True)
+        owned.append(proc)
+        try:
+            out, err = proc.communicate(timeout=40)
+        except subprocess.TimeoutExpired:
+            kill_recorded(proc.pid)
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                pass
+            raise
+        return subprocess.CompletedProcess(proc.args, proc.returncode, out, err)
 
     try:
         git('init', '--initial-branch=main')
@@ -306,19 +339,19 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         # held oversized/malformed metadata cannot bypass low cap or lower/regroup
         unio('tier', 'low')
         unio('lead', 'none')
-    
+
         # 1. Create a held slot by running a background mock that waits
         env['MOCK_BARRIER'] = str(repo / 'bar_oversized')
         p_over = unio('run', 'mock1', 'task1', wait=False)
         wait_barrier(repo / 'bar_oversized.started')
-    
+
         # 2. Find the slot file and rewrite it to be oversized
         import fcntl
         slot_dir = root / 'coord' / '.locks' / 'work-policy-slots' / 'grp1'
         slot_files = list(slot_dir.glob('wpslot-*.json'))
         check('slot file created', len(slot_files) > 0)
         slot_file = slot_files[0]
-    
+
         # Rewrite its content to be oversized but STILL HELD by python!
         # Wait, the python process holds the fd. We can just append to the file path to make it oversized.
         try:
@@ -330,13 +363,13 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         # Now verify admission is refused (it's oversized but held, so considered active)
         out_admit = unio('run', 'mock2', 'task2')
         check('held oversized slot refuses admit', out_admit.returncode != 0 and 'budget refused' in out_admit.stderr)
-    
+
         # Verify tier reduction is refused
         out_tier = unio('tier', 'high') # wait, tier medium... wait, tier reduction.
         unio('tier', 'medium')
         out_tier = unio('tier', 'low')
         check('held oversized slot refuses tier reduction', out_tier.returncode != 0)
-    
+
         # Verify regroup is refused
         out_regroup = unio('account', 'mock1', 'grp2')
         check('held oversized slot refuses regroup', out_regroup.returncode != 0)
@@ -344,7 +377,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         # release
         (repo / 'bar_oversized.release').touch()
         p_over.wait(timeout=30)
-    
+
         # hardlinked policy lock rejected with state/sentinel intact
         lock_file = root / 'coord' / '.locks' / 'work-policy.lock'
         lock_link = root / 'coord' / '.locks' / 'work-policy.hardlink'
@@ -356,7 +389,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
                 lock_link.unlink()
             except OSError:
                 pass # FS doesn't support hardlinks
-            
+
         # unsafe admission path rejection before a counted mock command
         # Create an unsafe slot directory (symlink)
         unio('account', 'mock3', 'grp_unsafe')
@@ -422,6 +455,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         # test background Source
         env['MOCK_BARRIER'] = str(repo / 'bar5')
         unio('run', '-b', 'mock1', 'task1', wait=False)
+        note_detached('task1')
         wait_barrier(repo / 'bar5.started')
 
         out_fg = unio('run', 'mock2', 'task2')
@@ -448,6 +482,9 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         check('background Source released its slot', released_bg)
 
         # test independent reviewer accounting
+        # The unsafe-path case left mock3 on its own group. Share grp1 with the
+        # reviewer, or this run is a legal second group and its provider starts.
+        unio('account', 'mock3', 'grp1')
         # inject passed validation
         result_path = root / 'coord' / 'results' / 'mock2' / 'task2.json'
         injector = (
@@ -465,15 +502,76 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
             'json.dump(d, open(f, "w"))\n'
         ) % str(result_path)
         subprocess.run(['python3', '-c', injector], timeout=20, check=True)
+        env['UNIO_REVIEW_TIMEOUT'] = '30'
         env['MOCK_BARRIER'] = str(repo / 'bar6')
         p_rev = unio('review', 'mock2', 'task2', 'mock1', wait=False)
         wait_barrier(repo / 'bar6.started')
+        # The refusal probe must not inherit the reviewer's hold. A missed
+        # refusal then returns on the provider timeout instead of blocking.
+        env.pop('MOCK_BARRIER', None)
+        env['UNIO_TIMEOUT'] = '5'
+        marker = repo / 'reviewer-budget-marker'
+        marker.unlink(missing_ok=True)
+        env['MOCK_MARKER'] = str(marker)
 
         out_rev2 = unio('run', 'mock3', 'task3')
-        check('reviewer accounted', out_rev2.returncode != 0 and 'budget refused' in out_rev2.stderr, out_rev2)
+        check('reviewer accounted',
+              out_rev2.returncode == 2 and 'budget refused' in out_rev2.stderr
+              and "budget group 'grp1' holds" in out_rev2.stderr
+              and not marker.exists(),
+              out_rev2)
+        env.pop('MOCK_MARKER', None)
 
         (repo / 'bar6.release').touch()
-        p_rev.wait(timeout=30)
+        try:
+            p_rev.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            kill_recorded(p_rev.pid)
+            raise
+        held_after = []
+        slot_dir = root / 'coord' / '.locks' / 'work-policy-slots'
+        if slot_dir.is_dir():
+            for slot in slot_dir.rglob('wpslot-*.json'):
+                if slot.is_symlink():
+                    continue
+                fd = os.open(slot, os.O_RDONLY)
+                try:
+                    try:
+                        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        held_after.append(slot)
+                    else:
+                        fcntl.flock(fd, fcntl.LOCK_UN)
+                finally:
+                    os.close(fd)
+        check('reviewer slot released after the reviewer finishes', held_after == [])
+
+        def signal_reaps(proc):
+            kids = descendants(proc.pid)
+            os.kill(proc.pid, signal.SIGTERM)
+            deadline = time.time() + 8
+            while time.time() < deadline:
+                alive = [pid for pid in kids if Path('/proc/%s' % pid).exists()]
+                if proc.poll() is not None and not alive:
+                    return True
+                time.sleep(0.1)
+            return False
+
+        env['MOCK_BARRIER'] = str(repo / 'bar_term')
+        env['UNIO_TIMEOUT'] = '30'
+        (repo / 'bar_term.started').unlink(missing_ok=True)
+        (repo / 'bar_term.release').unlink(missing_ok=True)
+        p_term = unio('run', 'mock1', 'task1', wait=False)
+        wait_barrier(repo / 'bar_term.started')
+        check('run signal reaps the provider and holder', signal_reaps(p_term))
+
+        env['MOCK_BARRIER'] = str(repo / 'bar_term_review')
+        env['UNIO_REVIEW_TIMEOUT'] = '30'
+        (repo / 'bar_term_review.started').unlink(missing_ok=True)
+        (repo / 'bar_term_review.release').unlink(missing_ok=True)
+        p_sig = unio('review', 'mock2', 'task2', 'mock1', wait=False)
+        wait_barrier(repo / 'bar_term_review.started')
+        check('review signal reaps the provider and holder', signal_reaps(p_sig))
 
         print('work-policy-guard: done (%d checks passed)' % passed[0])
     finally:

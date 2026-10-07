@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
-# Unio installer — Small plans. Big ideas.
+# Unio installer — Give your AI subscriptions a group project.
 # One-master / many-CLI-workers orchestration for a
 # single Ubuntu VM. No API keys, no browser automation: every agent runs its
 # own official CLI headless under its own subscription login.
@@ -712,7 +712,7 @@ For more information on this, and how to apply and follow the GNU AGPL, see
 <https://www.gnu.org/licenses/>.
 UNIO_LICENSE_EOF
 cat > "$CONF_DIR/legal/NOTICE" <<'UNIO_NOTICE_EOF'
-Unio — Small plans. Big ideas.
+Unio — Give your AI subscriptions a group project.
 Copyright (C) 2026 Daniel Mitev
 Public attribution: Daniel Mevit (@danielmevit)
 Original project: https://github.com/danielmevit/unio
@@ -765,7 +765,7 @@ cat > "$BIN_DIR/unio" <<'UNIO_BIN_EOF'
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
-# Unio — Small plans. Big ideas.
+# Unio — Give your AI subscriptions a group project.
 # Delegate tasks from a master CLI session to worker CLI agents.
 # Layout (created by `unio init` next to your repo clone):
 #   PROJECT/<clone>/  your repo on the base branch (dev) -> master runs here
@@ -2151,14 +2151,14 @@ def main(argv):
             doc = read_state_nolock(root)
             group = group_of(doc, agent)
             cap = LIMITS[doc['tier']]
-            
+
             sweep_group(root, group)
             native = count_active(root, group)
             lead_here = 1 if lead_group_of(doc) == group else 0
             if native + lead_here + 1 > cap:
                 fail('budget group %r holds %d native workflow(s) plus %d lead reservation(s) at cap %d: refusing %s %s/%s before any provider call (no retry, no queue)'
                      % (group, native, lead_here, cap, kind, worker, task))
-                     
+
             directory = slot_group_dir(root, group)
             try:
                 os.makedirs(directory, exist_ok=True)
@@ -2166,18 +2166,18 @@ def main(argv):
                 pass
             if os.path.islink(directory):
                 fail('refusing unsafe slot directory (symlink, left unchanged): ' + directory)
-            
+
             meta = {'schema_version': 1, 'group': group, 'agent': agent,
                     'worker': worker, 'task': task, 'kind': kind, 'created_at': stamp()}
             data = (json.dumps(meta, sort_keys=True, ensure_ascii=True) + '\n').encode('utf-8')
             if len(data) > MAX_SLOT_META:
                 fail('slot metadata would exceed the size limit (not written)')
-                
+
             fd_slot, tmp_slot = tempfile.mkstemp(prefix=WPSLOT_PREFIX, suffix='.json', dir=directory)
             try:
                 fcntl.flock(fd_slot, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 os.write(fd_slot, data)
-                
+
                 snap = describe(root, doc)
                 try:
                     with open(orig, 'rb') as f_orig:
@@ -2190,21 +2190,21 @@ def main(argv):
                     original_text = original.decode('utf-8')
                 except UnicodeDecodeError:
                     fail('original task material is not UTF-8 (left unchanged)')
-                    
+
                 slot_name = os.path.basename(tmp_slot)
                 sidecar = {'schema_version': 1, 'group': group, 'worker': worker, 'task': task,
                            'kind': kind, 'slot': slot_name, 'created_at': meta['created_at'], 'policy': snap}
                 sidecar_data = (json.dumps(sidecar, sort_keys=True, ensure_ascii=True) + '\n').encode('utf-8')
                 if len(sidecar_data) > 16384:
                     fail('policy sidecar would exceed the size limit (not written)')
-                    
+
                 check_control_path(root, 'coord', 'reports', task + '.policy.json')
                 check_control_path(root, 'coord', 'reports', task + '.prompt.md')
                 reports = os.path.join(root, 'coord', 'reports')
                 os.makedirs(reports, exist_ok=True)
                 if os.path.islink(reports):
                     fail('refusing unsafe reports path (symlink, left unchanged): ' + reports)
-                    
+
                 header = (
                     '# Unio work-policy header (effective prompt; the original task is unchanged)\n'
                     'mode: %(mode)s — %(mode_blurb)s\n'
@@ -2225,7 +2225,7 @@ def main(argv):
                 body = (header + original_text).encode('utf-8')
                 if not body.endswith(b'\n'):
                     body += b'\n'
-                    
+
                 for name, payload in ((task + '.policy.json', sidecar_data), (task + '.prompt.md', body)):
                     fd_sidecar, tmp_sidecar = tempfile.mkstemp(prefix='.sidecar-', dir=reports)
                     try:
@@ -2241,7 +2241,7 @@ def main(argv):
                             except OSError:
                                 pass
                 effective_path = os.path.join(reports, task + '.prompt.md')
-                
+
             except BaseException:
                 os.close(fd_slot)
                 try:
@@ -2463,6 +2463,39 @@ policy_broker_reason() { # $1=err file
   printf '%s\n' "$text"
 }
 
+policy_signal_descendants() { # $1=pid $2=signal — this recorded tree only
+  local pid="$1" sig="$2" child
+  case "$pid" in
+    ''|*[!0-9]*|0|1) return 0;;
+  esac
+  if [ -r "/proc/$pid/task/$pid/children" ]; then
+    for child in $(cat "/proc/$pid/task/$pid/children" 2>/dev/null); do
+      policy_signal_descendants "$child" "$sig"
+    done
+  fi
+  kill -s "$sig" -- "$pid" 2>/dev/null || true
+}
+
+policy_stop_provider() { # stop the provider started by this run or review
+  local pid="${POLICY_PROVIDER_PID:-}" n=0
+  [ -n "$pid" ] || return 0
+  if ! kill -0 -- "$pid" 2>/dev/null; then
+    POLICY_PROVIDER_PID=""
+    return 0
+  fi
+  policy_signal_descendants "$pid" TERM
+  while [ "$n" -lt 20 ]; do
+    kill -0 -- "$pid" 2>/dev/null || break
+    n=$((n + 1))
+    sleep 0.05
+  done
+  if kill -0 -- "$pid" 2>/dev/null; then
+    policy_signal_descendants "$pid" KILL
+  fi
+  wait "$pid" 2>/dev/null || true
+  POLICY_PROVIDER_PID=""
+}
+
 policy_reap_holder() { # kill only the owned holder group, then its exact pids
   local wrapper="${POLICY_PID:-}" holder="${POLICY_HOLDER_PID:-}" pgid="" n=0
   [ -n "$wrapper" ] || return 0
@@ -2526,6 +2559,7 @@ policy_admit_hold() { # $1=root $2=agent $3=worker $4=task $5=kind $6=origfile
   local root="$1" agent="$2" worker="$3" task="$4" kind="$5" orig="$6"
   POLICY_SLOT=""; POLICY_EFFECTIVE=""; POLICY_GROUP=""; POLICY_PID=""
   POLICY_HOLDER_PID=""; POLICY_RD=""; POLICY_WR=""; POLICY_IN=""; POLICY_IPC=""
+  POLICY_PROVIDER_PID=""
   local lock="$root/coord/.locks/work-policy.lock"
   if [ -L "$root/coord" ] || [ -L "$root/coord/.locks" ] || [ -L "$lock" ]; then
     policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" \
@@ -2662,6 +2696,9 @@ policy_release_slot() { # $1=root — ask the holder to unlock and remove the sl
     return 0
   fi
   POLICY_RELEASING=1
+  # A signal arrives while the provider is still running. Stop that recorded
+  # process tree before releasing the holder, or the slot and the pipes stay open.
+  policy_stop_provider
   if [ -z "${POLICY_SLOT:-}${POLICY_PID:-}" ]; then
     policy_close_admission_fds
     POLICY_RELEASING=0
@@ -3211,8 +3248,15 @@ cmd_run() {
   # --kill-after bounds a TERM-ignoring provider: TERM first, KILL 5s later.
   # Drop the release pipe, admission pipe, and worker lock in the provider.
   # A child that inherits the writer keeps the holder from seeing EOF.
+  # Wait in the shell, not in a foreground provider: bash defers TERM/INT
+  # until a foreground command exits, which left this provider and its holder
+  # alive. The EXIT trap stops this recorded pid and reaps the holder.
+  POLICY_PROVIDER_PID=""
   ( cd "$wt" && timeout --kill-after=5s "$TIMEOUT" bash -c "$cmdline" </dev/null ) \
-    >"$log" 2>&1 9>&- {POLICY_IN}>&- {POLICY_RD}>&- {POLICY_WR}>&- || rc=$?
+    >"$log" 2>&1 9>&- {POLICY_IN}>&- {POLICY_RD}>&- {POLICY_WR}>&- &
+  POLICY_PROVIDER_PID=$!
+  wait "$POLICY_PROVIDER_PID" || rc=$?
+  POLICY_PROVIDER_PID=""
   # The reservation ends with the provider invocation: release before the
   # post-run receipts so the next admission can reuse the group.
   policy_release_slot "$root"
@@ -3665,8 +3709,14 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
     rm -rf "$nd"; return 2
   fi
   echo "[review] $reviewer reviewing $worker's '$task' (timeout ${UNIO_REVIEW_TIMEOUT:-900}s)"
+  # Same interruptible wait as run: a signal must stop this provider and let
+  # EXIT reap the reviewer slot. A foreground wait would defer the trap.
+  POLICY_PROVIDER_PID=""
   ( cd "$nd" && TASKFILE="$POLICY_EFFECTIVE" UNIO_ORIGINAL_TASKFILE="$pf" timeout --kill-after=5s "${UNIO_REVIEW_TIMEOUT:-900}" bash -c "$rcmd" </dev/null ) \
-    >"$stdout" 2>"$stderr" 9>&- {POLICY_IN}>&- {POLICY_RD}>&- {POLICY_WR}>&- || rc=$?
+    >"$stdout" 2>"$stderr" 9>&- {POLICY_IN}>&- {POLICY_RD}>&- {POLICY_WR}>&- &
+  POLICY_PROVIDER_PID=$!
+  wait "$POLICY_PROVIDER_PID" || rc=$?
+  POLICY_PROVIDER_PID=""
   policy_release_slot "$root"
   cat "$stdout"
   state=$(quality verdict "$stdout") || state=unknown
@@ -3914,7 +3964,7 @@ cmd_report() { # read a task's report without typing coord/reports paths
 
 cmd_version() {
   echo "Unio $UNIO_VERSION ($0)"
-  echo "Small plans. Big ideas."
+  echo "Give your AI subscriptions a group project."
   echo "config: $CONF_FILE"
 }
 
@@ -4478,7 +4528,7 @@ cmd_policy() {
 
 cmd_help() {
   cat <<'HELP'
-Unio — Small plans. Big ideas.
+Unio — Give your AI subscriptions a group project.
 One master CLI session delegating to worker CLI agents.
 Command: unio.
 
@@ -5537,7 +5587,7 @@ complete -F _unio unio
 COMPLETION_EOF
 
 echo
-echo "Unio installed. Small plans. Big ideas."
+echo "Unio installed. Give your AI subscriptions a group project."
 echo "  command   : $BIN_DIR/unio   (ensure that dir is on PATH)"
 echo "  overrides : UNIO_* environment variables"
 echo "  config    : $CONF_DIR/agents.conf   <- EDIT: enable/tune your agents"
