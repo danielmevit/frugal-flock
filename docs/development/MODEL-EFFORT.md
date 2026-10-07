@@ -53,7 +53,7 @@ come from `opencode models opencode-go --verbose` and
 | --- | --- | --- | --- |
 | Codex / `gpt-6.1-sol` | Model: low, medium, high, xhigh, max; CLI configuration `model_reasoning_effort` | high; medium for routine work | xhigh, then exceptional max. Do not infer ultra support from another model or client. |
 | Claude / `claude-opus-5-5` | low, medium, high, xhigh, max; installed Claude Code accepts `--effort` | high; medium for routine coordination or writing | xhigh, then exceptional max. The model's API default is medium; pin the chosen level explicitly. |
-| Antigravity / `gemini-3.1-pro-high` | Installed `agy` advertises low, medium, high, xhigh, max; Google's Gemini 3.1 Pro API documents low, medium, high thinking levels | high on the existing high model route | Keep high on this pinned route. Its alias-to-API mapping for other levels is unverified; do not claim xhigh/max support from generic CLI help. |
+| Antigravity / `gemini-3.1-pro-high`, `gemini-3.1-pro-low` | Native `agy models` exposes High and Low for Gemini 3.1 Pro | `gemini-3.1-pro-high --effort high` | High is the top exposed level. Match the low model with low only when deliberately chosen. Generic CLI medium/xhigh/max flags do not create Pro variants; high/xhigh was rejected before inference. |
 | Grok / `grok-4.7` | low, medium, high, xhigh; installed Grok Build uses `--reasoning-effort` / `--effort` | high; medium for routine work | xhigh is the highest documented level. No documented max on this model. |
 | GLM / `opencode-go/glm-5.3` | Installed variants: low, high, max; `reasoningEffort` | high, the middle of this scale | max only for a justified hard task. No medium/xhigh variant. Native Z.ai default is max, so pin high rather than omit it. |
 | DeepSeek / `opencode-go/deepseek-v4-pro` | Installed variants: high, max; `reasoningEffort` | high | Exceptional max. Direct DeepSeek also documents low, but this installed route does not expose a low variant. Direct API xhigh maps to high, so it is not an escalation. |
@@ -69,6 +69,14 @@ Empty variants mean **no exposed override**, not no reasoning and not high
 by default. If a route cannot meet the requested high/middle policy, record
 that exception. Do not silently translate labels or create a custom variant
 without verifying the gateway actually supports its parameter. Check advertised model variants rather than inferring from generic CLI effort choices. Unknown effective effort stays unknown.
+
+On **2026-10-07**, the owner clarified the Antigravity Pro choices and a
+non-generating `agy models` query confirmed `gemini-3.1-pro-high` (High) and
+`gemini-3.1-pro-low` (Low). Those are the exposed Pro variants. The generic
+`agy --help` effort list covers other models too; match the model variant
+to its effort. A native Pro-high/xhigh dispatch was rejected before inference.
+Keep Pro at high by default. Record requested effort separately from the
+effective reasoning observed in a response.
 
 ## How the lead applies a choice
 
