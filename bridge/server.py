@@ -65,16 +65,20 @@ class Observer:
 
 class ActivityServer(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, port, observer, plans=None, execution=None, progress=None):
+    def __init__(self, port, observer, plans=None, execution=None, progress=None, files=None):
         super().__init__(('127.0.0.1',port), ActivityHandler)
         self.observer = observer
         self.plans = plans
         self.execution = execution
         self.progress = progress
-        self.session_token = secrets.token_urlsafe(32) if (plans is not None or execution is not None or progress is not None) else None
+        self.files = files
+        protected = plans is not None or execution is not None or progress is not None or files is not None
+        self.session_token = secrets.token_urlsafe(32) if protected else None
         self.origin = 'http://127.0.0.1:' + str(self.server_port)
 
     def server_close(self):
+        if self.files is not None:
+            self.files.close()
         if self.progress is not None:
             self.progress.close()
         if self.execution is not None:
@@ -128,6 +132,19 @@ class ActivityHandler(BaseHTTPRequestHandler):
             pass
         return self.error_response(status, code)
 
+    def files_error_response(self, error):
+        status, code = 503, 'files_unavailable'
+        try:
+            from worker_files import ERRORS, WorkerFilesError
+            if issubclass(type(error), WorkerFilesError):
+                public_code, public_status = error.code, error.status
+                if (type(public_code) is str and type(public_status) is int
+                        and ERRORS.get(public_code) == public_status):
+                    status, code = public_status, public_code
+        except Exception:
+            pass
+        return self.error_response(status, code)
+
     def origin_allowed(self, write=False):
         if self.headers.get_all('Host') != [self.server.origin.removeprefix('http://')]:
             self.error_response(403, 'host_refused')
@@ -154,7 +171,29 @@ class ActivityHandler(BaseHTTPRequestHandler):
                 manual_drafts=self.server.plans is not None,
                 execution=self.server.execution is not None,
                 progress_output=self.server.progress is not None,
+                worker_files=self.server.files is not None,
                 token=self.server.session_token)).encode())
+        if self.path.startswith('/api/worker-files'):
+            if self.server.files is None:
+                return self.error_response(404, 'not_found')
+            if not self.token_allowed():
+                return
+            if self.headers.get_all('Transfer-Encoding') or self.headers.get_all('Content-Length'):
+                return self.error_response(400, 'invalid_request')
+            match = re.fullmatch(r'/api/worker-files/workers(?:/([0-9a-f]{64})/files(?:/([0-9a-f]{64}))?)?', self.path)
+            if match is None:
+                return self.error_response(400, 'invalid_request')
+            worker_id, file_id = match.groups()
+            try:
+                if worker_id is None:
+                    value = self.server.files.workers()
+                elif file_id is None:
+                    value = self.server.files.files(worker_id)
+                else:
+                    value = self.server.files.preview(worker_id, file_id)
+                return self.respond(200, json.dumps(value, ensure_ascii=True).encode())
+            except Exception as error:
+                return self.files_error_response(error)
         if self.path.startswith('/api/progress'):
             if self.server.progress is None:
                 return self.error_response(404, 'not_found')
@@ -222,14 +261,18 @@ class ActivityHandler(BaseHTTPRequestHandler):
         if self.path in routes:
             name, content_type = routes[self.path]
             return self.respond(200, (ASSETS/name).read_bytes(), content_type)
-        if self.path == '/jobs.js':
+        if self.path in ('/jobs.js', '/worker_console.js'):
             try:
-                return self.respond(200, (ASSETS/'jobs.js').read_bytes(), 'text/javascript; charset=utf-8')
+                return self.respond(200, (ASSETS/self.path[1:]).read_bytes(), 'text/javascript; charset=utf-8')
             except FileNotFoundError:
                 return self.error_response(404, 'not_found')
         return self.error_response(404, 'not_found')
 
     def do_POST(self):
+        if self.path.startswith('/api/worker-files'):
+            if self.server.files is None:
+                return self.error_response(404, 'not_found')
+            return self.error_response(405, 'read_only')
         if self.path.startswith('/api/progress'):
             return self.error_response(405, 'read_only')
         if self.server.plans is None and self.server.execution is None:
@@ -325,6 +368,10 @@ class ActivityHandler(BaseHTTPRequestHandler):
             return self.execution_error_response(e)
 
     def reject_method(self):
+        if self.path.startswith('/api/worker-files'):
+            if self.server.files is None:
+                return self.error_response(404, 'not_found')
+            return self.error_response(405, 'read_only')
         self.error_response(405,'read_only')
 
     do_PUT = do_PATCH = do_DELETE = do_OPTIONS = do_HEAD = reject_method
@@ -347,7 +394,9 @@ def serve_preview(server, open_browser=False):
         mode = 'manual draft preview' if getattr(server, 'plans', None) is not None else 'read-only Activity preview'
         print(server.origin + ' — ' + mode + '; no provider dispatch', flush=True)
     if getattr(server, 'progress', None) is not None:
-        print('Protected Source output observation enabled for trusted startup bindings; observation never dispatches', flush=True)
+        print('Protected Source output observation enabled for trusted startup grants; observation never dispatches', flush=True)
+    if getattr(server, 'files', None) is not None:
+        print('Protected worktree file observation enabled for trusted startup workers; observation never edits or dispatches', flush=True)
     if open_browser:
         # A slow desktop opener must not delay the listening observation service.
         threading.Thread(target=open_preview, args=(server.origin,), daemon=True).start()
@@ -381,7 +430,10 @@ def main():
     parser.add_argument('--open-browser',action='store_true',help='optionally open this loopback read-only preview in the default browser')
     parser.add_argument('--enable-plan-drafts',action='store_true',help='opt in to manual draft storage only; never starts workers')
     parser.add_argument('--enable-progress-output',action='store_true',help='allow protected Source output observation only')
-    parser.add_argument('--progress-binding',action='append',default=[],help='trusted WORKER:TASK allowlist entry (at most 32)')
+    parser.add_argument('--progress-binding',action='append',default=[],help='trusted WORKER:TASK allowlist entry')
+    parser.add_argument('--progress-worker',action='append',default=[],help='trusted worker grant for its latest owned native task')
+    parser.add_argument('--enable-worker-files',action='store_true',help='allow read-only tracked worktree text observation')
+    parser.add_argument('--files-worker',action='append',default=[],help='trusted worker whose wt/WORKER tree may be listed')
     parser.add_argument('--enable-execution',action='store_true',help='opt in to execution mode')
     parser.add_argument('--worker',type=str,help='worker label')
     parser.add_argument('--reviewer',type=str,help='reviewer label')
@@ -405,11 +457,15 @@ def main():
     if options.enable_execution and not all(opt is not None for opt in execution_opts):
         parser.error('--enable-execution requires all execution startup inputs')
 
-    if bool(options.progress_binding) != options.enable_progress_output:
-        parser.error('--enable-progress-output requires --progress-binding; bindings require explicit output mode')
+    progress_grants = bool(options.progress_binding) or bool(options.progress_worker)
+    if progress_grants != options.enable_progress_output:
+        parser.error('--enable-progress-output requires --progress-binding or --progress-worker; grants require explicit output mode')
+    if bool(options.files_worker) != options.enable_worker_files:
+        parser.error('--enable-worker-files requires --files-worker; file grants require explicit files mode')
     progress = None
     plans = None
     execution = None
+    files = None
     try:
         if options.enable_plan_drafts or options.enable_execution:
             from plan_store import PlanStore
@@ -423,12 +479,20 @@ def main():
             if any(len(entry) != 2 for entry in bindings):
                 parser.error('invalid progress binding')
             try:
-                progress = ProgressService(project, engine, bindings)
+                progress = ProgressService(project, engine, bindings, workers=options.progress_worker)
             except (ValueError, OSError):
                 parser.error('invalid progress startup configuration')
-        server = ActivityServer(options.port, Observer(project, engine), plans=plans, execution=execution, progress=progress)
+        if options.enable_worker_files:
+            from worker_files import WorkerFilesService
+            try:
+                files = WorkerFilesService(project, options.files_worker)
+            except (ValueError, OSError):
+                parser.error('invalid worker files startup configuration')
+        server = ActivityServer(options.port, Observer(project, engine), plans=plans, execution=execution, progress=progress, files=files)
         serve_preview(server, options.open_browser)
     finally:
+        if files is not None:
+            files.close()
         if progress is not None:
             progress.close()
         if plans is not None:

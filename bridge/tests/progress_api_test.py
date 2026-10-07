@@ -61,6 +61,7 @@ class ProgressAPITests(unittest.TestCase):
         code, headers, session = self.request('/api/session')
         self.assertEqual(code, 200)
         self.assertTrue(session['progress_output'])
+        self.assertFalse(session['worker_files'])
         self.assertFalse(session['execution'])
         self.assertFalse(session['manual_drafts'])
         self.assertEqual(session['token'], self.server.session_token)
@@ -213,6 +214,7 @@ class ProgressAPITests(unittest.TestCase):
                 conn.request('GET', '/api/session'); response = conn.getresponse()
                 session = json.loads(response.read())
                 self.assertFalse(session['progress_output'])
+                self.assertFalse(session['worker_files'])
                 if mode == 'default': self.assertIsNone(session['token'])
                 conn.request('GET', self.path, headers={'X-Unio-Session': session['token'] or 'none'})
                 response = conn.getresponse(); response.read()
@@ -225,12 +227,71 @@ class ProgressAPITests(unittest.TestCase):
         # main is run in-process with every dispatch boundary patched.
         for flags in (['--enable-progress-output'], ['--progress-binding', 'codex-owned:SOURCE-1'],
                       ['--enable-progress-output', '--progress-binding', 'bad/worker:SOURCE-1'],
-                      ['--enable-progress-output', '--progress-binding', 'x:t', '--progress-binding', 'y:t']):
+                      ['--enable-progress-output', '--progress-binding', 'x:t', '--progress-binding', 'y:t'],
+                      ['--enable-progress-output', '--progress-worker', 'bad/worker'],
+                      ['--progress-worker', 'codex-owned'],
+                      ['--enable-worker-files'], ['--files-worker', 'codex-owned'],
+                      ['--enable-worker-files', '--files-worker', 'bad/worker'],
+                      ['--enable-progress-output', '--progress-binding', 'codex-owned:SOURCE-1', '--progress-worker', 'codex-owned']):
             args = ['server.py', '--project', str(self.root), '--engine', str(self.fixture.log)] + flags
             with patch.object(sys, 'argv', args), patch.object(server, 'serve_preview') as serve, patch('sys.stderr'):
                 with self.assertRaises(SystemExit) as error: server.main()
             self.assertEqual(error.exception.code, 2)
             serve.assert_not_called()
+
+    def test_worker_grant_http_discovers_owned_output_without_a_task_selector(self):
+        service = ProgressService(self.root, self.root / 'unio', [], workers=[self.fixture.worker])
+        self.addCleanup(service.close)
+        instance = server.ActivityServer(0, NoEffects(), progress=service)
+        thread = threading.Thread(target=instance.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(lambda: (instance.shutdown(), thread.join(3), instance.server_close()))
+        connection = http.client.HTTPConnection('127.0.0.1', instance.server_port, timeout=3)
+        connection.request('GET', '/api/session')
+        session = json.loads(connection.getresponse().read())
+        connection.close()
+        self.assertTrue(session['progress_output'])
+        self.assertFalse(session['worker_files'])
+        headers = {'X-Unio-Session': session['token']}
+
+        def fetch(path):
+            conn = http.client.HTTPConnection('127.0.0.1', instance.server_port, timeout=3)
+            try:
+                conn.request('GET', path, headers=headers)
+                reply = conn.getresponse()
+                raw = reply.read()
+                return reply.status, json.loads(raw) if raw else None
+            finally:
+                conn.close()
+
+        self.assertEqual(fetch('/api/progress/workers?task=SOURCE-1')[0], 400)
+        self.assertEqual(fetch('/api/progress/workers?worker=' + self.fixture.worker)[0], 400)
+        code, collection = fetch('/api/progress/workers')
+        self.assertEqual(code, 200)
+        self.assertEqual(collection['workers'][0]['task'], self.fixture.task)
+        worker_id = collection['workers'][0]['worker_id']
+        code, view = fetch('/api/progress/workers/' + worker_id + '/runs/' + collection['workers'][0]['run_id'] + '/output')
+        self.assertEqual(code, 200)
+        self.assertIn('link</a>', view['output']['text'])
+        self.assertNotIn(self.fixture.task, view['output']['text'])
+
+    def test_explicit_worker_and_file_grants_reach_startup_together(self):
+        args = ['server.py', '--project', str(self.root), '--engine', str(self.fixture.log),
+                '--enable-progress-output', '--progress-worker', 'codex-owned',
+                '--enable-worker-files', '--files-worker', 'codex-owned']
+        holder = {}
+        original = server.ActivityServer
+        def capture(*params, **kwargs):
+            holder['server'] = original(*params, **kwargs)
+            return holder['server']
+        with patch.object(sys, 'argv', args), patch.object(server, 'ActivityServer', side_effect=capture), \
+                patch.object(server, 'serve_preview'), patch('sys.stderr'):
+            server.main()
+        self.addCleanup(holder['server'].server_close)
+        self.assertIsNotNone(holder['server'].progress)
+        self.assertEqual(holder['server'].progress.worker_grants, ['codex-owned'])
+        self.assertIsNotNone(holder['server'].files)
+        self.assertTrue(holder['server'].session_token)
 
 
 if __name__ == '__main__': unittest.main(verbosity=2)

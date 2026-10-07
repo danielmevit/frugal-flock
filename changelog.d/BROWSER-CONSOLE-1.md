@@ -1,0 +1,1 @@
+- Add opted-in worker Source grants, read-only tracked worktree file observation, and browser output/files panels on the existing workspace. No release: the provider journey, full gate and publication remain separate.

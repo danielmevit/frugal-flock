@@ -400,5 +400,61 @@ class ProgressTests(unittest.TestCase):
         pidfile.write_text(str(os.getpid()) + '\n')
         self.assertEqual(self.get()['observed_liveness'], 'unknown')
 
+    def test_worker_grant_follows_latest_owned_task_and_refuses_ambiguity(self):
+        import hashlib
+        granted = ProgressService(self.root, self.root / 'unio', [], workers=[self.fixture.worker])
+        self.addCleanup(granted.close)
+        identity = hashlib.sha256((self.fixture.worker + '\0' + self.fixture.task).encode()).hexdigest()
+        view = granted.workers()['workers'][0]
+        self.assertEqual(view['worker_id'], identity)
+        self.assertEqual(view['task'], self.fixture.task)
+        self.assertNotIn('state', view)
+        self.fixture.log.write_text('bound excerpt\n')
+        self.assertEqual(granted.get(identity)['output']['excerpt'], 'bound excerpt\n')
+        later = Fixture(self.root, worker=self.fixture.worker, task='SOURCE-2', attempt='2' * 32)
+        moment = time.time()
+        later.native['updated_at'] = date(moment)
+        later.retry['updated_at'] = date(moment - .05)
+        later.save()
+        with (self.root / 'coord/reports/ledger.jsonl').open('a') as ledger:
+            ledger.write(json.dumps(dict(event='run_start', ts=date(moment), worker=self.fixture.worker, task='SOURCE-2')) + '\n')
+        later.log.write_text('latest task\n')
+        os.utime(later.log, (moment + 1,) * 2)
+        fresh = granted.workers()['workers'][0]
+        self.assertEqual(fresh['task'], 'SOURCE-2')
+        self.assertNotEqual(fresh['worker_id'], identity)
+        self.assertEqual(fresh['output']['excerpt'], 'latest task\n')
+        with self.assertRaises(ProgressError) as missing:
+            granted.get(identity)
+        self.assertEqual(missing.exception.code, 'progress_not_found')
+        self.assertNotIn('bound excerpt', fresh['output']['excerpt'])
+        # Equal receipt times do not invent a winner.
+        self.fixture.native['updated_at'] = later.native['updated_at']
+        self.fixture.retry['updated_at'] = later.retry['updated_at']
+        self.fixture.save()
+        unclear = granted.workers()['workers'][0]
+        self.assertEqual(unclear['state'], 'unavailable')
+        self.assertEqual(unclear['task'], '')
+        with self.assertRaises(ProgressError) as refused:
+            granted.get(unclear['worker_id'])
+        self.assertEqual(refused.exception.code, 'progress_unavailable')
+
+    def test_worker_grants_share_the_binding_budget_and_stay_unique(self):
+        names = ['w' + str(index) for index in range(32)]
+        service = ProgressService(self.root, self.root / 'unio', [], workers=names)
+        service.close()
+        with self.assertRaises(ValueError):
+            ProgressService(self.root, self.root / 'unio', [], workers=names + ['extra'])
+        with self.assertRaises(ValueError):
+            ProgressService(self.root, self.root / 'unio', [('a' + str(index), 't' + str(index)) for index in range(31)] + [('tail', 'tail-task')], workers=['extra'])
+        with self.assertRaises(ValueError):
+            ProgressService(self.root, self.root / 'unio', [(self.fixture.worker, self.fixture.task)], workers=[self.fixture.worker])
+        with self.assertRaises(ValueError):
+            ProgressService(self.root, self.root / 'unio', [], workers=[self.fixture.worker, self.fixture.worker])
+        paired = ProgressService(self.root, self.root / 'unio', [(self.fixture.worker, self.fixture.task)], workers=['other-worker'])
+        self.addCleanup(paired.close)
+        self.assertEqual(set(paired.bindings), {self.identity})
+        self.assertEqual(paired.worker_grants, ['other-worker'])
+
 
 if __name__ == '__main__': unittest.main(verbosity=2)

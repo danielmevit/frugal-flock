@@ -1,8 +1,9 @@
 # Browser worker output and files — frozen interface
 
-Implementation contract for completing the browser0.5.3 milestone. Existing
+Implementation contract for completing the browser 0.5.3 milestone. Existing
 UI, execution API and [progress API](BROWSER-PROGRESS-API-CONTRACT.md) remain
-the base. This document does not claim the new views are implemented.
+the base. The interface below stays frozen. Implementation status is recorded
+at the end of this document.
 
 ## Worker output
 
@@ -73,4 +74,14 @@ native worker writing progressive lines, output click-through, safe file view,
 session rotation and no duplicate launch/review. This is not a model benchmark.
 The owner will use funded main implementation workers; free Zen routes remain
 routine support only. Full release gate, real provider journey and publication
-are separate proof. No claim0.5.3 released until those steps actually complete.
+are separate proof. No claim 0.5.3 released until those steps actually complete.
+
+## Implementation status
+
+BROWSER-CONSOLE-1 implements the worker grants, file routes and browser
+panels specified above. Existing progress views, cursors, redaction, read
+bounds and GET protections are unchanged. A worker grant resolves only the
+latest owned native task; a files grant lists only tracked text under the
+startup worktree. This source change is not a 0.5.3 release. The real
+provider journey, the final whole release gate and publication remain
+separate.
