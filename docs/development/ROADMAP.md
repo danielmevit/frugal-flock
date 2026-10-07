@@ -68,6 +68,11 @@ delivery dates will be assigned to bounded milestones separately.
    conservatively using current capacity. Explain agent selection and follow
    the owner's allowed routing policy. See the
    [capacity-aware continuation plan](../CAPACITY-AWARE-CONTINUATION.md).
+   Owner clarification on 2026-10-07: an unfinished worker should not block
+   unrelated tasks. Keep a ready queue, use independent available accounts
+   concurrently within the selected tier, and revisit results as they finish.
+   Show dependencies and reasons for idle workers. The lead policy applies now;
+   an automatic scheduler remains planned. See [parallel work](PARALLEL-WORK.md).
 4. **A built-in parallel review pipeline.** Make independent reviews from
    different AI labs a normal Unio workflow, using identical revisions and
    complete material in separate review views. Connect structured findings

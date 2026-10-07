@@ -30,9 +30,15 @@ CLI; record its selected model and AI lab. A past capacity failure is dated
 evidence: check the owner's new availability report instead of treating it
 as permanent, while preserving invocation and no-paid-fallback rules.
 
-Do not invent chores merely to keep workers busy. Use parallel agents for
-independent scopes and blind reviews; keep dependent changes ordered. The
-lead compares findings, inspects the complete change and verifies the result.
+Keep available agents moving on approved, independent tasks rather than
+waiting for an entire batch to finish. Low tier is one independent workflow
+per shared account, including the lead; different accounts can run together.
+Track dependencies and scope ownership, revisit the ready queue when a worker
+finishes, and return to its saved result without blocking unrelated work.
+Do not invent chores merely to keep models busy. Follow
+[the parallel work policy](PARALLEL-WORK.md), preserve frozen runs and integrate
+dependent changes in order. The lead assesses each complete change under the
+current owner review policy.
 
 ## No extra token charges by default
 
