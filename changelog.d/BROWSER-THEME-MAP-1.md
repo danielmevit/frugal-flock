@@ -1,0 +1,1 @@
+- **Browser:** Added OS-aware Light/Dark theme selector and interactive Work Map view for activity observation.

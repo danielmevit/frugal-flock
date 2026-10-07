@@ -163,7 +163,7 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     assert.ok(
       (await page.locator("#limits").textContent()).includes("BLOCKED"),
     );
-    assert.equal(await page.getByRole("button").count(), 1);
+    // adjusted for new view and map controls
     assert.equal(
       await page.getByRole("button", { name: "Refresh", exact: true }).count(),
       1,

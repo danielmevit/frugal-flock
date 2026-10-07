@@ -516,4 +516,20 @@
       plan(200);
     }
   });
+
+  document.addEventListener("unio-open-console", (event) => {
+    const { worker, task } = event.detail;
+    // We can simulate clicking the worker button if it exists
+    const buttons = workers.querySelectorAll("button.console-worker");
+    for (let b of buttons) {
+       // text content has 'worker / task' or 'worker'
+       if (b.textContent.includes(worker)) {
+          b.click();
+          // scroll to console
+          section.scrollIntoView({behavior: "smooth"});
+          break;
+       }
+    }
+  });
+
 })();

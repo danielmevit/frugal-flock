@@ -695,3 +695,32 @@ engine and must not call a provider. `tests/unio-work-policy.py` and
 policy branch; this branch does not run or edit them. Version remains 0.5.3.
 The real provider journey, the final whole release gate and publication are
 still separate.
+
+## Browser Themes and Work Map (BROWSER-THEME-MAP-1)
+
+The workspace page supports three themes: System (default), Light, and Dark.
+The chosen theme is stored locally and applied safely even if storage is
+restricted. All native surfaces, UI states, output consoles, and the activity map
+fully adapt to these themes using safe CSS variables without inline styles or
+external assets, preserving the restrictive Content Security Policy.
+
+A Work map view replaces the traditional flat list of tasks on large screens,
+displaying a visual Project hub connected to recorded workers and their
+owned tasks. The map prioritizes active, uncertain, and attention-requiring
+work. A history toggle optionally reveals finished history. The view includes
+deterministic layout, search, task/worker bounds, counts, and pagination (capped
+at 24 expanded nodes). This uses the existing `/api/activity` feed without
+backend, dependency, or route changes.
+
+Selecting a task on the map opens its details. If the selected worker is also
+granted in the local session for Source console tracking (`--progress-binding`
+or `--progress-worker`), the console can be opened directly from the map
+details. The detail view accurately labels if the granted protected output
+belongs to a different (usually newer) task rather than implying it belongs
+to the historical record you clicked on. The map is entirely read-only; it never
+starts, reviews, or merges work. Observation failures clear the map alongside
+the list and details.
+
+Offline checks are included in `bridge/tests/work_map_browser.cjs`.
+These UI enhancements are implemented-in-source; the published official version
+remains 0.5.3.
