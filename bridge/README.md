@@ -162,6 +162,12 @@ refuse rather than generating replacement keys. Storage failures prevent the
 write. Server-side durable bindings remain authoritative if browser storage is
 lost; tab storage is not a cross-browser backup. Tokens stay in memory.
 
+If the session refresh itself fails, execution capability is cleared and the
+visible draft status asks for an explicit reload. The saved request, selection
+and complete action intent remain available; reconnecting reads the saved job
+without replaying approval, start or review. A successful session refresh still
+requires an explicit job read before an unconfirmed action can be chosen again.
+
 Mode notice/footer copy comes from the session capability, including manual
 and default mode restoration. Long literal requests, hashes, errors and logs
 wrap within their region. Controls have visible keyboard focus and 44px minimum
@@ -321,3 +327,76 @@ The complete inherited UI still has Google + OpenAI author labs. Fresh native
 verification, two independent nonauthor subscription-lab reviews and the
 lead's own review remain required before integration. These offline checks do
 not establish acceptance, a live provider demonstration or public shipping.
+
+## BROWSER-SESSION-RECOVERY-1 coverage (2026-10-07)
+
+The original readiness correction remains failed: its native verification
+passed 6/7, but the execution browser timed out after 30 seconds at line 257
+waiting for "Session refreshed" after the intended approval 403. Its source
+API run separately passed 20/21 with the unchanged acceptance-response timeout
+described above. The later native API pass does not resolve that latency or
+erase the source failure. A private, zero-provider diagnostic passed that
+403/session-200/explicit-job-GET/next-approval sequence, then reached later
+steps before its overall 180-second bound ended with exit 124. It was not a
+complete test pass or a provider demonstration. Original tasks and receipts
+remain unchanged.
+
+Inspection found that `jobs.js` awaits the `refresh-session` promise supplied
+by `drafts.js`. Successful session JSON updates capability through
+`unio-session`, then resolves that promise; only afterward does the action
+report "Session refreshed" and release its busy state. A refresh failure
+clears capability, rejects the promise and retains the pending action in tab
+storage. The existing failure status requests explicit reload. No runtime
+defect has been demonstrated, so this task changes coverage and whitespace,
+with no product, service or timeout changes.
+
+The execution regression now holds the session GET until busy state, disabled
+write/read controls and absence of a premature recovery announcement are
+checked, then releases the real response and requires completed UI recovery.
+The delayed prepared-response observer remains gated through that original
+403 and explicit GET-only job recovery. A second explicit approval receives
+403 with the same saved key; its gated session GET receives a mandatory 503.
+Repeated synthetic execution clicks and draft submits must produce no writes
+in both pending and failed states. The literal saved request, selection,
+request key, complete approval inputs and pending intent must survive. An
+explicit reload then performs only session/job reads and restores the saved
+preview before the next explicit approval. Neither recovery calls run or
+review, and all fixtures spend zero provider allowance. The original execution,
+readiness, literal, busy, keyboard, mobile, cancel and stop journeys remain.
+
+On failure, the test reports its phase, bounded request/response/finish timings,
+HTTP status, fixed UI status labels, capability events and control state, then
+rethrows the original error. Endpoint IDs are redacted; bodies, session tokens,
+event details and opaque action keys are excluded from this diagnostic. The
+seven inherited trailing-space lines are removed. Whitespace validation uses
+the complete delta from frozen base
+`0d633772b2b810a83a8c33fe4aa6855edf1cfaf0`, including committed inherited UI.
+
+The first new execution-browser run reached both the successful recovery and
+the mandatory failed session GET, then exited 1: the disabled-approval assertion
+used a role locator that excluded the execution panel after capability was
+cleared and the panel hidden. Its diagnostics showed session 503, capability
+false, busy false and disabled approval/refresh controls. The assertion now
+uses the exact element ID to inspect the hidden disabled control. This is a
+test selector correction, with the same mandatory assertion; it does not
+demonstrate a runtime defect or resolve the historical native timeout.
+
+The corrected-selector run passed both complete session scenarios and advanced
+through explicit approval, run, verification, review, acceptance, readiness
+fixtures and lost-prepare recovery. It then exited 1 after waiting-job
+cancellation when the mock engine's call-log reader encountered malformed JSON.
+Inspection found one invalid record among 93 lines. The fixture now locks before
+opening its append handle and holds the same lock during evidence snapshots;
+all records must still parse, with none filtered or ignored. This narrow fixture
+diagnostic correction uses Python's existing standard-library file locking and
+does not change product/native-engine behavior or retry any call.
+
+The locked-fixture execution check is in progress; the recovery coverage and
+observed failures are preserved in an early source checkpoint before remaining
+validation. Native verification of this candidate
+has not run in this worker. The complete inherited UI still has Google + OpenAI
+author labs; the owner's 2026-10-07 instruction replaces additional reviewer
+scheduling with the lead's personal review. Fresh native verification, the
+lead's complete assessment and full merge gate remain required. Source checks
+are separate from verification, acceptance, integration and release; no push,
+merge, live provider demonstration, install or public release occurs here.
