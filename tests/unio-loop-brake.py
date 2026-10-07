@@ -151,9 +151,14 @@ raise SystemExit(7 if mode=='fail' else 0)
     check('interrupted failures remain shared after task reassignment',state('reassigned')['failed_attempts']==2)
     check('reassignment never invents either worker exit',all(json.loads(call('result',w,'reassigned').stdout)['process']['exit_code'] is None for w in ('mock','mock-2')))
     task('active')
+    # The 'active' scenario overlaps two workflows. Temporarily grant medium capacity
+    # (cap2) so the second run returns expected failure (7) instead of refusal (2).
+    call('tier', 'medium')
     def while_active():
         call('run','mock-2','active',code=7)
         check('held active worker is not counted as interrupted',state('active')['failed_attempts']==1 and state('active')['latest']['mock']['pending'])
-    interrupt('mock','active',while_active); refuse('active','mock-3')
+    interrupt('mock','active',while_active)
+    call('tier', 'low')
+    refuse('active','mock-3')
     check('released interrupted worker then contributes to shared brake',state('active')['failed_attempts']==2)
     print(f'loop-brake regressions: {count} passed')
