@@ -8,7 +8,7 @@ changes in separate versions with their implementation and changelog entries.
 | 0.5.0 | Completed A/B/C/D rename; installer, commands, config, docs and prototypes | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.0); source aebe23c; installed with owner approval |
 | 0.5.1 | Limit-policy hardening and regression coverage | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.1); source af437b1 |
 | 0.5.2 | Queue approval, reservation and recovery library | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.2); source 1bddeab; latest completed public release |
-| 0.5.3 | One real browser-to-worker workflow, including worker output and console access | Execution service and API integrated; UI, progress addition, workflow validation and publication in progress |
+| 0.5.3 | One real browser-to-worker workflow alongside browser output/files; owner-approved work modes yolo/medium/safe and subscription tiers low/medium/high with native shared-budget workflow accounting | Execution service and API integrated; UI, progress addition, workflow validation and publication in progress |
 | 0.5.4 | Automatic recovery saves, checkpoint continuation and lead CLI cooldown restart | Approved; saving and lead-restart contracts to freeze before dispatch |
 
 The owner approved the [delivery priorities](development/ROADMAP.md#approved-delivery-priorities)
@@ -24,7 +24,11 @@ limit handling stays unchanged. Implement work saving before this restart slice.
 Later release numbers and dates are not assigned yet. The
 [worker progress contract](WORKER-PROGRESS.md) records the newly requested
 browser feature; its implementation is a separate bounded native worker
-slice after the current UI design run, which continues unchanged.
+slice after the current UI design run, which continues unchanged. Substantial
+implementation supports longer task planning (90 minutes, up to 120 for
+substantial implementation), distinct from quota windows and individually
+bounded checks, with documentation pending integration. No blanket command
+claiming automatically changed CLI defaults is authorized.
 
 Shipping preparation follows these changes. It does not automatically create
 a new version or publish a release. The published v0.4.0 title is now
@@ -38,9 +42,14 @@ merged-tree quality gate. Integrate and push only after that gate passes.
 Publication requires owner authorization. On 2026-10-06 the owner authorized
 completed 0.5.x releases, unattended sequential browser 0.5.3 and checkpoint
 0.5.4 work, and installation of the latest verified release on this machine.
-The current sequence uses native Unio workers, two independent AI-lab reviews,
-a lead overview, full quality gates and exact pushes. It does not authorize
-billing changes or publication of unfinished milestones.
+The current sequence under the newest owner YOLO+low policy uses one independent
+workflow per shared provider/account including lead, focused native validation and
+personal lead review without extra model reviewer jobs for this session, with a
+full required release gate before publication. This supersedes the earlier
+current-session sentence requiring two AI-lab reviews on every slice. Independent
+reviews remain supported under other owner-selected policies; do not remove
+history or universal safety requirements. Exact pushes remain required. It does
+not authorize billing changes or publication of unfinished milestones.
 
 The approved 0.5.0 installation preserved agent settings, left the original
 config intact for rollback, and migrated worker markers and shared guards.

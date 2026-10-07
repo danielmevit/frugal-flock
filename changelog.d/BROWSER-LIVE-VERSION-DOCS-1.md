@@ -1,0 +1,3 @@
+# BROWSER-LIVE-VERSION-DOCS-1 — version plan update for YOLO+low policy and browser workflow
+
+Unio 0.5.3 (unreleased): Updated the version plan to include the newly authorized YOLO+low execution policy (one independent workflow per shared provider/account without extra model reviewer jobs) alongside longer task planning (90 minutes, up to 120 for substantial implementation). The 0.5.3 scope now reflects the integration of owner-approved work modes (yolo/medium/safe) and subscription tiers (low/medium/high) with native shared-budget workflow accounting, keeping its publication in progress and the 0.5.4 checkpoint sequence unchanged.
