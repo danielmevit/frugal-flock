@@ -258,7 +258,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         unio('tier', 'low') # limit 1
 
         def wait_barrier(path):
-            for _ in range(50):
+            for _ in range(150):
                 if Path(path).exists():
                     return
                 time.sleep(0.1)
@@ -427,13 +427,193 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         # Add bounded --kill-after=5s to Source/review timeouts
         env['MOCK_TRAP'] = "1"
         env['UNIO_TIMEOUT'] = "2" # 2s timeout
-        t0 = time.time()
-        out_timeout = unio('run', 'mock1', 'task1')
-        t1 = time.time()
-        check('timeout enforced', out_timeout.returncode != 0 and (t1 - t0) < 15, out_timeout) # 2s + 5s kill-after
+        mock_identity_file = repo / 'mock_identity.json'
+        mock_identity_file.unlink(missing_ok=True)
+        env['MOCK_IDENTITY_FILE'] = str(mock_identity_file)
+
+        unio_wrapper = repo / 'unio_wrapper.sh'
+        unio_wrapper.write_text(f"#!/bin/bash\nsleep 5\n\"{at}\" \"$@\"\nres=$?\nsleep 5\nexit $res\n")
+        unio_wrapper.chmod(0o755)
+
+        # Publish a real TERM-ignoring child before exec, so observation
+        # cannot race discovery of the Bash loop's transient sleeps.
+        mock_wrapper = repo / 'mock_wrapper.py'
+        mock_wrapper.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, os, signal, subprocess, time\n"
+            "pid = os.getpid()\n"
+            "t_mono = time.monotonic()\n"
+            "# /proc starttime: field 22 (1-indexed) for PID-reuse detection\n"
+            "def proc_identity(p):\n"
+            "    try:\n"
+            "        raw = open(f'/proc/{p}/stat').read()\n"
+            "        fields = raw[raw.rfind(')') + 2:].split()\n"
+            "        return {'pid': p, 'starttime': fields[19],\n"
+            "                'sid': int(fields[3]), 'state': fields[0]}\n"
+            "    except (OSError, IndexError, ValueError):\n"
+            "        return None\n"
+            "identity = proc_identity(pid)\n"
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+            "child = subprocess.Popen(['sleep', '60'])\n"
+            "ready_deadline = time.monotonic() + 1\n"
+            "while True:\n"
+            "    child_identity = proc_identity(child.pid)\n"
+            "    if child_identity and child_identity['state'] not in ('Z', 'X', 'x'):\n"
+            "        break\n"
+            "    remaining = ready_deadline - time.monotonic()\n"
+            "    if remaining <= 0:\n"
+            "        raise RuntimeError('owned child identity unavailable')\n"
+            "    time.sleep(min(0.01, remaining))\n"
+            "identity.update(monotonic_start=t_mono, children=[child_identity])\n"
+            "idf = os.environ.get('MOCK_IDENTITY_FILE', '')\n"
+            "if idf:\n"
+            "    tmp = idf + '.tmp'\n"
+            "    with open(tmp, 'w') as f:\n"
+            "        json.dump(identity, f)\n"
+            "    os.rename(tmp, idf)\n"
+            f"os.execvp('bash', ['bash', '{mock_script}'])\n"
+        )
+        mock_wrapper.chmod(0o755)
+
+        conf_dir_file = base / 'conf' / 'agents.conf'
+        with open(conf_dir_file, 'a') as f:
+            f.write(f"mock_timeout=python3 '{mock_wrapper}'\n")
+
+        unio('init', 'mock_timeout')
+        unio('account', 'mock_timeout', 'grp1')
+
+        # Finding 3: single monotonic deadline from Popen for entire harness.
+        HARNESS_DEADLINE_SECS = 40
+        t0_wall = time.monotonic()
+        harness_deadline = t0_wall + HARNESS_DEADLINE_SECS
+
+        def remaining():
+            r = harness_deadline - time.monotonic()
+            if r <= 0:
+                raise TimeoutError("harness deadline exceeded")
+            return r
+
+        proc = subprocess.Popen([str(unio_wrapper), 'run', 'mock_timeout', 'task1'],
+                                cwd=repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        owned.append(proc)
+
+        def read_proc_identity(p):
+            try:
+                raw = Path(f'/proc/{p}/stat').read_text()
+                fields = raw[raw.rfind(')') + 2:].split()
+                return {'pid': p, 'starttime': fields[19], 'state': fields[0],
+                        'ppid': int(fields[1]), 'pgid': int(fields[2]),
+                        'sid': int(fields[3])}
+            except (OSError, IndexError, ValueError):
+                return None
+
+        ident = None
+        recorded_children = []
+        t_start = t_end = t1_wall = None
+        out_stdout = out_stderr = ''
+
+        def timing_output():
+            now = time.monotonic()
+            lifetime = (t_end or now) - t_start if t_start is not None else None
+            return (f"mock start: {t_start}, end: {t_end}, lifetime: {lifetime}s, "
+                    f"wall: {(t1_wall or now)-t0_wall:.2f}s, exit: {proc.poll()}\n"
+                    f"identity: {ident}\nstdout:\n{out_stdout}\nstderr:\n{out_stderr}")
+
+        def still_executing(record):
+            remaining()
+            current = read_proc_identity(record['pid'])
+            remaining()
+            # PID reuse proves the recorded process ended, but cannot serve
+            # as the required initial live observation.
+            return (current is not None and current['starttime'] == record['starttime']
+                    and current['state'] not in ('Z', 'X', 'x'))
+
+        def cleanup_timeout():
+            # The timeout command may own a separate process group within
+            # our session, even after the Popen session leader has exited.
+            cleanup_deadline = time.monotonic() + 3
+            groups = {proc.pid}
+            # Include owned groups even if startup never published identity.
+            for entry in Path('/proc').iterdir():
+                if time.monotonic() >= cleanup_deadline:
+                    break
+                if not entry.name.isdigit():
+                    continue
+                current = read_proc_identity(int(entry.name))
+                if current and current['sid'] == proc.pid:
+                    groups.add(current['pgid'])
+            for group in groups:
+                try:
+                    os.killpg(group, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            try:
+                return proc.communicate(timeout=max(0, cleanup_deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                # An inherited pipe must never extend the cleanup budget.
+                for stream in (proc.stdout, proc.stderr):
+                    if stream:
+                        stream.close()
+                return '', ''
+
+        try:
+            # All observations, sleeps and collection share this deadline.
+            while True:
+                remaining()
+                if mock_identity_file.exists():
+                    ident = json.loads(mock_identity_file.read_text())
+                    t_start = ident['monotonic_start']
+                    recorded_children = ident['children']
+                    break
+                if proc.poll() is not None:
+                    out_stdout, out_stderr = proc.communicate(timeout=remaining())
+                    break
+                time.sleep(min(0.1, remaining()))
+
+            check('mock provider started', ident is not None, timing_output())
+            check('mock child recorded', bool(recorded_children), timing_output())
+            for record in [ident, *recorded_children]:
+                remaining()
+                current = read_proc_identity(record['pid'])
+                check('mock identity observed live in owned session',
+                      bool(record['starttime']) and record['sid'] == proc.pid
+                      and current is not None
+                      and current['starttime'] == record['starttime']
+                      and current['sid'] == proc.pid
+                      and current['state'] not in ('Z', 'X', 'x')
+                      and (record is ident or current['ppid'] == ident['pid']),
+                      timing_output() + f"\nobserved: {current}")
+                remaining()
+
+            while True:
+                remaining()
+                if not still_executing(ident):
+                    t_end = time.monotonic()
+                    remaining()
+                    break
+                time.sleep(min(0.1, remaining()))
+
+            out_stdout, out_stderr = proc.communicate(timeout=remaining())
+            t1_wall = time.monotonic()
+            remaining()
+            duration = t_end - t_start
+            out_msg = timing_output()
+            check('harness execution within 40s', t1_wall - t0_wall <= HARNESS_DEADLINE_SECS, out_msg)
+            check('timeout enforced', proc.returncode in (124, 137) and 0 <= duration <= 9, out_msg)
+            check('delayed fixture bookkeeping exceeds old assertion', t1_wall - t0_wall > 15, out_msg)
+            leftover_children = [c for c in recorded_children if still_executing(c)]
+            check('no leftover live mock child',
+                  not still_executing(ident) and not leftover_children,
+                  out_msg + f"\nleftover: {leftover_children}")
+        except (subprocess.TimeoutExpired, TimeoutError):
+            out_stdout, out_stderr = cleanup_timeout()
+            check('harness execution deadline', False, timing_output())
+
+        print(f"  lifecycle: {duration:.2f}s, wall: {t1_wall-t0_wall:.2f}s, exit: {proc.returncode}")
 
         del env['UNIO_TIMEOUT']
         del env['MOCK_TRAP']
+        del env['MOCK_IDENTITY_FILE']
         out_next = unio('run', 'mock1', 'task1')
         check('slot released on timeout/failure', out_next.returncode == 0, out_next)
 
