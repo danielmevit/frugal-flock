@@ -227,4 +227,47 @@ with tempfile.TemporaryDirectory(prefix='work-policy-') as directory:
           and 'low medium high' in completion)
     check('fresh guide still installed', guide.is_file())
 
+    # mock regressions
+    conf_dir = base / 'conf' / 'agents.conf'
+    mock_success = repo / 'mock_success.sh'
+    mock_success.write_text("#!/bin/bash\nexit 0\n")
+    mock_success.chmod(0o755)
+    mock_fail = repo / 'mock_fail.sh'
+    mock_fail.write_text("#!/bin/bash\nexit 1\n")
+    mock_fail.chmod(0o755)
+    mock_timeout = repo / 'mock_timeout.sh'
+    mock_timeout.write_text("#!/bin/bash\nsleep 10\nexit 0\n")
+    mock_timeout.chmod(0o755)
+
+    with open(conf_dir, 'a') as f:
+        f.write(f"mock_success=bash '{mock_success}'\n")
+        f.write(f"mock_fail=bash '{mock_fail}'\n")
+        f.write(f"mock_timeout=bash '{mock_timeout}'\n")
+
+    (root / 'coord' / 'tasks').mkdir(parents=True, exist_ok=True)
+    (root / 'coord' / 'tasks' / 'task_s.md').write_text("success")
+    (root / 'coord' / 'tasks' / 'task_f.md').write_text("fail")
+    (root / 'coord' / 'tasks' / 'task_t.md').write_text("timeout")
+    (root / 'coord' / 'tasks' / 'task_b.md').write_text("bad")
+
+    unio('init', 'mock_success')
+    unio('init', 'mock_fail')
+    unio('init', 'mock_timeout')
+
+    out_s = unio('run', 'mock_success', 'task_s')
+    check('success run releases slot', out_s.returncode == 0)
+
+    out_f = unio('run', 'mock_fail', 'task_f')
+    check('fail run releases slot', out_f.returncode == 1)
+
+    bad_task = root / 'coord' / 'tasks' / 'task_b.md'
+    bad_task.unlink()
+    out_b = unio('run', 'mock_success', 'task_b')
+    check('broker failure releases slot', out_b.returncode != 0)
+
+    env['UNIO_TIMEOUT'] = '1'
+    out_t = unio('run', 'mock_timeout', 'task_t')
+    check('provider timeout enforced and released', out_t.returncode != 0)
+    del env['UNIO_TIMEOUT']
+
 print('work-policy: %d checks passed' % passed[0])

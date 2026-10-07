@@ -2312,11 +2312,13 @@ policy_admit_hold() { # $1=root $2=agent $3=worker $4=task $5=kind $6=origfile
     return 2
   fi
   mkdir -p "$root/coord/.locks"
-  local in_fifo="$root/coord/.locks/.in-$$"
-  local out_fifo="$root/coord/.locks/.out-$$"
-  local err="$root/coord/.locks/.err-$$"
-  rm -f "$in_fifo" "$out_fifo" "$err"
-  mkfifo "$in_fifo" "$out_fifo" || return 2
+  local ipc_dir
+  ipc_dir=$(mktemp -d "$root/coord/.locks/.ipc-XXXXXXXX") || return 2
+  chmod 0700 "$ipc_dir"
+  local in_fifo="$ipc_dir/in"
+  local out_fifo="$ipc_dir/out"
+  local err="$ipc_dir/err"
+  mkfifo "$in_fifo" "$out_fifo" || { rm -rf "$ipc_dir"; return 2; }
   
   exec 8<> "$in_fifo"
   
@@ -2325,19 +2327,19 @@ policy_admit_hold() { # $1=root $2=agent $3=worker $4=task $5=kind $6=origfile
   POLICY_PID=$!
   
   local group slot effective
-  if ! read -r group < "$out_fifo"; then
+  if ! read -t 5 -r group < "$out_fifo" || [ -z "$group" ]; then
     local reason; reason=$(head -3 "$err" 2>/dev/null || echo "budget refused")
     policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" "$reason"
     exec 8>&-
     kill "$POLICY_PID" 2>/dev/null
     wait "$POLICY_PID" 2>/dev/null
-    rm -f "$out_fifo" "$err" "$in_fifo"
+    rm -rf "$ipc_dir"
     POLICY_PID=""
     return 2
   fi
-  read -r slot < "$out_fifo"
-  read -r effective < "$out_fifo"
-  rm -f "$out_fifo" "$err" "$in_fifo"
+  read -t 5 -r slot < "$out_fifo"
+  read -t 5 -r effective < "$out_fifo"
+  rm -rf "$ipc_dir"
   
   POLICY_SLOT="$slot"; POLICY_GROUP="$group"; POLICY_EFFECTIVE="$effective"
   return 0
@@ -2345,6 +2347,12 @@ policy_admit_hold() { # $1=root $2=agent $3=worker $4=task $5=kind $6=origfile
 
 policy_release_slot() { # $1=root — close the slot lock, then remove the file
   if [ -n "${POLICY_SLOT:-}" ]; then
+    if [ -n "${POLICY_PID:-}" ]; then
+      exec 8>&- 2>/dev/null || true
+      kill "$POLICY_PID" 2>/dev/null || true
+      wait "$POLICY_PID" 2>/dev/null || true
+      POLICY_PID=""
+    fi
     exec 10>&- 2>/dev/null || true
     case "$POLICY_SLOT" in
       "$1/coord/.locks/work-policy-slots/"*) rm -f "$POLICY_SLOT" 2>/dev/null || true;;

@@ -288,7 +288,12 @@ fi
     unsafe_dir.symlink_to('target_unsafe')
     
     out_unsafe = unio('run', 'mock3', 'task3')
-    print('RC:', out_unsafe.returncode, 'STDERR:', out_unsafe.stderr, 'STDOUT:', out_unsafe.stdout); check('unsafe admission path rejection', out_unsafe.returncode != 0 and 'symlink' in out_unsafe.stderr)
+    check('unsafe admission path rejection',
+          out_unsafe.returncode == 2 and
+          'unsafe control path' in out_unsafe.stderr and
+          unsafe_dir.name in out_unsafe.stderr and
+          unsafe_dir.is_symlink() and
+          out_unsafe.stdout == '')
     
     unsafe_dir.unlink()
 
@@ -376,3 +381,4 @@ json.dump(d, open(f, "w"))
     p_rev.wait()
 
     print('work-policy-guard: done')
+    subprocess.run(['pkill', '-P', str(os.getpid())])
