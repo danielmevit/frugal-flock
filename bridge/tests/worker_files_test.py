@@ -215,6 +215,63 @@ class WorkerFilesTests(unittest.TestCase):
         self.assertIn('src/hello.txt', [item['relative_path'] for item in body['files']])
         self.assertNotIn('shell', self.calls[-1][0])
 
+    def test_parent_exits_while_child_holds_pipe_reaps_group_and_next_request_works(self):
+        leader = self.root / 'exited-leader.pid'
+        child = self.root / 'pipe-holder.pid'
+        group = self.root / 'pipe-holder.pgid'
+        script = (
+            '#!/usr/bin/env python3\n'
+            'import os, time\n'
+            'open(%r, "w").write(str(os.getpid()))\n'
+            'pid = os.fork()\n'
+            'if pid == 0:\n'
+            '    open(%r, "w").write(str(os.getpid()))\n'
+            '    open(%r, "w").write(str(os.getpgid(0)))\n'
+            '    time.sleep(30)\n'
+            '    os._exit(0)\n'
+            'os._exit(0)\n' % (str(leader), str(child), str(group)))
+        self.install_git(script)
+        unrelated = subprocess.Popen(
+            [sys.executable, '-c', 'import time; time.sleep(30)'],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True)
+
+        def stop_unrelated():
+            if unrelated.poll() is None:
+                unrelated.kill()
+                try:
+                    unrelated.wait(timeout=1)
+                except subprocess.TimeoutExpired:
+                    pass
+
+        self.addCleanup(stop_unrelated)
+        old = os.environ.get('PATH', '')
+        os.environ['PATH'] = str(self.root / 'fake-bin') + os.pathsep + old
+        try:
+            started = time.monotonic()
+            with self.assertRaises(WorkerFilesError) as error:
+                self.service.files(self.fixture.identity)
+            elapsed = time.monotonic() - started
+        finally:
+            os.environ['PATH'] = old
+        self.assertEqual(error.exception.code, 'files_unavailable')
+        self.assertGreater(elapsed, 1.5)
+        self.assertLess(elapsed, 3.0)
+        leader_pid = self.read_pid(leader)
+        child_pid = self.read_pid(child)
+        self.assertEqual(self.read_pid(group), leader_pid)
+        self.assertNotEqual(child_pid, leader_pid)
+        self.assertIsNone(unrelated.poll())
+        self.assertNotEqual(os.getpgid(unrelated.pid), leader_pid)
+        self.assert_reaped(leader_pid)
+        self.assert_reaped(child_pid)
+        self.assertIsNone(unrelated.poll())
+        restored = time.monotonic()
+        body = self.service.files(self.fixture.identity)
+        self.assertLess(time.monotonic() - restored, 3.0)
+        self.assertIn('src/hello.txt', [item['relative_path'] for item in body['files']])
+        self.assertNotIn('shell', self.calls[-1][0])
+
     def test_partial_git_output_stall_is_unavailable_and_reaped(self):
         leader = self.root / 'partial.pid'
         self.install_git(

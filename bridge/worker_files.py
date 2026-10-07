@@ -168,20 +168,26 @@ class WorkerFilesService:
             raise
 
     def _reap_group(self, proc):
-        """Kill and reap only the process group owned by this spawn."""
-        if proc.pid > 0 and proc.poll() is None:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
-                pass
+        """Kill and reap only the process group owned by this spawn.
+
+        start_new_session makes this pid the group id. A descendant can keep
+        that group after the leader exits, so signal the same id on deadline,
+        overflow and error even when poll() already has a status. A missing
+        group is ignored. No other process ids are scanned.
+        """
+        def signal_owned_group():
+            pgid = proc.pid
+            if isinstance(pgid, int) and pgid > 0:
+                try:
+                    os.killpg(pgid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    return
+
+        signal_owned_group()
         try:
             proc.wait(timeout=REAP_GRACE)
         except subprocess.TimeoutExpired:
-            if proc.pid > 0 and proc.poll() is None:
-                try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except (ProcessLookupError, PermissionError):
-                    pass
+            signal_owned_group()
             try:
                 proc.wait(timeout=REAP_GRACE)
             except subprocess.TimeoutExpired:
