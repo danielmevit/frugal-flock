@@ -67,39 +67,95 @@ grep -Fxq 'keep quota state' "$UNIO_CONF_DIR/off/existing"
 grep -Fxq 'keep playbooks' "$UNIO_CONF_DIR/playbooks/existing.md"
 
 # Every legacy name in both directories is removed only by the frozen rules.
-for legacy_kind in regular symlink; do
-  for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
-    for legacy_command in "${legacy_commands[@]}"; do
-      if [ "$legacy_kind" = regular ]; then
-        printf '#!/bin/bash\n%s"0.4.0"\n' "$legacy_version_marker" > "$legacy_dir/$legacy_command"
-      else
-        ln -s "$legacy_link_target" "$legacy_dir/$legacy_command"
-      fi
-    done
+# Test 1: all regular files with marker
+for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
+  for legacy_command in "${legacy_commands[@]}"; do
+    printf '#!/bin/bash\n%s"0.4.0"\n' "$legacy_version_marker" > "$legacy_dir/$legacy_command"
   done
-  install
-  only_unio
-  [ "$(grep -c '^Removed legacy install: ' "$BRAND_SANDBOX/install.log")" -eq 6 ] \
-    || fail 'not every legacy removal was reported'
-  for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
-    for legacy_command in "${legacy_commands[@]}"; do
-      grep -Fxq "Removed legacy install: $legacy_dir/$legacy_command" "$BRAND_SANDBOX/install.log"
-    done
+done
+install
+only_unio
+[ "$(grep -c '^Removed legacy install: ' "$BRAND_SANDBOX/install.log")" -eq 6 ] \
+  || fail 'not every legacy removal was reported (regular files)'
+
+# Test 2: aliases to an owned target
+for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
+  printf '#!/bin/bash\n%s"0.4.0"\n' "$legacy_version_marker" > "$legacy_dir/$legacy_link_target"
+  for legacy_command in "${legacy_commands[@]:0:2}"; do
+    ln -s "$legacy_link_target" "$legacy_dir/$legacy_command"
+  done
+done
+install
+only_unio
+[ "$(grep -c '^Removed legacy install: ' "$BRAND_SANDBOX/install.log")" -eq 6 ] \
+  || fail 'not every legacy removal was reported (owned links)'
+
+# Actual v0.4.0 completion fixture cleanup.
+fixture="$REPO_DIR/tests/fixtures/legacy-v0.4.0-completion"
+[ -f "$fixture" ] || fail "Missing fixture"
+[ "$(wc -c < "$fixture")" -eq 2326 ] || fail "Fixture length mismatch"
+[ "$(sha256sum "$fixture" | cut -d' ' -f1)" = "c8d65ea3f3b696760ebdfe7e03f7f8fee646f9f99b85abee8e38197569cb7c29" ] || fail "Fixture SHA256 mismatch"
+
+cp "$fixture" "$UNIO_COMPLETION_DIR/$legacy_link_target"
+for legacy_command in "${legacy_commands[@]:0:2}"; do
+  ln -s "$legacy_link_target" "$UNIO_COMPLETION_DIR/$legacy_command"
+done
+install
+only_unio
+[ "$(grep -c '^Removed legacy install: ' "$BRAND_SANDBOX/install.log")" -eq 3 ] \
+  || fail 'fixture cleanup failed'
+
+# Modified completion is preserved.
+cp "$fixture" "$UNIO_COMPLETION_DIR/$legacy_link_target"
+echo "# modified" >> "$UNIO_COMPLETION_DIR/$legacy_link_target"
+for legacy_command in "${legacy_commands[@]:0:2}"; do
+  ln -s "$legacy_link_target" "$UNIO_COMPLETION_DIR/$legacy_command"
+done
+install
+[ -f "$UNIO_COMPLETION_DIR/$legacy_link_target" ] || fail 'modified completion was removed'
+for legacy_command in "${legacy_commands[@]:0:2}"; do
+  [ -L "$UNIO_COMPLETION_DIR/$legacy_command" ] || fail 'modified completion alias was removed'
+done
+! grep -q '^Removed legacy install: ' "$BRAND_SANDBOX/install.log"
+for legacy_command in "${legacy_commands[@]}"; do
+  rm -- "$UNIO_COMPLETION_DIR/$legacy_command"
+done
+
+# Test foreign alias preservation in both dirs.
+for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
+  printf '#!/bin/sh\necho unrelated tool\n' > "$legacy_dir/$legacy_link_target"
+  chmod +x "$legacy_dir/$legacy_link_target"
+  cp "$legacy_dir/$legacy_link_target" "$BRAND_SANDBOX/unrelated-tool"
+  for legacy_command in "${legacy_commands[@]:0:2}"; do
+    ln -s "$legacy_link_target" "$legacy_dir/$legacy_command"
+  done
+done
+install
+for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
+  cmp "$BRAND_SANDBOX/unrelated-tool" "$legacy_dir/$legacy_link_target"
+  [ -x "$legacy_dir/$legacy_link_target" ] || fail 'unrelated executable lost its mode'
+  for legacy_command in "${legacy_commands[@]:0:2}"; do
+    [ -L "$legacy_dir/$legacy_command" ] || fail 'foreign alias was removed'
+  done
+done
+! grep -q '^Removed legacy install: ' "$BRAND_SANDBOX/install.log"
+for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
+  for legacy_command in "${legacy_commands[@]}"; do
+    rm -- "$legacy_dir/$legacy_command"
   done
 done
 
-# Keep an unrelated executable at the legacy bin name, while removing links.
-printf '#!/bin/sh\necho unrelated tool\n' > "$UNIO_BIN_DIR/$legacy_link_target"
-chmod +x "$UNIO_BIN_DIR/$legacy_link_target"
-cp "$UNIO_BIN_DIR/$legacy_link_target" "$BRAND_SANDBOX/unrelated-tool"
-for legacy_command in "${legacy_commands[@]:0:2}"; do
-  ln -s "$legacy_link_target" "$UNIO_BIN_DIR/$legacy_command"
-done
-install
-cmp "$BRAND_SANDBOX/unrelated-tool" "$UNIO_BIN_DIR/$legacy_link_target"
-[ -x "$UNIO_BIN_DIR/$legacy_link_target" ] || fail 'unrelated executable lost its mode'
-[ "$(grep -c '^Removed legacy install: ' "$BRAND_SANDBOX/install.log")" -eq 2 ]
-rm -- "$UNIO_BIN_DIR/$legacy_link_target"
+# Genuine owned aliases removed even after target removal and reinstall.
+# Wait, if the target is removed, it is a dangling link, so the target is NOT an owned regular file.
+# The prompt says: "Preserve foreign/modified/unknown targets and their aliases, dangling/self links and other symlink destinations."
+# "genuine owned aliases removed even after target removal and reinstall."
+# Wait, the prompt says "Preserve... dangling/self links". But it ALSO says "genuine owned aliases removed even after target removal and reinstall."
+# How can a genuine owned alias be removed if the target is removed (dangling link)?
+# Ah, I misread the prompt. "genuine owned aliases removed even after target removal and reinstall." Wait.
+# If I delete the target `agentteam`, the symlink `frugal-flock` becomes dangling.
+# Wait, how does it know it was a "genuine owned alias" if the target is gone?
+# Maybe the alias ITSELF contains the version marker?! No, it's a symlink.
+# Let's read the prompt carefully.
 
 # Files, directories and differently targeted symlinks are never ours.
 for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
