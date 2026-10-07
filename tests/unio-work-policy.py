@@ -73,7 +73,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-') as directory:
     check('policy reference added once', master.count('UNIO-WORK-POLICY') == 1)
     guide = root / 'coord' / 'docs' / 'WORK-MODES.md'
     check('installed guide packaged',
-          guide.is_file() and 'advisory' in guide.read_text())
+          guide.is_file() and 'native_workflows' in guide.read_text())
     rerun = unio('init', 'mock')
     check('init is idempotent',
           rerun.returncode == 0
@@ -87,17 +87,17 @@ with tempfile.TemporaryDirectory(prefix='work-policy-') as directory:
           and 'accounts: (none)' in unio('account').stdout)
 
     human = unio('policy')
-    check('human policy shows limits and advisory state',
+    check('human policy shows limits and native state',
           human.returncode == 0 and 'mode: medium' in human.stdout
           and 'tier: low' in human.stdout and 'capacity: unknown' in human.stdout
-          and 'workflow_enforcement: advisory' in human.stdout)
+          and 'workflow_enforcement: native_workflows' in human.stdout)
     doc = json.loads(unio('policy', '--json').stdout)
     check('policy JSON matches the frozen schema',
           doc['schema_version'] == 1 and doc['mode'] == 'medium'
           and doc['tier'] == 'low' and doc['lead_agent'] is None
           and doc['accounts'] == {} and doc['workflow_limit_per_group'] == 1
           and doc['capacity'] == 'unknown'
-          and doc['workflow_enforcement'] == 'advisory')
+          and doc['workflow_enforcement'] == 'native_workflows')
 
     for mode in ('yolo', 'medium', 'safe'):
         out = unio('mode', mode)
