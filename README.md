@@ -127,10 +127,40 @@ Start with one helper and add another when you want a second perspective.
 `agents` shows what is installed, not remaining quota or sign-in status.
 `smoke` makes real test calls, so it uses some of your allowance.
 
-If your AI tool keeps asking before each `unio` command, or its own
-safety system refuses to run them, [allow those commands once](docs/SETUP.md#9-lead-ai-permissions)
-instead of switching its safety checks off. Unio's own refusals,
-such as `STOP is active`, say why in their message.
+ If your AI tool keeps asking before each `unio` command, or its own
+ safety system refuses to run them, [allow those commands once](docs/SETUP.md#9-lead-ai-permissions)
+ instead of switching its safety checks off. Unio's own refusals,
+ such as `STOP is active`, say why in their message.
+
+## Work modes and coordination budget
+
+Two independent settings shape how the lead organizes work: the pace
+(`yolo`, `medium`, `safe`) and the coordination budget (`low`, `medium`,
+`high`: 1, 2 or 4 independent workflows per shared provider/account
+budget, lead included). A larger subscription never requires a slower
+workflow, and a smaller one should not exhaust the lead. See the
+[work modes guide](docs/WORK-MODES.md):
+
+```bash
+unio mode yolo                    # coherent feature batches, focused checks, lead review
+unio tier low                     # delegate to other providers; keep the lead on planning
+unio lead codex                   # register the lead reservation in its budget group
+unio account opencode go-primary  # aliases sharing one budget
+unio policy                       # current state (--json for machines)
+```
+
+These commands exist in development source and are a core product
+benefit: deliberate pace and budget choices instead of ad-hoc
+delegation. Released Unio 0.5.2 still lacks them. This slice is
+guidance and state only (`workflow_enforcement` is `advisory`); native
+enforced slots are the next slice.
+
+Current owner cadence is YOLO with a low tier: coherent features,
+focused checks with personal lead review, and the full gate at release
+or when an actual demonstrated need calls for it. Free model eligibility
+now covers all 11 routes in [docs/FREE-MODELS.md](docs/FREE-MODELS.md),
+conditional on current official and native zero prices, with no paid
+fallback.
 
 ## FAQ
 

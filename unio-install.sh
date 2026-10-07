@@ -1406,9 +1406,794 @@ except (ValueError,OSError,KeyError,TypeError) as exc:
 QUALITY_PY
 }
 
+# Lean work-policy state helper: mode/tier/lead/account guidance plus the
+# native workflow guard. Separate from QUALITY_PY so the strict
+# quality-result schema stays untouched. Queries and setters never dispatch,
+# authenticate, probe quota or alter agents.conf. Workflow enforcement is
+# native here: foreground/background Source and independent review admissions
+# hold live kernel-locked slots per shared budget group, counted with the
+# registered lead against the tier cap.
+policy() {
+  command -v python3 >/dev/null || die "Python 3 is required before mode/tier/lead/account/policy"
+  python3 - "$@" <<'POLICY_PY'
+import datetime, fcntl, json, os, re, stat, sys, tempfile
+
+MAX_STATE = 65536
+MAX_SLOT_META = 4096
+SLOT_PREFIX = '.work-policy-'
+WPSLOT_PREFIX = 'wpslot-'
+ENFORCEMENT = 'native_workflows'
+
+MAX_STATE = 65536
+ALLOWED_KEYS = {'schema_version', 'mode', 'tier', 'lead_agent', 'accounts', 'updated_at'}
+MODES = ('yolo', 'medium', 'safe')
+TIERS = ('low', 'medium', 'high')
+LIMITS = {'low': 1, 'medium': 2, 'high': 4}
+MODE_BLURB = {
+    'yolo': 'finish a useful feature in a coherent batch; focused checks, a real smoke check, brief lead review; full gate at release',
+    'medium': 'manageable batches with integration attention; focused plus relevant integration checks; independent review when warranted',
+    'safe': 'smaller checkpoints, careful interface and failure-path inspection; broader checks plus independent reviews',
+}
+TIER_BLURB = {
+    'low': '1 independent workflow per shared provider/account budget, including the lead; delegate implementation to other providers',
+    'medium': '2 independent workflows per shared budget, including the lead; prefer other funded providers before the lead reserve',
+    'high': '4 independent workflows per shared budget, including the lead; no busywork, no automatic maximum effort',
+}
+
+def fail(message):
+    print('unio: ' + message, file=sys.stderr)
+    sys.exit(2)
+
+def check_label(value, what):
+    if (not value or value in ('.', '..') or '..' in value or value.startswith('-')
+            or any(c.isspace() or ord(c) < 32 or c in '/\\' for c in value)):
+        fail('invalid %s label: %r' % (what, value))
+
+def check_updated_at(value):
+    if type(value) is not str:
+        fail('policy state has an invalid updated_at (left unchanged)')
+    try:
+        parsed = datetime.datetime.fromisoformat(value)
+    except ValueError:
+        fail('policy state has an invalid updated_at (left unchanged)')
+    if parsed.tzinfo is None:
+        fail('policy state has an invalid updated_at (left unchanged)')
+
+def refuse_unsafe(path, what):
+    fail('refusing unsafe %s path (left unchanged): %s' % (what, path))
+
+def check_control_path(root, *parts):
+    if not isinstance(root, str) or not root or not os.path.isdir(root):
+        fail('refusing unsafe workspace root (left unchanged): %r' % (root,))
+    for part in parts:
+        if not part or part in ('.', '..') or '..' in part.split('/') or part.startswith('-'):
+            refuse_unsafe(part, 'control')
+    node = root
+    if os.path.islink(node):
+        refuse_unsafe(node, 'workspace root')
+    for part in parts:
+        for component in part.split('/'):
+            if component in ('', '.', '..'):
+                refuse_unsafe(part, 'control')
+            node = os.path.join(node, component)
+            if os.path.islink(node):
+                refuse_unsafe(node, 'control')
+
+def state_path(root):
+    check_control_path(root, 'coord', 'work-policy.json')
+    return os.path.join(root, 'coord', 'work-policy.json')
+
+def policy_lock_path(root):
+    check_control_path(root, 'coord', '.locks', 'work-policy.lock')
+    return os.path.join(root, 'coord', '.locks', 'work-policy.lock')
+
+def slots_base(root):
+    check_control_path(root, 'coord', '.locks', 'work-policy-slots')
+    return os.path.join(root, 'coord', '.locks', 'work-policy-slots')
+
+def slot_group_dir(root, group):
+    check_label(group, 'budget group')
+    check_control_path(root, 'coord', '.locks', 'work-policy-slots', group)
+    return os.path.join(slots_base(root), group)
+
+def defaults():
+    return {'schema_version': 1, 'mode': 'medium', 'tier': 'low', 'lead_agent': None, 'accounts': {}}
+
+def validate_doc(doc):
+    if not isinstance(doc, dict):
+        fail('policy state is malformed (left unchanged)')
+    unknown = set(doc) - ALLOWED_KEYS
+    if unknown:
+        fail('policy state has unknown keys (left unchanged): ' + ', '.join(sorted(unknown)))
+    if type(doc.get('schema_version')) is not int or doc.get('schema_version') != 1:
+        fail('policy state has an unknown schema (schema_version must be 1; left unchanged)')
+    for required in ('mode', 'tier', 'lead_agent', 'accounts'):
+        if required not in doc:
+            fail('policy state is missing key (left unchanged): ' + required)
+    if doc.get('mode') not in MODES:
+        fail('policy state has an invalid mode (left unchanged)')
+    if doc.get('tier') not in TIERS:
+        fail('policy state has an invalid tier (left unchanged)')
+    lead = doc.get('lead_agent')
+    if lead is not None:
+        if type(lead) is not str:
+            fail('policy state has an invalid lead_agent (left unchanged)')
+        check_label(lead, 'lead agent')
+    accounts = doc.get('accounts')
+    if type(accounts) is not dict:
+        fail('policy state has invalid accounts (left unchanged)')
+    for agent, group in accounts.items():
+        if type(agent) is not str or type(group) is not str:
+            fail('policy state has an invalid account mapping (left unchanged)')
+        check_label(agent, 'account agent')
+        check_label(group, 'account group')
+    if 'updated_at' in doc:
+        check_updated_at(doc['updated_at'])
+    return doc
+
+def read_state_nolock(root):
+    path = state_path(root)
+    if not os.path.lexists(path):
+        return defaults()
+    fd = None
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        fail('refusing to read policy state (symlink or unreadable, left unchanged): ' + path)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            fail('refusing to read policy state (not a regular file, left unchanged): ' + path)
+        if st.st_nlink != 1:
+            fail('refusing to read policy state (hardlinked, left unchanged): ' + path)
+        if st.st_size > MAX_STATE:
+            fail('refusing to read policy state (oversized, left unchanged): ' + path)
+        chunks = []
+        total = 0
+        while True:
+            piece = os.read(fd, 8192)
+            if not piece:
+                break
+            total += len(piece)
+            if total > MAX_STATE:
+                fail('refusing to read policy state (oversized, left unchanged): ' + path)
+            chunks.append(piece)
+        raw = b''.join(chunks)
+    finally:
+        os.close(fd)
+    try:
+        text = raw.decode('utf-8')
+    except UnicodeDecodeError:
+        fail('policy state is malformed (left unchanged): ' + path)
+
+    def _unique_object(pairs):
+        obj = {}
+        for key, value in pairs:
+            if key in obj:
+                raise ValueError('duplicate key: ' + str(key))
+            obj[key] = value
+        return obj
+
+    try:
+        doc = json.loads(text, object_pairs_hook=_unique_object)
+    except ValueError as exc:
+        message = str(exc)
+        if message.startswith('duplicate key: '):
+            fail('policy state has a duplicate key (left unchanged): ' + message[len('duplicate key: '):])
+        fail('policy state is malformed (left unchanged): ' + path)
+    return validate_doc(doc)
+
+def read_state(root):
+    return read_state_nolock(root)
+
+def stamp():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+def open_policy_lock(root):
+    path = policy_lock_path(root)
+    parent = os.path.dirname(path)
+    os.makedirs(parent, exist_ok=True)
+    if os.path.islink(parent) or os.path.islink(path):
+        fail('refusing unsafe policy lock path (symlink, left unchanged): ' + path)
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o644)
+    except OSError:
+        fail('refusing unsafe policy lock path (left unchanged): ' + path)
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode):
+        os.close(fd)
+        fail('refusing unsafe policy lock path (not a regular file, left unchanged): ' + path)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    return fd
+
+def sweep_policy_tmp(root):
+    directory = os.path.dirname(state_path(root))
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return
+    for name in names:
+        if not name.startswith(SLOT_PREFIX):
+            continue
+        stale = os.path.join(directory, name)
+        if os.path.islink(stale):
+            continue
+        try:
+            if os.path.isfile(stale):
+                os.unlink(stale)
+        except OSError:
+            pass
+
+def write_doc_nolock(root, doc):
+    validate_doc(doc)
+    data = (json.dumps(doc, sort_keys=True, ensure_ascii=True) + '\n').encode('utf-8')
+    if len(data) > MAX_STATE:
+        fail('policy state would exceed the size limit (not written)')
+    directory = os.path.dirname(state_path(root))
+    fd, tmp = tempfile.mkstemp(prefix=SLOT_PREFIX, dir=directory)
+    try:
+        with os.fdopen(fd, 'wb') as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, state_path(root))
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+def transact(root, fn):
+    fd = open_policy_lock(root)
+    try:
+        doc = read_state_nolock(root)  # validate before mutation; malformed state refuses without reset
+        result = fn(doc)
+        write_doc_nolock(root, doc)
+        sweep_policy_tmp(root)
+        return result
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+def write_state(root, doc):
+    def _replace(current):
+        current.clear()
+        current.update(doc)
+    transact(root, _replace)
+
+def group_of(doc, agent):
+    return doc['accounts'].get(agent, agent)
+
+def lead_group_of(doc):
+    lead = doc.get('lead_agent')
+    if lead is None:
+        return None
+    return group_of(doc, lead)
+
+def read_slot_meta(path):
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_size > MAX_SLOT_META:
+            return None
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return {'locked': True}
+        try:
+            chunks = []
+            total = 0
+            while True:
+                piece = os.read(fd, 2048)
+                if not piece:
+                    break
+                total += len(piece)
+                if total > MAX_SLOT_META:
+                    return {'locked': False, 'stale': True}
+                chunks.append(piece)
+            try:
+                meta = json.loads(b''.join(chunks).decode('utf-8'))
+            except ValueError:
+                return {'locked': False, 'stale': True}
+            if (not isinstance(meta, dict) or meta.get('schema_version') != 1
+                    or type(meta.get('group')) is not str or type(meta.get('agent')) is not str
+                    or type(meta.get('worker')) is not str or type(meta.get('task')) is not str
+                    or meta.get('kind') not in ('run', 'review')):
+                return {'locked': False, 'stale': True}
+            try:
+                check_label(meta['group'], 'budget group')
+                check_label(meta['agent'], 'slot agent')
+                check_updated_at(meta.get('created_at', ''))
+            except SystemExit:
+                return {'locked': False, 'stale': True}
+            meta['locked'] = False
+            return meta
+        finally:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+    finally:
+        os.close(fd)
+
+def count_active(root, group):
+    try:
+        directory = slot_group_dir(root, group)
+    except SystemExit:
+        return 0
+    if not os.path.isdir(directory) or os.path.islink(directory):
+        return 0
+    active = 0
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return 0
+    for name in names:
+        if not name.startswith(WPSLOT_PREFIX) or not name.endswith('.json'):
+            continue
+        path = os.path.join(directory, name)
+        if os.path.islink(path):
+            continue
+        meta = read_slot_meta(path)
+        if meta is not None and meta.get('locked'):
+            active += 1
+    return active
+
+def active_map(root):
+    counts = {}
+    try:
+        base = slots_base(root)
+    except SystemExit:
+        return counts
+    if not os.path.isdir(base) or os.path.islink(base):
+        return counts
+    try:
+        groups = os.listdir(base)
+    except OSError:
+        return counts
+    for group in groups:
+        if group.startswith('.'):
+            continue
+        try:
+            check_label(group, 'budget group')
+        except SystemExit:
+            continue
+        n = count_active(root, group)
+        if n:
+            counts[group] = n
+    return counts
+
+def sweep_group(root, group):
+    try:
+        directory = slot_group_dir(root, group)
+    except SystemExit:
+        return
+    if not os.path.isdir(directory) or os.path.islink(directory):
+        return
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return
+    for name in names:
+        if not name.startswith(WPSLOT_PREFIX) or not name.endswith('.json'):
+            continue
+        path = os.path.join(directory, name)
+        if os.path.islink(path):
+            continue
+        meta = read_slot_meta(path)
+        if meta is not None and not meta.get('locked'):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+def known_groups(root, doc):
+    groups = set(doc['accounts'].values())
+    lead_group = lead_group_of(doc)
+    if lead_group is not None:
+        groups.add(lead_group)
+    try:
+        base = slots_base(root)
+        if os.path.isdir(base) and not os.path.islink(base):
+            for group in os.listdir(base):
+                if group.startswith('.'):
+                    continue
+                try:
+                    check_label(group, 'budget group')
+                except SystemExit:
+                    continue
+                groups.add(group)
+    except OSError:
+        pass
+    return groups
+
+def check_tier_cap(root, doc, tier):
+    cap = LIMITS[tier]
+    for group in sorted(known_groups(root, doc)):
+        busy = count_active(root, group)
+        lead_here = 1 if lead_group_of(doc) == group else 0
+        if busy + lead_here > cap:
+            fail('tier %s refuses: budget group %r holds %d native workflow(s) plus %d lead reservation(s), over the proposed cap of %d (left unchanged)'
+                 % (tier, group, busy, lead_here, cap))
+
+def describe(root, doc):
+    limit = LIMITS[doc['tier']]
+    actives = active_map(root)
+    lead_group = lead_group_of(doc)
+    with_lead = dict(actives)
+    if lead_group is not None:
+        with_lead[lead_group] = with_lead.get(lead_group, 0) + 1
+    out = {'schema_version': 1, 'mode': doc['mode'], 'tier': doc['tier'],
+           'lead_agent': doc['lead_agent'], 'lead_group': lead_group,
+           'accounts': doc['accounts'],
+           'workflow_limit_per_group': limit,
+           'capacity': 'unknown', 'workflow_enforcement': ENFORCEMENT,
+           'active_native_workflows': actives,
+           'active_with_lead': with_lead}
+    if 'updated_at' in doc:
+        out['updated_at'] = doc['updated_at']
+    return out
+
+def render_human(root, doc):
+    lead = doc['lead_agent'] if doc['lead_agent'] is not None else '(none)'
+    if doc['accounts']:
+        accounts = ', '.join('%s=%s' % (a, doc['accounts'][a]) for a in sorted(doc['accounts']))
+    else:
+        accounts = '(none)'
+    actives = active_map(root)
+    lead_group = lead_group_of(doc)
+    limit = LIMITS[doc['tier']]
+    groups = sorted(set(list(actives) + list(doc['accounts'].values()) + ([lead_group] if lead_group else [])))
+    if groups:
+        lines = []
+        for group in groups:
+            native = actives.get(group, 0)
+            with_lead = native + (1 if lead_group == group else 0)
+            lines.append('  workflows group %s: %d native + %d lead = %d/%d'
+                         % (group, native, 1 if lead_group == group else 0, with_lead, limit))
+        activity = '\n'.join(lines)
+    else:
+        activity = '  workflows: (none active)'
+    return (
+        'work policy (coord/work-policy.json; a missing file means defaults medium/low):\n'
+        '  mode: %(mode)s — %(mode_blurb)s\n'
+        '  tier: %(tier)s — %(tier_blurb)s\n'
+        '  lead: %(lead)s — register with `unio lead <agent>`; it counts as one workflow in its budget group until `unio lead none`\n'
+        '  accounts: %(accounts)s — group aliases sharing one budget with `unio account <agent> <group>`\n'
+        '  capacity: unknown — workspace registered workflows only, not a quota meter\n'
+        '  workflow_enforcement: native_workflows — foreground/background Source and independent review slots are locked per budget group before any provider call; unmanaged or cross-workspace sessions stay uncounted\n'
+        '%(activity)s\n'
+        '  guide: coord/docs/WORK-MODES.md (`unio policy --json` for machines)\n'
+    ) % {'mode': doc['mode'], 'mode_blurb': MODE_BLURB[doc['mode']],
+         'tier': doc['tier'], 'tier_blurb': TIER_BLURB[doc['tier']],
+         'lead': lead, 'accounts': accounts, 'activity': activity}
+
+def main(argv):
+    if len(argv) < 3:
+        fail('usage: policy <root> <command> [args]')
+    root, cmd, args = argv[1], argv[2], argv[3:]
+    if cmd == 'human':
+        if args:
+            fail('usage: unio policy [--json]')
+        doc = read_state(root)
+        sys.stdout.write(render_human(root, doc))
+    elif cmd == 'json':
+        if args:
+            fail('usage: unio policy [--json]')
+        doc = read_state(root)
+        sys.stdout.write(json.dumps(describe(root, doc), sort_keys=True, indent=2) + '\n')
+    elif cmd == 'get-mode':
+        if args:
+            fail('usage: unio mode [yolo|medium|safe]')
+        sys.stdout.write('mode: ' + read_state(root)['mode'] + '\n')
+    elif cmd == 'get-tier':
+        if args:
+            fail('usage: unio tier [low|medium|high]')
+        sys.stdout.write('tier: ' + read_state(root)['tier'] + '\n')
+    elif cmd == 'get-lead':
+        if args:
+            fail('usage: unio lead [agent|none]')
+        lead = read_state(root)['lead_agent']
+        sys.stdout.write('lead: ' + (lead if lead is not None else '(none)') + '\n')
+    elif cmd == 'show-accounts':
+        if args:
+            fail('usage: unio account [agent group]')
+        accounts = read_state(root)['accounts']
+        if not accounts:
+            sys.stdout.write('accounts: (none)\n')
+        else:
+            for agent in sorted(accounts):
+                sys.stdout.write('accounts: %s=%s\n' % (agent, accounts[agent]))
+    elif cmd == 'set-mode':
+        if len(args) != 1 or args[0] not in MODES:
+            fail('usage: unio mode [yolo|medium|safe]')
+        def _set_mode(doc, value=args[0]):
+            doc['mode'] = value
+            doc['updated_at'] = stamp()
+        transact(root, _set_mode)
+        sys.stdout.write('mode: ' + args[0] + '\n')
+    elif cmd == 'set-tier':
+        if len(args) != 1 or args[0] not in TIERS:
+            fail('usage: unio tier [low|medium|high]')
+        def _set_tier(doc, value=args[0]):
+            check_tier_cap(root, doc, value)
+            doc['tier'] = value
+            doc['updated_at'] = stamp()
+        transact(root, _set_tier)
+        sys.stdout.write('tier: ' + args[0] + '\n')
+    elif cmd == 'set-lead':
+        if len(args) != 1:
+            fail('usage: unio lead [agent|none]')
+        if args[0] == 'none':
+            lead = None
+        else:
+            check_label(args[0], 'lead agent')
+            lead = args[0]
+        def _set_lead(doc, value=lead):
+            if value is not None:
+                group = doc['accounts'].get(value, value)
+                cap = LIMITS[doc['tier']]
+                if count_active(root, group) + 1 > cap:
+                    fail('lead %s refuses: budget group %r already holds %d native workflow(s); registering the lead would exceed the cap of %d (left unchanged)'
+                         % (value, group, count_active(root, group), cap))
+            doc['lead_agent'] = value
+            doc['updated_at'] = stamp()
+        transact(root, _set_lead)
+        sys.stdout.write('lead: ' + (lead if lead is not None else '(none)') + '\n')
+    elif cmd == 'set-account':
+        if len(args) != 2:
+            fail('usage: unio account [agent group]')
+        check_label(args[0], 'account agent')
+        check_label(args[1], 'account group')
+        def _set_account(doc, agent=args[0], group=args[1]):
+            if doc.get('lead_agent') == agent and doc['accounts'].get(agent, agent) != group:
+                fail('account %s refuses: it is the registered lead agent; clear the lead reservation first (`unio lead none`) (left unchanged)' % agent)
+            if count_active(root, doc['accounts'].get(agent, agent)) > 0 and doc['accounts'].get(agent, agent) != group:
+                fail('account %s refuses: it holds an active native workflow reservation; regroup only when clear (left unchanged)' % agent)
+            doc['accounts'][agent] = group
+            doc['updated_at'] = stamp()
+        transact(root, _set_account)
+        sys.stdout.write('accounts: %s=%s\n' % (args[0], args[1]))
+    elif cmd == '_admit_check':
+        if len(args) != 4:
+            fail('usage: policy _admit_check <agent> <worker> <task> <kind>')
+        agent, worker, task, kind = args
+        check_label(agent, 'admit agent')
+        check_label(worker, 'admit worker')
+        check_label(task, 'admit task')
+        if kind not in ('run', 'review'):
+            fail('unknown admission kind: ' + kind)
+        doc = read_state_nolock(root)
+        group = group_of(doc, agent)
+        cap = LIMITS[doc['tier']]
+        native = count_active(root, group)
+        lead_here = 1 if lead_group_of(doc) == group else 0
+        if native + lead_here + 1 > cap:
+            fail('budget group %r holds %d native workflow(s) plus %d lead reservation(s) at cap %d: refusing %s %s/%s before any provider call (no retry, no queue)'
+                 % (group, native, lead_here, cap, kind, worker, task))
+        sys.stdout.write('GROUP=%s LIMIT=%d ACTIVE=%d LEAD=%d\n' % (group, cap, native, lead_here))
+    elif cmd == '_slot_create':
+        if len(args) != 5:
+            fail('usage: policy _slot_create <group> <agent> <worker> <task> <kind>')
+        group, agent, worker, task, kind = args
+        check_label(group, 'budget group')
+        check_label(agent, 'slot agent')
+        check_label(worker, 'slot worker')
+        check_label(task, 'slot task')
+        if kind not in ('run', 'review'):
+            fail('unknown admission kind: ' + kind)
+        doc = read_state_nolock(root)
+        expected = group_of(doc, agent)
+        if expected != group:
+            fail('budget group changed during admission (expected %r, have %r)' % (expected, group))
+        cap = LIMITS[doc['tier']]
+        sweep_group(root, group)
+        native = count_active(root, group)
+        lead_here = 1 if lead_group_of(doc) == group else 0
+        if native + lead_here + 1 > cap:
+            fail('budget group %r holds %d native workflow(s) plus %d lead reservation(s) at cap %d: refusing %s %s/%s before any provider call (no retry, no queue)'
+                 % (group, native, lead_here, cap, kind, worker, task))
+        directory = slot_group_dir(root, group)
+        os.makedirs(directory, exist_ok=True)
+        if os.path.islink(directory):
+            fail('refusing unsafe slot directory (symlink, left unchanged): ' + directory)
+        meta = {'schema_version': 1, 'group': group, 'agent': agent,
+                'worker': worker, 'task': task, 'kind': kind, 'created_at': stamp()}
+        data = (json.dumps(meta, sort_keys=True, ensure_ascii=True) + '\n').encode('utf-8')
+        if len(data) > MAX_SLOT_META:
+            fail('slot metadata would exceed the size limit (not written)')
+        fd, tmp = tempfile.mkstemp(prefix=WPSLOT_PREFIX, suffix='.json', dir=directory)
+        try:
+            with os.fdopen(fd, 'w') as f:
+                f.write(json.dumps(meta, sort_keys=True, ensure_ascii=True) + '\n')
+                f.flush()
+                os.fsync(f.fileno())
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+        sys.stdout.write(tmp + '\n')
+    elif cmd == '_slot_release':
+        if len(args) != 1:
+            fail('usage: policy _slot_release <slot-path>')
+        slot = args[0]
+        base = slots_base(root)
+        resolved = os.path.realpath(slot)
+        if os.path.commonpath([resolved, os.path.realpath(base) if os.path.exists(base) else base]) != (os.path.realpath(base) if os.path.exists(base) else base):
+            fail('refusing to release a slot outside the workspace slot directory: ' + slot)
+        if os.path.islink(slot):
+            fail('refusing to release a slot symlink (left unchanged): ' + slot)
+        try:
+            os.unlink(slot)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            fail('cannot release slot %s: %s' % (slot, exc))
+        sys.stdout.write('released\n')
+    elif cmd == '_snapshot_sidecar':
+        if len(args) != 6:
+            fail('usage: policy _snapshot_sidecar <group> <slot> <worker> <task> <kind> <original-file>')
+        group, slot, worker, task, kind, orig = args
+        check_label(group, 'budget group')
+        check_label(worker, 'sidecar worker')
+        check_label(task, 'sidecar task')
+        if kind not in ('run', 'review'):
+            fail('unknown admission kind: ' + kind)
+        doc = read_state_nolock(root)
+        snap = describe(root, doc)
+        try:
+            with open(orig, 'rb') as f:
+                original = f.read(2 * 1024 * 1024 + 1)
+        except OSError as exc:
+            fail('cannot read original task material (left unchanged): %s' % exc)
+        if len(original) > 2 * 1024 * 1024:
+            fail('original task material exceeds the transport bound (left unchanged)')
+        try:
+            original_text = original.decode('utf-8')
+        except UnicodeDecodeError:
+            fail('original task material is not UTF-8 (left unchanged)')
+        native = snap['active_native_workflows'].get(group, 0)
+        lead_here = 1 if snap['lead_group'] == group else 0
+        slot_name = os.path.basename(slot)
+        sidecar = {'schema_version': 1, 'group': group, 'worker': worker, 'task': task,
+                   'kind': kind, 'slot': slot_name, 'created_at': stamp(), 'policy': snap}
+        sidecar_data = (json.dumps(sidecar, sort_keys=True, ensure_ascii=True) + '\n').encode('utf-8')
+        if len(sidecar_data) > 16384:
+            fail('policy sidecar would exceed the size limit (not written)')
+        check_control_path(root, 'coord', 'reports', task + '.policy.json')
+        check_control_path(root, 'coord', 'reports', task + '.prompt.md')
+        reports = os.path.join(root, 'coord', 'reports')
+        os.makedirs(reports, exist_ok=True)
+        if os.path.islink(reports):
+            fail('refusing unsafe reports path (symlink, left unchanged): ' + reports)
+        header = (
+            '# Unio work-policy header (effective prompt; the original task is unchanged)\n'
+            'mode: %(mode)s — %(mode_blurb)s\n'
+            'tier: %(tier)s — %(tier_blurb)s\n'
+            'lead: %(lead)s (group %(lead_group)s) — the registered lead counts as one workflow in its budget group\n'
+            'budget_group: %(group)s — %(native)d native + %(lead_here)d lead = %(total)d/%(limit)d in this group; other groups stay concurrent\n'
+            'capacity: unknown — workspace registered workflows only, not a quota meter\n'
+            'workflow_enforcement: native_workflows\n'
+            'Mid-run setting changes affect future admissions only. Frozen Validate commands still apply; no mode waives them.\n'
+            'Wrappers needing original task authority use UNIO_ORIGINAL_TASKFILE. The original file below is unchanged.\n'
+            '--- original %(kind)s material follows ---\n'
+        ) % {'mode': doc['mode'], 'mode_blurb': MODE_BLURB[doc['mode']],
+             'tier': doc['tier'], 'tier_blurb': TIER_BLURB[doc['tier']],
+             'lead': doc['lead_agent'] if doc['lead_agent'] is not None else '(none)',
+             'lead_group': snap['lead_group'] if snap['lead_group'] is not None else '(none)',
+             'group': group, 'native': native, 'lead_here': lead_here,
+             'total': native + lead_here, 'limit': LIMITS[doc['tier']], 'kind': kind}
+        body = (header + original_text).encode('utf-8')
+        if not body.endswith(b'\n'):
+            body += b'\n'
+        for name, payload in ((task + '.policy.json', sidecar_data), (task + '.prompt.md', body)):
+            fd, tmp = tempfile.mkstemp(prefix='.sidecar-', dir=reports)
+            try:
+                with os.fdopen(fd, 'wb') as f:
+                    f.write(payload)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp, os.path.join(reports, name))
+            finally:
+                if os.path.exists(tmp):
+                    try:
+                        os.unlink(tmp)
+                    except OSError:
+                        pass
+        sys.stdout.write(os.path.join(reports, task + '.prompt.md') + '\n')
+    else:
+        fail('unknown policy command: ' + cmd)
+
+main(sys.argv)
+POLICY_PY
+}
+
 host_warning() {
   quality preflight || return $?
   echo 'Execution boundary: trusted_host — configured commands may have host-level access. Worktrees and temporary directories are not OS sandboxes.' >&2
+}
+
+# Native workflow guard (bash side). Admission resolves the provider's
+# budget group (accounts mapping, otherwise the agent name) and creates one
+# kernel-locked slot under coord/.locks/work-policy-slots/<group>/ while the
+# shared policy transaction lock is held. The policy lock is released before
+# any provider starts; the slot lock (fd 10) is held across the provider run
+# and released right after it finishes. Liveness comes from the kernel lock:
+# an unlocked slot file is a dead holder and is swept on the next admission.
+# Machine verification never counts as a workflow; internal helpers on one
+# assignment are not extra independent assignments.
+policy_refuse_report() { # $1=root $2=worker $3=task $4=kind $5=agent $6=reason
+  local root="$1" worker="$2" task="$3" kind="$4" agent="$5" reason="$6"
+  local report="$root/coord/reports/$task.md"
+  mkdir -p "$root/coord/reports"
+  {
+    echo
+    echo "## budget-refused $(date -Is) — kind=$kind worker=$worker agent=$agent task=$task"
+    printf '%s\n' "$reason" | head -5 | sed 's/^/  /'
+    echo "  No provider was started; nothing was queued or retried. Free the group"
+    echo "  (wait for the running workflow, or clear the lead reservation) and run again."
+  } >> "$report"
+  printf 'unio: budget refused (%s %s/%s): %s\n' "$kind" "$worker" "$task" "$(printf '%s' "$reason" | head -1)" >&2
+}
+
+policy_admit_hold() { # $1=root $2=agent $3=worker $4=task $5=kind $6=origfile
+  local root="$1" agent="$2" worker="$3" task="$4" kind="$5" orig="$6"
+  POLICY_SLOT=""; POLICY_EFFECTIVE=""; POLICY_GROUP=""
+  local lock="$root/coord/.locks/work-policy.lock"
+  if [ -L "$root/coord" ] || [ -L "$root/coord/.locks" ] || [ -L "$lock" ]; then
+    policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" \
+      "unio: refusing unsafe policy lock path (symlink, left unchanged): $lock"
+    return 2
+  fi
+  mkdir -p "$root/coord/.locks"
+  exec 8>>"$lock" || return 2
+  flock 8 || { exec 8>&-; return 2; }
+  local err admit group slot effective
+  err=$(mktemp "$root/coord/.locks/.admit-XXXXXX") || { flock -u 8; exec 8>&-; return 2; }
+  if ! admit=$(policy "$root" _admit_check "$agent" "$worker" "$task" "$kind" 2>"$err"); then
+    local reason; reason=$(head -3 "$err" 2>/dev/null || echo "budget refused")
+    rm -f "$err"
+    flock -u 8; exec 8>&-
+    policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" "$reason"
+    return 2
+  fi
+  rm -f "$err"
+  group=$(printf '%s' "$admit" | sed -n 's/^GROUP=\([^ ]*\).*/\1/p')
+  [ -n "$group" ] || { flock -u 8; exec 8>&-; return 2; }
+  if ! slot=$(policy "$root" _slot_create "$group" "$agent" "$worker" "$task" "$kind" 2>&1); then
+    flock -u 8; exec 8>&-
+    policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" "$slot"
+    return 2
+  fi
+  exec 10<>"$slot" || { rm -f "$slot"; flock -u 8; exec 8>&-; return 2; }
+  flock -n 10 || { exec 10>&-; rm -f "$slot"; flock -u 8; exec 8>&-; return 2; }
+  if ! effective=$(policy "$root" _snapshot_sidecar "$group" "$slot" "$worker" "$task" "$kind" "$orig" 2>&1); then
+    exec 10>&-; rm -f "$slot"
+    flock -u 8; exec 8>&-
+    policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" "$effective"
+    return 2
+  fi
+  flock -u 8; exec 8>&-
+  POLICY_SLOT="$slot"; POLICY_GROUP="$group"; POLICY_EFFECTIVE="$effective"
+  return 0
+}
+
+policy_release_slot() { # $1=root — close the slot lock, then remove the file
+  if [ -n "${POLICY_SLOT:-}" ]; then
+    exec 10>&- 2>/dev/null || true
+    case "$POLICY_SLOT" in
+      "$1/coord/.locks/work-policy-slots/"*) rm -f "$POLICY_SLOT" 2>/dev/null || true;;
+    esac
+    POLICY_SLOT=""
+  fi
 }
 
 # Worker and task ids address files under wt/ and coord/; keep them simple
@@ -1773,8 +2558,29 @@ cmd_init() {
   if [ "$cg_bg" = "1" ]; then
     echo "codegraph    : indexing worktrees in the background (repo/ is indexed)"
   fi
+  [ -f "$root/coord/docs/WORK-MODES.md" ] || cp "$TPL_DIR/WORK-MODES.md" "$root/coord/docs/WORK-MODES.md"
+
+  # readable work-policy reference: fresh installs get it from the template;
+  # existing custom MASTER.md files keep their content and gain one block
+  if ! grep -q 'UNIO-WORK-POLICY' "$main_dir/MASTER.md" 2>/dev/null; then
+    cat >> "$main_dir/MASTER.md" <<'POLICY_MD_EOF'
+
+## Work policy (mode + coordination budget)
+<!-- UNIO-WORK-POLICY -->
+Read `unio policy` before planning or delegation, and the installed guide
+at ../coord/docs/WORK-MODES.md. The mode shapes scope and review planning;
+the tier caps independent workflows per shared provider/account budget
+(low 1, medium 2, high 4, including a registered lead). Verified-free
+OpenCode routes are worker-only and never a lead/cooldown replacement.
+Native slots gate new Source/review runs per budget group; unmanaged or
+cross-workspace sessions stay uncounted.
+POLICY_MD_EOF
+  fi
+
   echo "playbooks    : drop your operational .md files into $root/coord/docs/"
   echo "next         : unio agents"
+  echo
+  policy "$root" human || true
 }
 
 # ------------------------------------------------------------------- run
@@ -1805,6 +2611,13 @@ cmd_run() {
 
   if [ "$bg" = 1 ]; then
     lock_probe "$root" "$worker" || die "worker '$worker' is already running a task (unio status)"
+    # Synchronous budget pre-check: a refused background run must never
+    # claim "started in background". The detached child re-admits
+    # authoritatively and preserves its own rejection report on a race.
+    if ! _bg_err=$(policy "$root" _admit_check "$agent" "$worker" "$task" run 2>&1); then
+      policy_refuse_report "$root" "$worker" "$task" run "$agent" "$_bg_err"
+      return 2
+    fi
     if command -v setsid >/dev/null 2>&1; then
       UNIO_BG=1 nohup setsid -f "$0" run "$worker" "$task" >/dev/null 2>&1
     else
@@ -1826,7 +2639,7 @@ cmd_run() {
     # returned and its locals are gone, so a '$pidfile' reference would be
     # empty and never clean up (orphaned pidfile). Expand it now instead.
     # shellcheck disable=SC2064  # expanding $pidfile now is the point
-    trap "rm -f -- '$pidfile'" EXIT
+    trap "rm -f -- '$pidfile'; policy_release_slot '$root'" EXIT
     trap 'exit 143' TERM
     trap 'exit 130' INT
   fi
@@ -1863,17 +2676,27 @@ cmd_run() {
   local task_fp; task_fp=$(task_sha "$tf")
   local revision_before revision_after
   revision_before=$(quality snapshot "$root" "$worker" "$task") || return $?
-  quality update "$root" "$worker" "$task" start "$revision_before" || return $?
+  # Native guard: admit one workflow in the agent's budget group BEFORE the
+  # provider starts. A refusal preserves a rejection report and returns here,
+  # before any structured start is recorded or any provider command runs.
+  POLICY_SLOT=""; POLICY_EFFECTIVE=""; POLICY_GROUP=""
+  policy_admit_hold "$root" "$agent" "$worker" "$task" run "$tf" || return 2
+  quality update "$root" "$worker" "$task" start "$revision_before" || { policy_release_slot "$root"; return $?; }
   echo "[$worker <- $agent] running task '$task' (timeout ${TIMEOUT}s), log: $log"
   ledger_add "$root" "$(printf '{"event":"run_start","ts":"%s","task":"%s","worker":"%s","agent":"%s"}' "$(date -Is)" "$task" "$worker" "$agent")"
-  export TASKFILE="$tf"
+  export TASKFILE="$POLICY_EFFECTIVE"
+  export UNIO_ORIGINAL_TASKFILE="$tf"
   # NB: 'wall' further down is the quota-wall flag — this clock value is
   # 'wallsec' so the two never collide.
   local rc=0 t0 t0w dur wallsec suspended=0
   t0=$(mono_now); t0w=$(date +%s)
   # headless workers must not read stdin — an agent that does (e.g. codex)
   # would otherwise consume whatever the caller left on stdin and hang/misfire
-  ( cd "$wt" && timeout "$TIMEOUT" bash -c "$cmdline" </dev/null ) > "$log" 2>&1 || rc=$?
+  # --kill-after bounds a TERM-ignoring provider: TERM first, KILL 5s later.
+  ( cd "$wt" && timeout --kill-after=5s "$TIMEOUT" bash -c "$cmdline" </dev/null ) > "$log" 2>&1 || rc=$?
+  # The reservation ends with the provider invocation: release before the
+  # post-run receipts so the next admission can reuse the group.
+  policy_release_slot "$root"
   dur=$(( $(mono_now) - t0 ))          # real working time (excludes suspend)
   wallsec=$(( $(date +%s) - t0w ))     # elapsed on the wall clock
   [ "$dur" -lt 0 ] && dur=0            # clock source changed mid-run
@@ -1918,6 +2741,7 @@ cmd_run() {
   {
     echo
     echo "## run $(date -Is) — worker=$worker agent=$agent exit=$rc duration=${dur}s task_sha=$task_fp"
+    echo "policy group=$POLICY_GROUP enforcement=native_workflows sidecar=coord/reports/$task.policy.json original_task_sha=$task_fp"
     [ "$suspended" = 1 ] && echo "!! machine slept mid-run: ${wallsec}s wall clock, ${dur}s actually working" \
                                  "— don't leave background runs open overnight"
     [ "$snap_failed" = 1 ] && echo "!! post-run snapshot failed — exit=$rc recorded; structured result unbound and not ready"
@@ -2222,6 +3046,8 @@ cmd_status() {
   local pg; pg=$(pgrep -af "bin/unio run" 2>/dev/null | grep -v "^$$ " || true)
   if [ -n "$pg" ]; then printf '%s\n' "$pg" | sed 's/^/  /'; any=1; fi
   [ "$any" = 1 ] || echo "  (none)"
+  echo; echo "== work policy (native per-group slots + registered lead) =="
+  policy "$root" human || echo "  (policy state unreadable — see the error above; left unchanged)"
 }
 
 cmd_watch() {
@@ -2308,8 +3134,17 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
   fi
   complete=yes
   host_warning || return $?
+  # Native guard: the independent reviewer is its own workflow in the
+  # reviewer's budget group. Admit before the reviewer provider starts; a
+  # refusal records an unknown review and preserves a rejection report.
+  POLICY_SLOT=""; POLICY_EFFECTIVE=""; POLICY_GROUP=""
+  if ! policy_admit_hold "$root" "$reviewer" "$reviewer" "$task" review "$pf"; then
+    quality update "$root" "$worker" "$task" review "$before" unknown "$reviewer" "" no budget_refused || { rm -rf "$nd"; return 2; }
+    rm -rf "$nd"; return 2
+  fi
   echo "[review] $reviewer reviewing $worker's '$task' (timeout ${UNIO_REVIEW_TIMEOUT:-900}s)"
-  ( cd "$nd" && TASKFILE="$pf" timeout "${UNIO_REVIEW_TIMEOUT:-900}" bash -c "$rcmd" </dev/null ) > "$stdout" 2> "$stderr" || rc=$?
+  ( cd "$nd" && TASKFILE="$POLICY_EFFECTIVE" UNIO_ORIGINAL_TASKFILE="$pf" timeout --kill-after=5s "${UNIO_REVIEW_TIMEOUT:-900}" bash -c "$rcmd" </dev/null ) > "$stdout" 2> "$stderr" || rc=$?
+  policy_release_slot "$root"
   cat "$stdout"
   state=$(quality verdict "$stdout") || state=unknown
   if [ "$rc" -ne 0 ]; then state=failed; ret=1; reasons=reviewer_process_failed
@@ -2330,6 +3165,7 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
   {
     echo
     echo "### review $(date -Is) — reviewer=$reviewer author=$worker exit=$rc decision=$state"
+    echo "policy group=$POLICY_GROUP enforcement=native_workflows sidecar=coord/reports/$task.policy.json"
     echo "raw output: $raw; reasons: $reasons"
     echo '~~~'
     tail -n 80 "$raw/stdout.log"
@@ -3073,6 +3909,50 @@ cmd_license() {
   cat "$CONF_DIR/legal/NOTICE" "$CONF_DIR/legal/LICENSE"
 }
 
+# Work-policy commands: native per-group workflow guard
+# (workflow_enforcement=native_workflows). Setters validate before writing
+# and never dispatch anything; invalid or surplus arguments fail without
+# touching coord/work-policy.json.
+cmd_mode() {
+  local root; root=$(find_root) || die "not inside a Unio project"
+  [ $# -gt 1 ] && die "usage: unio mode [yolo|medium|safe]"
+  if [ $# -eq 0 ]; then policy "$root" get-mode
+  else policy "$root" set-mode "$1"
+  fi
+}
+
+cmd_tier() {
+  local root; root=$(find_root) || die "not inside a Unio project"
+  [ $# -gt 1 ] && die "usage: unio tier [low|medium|high]"
+  if [ $# -eq 0 ]; then policy "$root" get-tier
+  else policy "$root" set-tier "$1"
+  fi
+}
+
+cmd_lead() {
+  local root; root=$(find_root) || die "not inside a Unio project"
+  [ $# -gt 1 ] && die "usage: unio lead [agent|none]"
+  if [ $# -eq 0 ]; then policy "$root" get-lead
+  else policy "$root" set-lead "$1"
+  fi
+}
+
+cmd_account() {
+  local root; root=$(find_root) || die "not inside a Unio project"
+  if [ $# -eq 0 ]; then policy "$root" show-accounts
+  elif [ $# -eq 2 ]; then policy "$root" set-account "$1" "$2"
+  else die "usage: unio account [agent group]"
+  fi
+}
+
+cmd_policy() {
+  local root; root=$(find_root) || die "not inside a Unio project"
+  if [ $# -eq 0 ]; then policy "$root" human
+  elif [ $# -eq 1 ] && [ "$1" = "--json" ]; then policy "$root" json
+  else die "usage: unio policy [--json]"
+  fi
+}
+
 cmd_help() {
   cat <<'HELP'
 Unio — Small plans. Big ideas.
@@ -3172,6 +4052,22 @@ switches
   unio version                  installed version + config path
   unio license                  original credit and full AGPLv3 terms
 
+work policy (native per-group slots; workflow_enforcement=native_workflows)
+  unio mode [yolo|medium|safe]  show or set the work pace (default medium)
+  unio tier [low|medium|high]   show or set the coordination budget
+                                      (default low: 1 workflow per shared
+                                      budget; medium 2, high 4, lead included)
+  unio lead [agent|none]        show or register the lead reservation
+  unio account [agent group]    show mappings, or group aliases that share
+                                      one budget (names are budget labels,
+                                      never credentials)
+  unio policy [--json]          current mode/tier/lead/accounts, per-group
+                                      limits and live native slot counts
+                                      (details in coord/docs/WORK-MODES.md)
+      Policy guides the lead and natively gates new Source/review runs per
+      shared budget: a full group refuses before any provider call (no
+      queue, no retry). Unmanaged or cross-workspace sessions stay uncounted.
+
 Worker -> agent: prefix before first "-" ("codex-2" uses agent "codex").
 Config: ~/.config/unio/agents.conf (project override: coord/agents.conf).
 Configuration overrides use UNIO_* environment variables.
@@ -3213,6 +4109,11 @@ case "${1:-help}" in
   version|-V|--version) cmd_version;;
   license)  cmd_license;;
   status)   shift; cmd_status "$@";;
+  mode)     shift; cmd_mode "$@";;
+  tier)     shift; cmd_tier "$@";;
+  lead)     shift; cmd_lead "$@";;
+  account)  shift; cmd_account "$@";;
+  policy)   shift; cmd_policy "$@";;
   agents)   shift; cmd_agents "$@";;
   watch)    shift; cmd_watch "$@";;
   off)      shift; cmd_off "$@";;
@@ -3317,6 +4218,16 @@ Read ${UNIO_CONF_DIR:-$HOME/.config/unio}/templates/MODEL-ROLES.md. In the Unio 
 read docs/ai/MODEL-ROLES.md and docs/development/LEAD-ROUTING.md. This rule
 persists through handoffs. Current owner instructions, account availability,
 spending restrictions and task invocation limits still apply.
+
+## Work policy (mode + coordination budget)
+<!-- UNIO-WORK-POLICY -->
+Read `unio policy` before planning or delegation, and the installed guide
+at ../coord/docs/WORK-MODES.md. The mode shapes scope and review planning;
+the tier caps independent workflows per shared provider/account budget
+(low 1, medium 2, high 4, including a registered lead). Verified-free
+OpenCode routes are worker-only and never a lead/cooldown replacement.
+Native slots gate new Source/review runs per budget group; unmanaged or
+cross-workspace sessions stay uncounted.
 
 ## How to delegate
 1. `unio agents` — who is ON. OFF = quota-exhausted (5h/weekly cap).
@@ -3515,6 +4426,76 @@ MINOR / NIT, then exactly one final line:
 VERDICT: APPROVE            (nothing blocking)
 VERDICT: REQUEST-CHANGES    (one or more blockers)
 REVIEW_TPL_EOF
+
+cat > "$TPL_DIR/WORK-MODES.md" <<'WORKMODES_TPL_EOF'
+# Work modes and subscription tiers (installed guide)
+
+Unio has two independent settings: the pace of work and the budget
+available for coordinating it. A larger subscription does not require a
+slower workflow, and a smaller one should not exhaust the lead. Both
+settings are workspace-wide and persist in `coord/work-policy.json`; a
+missing file means the defaults (`medium` / `low`).
+
+Status: the command/state slice and the native guard are installed here.
+`unio policy --json` reports `workflow_enforcement` as `native_workflows`:
+foreground/background Source runs and independent reviews hold one locked
+slot per shared budget group (lead reservation included), admitted before
+any provider call. Unmanaged CLI sessions and cross-workspace runs stay
+uncounted. Verified-free OpenCode routes are worker-only and never a
+lead/cooldown replacement.
+
+## Choose the pace: `unio mode [yolo|medium|safe]`
+
+- `yolo` — finish a useful feature in a coherent batch; focused checks, a
+  real smoke check where relevant, brief lead review; full gate at release.
+- `medium` (default) — manageable batches with integration attention;
+  focused plus relevant integration checks; independent review when warranted.
+- `safe` — smaller checkpoints, careful interface and failure-path
+  inspection; broader checks plus independent reviews.
+
+A mode shapes the next task's scope and review plan; it never removes a
+frozen task's Validate commands. Modes change no models, effort wrappers,
+permissions or billing.
+
+## Choose a coordination budget: `unio tier [low|medium|high]`
+
+Independent workflows allowed per shared provider/account budget, lead
+included: `low` 1 (default), `medium` 2, `high` 4. `low` still allows
+other budget groups concurrently (for example Codex leads while Claude
+and GLM work separately), plus helpers inside their same authorized
+assignment. Missing capacity stays `unknown`. Higher tiers never create
+extra allowance.
+
+Register the lead's reservation with `unio lead <agent>` (cleared by
+`unio lead none`); it counts as one workflow in its group. Group aliases
+sharing one budget with `unio account <agent> <group>`. These names are
+logical budget labels, never credentials. Verified-free OpenCode routes
+are worker-only and never a lead/cooldown replacement.
+
+## Commands
+
+```bash
+unio mode yolo        # set the pace (persists; the other setting is kept)
+unio tier low         # set the budget
+unio lead codex       # register the lead reservation
+unio policy           # human-readable state, limits and the advisory note
+unio policy --json    # machine-readable state (schema 1, limits, advisory)
+
+unio mode             # show one value without changing it
+unio tier
+unio lead
+unio account          # show mappings (empty until grouped)
+
+unio account opencode go-primary   # aliases sharing one budget
+unio account glm go-primary
+```
+
+Only `yolo`, `medium`, `safe` modes and `low`, `medium`, `high` tiers are
+accepted; extra arguments and invalid values fail without changing state.
+Malformed, unknown-schema or unsafe state files fail locally instead of
+resetting settings. Start model effort at high or the supported middle;
+escalate only for demonstrated reasoning difficulty.
+WORKMODES_TPL_EOF
 
 cat > "$TPL_DIR/SABOTEUR.md" <<'SABOTEUR_TPL_EOF'
 # Task {{ID}} — worker: {{WORKER}} (the saboteur seat)
@@ -3985,7 +4966,7 @@ cat > "$COMP_DIR/unio" <<'COMPLETION_EOF'
 _unio() {
   local cur cmd root d cmds
   cur="${COMP_WORDS[COMP_CWORD]}"
-  cmds="new init run verify result handoff diff sync review race sabotage score doctor tail kill report status agents watch off on smoke selftest stop resume allow-retry version license help"
+  cmds="new init run verify result handoff diff sync review race sabotage score doctor tail kill report status mode tier lead account policy agents watch off on smoke selftest stop resume allow-retry version license help"
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ); return
   fi
@@ -4023,6 +5004,10 @@ _unio() {
       else COMPREPLY=( $(compgen -W "$workers" -- "$cur") ); fi;;
     tail|kill|report) COMPREPLY=( $(compgen -W "$tasks" -- "$cur") );;
     off|on) COMPREPLY=( $(compgen -W "$agents" -- "$cur") );;
+    mode) COMPREPLY=( $(compgen -W "yolo medium safe" -- "$cur") );;
+    tier) COMPREPLY=( $(compgen -W "low medium high" -- "$cur") );;
+    lead) COMPREPLY=( $(compgen -W "none $agents" -- "$cur") );;
+    policy) COMPREPLY=( $(compgen -W "--json" -- "$cur") );;
   esac
 }
 complete -F _unio unio
