@@ -504,3 +504,58 @@ documentation commit records their actual outcomes. No live providers,
 additional AI invocations or retries were used. Fresh native verification and
 the owner's personal lead review remain required; this worker does not accept,
 merge, push or release.
+
+## Git sparse boolean correction (API-SPARSE-BOOLEAN-1)
+
+Personal lead review demonstrated an inherited sparse-checkout guard defect:
+an untyped `git config --get-all core.sparseCheckout` emits the same newline
+for a bare key and an explicitly empty value. Git treats the bare key as true
+and the explicit empty value as false, as documented in
+[Git's boolean values](https://git-scm.com/docs/git-config#_values). The real
+service probe confirmed that the prior parser allowed the bare true case.
+
+The sparse read now uses fixed argv `git config --type=bool --get-all
+core.sparseCheckout`. Only exit 0 with exactly one canonical `false` line, or
+the existing missing-key result (exit 1 and empty output), permits the worker.
+True, duplicate values (including two false values), malformed values,
+unexpected framing and error results are refused. The change retains four
+fresh Git queries per worker observation and the 15-second Git deadline.
+Metadata, index, ownership, STOP and clean/base checks, durable action keys,
+observation boundaries, both fresh acceptance result reads and all four
+revision comparisons remain unchanged. The original 15-second HTTP client
+deadline and other deadlines remain unchanged.
+
+Three new real-repository semantic regressions passed in 70.493 seconds:
+`test_sparse_boolean_bare_true_refused`,
+`test_sparse_boolean_empty_false_allowed` and
+`test_sparse_boolean_malformed_and_duplicate_refused`. They demonstrate
+refusal before native calls, an explicit empty false launching the correct
+current mock worker, missing-key handling, the four-query budget, and denial
+of malformed or duplicate real Git values and unexpected output. No live
+providers are used. The coherent runtime/test correction was saved as
+`5e680c0bd31b842e8a0282e793cf9f38c202f616` immediately after these checks.
+
+The existing complete HTTP cost journey passed once in 49.431 seconds with
+all inherited assertions and the original 15-second client deadline:
+
+| Action | Seconds | Subprocess calls | Subprocess seconds | Fresh worker observations | Result reads |
+| --- | --- | --- | --- | --- | --- |
+| Start | 8.734 | 25 | 7.184 | 4 | 1 |
+| Verify | 8.598 | 26 | 6.957 | 5 | 2 |
+| Review | 8.933 | 26 | 7.077 | 5 | 2 |
+| Accept | 9.237 | 25 | 6.040 | 5 | 2 |
+
+Scoped documentation lint (`bridge/README.md` and the new fragment) and
+full-base whitespace against `0d633772b2b810a83a8c33fe4aa6855edf1cfaf0`
+passed. These are the four focused Source commands, not a new full eight-check
+Validate result. The lead's deterministic controller must run all eight
+Validate commands freshly after this native Source finishes; personal lead
+assessment, full merged quality gate and exact passing push remain required
+before acceptance. This worker does not merge, push, install or release.
+
+All previous failed receipts and the historical failures and measurements
+above remain evidence. The boolean defect is demonstrated independently of
+those timeouts; correcting it does not establish their complete cause.
+Measured response times depend on filesystem/load and do not guarantee
+headroom under the unchanged deadlines. No caches, sleeps, retries, deadline
+expansion, extra AI invocations or live providers were used.
