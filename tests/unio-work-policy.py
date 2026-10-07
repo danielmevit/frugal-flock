@@ -109,6 +109,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-') as directory:
         check('tier switch %s persists with limit %d' % (tier, limit),
               out.returncode == 0 and out.stdout.strip() == 'tier: ' + tier
               and json.loads(unio('policy', '--json').stdout)['workflow_limit_per_group'] == limit)
+    unio('mode', 'medium')
     saved = json.loads(state_file.read_text())
     check('state file is exact typed schema',
           saved['schema_version'] == 1 and type(saved['schema_version']) is int

@@ -1467,20 +1467,27 @@ def read_state(root):
     if len(raw) > MAX_STATE:
         fail('refusing to read policy state (oversized, left unchanged): ' + path)
     try:
-        top = json.loads(raw.decode('utf-8'))
-    except (ValueError, UnicodeDecodeError):
+        text = raw.decode('utf-8')
+    except UnicodeDecodeError:
         fail('policy state is malformed (left unchanged): ' + path)
-    if not isinstance(top, dict):
-        fail('policy state is malformed (left unchanged): ' + path)
+
+    def _unique_object(pairs):
+        obj = {}
+        for key, value in pairs:
+            if key in obj:
+                raise ValueError('duplicate key: ' + str(key))
+            obj[key] = value
+        return obj
+
     try:
-        pairs = json.loads(raw.decode('utf-8'), object_pairs_hook=lambda ps: ps)
-    except (ValueError, UnicodeDecodeError):
+        doc = json.loads(text, object_pairs_hook=_unique_object)
+    except ValueError as exc:
+        message = str(exc)
+        if message.startswith('duplicate key: '):
+            fail('policy state has a duplicate key (left unchanged): ' + message[len('duplicate key: '):])
         fail('policy state is malformed (left unchanged): ' + path)
-    doc = {}
-    for key, value in pairs:
-        if key in doc:
-            fail('policy state has a duplicate key (left unchanged): ' + str(key))
-        doc[key] = value
+    if not isinstance(doc, dict):
+        fail('policy state is malformed (left unchanged): ' + path)
     unknown = set(doc) - ALLOWED_KEYS
     if unknown:
         fail('policy state has unknown keys (left unchanged): ' + ', '.join(sorted(unknown)))
@@ -1639,6 +1646,8 @@ def main(argv):
 main(sys.argv)
 POLICY_PY
 }
+
+host_warning() {
   quality preflight || return $?
   echo 'Execution boundary: trusted_host — configured commands may have host-level access. Worktrees and temporary directories are not OS sandboxes.' >&2
 }
