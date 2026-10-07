@@ -1,0 +1,1 @@
+Document the owner preference for Grok on precision-sensitive reasoning and the observed Gemini review gaps; retain account capacity, selected review policy and free-worker role restrictions. Record that native AGY Opus4.6Thinking rejects the effort flag and uses its exact model default.
