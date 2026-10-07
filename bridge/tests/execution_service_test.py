@@ -424,6 +424,72 @@ class ExecutionServiceTests(unittest.TestCase):
         self.error('worker_unavailable', prepare)
         self.assertEqual(self.calls(), [])
 
+    def test_sparse_boolean_bare_true_refused(self):
+        _, view, approval = self.approved()
+        with (self.repo / '.git/config').open('a') as config:
+            config.write('\n[core]\n\tsparseCheckout\n')
+        self.assertEqual(self.git(self.wt, 'config', '--get-all', 'core.sparseCheckout'), '')
+        self.assertEqual(self.git(self.wt, 'config', '--type=bool', '--get-all',
+                                  'core.sparseCheckout'), 'true')
+        self.error('worker_unavailable', self.instance._worker_revision)
+        self.error('worker_unavailable', self.instance.start, view['job']['id'], approval, self.key())
+        self.assertEqual(self.calls(), [])
+
+    def test_sparse_boolean_empty_false_allowed(self):
+        expected = self.git(self.wt, 'rev-parse', 'HEAD')
+        self.assertEqual(self.instance._worker_revision(), expected)  # missing key remains allowed
+        self.git(self.wt, 'config', 'core.sparseCheckout', '')
+        self.assertEqual(self.git(self.wt, 'config', '--get-all', 'core.sparseCheckout'), '')
+        self.assertEqual(self.git(self.wt, 'config', '--type=bool', '--get-all',
+                                  'core.sparseCheckout'), 'false')
+        original = self.instance._call
+        with patch.object(self.instance, '_call', wraps=original) as calls:
+            self.assertEqual(self.instance._worker_revision(), expected)
+            self.assertEqual(calls.call_count, 4)
+            self.assertEqual(calls.call_args_list[-1].args,
+                             (['git', '-C', str(self.wt), 'config', '--type=bool',
+                               '--get-all', 'core.sparseCheckout'], 15))
+        _, view, _, _ = self.started()
+        self.assertEqual(view['execution']['state'], 'launch_accepted')
+        self.assertEqual(view['native_result']['process']['state'], 'succeeded')
+        self.assertEqual(len(self.calls('run')), 1)
+        self.assertEqual(view['native_result']['current_revision']['candidate_commit'],
+                         self.git(self.wt, 'rev-parse', 'HEAD'))
+
+    def test_sparse_boolean_malformed_and_duplicate_refused(self):
+        _, view, approval = self.approved()
+        for values in (('not-a-boolean',), ('false', 'false'), ('true', 'false'),
+                       ('false', 'true'), ('', 'false')):
+            with self.subTest(values=values):
+                self.git(self.wt, 'config', '--replace-all', 'core.sparseCheckout', values[0])
+                for value in values[1:]:
+                    self.git(self.wt, 'config', '--add', 'core.sparseCheckout', value)
+                typed = subprocess.run(['git', '-C', str(self.wt), 'config', '--type=bool',
+                                        '--get-all', 'core.sparseCheckout'],
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if len(values) == 1:
+                    self.assertNotEqual(typed.returncode, 0)
+                else:
+                    self.assertEqual(typed.returncode, 0)
+                    self.assertEqual(typed.stdout.count(b'\n'), len(values))
+                self.error('worker_unavailable', self.instance._worker_revision)
+                self.error('worker_unavailable', self.instance.start, view['job']['id'], approval, self.key())
+                self.assertEqual(self.calls(), [])
+        self.git(self.wt, 'config', '--replace-all', 'core.sparseCheckout', 'false')
+        original = self.instance._call
+        for code, raw in ((0, b''), (0, b'\n'), (0, b'FALSE\n'), (0, b'false\r\n'),
+                          (0, b'false'), (0, b'false\nfalse\n'), (0, b'false\0'),
+                          (1, b'false\n'), (128, b'false\n'), (2, b'')):
+            with self.subTest(code=code, raw=raw):
+                def call(argv, timeout):
+                    if 'config' in argv:
+                        return code, raw
+                    return original(argv, timeout)
+                with patch.object(self.instance, '_call', side_effect=call):
+                    self.error('worker_unavailable', self.instance.start,
+                               view['job']['id'], approval, self.key())
+                self.assertEqual(self.calls(), [])
+
     def test_worker_observation_cost_and_fresh_head_branch(self):
         original = self.instance._call
         with patch.object(self.instance, '_call', wraps=original) as calls:

@@ -638,11 +638,13 @@ class ExecutionService:
         if raw and not raw.endswith(b'\0'):
             raise ExecutionError('worker_unavailable')
         try:
-            code, raw = self._call(['git', '-C', str(self._wt), 'config', '--get-all', 'core.sparseCheckout'], 15)
+            # Git distinguishes a bare key (true) from an explicit empty value
+            # (false); an untyped read emits the same newline for both.
+            code, raw = self._call(['git', '-C', str(self._wt), 'config', '--type=bool',
+                                    '--get-all', 'core.sparseCheckout'], 15)
         except _NativeFailure as error:
             raise ExecutionError('worker_unavailable') from error
-        if not ((code == 1 and raw == b'') or (code == 0 and raw.endswith(b'\n')
-                and raw.count(b'\n') == 1 and raw[:-1].lower() in (b'', b'false', b'0', b'no', b'off'))):
+        if not ((code == 1 and raw == b'') or (code == 0 and raw == b'false\n')):
             raise ExecutionError('worker_unavailable')
         if clean:
             base, base_revision = self._base()
