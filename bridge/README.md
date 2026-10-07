@@ -585,3 +585,55 @@ and execution HTTP suites, scoped docs lint and frozen-base whitespace. The
 lead controller runs all nine frozen Validate commands after Source and handles
 native verification, personal review and the full merged quality gate. Version
 remains 0.5.3; this source change does not establish release or acceptance.
+
+Source preservation and checks (2026-10-07): the initial clean worktree was
+`aeae9577de17d998613a82e1ee15fb5c8d325341`. Actual dependency receipts record
+full-gate exit 0 and exact push of `940c376bf0cb0a34db10a7df212cdafe64984a6f`,
+then docs-gate exit 0 and exact push of `aeae9577`, with the runtime tree
+unchanged. Only five documentation paths differ between those dependencies.
+The early coherent API/tests/docs checkpoint was saved as
+`c2cffe31d4d42a1bc306ba5d89eb8b22942e0670` before slower validation. A second
+checkpoint saved bounded content rechecks, native timestamp ordering and the
+additional regressions as `3a5d4b3`.
+
+The first 12-case module run had two fixture errors: its quiet case moved the
+result timestamp without moving ledger evidence, and the concurrency test
+shadowed Python's concurrent module. After those concrete corrections, the
+changed-attempt fixture failed because its supposed new start timestamp still
+predated the old log; the fixture was corrected to model native ordering.
+These failures remain in the Source output. No failed unchanged test or
+native task was retried to manufacture a pass.
+
+An actual read-only observation initially returned unavailable for this live
+Source. Inspection demonstrated a runtime defect in the new observer: the
+native result was stamped at 08:26:12 UTC and its run_start ledger entry was
+published at 08:26:14 UTC after the native snapshot completed. The observer's
+one-second ordering assumption was invalid. The corrected ordering preserves
+retry/result agreement and requires output to postdate both start evidences;
+a permanent native-shaped regression covers the delay. The corrected live
+observation reported recorded running Source, unknown foreground phase and
+liveness, stale receipt and available output, without printing private output
+or acquiring the worker writer lock. It made no provider/dispatch call.
+
+The final complete progress module suite passed 18/18 in 5.448 seconds;
+the final complete progress HTTP suite passed 10/10 in 8.408 seconds, both
+with observation subprocess effects prohibited. The buffered-verification
+regression uses one fixed local Python check child: it remains running with
+empty stdout, then releases its buffered result before validation is published.
+This fixture child is separate from observation and invokes no provider.
+The preserved server suite passed 15/15
+in 2.069 seconds. The existing execution API suite passed once, 22/22 in
+82.038 seconds, retaining all original assertions/timeouts and the real offline
+Git-budget journey. No existing test or execution-service behavior was changed.
+Scoped docs lint and complete whitespace against the frozen dependency passed.
+These are Source checks, not a native nine-command verification verdict.
+
+Native logs lack a mutation journal: an unobserved truncate/regrow preserving
+both bounded anchors can resemble append. This documented limitation remains;
+observed shrink/replacement, changed anchors and same-size metadata changes
+invalidate cursors. There is no perfect secret detector, current Git readiness
+snapshot, live verification/review output or progress acceptance-store reader.
+Buffered checks and a held lock remain unknown phase/liveness. Historical
+attempts overwritten by the native layout are unavailable. Final native
+verification, all nine controller Validate commands, personal complete lead
+review, full merged gate and exact public push remain mandatory before acceptance.

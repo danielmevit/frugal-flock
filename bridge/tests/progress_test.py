@@ -70,6 +70,7 @@ class ProgressTests(unittest.TestCase):
         self.addCleanup(self.service.close)
         self.identity = next(iter(self.service.bindings))
         # No observation can reach a provider/engine subprocess.
+        self.fixture_popen = subprocess.Popen
         self.effects = patch.object(subprocess, 'Popen', side_effect=AssertionError('dispatch'))
         self.invoke = self.effects.start()
         self.addCleanup(self.effects.stop)
@@ -120,6 +121,14 @@ class ProgressTests(unittest.TestCase):
         self.fixture.finish()
         before = self.get()
         # Native verify buffers all child output and publishes no running marker.
+        # This fixed offline child is fixture setup, never an observation effect.
+        child = self.fixture_popen([sys.executable, '-B', '-c',
+            "import sys; sys.stdin.buffer.read(1); print('verification finished')"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.addCleanup(lambda: child.communicate(b'x', timeout=3) if child.poll() is None else None)
+        self.assertIsNone(child.poll())
+        os.set_blocking(child.stdout.fileno(), False)
+        self.assertIn(child.stdout.read(), (None, b''))
         lock = (self.root / 'coord/.locks' / (self.fixture.worker + '.lock')).open('a')
         self.addCleanup(lock.close)
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -131,6 +140,16 @@ class ProgressTests(unittest.TestCase):
         self.assertEqual(during['output']['excerpt'], before['output']['excerpt'])
         self.assertEqual(during['acceptance'], {'state': 'unavailable'})
         self.assertNotIn('percentage', str(during))
+        self.assertIsNone(child.poll())
+        os.set_blocking(child.stdout.fileno(), True)
+        out, errors = child.communicate(b'x', timeout=3)
+        self.assertEqual(child.returncode, 0)
+        self.assertEqual(out, b'verification finished\n')
+        self.assertEqual(errors, b'')
+        self.fixture.native['validation'].update(state='passed', scope='OK', checks_run=1,
+            checks_failed=0, reasons=[], revision=self.fixture.revision)
+        self.fixture.save()
+        self.assertEqual(self.get()['verification']['state'], 'passed')
 
     def test_failure_validation_review_and_stale_evidence_are_separate(self):
         self.fixture.log.write_text('done\n')
