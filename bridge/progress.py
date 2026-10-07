@@ -66,21 +66,34 @@ def literal(raw):
 
 class ProgressService:
     """Startup bindings are authority. Only latest native attempts are supported."""
-    def __init__(self, workspace, engine, bindings):
+    def __init__(self, workspace, engine, bindings, workers=None):
         self.workspace = Path(workspace).absolute()
         self.engine = Path(engine).absolute()
         if self.workspace.resolve() != self.workspace or not self.workspace.is_dir():
             raise ValueError('invalid workspace')
-        if not 1 <= len(bindings) <= MAX_BINDINGS:
+        if workers is None:
+            workers = []
+        elif not isinstance(workers, (list, tuple)):
+            raise ValueError('invalid bindings')
+        # Fixed task bindings and worker grants share one explicit startup budget.
+        if not 1 <= len(bindings) + len(workers) <= MAX_BINDINGS:
             raise ValueError('invalid bindings')
         self.bindings = {}
-        tasks = set()
+        tasks, bound_workers = set(), set()
         for worker, task in bindings:
             if not LABEL.fullmatch(worker) or not LABEL.fullmatch(task) or task in tasks:
                 raise ValueError('invalid or ambiguous binding')
             tasks.add(task)
+            bound_workers.add(worker)
             identity = digest((worker + '\0' + task).encode())
             self.bindings[identity] = (worker, task)
+        seen = []
+        for worker in workers:
+            if (not isinstance(worker, str) or not LABEL.fullmatch(worker)
+                    or worker in seen or worker in bound_workers):
+                raise ValueError('invalid or ambiguous binding')
+            seen.append(worker)
+        self.worker_grants = seen
         self.key = secrets.token_bytes(32)
         self.generations = {}
         self.lock = threading.Lock()
@@ -126,7 +139,7 @@ class ProgressService:
         finally:
             os.close(fd)
 
-    def _start(self, worker, task):
+    def _ledger_lines(self):
         fd = self._open('coord', 'reports', 'ledger.jsonl')
         try:
             size = os.fstat(fd).st_size
@@ -136,9 +149,21 @@ class ProgressService:
             os.close(fd)
         if start:
             raw = raw.partition(b'\n')[2]
-        records = raw.split(b'\n')
         # Partial final records never establish ownership.
-        for line in reversed(records[:-1][-LEDGER_RECORDS:]):
+        return raw.split(b'\n')[:-1][-LEDGER_RECORDS:]
+
+    def _names(self, *parts):
+        fd = self._open(*parts, directory=True)
+        try:
+            names = os.listdir(fd)
+        finally:
+            os.close(fd)
+        if len(names) > LEDGER_RECORDS:
+            raise ValueError('unbounded evidence')
+        return names
+
+    def _start(self, worker, task):
+        for line in reversed(self._ledger_lines()):
             event = _decode(line)
             if not isinstance(event, dict):
                 raise ValueError('ledger')
@@ -148,10 +173,83 @@ class ProgressService:
                 return stamp(event['ts'])
         raise ValueError('missing source start')
 
+    def _select_task(self, worker):
+        """Latest task agreed by the bounded ledger, result and retry evidence."""
+        owned = []
+        for line in self._ledger_lines():
+            event = _decode(line)
+            if not isinstance(event, dict):
+                raise ValueError('ledger')
+            if event.get('event') != 'run_start' or event.get('worker') != worker:
+                continue
+            task = event.get('task')
+            if not isinstance(task, str) or LABEL.fullmatch(task) is None:
+                raise ValueError('ledger task')
+            owned.append((task, stamp(event.get('ts'))))
+        if not owned:
+            raise ValueError('unknown worker run')
+        task, started = owned[-1]
+        for other, when in owned[:-1]:
+            if other != task and when >= started:
+                raise ValueError('ambiguous task')
+        names = self._names('coord', 'results', worker)
+        newest_task, newest_time, seen = None, None, set()
+        for name in names:
+            if not name.endswith('.json'):
+                raise ValueError('unexpected result')
+            label = name[:-5]
+            if LABEL.fullmatch(label) is None:
+                raise ValueError('unexpected result')
+            native = _native_document(_decode(self._read('coord', 'results', worker, name)), worker, label)
+            updated = stamp(native['updated_at'])
+            seen.add(label)
+            if newest_time is None or updated > newest_time:
+                newest_task, newest_time = label, updated
+            elif updated == newest_time and label != newest_task:
+                raise ValueError('ambiguous result')
+        if newest_task != task or task not in seen:
+            raise ValueError('result does not confirm latest run')
+        best_task, best_time = None, None
+        for name in self._names('coord', 'retries'):
+            if LABEL.fullmatch(name) is None:
+                raise ValueError('unexpected retry')
+            retry = _decode(self._read('coord', 'retries', name, 'state.json'))
+            latest = retry.get('latest') if isinstance(retry, dict) else None
+            if not isinstance(latest, dict) or worker not in latest:
+                continue
+            when = stamp(retry.get('updated_at'))
+            if best_time is None or when > best_time:
+                best_task, best_time = name, when
+            elif when == best_time and name != best_task:
+                raise ValueError('ambiguous retry')
+        if best_task != task:
+            raise ValueError('retry does not confirm latest run')
+        return task
+
+    def _resolve_grants(self):
+        found, failed = {}, {}
+        for worker in self.worker_grants:
+            placeholder = digest((worker + '\0').encode())
+            try:
+                task = self._select_task(worker)
+                identity = digest((worker + '\0' + task).encode())
+                if identity in self.bindings or identity in found:
+                    raise ValueError('ambiguous grant')
+                found[identity] = (worker, task)
+            except (ValueError, OSError):
+                failed[placeholder] = worker
+        return found, failed
+
     def _evidence(self, identity):
-        if identity not in self.bindings:
-            raise ProgressError('progress_not_found')
-        worker, task = self.bindings[identity]
+        if identity in self.bindings:
+            worker, task = self.bindings[identity]
+        else:
+            found, failed = self._resolve_grants()
+            if identity in failed:
+                raise ProgressError('progress_unavailable')
+            if identity not in found:
+                raise ProgressError('progress_not_found')
+            worker, task = found[identity]
         fd = self._open('wt', worker, directory=True)
         os.close(fd)
         task_hash = digest(self._read('coord', 'tasks', task + '.md'))
@@ -372,16 +470,29 @@ class ProgressService:
             self.lock.release()
 
     def workers(self):
+        def unavailable(identity, worker, task):
+            return dict(schema_version=1, worker_id=identity, worker=worker, task=task, state='unavailable')
+
         def collect(begin):
             views = []
-            for identity in self.bindings:
+            for identity, (worker, task) in self.bindings.items():
                 if time.monotonic() - begin > DEADLINE:
                     raise ProgressError('progress_unavailable')
                 try:
                     views.append(self._view(identity))
                 except (ValueError, OSError):
-                    views.append(dict(schema_version=1, worker_id=identity, worker=self.bindings[identity][0],
-                                      task=self.bindings[identity][1], state='unavailable'))
+                    views.append(unavailable(identity, worker, task))
+            if self.worker_grants:
+                found, failed = self._resolve_grants()
+                for identity, (worker, task) in found.items():
+                    if time.monotonic() - begin > DEADLINE:
+                        raise ProgressError('progress_unavailable')
+                    try:
+                        views.append(self._view(identity))
+                    except (ValueError, OSError, ProgressError):
+                        views.append(unavailable(identity, worker, task))
+                for identity, worker in failed.items():
+                    views.append(unavailable(identity, worker, ''))
             return dict(schema_version=1, workers=views)
         return self._operation(collect)
 

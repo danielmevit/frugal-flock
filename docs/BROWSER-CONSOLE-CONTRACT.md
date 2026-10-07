@@ -1,8 +1,9 @@
 # Browser worker output and files — frozen interface
 
-Implementation contract for completing the browser0.5.3 milestone. Existing
+Implementation contract for completing the browser 0.5.3 milestone. Existing
 UI, execution API and [progress API](BROWSER-PROGRESS-API-CONTRACT.md) remain
-the base. This document does not claim the new views are implemented.
+the base. The interface below stays frozen. Implementation status is recorded
+at the end of this document.
 
 ## Worker output
 
@@ -45,7 +46,10 @@ W/F are opaque64-lowercase-hex IDs supplied by discovery; they never accept a
 path, executable, ref, command or root. Trusted worker worktrees are fixed at
 startup. Files are selected only from tracked source text, maximum256 entries
 and64KiB preview bytes plus one sentinel byte. Use bounded fixed-argument Git
-listing with a short deadline; never interpolate HTTP text into a command.
+listing of the confirmed worktree directory descriptor. Drain its stdout under
+a 2 second deadline from spawn, at most 1 MiB plus one byte, and kill and reap
+that process group on deadline, overflow or error. A replaced worktree is
+unavailable. Never interpolate HTTP text into a command.
 Use no-follow descriptor traversal for content, reject unsafe components,
 symlinks, special files and hardlinks. Exclude Git/auth/credential paths and
 known secret filenames; binary/invalid UTF-8 content is unavailable. File
@@ -57,7 +61,10 @@ host_refused/origin_refused/session_refused403, files_not_found404,
 read_only405 and files_unavailable503. Capability off returns not_found404.
 No private exception, absolute path, command or credentials in errors.
 Listing/preview cannot write, invoke a provider, verify/review or control a
-process. Source filenames/content remain literal text in the browser.
+process. Source filenames/content remain literal text in the browser. File preview
+shows the returned text in full; the separate Source page bound must not
+shorten it or call that shortening a full observation. Server truncation stays
+labeled at 64 KiB.
 
 ## UI and delivery
 
@@ -73,4 +80,14 @@ native worker writing progressive lines, output click-through, safe file view,
 session rotation and no duplicate launch/review. This is not a model benchmark.
 The owner will use funded main implementation workers; free Zen routes remain
 routine support only. Full release gate, real provider journey and publication
-are separate proof. No claim0.5.3 released until those steps actually complete.
+are separate proof. No claim 0.5.3 released until those steps actually complete.
+
+## Implementation status
+
+BROWSER-CONSOLE-1 implements the worker grants, file routes and browser
+panels specified above. Existing progress views, cursors, redaction, read
+bounds and GET protections are unchanged. A worker grant resolves only the
+latest owned native task; a files grant lists only tracked text under the
+startup worktree. This source change is not a 0.5.3 release. The real
+provider journey, the final whole release gate and publication remain
+separate.

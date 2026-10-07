@@ -87,6 +87,17 @@ details[open] > summary { margin-bottom: 8px; }
 .evidence-grid dd { margin: 3px 0 0; font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
 .warnings { padding: 12px 16px 12px 30px; color: #744b15; background: #f4eddb; font-size: 13px; border-radius: 4px; overflow-wrap: anywhere; }
 .activity-section { margin-top: 30px; }
+.console-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.console-tabs button[aria-selected="true"] { border-color: var(--accent); color: var(--accent); }
+.console-worker { display: block; width: 100%; text-align: left; margin: 0 0 8px; }
+.console-worker strong, .console-worker .small, .console-excerpt { display: block; }
+.console-excerpt { white-space: pre-wrap; font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; margin-top: 8px; }
+#console-workers { margin-top: 12px; }
+#console-file-list { list-style: none; padding: 0; margin: 0 0 12px; }
+#console-file-list li { margin: 0 0 8px; }
+#console-file-list button { width: 100%; text-align: left; }
+#console-text, #console-file-text { max-height: 320px; overflow: auto; }
+#console-panel { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 16px; }
 .activity-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .activity-heading h2 { margin-bottom: 0; }
 #status { margin: 0; font-size: 12px; color: #4b6044; text-align: right; }

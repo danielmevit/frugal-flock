@@ -66,7 +66,9 @@ python3 -B bridge/tests/plan_api_test.py
 node --check bridge/activity.js
 node --check bridge/drafts.js
 node --check bridge/jobs.js
+node --check bridge/worker_console.js
 node --check bridge/tests/browser.cjs
+python3 -B bridge/tests/worker_files_test.py
 ```
 
 Optional browser checks use the same workspace-local Playwright tooling as
@@ -77,6 +79,7 @@ Optional browser checks use the same workspace-local Playwright tooling as
 node bridge/tests/browser.cjs
 node bridge/tests/drafts_browser.cjs
 node bridge/tests/execution_browser.cjs
+node bridge/tests/worker_console_browser.cjs
 ```
 
 The browser checks launch loopback test servers and local watch/execution
@@ -637,3 +640,58 @@ Buffered checks and a held lock remain unknown phase/liveness. Historical
 attempts overwritten by the native layout are unavailable. Final native
 verification, all nine controller Validate commands, personal complete lead
 review, full merged gate and exact public push remain mandatory before acceptance.
+
+## Worker output and worktree files (BROWSER-CONSOLE-1)
+
+The browser console builds on the protected progress API. It does not replace
+drafts, execution or the recorded Activity list. Output still requires
+`--enable-progress-output`. Grants are explicit and startup-only: repeat
+`--progress-binding WORKER:TASK` for a fixed task, or `--progress-worker WORKER`
+for that worker's latest owned native task. The two forms share one limit of
+32 unique grants. A worker grant is not an HTTP task, path or command selector.
+It chooses the latest task only when the bounded ledger, result and retry
+evidence agree, then applies the same task-hash, worker and attempt checks as
+a fixed binding. Unknown, ambiguous or unbound output stays unavailable.
+
+Tracked worktree text is a separate opt-in. `--enable-worker-files` and at
+least one `--files-worker WORKER` are required together, with at most 32
+workers. Default remains off. `GET /api/session` adds boolean `worker_files`.
+Files mode supplies a session token even when drafts, execution and output are
+off. The routes are `GET /api/worker-files/workers`,
+`GET /api/worker-files/workers/W/files` and
+`GET /api/worker-files/workers/W/files/F`. W and F are server-issued 64-hex
+ids. Responses use `relative_path` for the tracked path and `worktree_label`
+(`wt/WORKER`) rather than a host path. Listing comes from a fixed `git
+ls-files -z` of the confirmed worktree directory descriptor
+(`/proc/self/fd/N`), not a second lookup of the startup path. Stdout is
+drained under a 2 second deadline measured from spawn, and at most 1 MiB plus
+one byte. Deadline, overflow and errors kill and reap that owned process
+group within a short grace, then release the service lock. A replaced
+worktree is unavailable instead of an unrelated index. At most 256 entries
+are returned. Preview reads at most 64 KiB plus one sentinel byte through
+no-follow descriptors. Symlinks, special files, hardlinks, Git and auth
+directories, and known secret filenames are excluded. Invalid UTF-8 is
+unavailable. The view cannot edit, execute, verify or review.
+
+The workspace page shows each granted worker's latest filtered excerpt,
+observation age and recorded source, verification, review, acceptance,
+liveness and phase. Quiet, missing, unavailable and connection failures keep
+those names and do not become a summary or a completion claim. Choosing a
+worker opens a read-only Output panel; Files is a separate tab. Polling is
+GET-only, pauses while the tab is hidden, and backs off after a connection
+failure. Source text stays within one bounded page of 16,384 characters.
+File preview shows the returned API text literally, so a full observation
+under the 64 KiB bound is not shortened or labeled as complete by that page
+bound. Server file truncation is labeled at 64 KiB. A changed run or
+generation resets the page explicitly. A refused session refreshes the
+existing session and does not replay a launch, review or other action.
+
+Offline checks are `bridge/tests/progress_test.py`,
+`bridge/tests/progress_api_test.py`, `bridge/tests/worker_files_test.py`,
+`bridge/tests/server_test.py`, `node --check bridge/worker_console.js` and
+`bridge/tests/worker_console_browser.cjs`. The browser journey uses a mock
+engine and must not call a provider. `tests/unio-work-policy.py` and
+`tests/unio-work-policy-guard.py` are quality-gate entries owned on the
+policy branch; this branch does not run or edit them. Version remains 0.5.3.
+The real provider journey, the final whole release gate and publication are
+still separate.

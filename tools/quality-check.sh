@@ -12,7 +12,7 @@ QUALITY_CHECK_DIR=$(mktemp -d)
 trap 'rm -rf -- "$QUALITY_CHECK_DIR"' EXIT
 cd "$QUALITY_REPO"
 export UNIO_AUTO_VERIFY=0 UNIO_AUTO_OFF=0 UNIO_AUTO_SYNC=0
-for dependency in python3 shellcheck; do
+for dependency in python3 shellcheck node; do
   command -v "$dependency" >/dev/null || { echo "missing dependency: $dependency" >&2; exit 1; }
 done
 bash -n unio-install.sh
@@ -28,7 +28,11 @@ python3 tests/unio-opencode.py
 python3 -B tests/unio-prompt-transport.py
 python3 -B bridge/tests/progress_test.py
 python3 -B bridge/tests/progress_api_test.py
+python3 -B bridge/tests/worker_files_test.py
+node --check bridge/worker_console.js
 python3 -B bridge/tests/server_test.py
+python3 -B tests/unio-work-policy.py
+python3 -B tests/unio-work-policy-guard.py
 python3 -B bridge/tests/plan_store_test.py
 python3 -B bridge/tests/plan_api_test.py
 python3 -B bridge/tests/job_store_test.py

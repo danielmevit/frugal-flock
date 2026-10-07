@@ -1,0 +1,1 @@
+- Bound tracked-file Git listing to the confirmed worktree descriptor, a 2 second stdout deadline, and process-group reap. Show file preview text in full and label only real 64 KiB server truncation. No release: provider journey, full gate and publication remain separate.

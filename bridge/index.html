@@ -11,6 +11,7 @@
     <script defer src="activity.js"></script>
     <script defer src="drafts.js"></script>
     <script defer src="jobs.js"></script>
+    <script defer src="worker_console.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#workspace">Skip to workspace</a>
@@ -132,6 +133,36 @@
           </div>
         </section>
       </div>
+      <section id="worker-console" class="activity-section" hidden aria-labelledby="console-title">
+        <div class="activity-heading">
+          <div>
+            <p class="eyebrow">Worker observation</p>
+            <h2 id="console-title">Source output and files</h2>
+          </div>
+          <p id="console-status" role="status" aria-live="polite">Waiting for the local session.</p>
+        </div>
+        <p class="small">Filtered Source text and tracked worktree files are observations. They are not a summary, a completion proof, or a way to run commands.</p>
+        <div id="console-workers"></div>
+        <div id="console-panel" hidden>
+          <div class="console-tabs" role="tablist" aria-label="Worker observation">
+            <button id="console-tab-output" type="button" role="tab" aria-selected="true" aria-controls="console-output">Output</button>
+            <button id="console-tab-files" type="button" role="tab" aria-selected="false" aria-controls="console-files">Files</button>
+          </div>
+          <div id="console-output" role="tabpanel" aria-labelledby="console-tab-output">
+            <p id="console-meta" class="small"></p>
+            <pre id="console-text"></pre>
+            <div class="execution-actions">
+              <button id="console-older" type="button">Earlier page</button>
+              <button id="console-newer" type="button">Later page</button>
+            </div>
+          </div>
+          <div id="console-files" role="tabpanel" aria-labelledby="console-tab-files" hidden>
+            <p id="console-file-meta" class="small"></p>
+            <ul id="console-file-list"></ul>
+            <pre id="console-file-text"></pre>
+          </div>
+        </div>
+      </section>
       <section class="activity-section" aria-labelledby="tasks-title">
         <div class="activity-heading">
           <div>

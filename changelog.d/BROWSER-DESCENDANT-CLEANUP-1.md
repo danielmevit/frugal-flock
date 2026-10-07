@@ -1,0 +1,1 @@
+- Reap the owned Git listing process group on deadline, overflow, and error even after its leader has exited, so a descendant holding stdout cannot survive that files request. No release: provider journey, full gate and publication remain separate.
