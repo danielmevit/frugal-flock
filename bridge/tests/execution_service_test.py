@@ -424,6 +424,86 @@ class ExecutionServiceTests(unittest.TestCase):
         self.error('worker_unavailable', prepare)
         self.assertEqual(self.calls(), [])
 
+    def test_worker_observation_cost_and_fresh_head_branch(self):
+        original = self.instance._call
+        with patch.object(self.instance, '_call', wraps=original) as calls:
+            initial = self.instance._worker_revision()
+            self.assertLessEqual(calls.call_count, 4)  # formerly seven Git processes
+            self.assertTrue(all(call.args[0][0] == 'git' and call.args[1] == 15
+                                for call in calls.call_args_list))
+        (self.wt / 'source.txt').write_text('new head\n')
+        self.git(self.wt, 'add', 'source.txt'); self.git(self.wt, 'commit', '-qm', 'advance')
+        self.assertNotEqual(self.instance._worker_revision(), initial)
+        self.error('worker_unavailable', self.instance._worker_revision, clean=True)
+        self.git(self.wt, 'checkout', '--detach', '-q')
+        self.error('worker_unavailable', self.instance._worker_revision)
+        self.git(self.wt, 'checkout', '-qb', 'foreign')
+        self.error('worker_unavailable', self.instance._worker_revision)
+
+    def test_worker_observation_refuses_foreign_common_directory_and_unmerged_index(self):
+        foreign = self.workspace / 'foreign'
+        foreign.mkdir()
+        self.git(foreign, 'init', '-q', '-b', 'agent/mock-worker')
+        self.git(foreign, 'config', 'user.email', 'mock@invalid')
+        self.git(foreign, 'config', 'user.name', 'Mock')
+        (foreign / 'source.txt').write_text('foreign')
+        self.git(foreign, 'add', 'source.txt'); self.git(foreign, 'commit', '-qm', 'foreign')
+        git_file = self.wt / '.git'; original = git_file.read_bytes()
+        try:
+            git_file.write_text('gitdir: ' + str(foreign / '.git') + '\n')
+            self.error('worker_unavailable', self.instance._worker_revision)
+        finally:
+            git_file.write_bytes(original)
+        blob = self.git(self.wt, 'rev-parse', 'HEAD:source.txt')
+        subprocess.run(['git', '-C', str(self.wt), 'update-index', '--index-info'],
+                       input=f'0 {"0" * 40}\tsource.txt\n100644 {blob} 1\tsource.txt\n'.encode(),
+                       check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.error('worker_unavailable', self.instance._worker_revision)
+        self.assertEqual(self.calls(), [])
+
+    def test_batched_git_output_requires_unambiguous_framing(self):
+        original = self.instance._git
+        metadata = original(self.wt, 'rev-parse', '--path-format=absolute', '--git-common-dir',
+                            'HEAD^{commit}', '--symbolic-full-name', 'HEAD')
+        index = original(self.wt, 'ls-files', '--stage', '-v', '-z')
+        common, commit, branch, _ = metadata.split(b'\n')
+        invalid_metadata = [metadata.rstrip(b'\n'), metadata + b'extra\n',
+                            metadata.replace(commit, b'g' * 40),
+                            metadata.replace(branch, b'HEAD'),
+                            b'relative\n' + commit + b'\n' + branch + b'\n',
+                            common + b'\r\n' + commit + b'\n' + branch + b'\n',
+                            metadata.replace(branch, b'\xff')]
+        invalid_index = [index.rstrip(b'\0'), index + index, b'\0', b'H garbage\0',
+                         index.replace(b' 0\t', b' 2\t'), index.replace(b'H ', b'h '),
+                         index.replace(b'H ', b'S '), index.replace(b'100644', b'040000'),
+                         index.replace(b'\tsource.txt', b'\t'),
+                         index.replace(b'100644 ', b'100644 ' + b'g' * 40)]
+        for command, bad_outputs in (('rev-parse', invalid_metadata), ('ls-files', invalid_index)):
+            for raw in bad_outputs:
+                with self.subTest(command=command, raw=raw):
+                    def git(directory, *arguments):
+                        if directory == self.wt and arguments[0] == command:
+                            return raw
+                        return original(directory, *arguments)
+                    with patch.object(self.instance, '_git', side_effect=git):
+                        self.error('worker_unavailable', self.instance._worker_revision)
+
+    def test_batched_index_accepts_literal_unusual_paths_and_sparse_config_refuses_ambiguity(self):
+        for name in ('tab\tfile', 'line\nfile'):
+            (self.wt / name).write_text('literal')
+            self.git(self.wt, 'add', name)
+        self.instance._worker_revision()
+        original = self.instance._call
+        for code, raw in ((0, b'true\n'), (0, b'false\ntrue\n'), (0, b'false'),
+                          (1, b'false\n'), (2, b'')):
+            with self.subTest(code=code, raw=raw):
+                def call(argv, timeout):
+                    if 'config' in argv:
+                        return code, raw
+                    return original(argv, timeout)
+                with patch.object(self.instance, '_call', side_effect=call):
+                    self.error('worker_unavailable', self.instance._worker_revision)
+
     def test_initial_cleanliness_is_not_required_for_start_replay_or_reopen(self):
         _, view, approval, reservation = self.started()
         identity = view['job']['id']
@@ -789,6 +869,41 @@ class ExecutionServiceTests(unittest.TestCase):
         changed = copy.deepcopy(native); changed['current_revision']['worktree_sha256'] = 'f' * 64
         with patch.object(self.instance,'_native',side_effect=[(native,None),(changed,None)]):
             self.error('not_ready', self.instance.accept, identity,native['current_revision']['candidate_commit'],self.key())
+        self.assertEqual(self.instance.get(identity)['acceptance']['state'], 'pending')
+
+    def test_accept_refuses_readiness_and_all_revision_changes_between_fresh_reads(self):
+        _, view, _, _ = self.reviewed(); identity = view['job']['id']; native = view['native_result']
+        changes = [None, *sorted(service.REVISION_FIELDS)]
+        for field in changes:
+            latest = copy.deepcopy(native)
+            if field is None:
+                latest['ready_for_human_review'] = False
+            else:
+                latest['current_revision'][field] = ('f' if native['current_revision'][field][0] != 'f' else 'e') * len(
+                    native['current_revision'][field])
+            key = self.key()
+            with self.subTest(field=field), patch.object(self.instance, '_native',
+                    side_effect=[(native, None), (latest, None)]) as reads:
+                self.error('not_ready', self.instance.accept, identity,
+                           native['current_revision']['candidate_commit'], key)
+                self.assertEqual(reads.call_count, 2)
+            self.assertFalse((self.workspace / 'coord/ui-execution/actions' / (key + '.json')).exists())
+        self.assertEqual(self.instance.get(identity)['acceptance']['state'], 'pending')
+
+    def test_accept_rechecks_hidden_index_between_native_observations(self):
+        _, view, _, _ = self.reviewed(); identity = view['job']['id']
+        original = self.instance._native
+        def observe(binding):
+            result = original(binding)
+            self.git(self.wt, 'update-index', '--skip-worktree', 'source.txt')
+            return result
+        key = self.key()
+        with patch.object(self.instance, '_native', side_effect=observe) as reads:
+            self.error('worker_unavailable', self.instance.accept, identity,
+                       view['native_result']['current_revision']['candidate_commit'], key)
+            self.assertEqual(reads.call_count, 1)
+        self.assertFalse((self.workspace / 'coord/ui-execution/actions' / (key + '.json')).exists())
+        self.git(self.wt, 'update-index', '--no-skip-worktree', 'source.txt')
         self.assertEqual(self.instance.get(identity)['acceptance']['state'], 'pending')
 
     def test_cancel_replay_does_not_release_a_new_job(self):

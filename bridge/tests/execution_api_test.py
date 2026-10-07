@@ -6,9 +6,11 @@ import http.client
 import json
 import importlib.util
 from pathlib import Path
+import re
 import tempfile
 import threading
 import subprocess
+import time
 import unittest
 from unittest.mock import patch
 import uuid
@@ -269,6 +271,49 @@ class ExecutionAPITests(unittest.TestCase):
         job_id = job['job']['id']
         code, _, job = self.request('POST', f'/api/jobs/{job_id}/cancel', '{}', self.headers())
         self.assertEqual(code, 200)
+
+    def test_offline_http_journey_git_budget_preserves_fresh_observations(self):
+        # Run the unchanged real HTTP happy path, with its original assertions
+        # and 15s client deadline. Measure service subprocesses, not mock-engine
+        # internals; this is the same boundary as the preserved lead diagnostic.
+        events, rows, observations = [], [], []
+        original_call = self.execution._call
+        original_request = self.request
+        original_worker = self.execution._worker_revision
+        def call(argv, timeout):
+            begin = time.monotonic()
+            try:
+                return original_call(argv, timeout)
+            finally:
+                events.append((argv[0] == 'git', argv[1] == 'result', time.monotonic() - begin))
+        def worker(*args, **kwargs):
+            observations.append(True)
+            return original_worker(*args, **kwargs)
+        def request(method='GET', path='/api/session', body=None, headers=None):
+            start, seen, begin = len(events), len(observations), time.monotonic()
+            response = original_request(method, path, body, headers)
+            calls = events[start:]
+            rows.append(dict(method=method, route=re.sub(r'/[0-9a-f]{32}(?=/|$)', '/:id', path),
+                             elapsed_ms=round((time.monotonic() - begin) * 1000), status=response[0],
+                             subprocess_calls=len(calls), git_calls=sum(c[0] for c in calls),
+                             subprocess_time_ms=round(sum(c[2] for c in calls) * 1000),
+                             result_reads=sum(c[1] for c in calls),
+                             worker_observations=len(observations) - seen))
+            return response
+        with patch.object(self.execution, '_call', side_effect=call), \
+                patch.object(self.execution, '_worker_revision', side_effect=worker), \
+                patch.object(self, 'request', side_effect=request):
+            self.test_happy_request_mapping()
+        print('\nAPI Git budget evidence: ' + json.dumps(rows, sort_keys=True), flush=True)
+        budgets = dict(start=(25, 4), verify=(26, 5), review=(26, 5), accept=(25, 5))
+        for row in rows:
+            action = row['route'].rsplit('/', 1)[-1]
+            if action in budgets:
+                budget, fresh = budgets[action]
+                with self.subTest(action=action):
+                    self.assertLessEqual(row['subprocess_calls'], budget)
+                    self.assertEqual(row['worker_observations'], fresh)
+                    self.assertEqual(row['result_reads'], 1 if action == 'start' else 2)
 
     def test_stop_endpoint(self):
         code, _, draft = self.request('POST', '/api/plans', json.dumps({'request': 'foo3'}), self.headers())

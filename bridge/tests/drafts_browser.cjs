@@ -65,7 +65,7 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
         : {},
     );
     context = await browser.newContext({
-      viewport: { width: 1440, height: 1000 },
+      viewport: { width: 1440, height: 900 },
       reducedMotion: "reduce",
     });
     const page = await context.newPage();
@@ -85,6 +85,11 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     );
     const input = page.getByLabel("Describe the work to save");
     const save = page.getByRole("button", { name: "Save draft", exact: true });
+    assert.equal(await page.locator("#mode-label").textContent(), "Manual drafts");
+    assert.ok((await page.locator(".notice").textContent()).includes("no AI or worker starts"));
+    assert.equal(await page.locator("#execution-panel").isVisible(), false);
+    assert.equal(await page.locator("#reopen-job-form").isVisible(), false);
+    assert.equal(await page.locator("#workspace-empty").isVisible(), true);
     await save.click();
     assert.equal(posts, 0);
     await input.fill("   ");
@@ -95,7 +100,7 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
         .textContent.includes("Enter a request"),
     );
     assert.equal(posts, 0);
-    const literal = "<img src=x onerror=alert(1)> Café\n$ text only";
+    const literal = "<img src=x onerror=alert(1)> Café\n$ text only\n" + "long_literal_request_".repeat(100);
     await input.fill(literal);
     await page.evaluate(() => {
       document
@@ -132,6 +137,7 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     );
     assert.equal(posts, 1);
     assert.equal(await page.locator("#draft-text").textContent(), literal);
+    await page.locator("#reopen-details > summary").click();
     await page.getByLabel("Reopen a draft by ID").fill("a".repeat(32));
     await page
       .getByRole("button", { name: "Reopen draft", exact: true })
@@ -160,6 +166,11 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     assert.equal(posts, 2);
     assert.equal(records().length, 1);
     assert.equal(await input.inputValue(), "Preserve this new request");
+    assert.equal(await page.locator("#draft-status").getAttribute("role"), "status");
+    assert.equal(await page.locator("#draft-form").getAttribute("aria-busy"), "false");
+    await page.setViewportSize({width:390,height:844});
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.setViewportSize({width:1440,height:900});
     assert.equal(await save.isEnabled(), true);
     await page.route(
       origin + "/api/plans",
@@ -194,6 +205,12 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     );
+    await save.focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
+    assert.equal(await page.locator(":focus").getAttribute("id"), "save-draft");
+    assert.ok(await save.evaluate((el) => getComputedStyle(el).outlineStyle !== "none"));
+    assert.ok(await page.locator("#draft-text").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
     assert.deepEqual(failures, []);
     assert.ok(
       requests.every(
