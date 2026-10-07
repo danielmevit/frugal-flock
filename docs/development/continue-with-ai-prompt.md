@@ -17,8 +17,12 @@ funded AGY browser journey passed. The complete gate on e47d805 passed.
 A separate shipping upgrade check exposed old completion retention and deletion
 of aliases to unrelated targets. Gemini correction d13a98a passed frozen native
 checks and the original upgrade/rollback procedure; Root reviewed and integrated
-it. The final combined source still needs its full gate and exact public assets
-before publication and installation. Read the [version plan](../VERSION-PLAN.md)
+it. The subsequent combined gate exposed a timeout fixture measuring whole-command
+Git bookkeeping rather than actual provider lifetime. Its scoped correction
+remains under personal review: child observation must be mandatory and harness
+failure paths bounded. Preserve earlier passed checks and rejected candidates;
+none is a published0.5.3. The final accepted source still needs its full gate and
+exact public assets before publication and installation. Read the [version plan](../VERSION-PLAN.md)
 and current repository/release state before claiming delivery.
 
 Next is0.5.4: actual recovery saves first, then checkpoint continuation and

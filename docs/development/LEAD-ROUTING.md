@@ -138,3 +138,29 @@ not automatically enforce these routing choices, read pricing, escalate
 reasoning effort or expose a fleet-wide quota meter. Standalone installer
 packaging of the guides is part of shipping work; do not infer its completion
 from the presence of a repository document or a manual local guide update.
+
+## Owner routing preference — 2026-10-07
+
+Prefer Grok for nuanced reasoning, security and control logic, and tests that
+need precise lifecycle or failure analysis. Use current Gemini workers for
+bounded mechanical implementation with a clear contract and observable checks.
+Claude and Codex remain main implementation options when their accounts are
+available and the selected tier permits another workflow.
+
+This preference reflects the owner's assessment and Unio's recorded experience.
+Recent Gemini candidates passed focused checks but still needed lead corrections:
+the work-saving draft omitted required schema and restore rules, and a timeout
+fixture understated process lifetime and missed children after parent exit.
+Treat a successful worker exit and green checks as evidence to inspect; personally
+review the actual change before acceptance under the selected review policy.
+These runs do not establish a universal model ranking.
+
+Reassess Gemini when a newer model is actually available on the owner's route,
+using completed Unio tasks and observed defects. A version announcement alone
+does not change assignments. Record the exact model, effort, route and result.
+
+Availability still controls dispatch. Preserve exhausted-account failures;
+an explicit new owner assignment can authorize one fresh task attempt, without
+any paid fallback, account change or automatic retry. Low tier permits one
+independent workflow per shared account, so queue reasoning tasks behind an
+active Grok task. Free Zen workers keep their routine supporting role.

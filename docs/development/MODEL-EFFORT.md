@@ -23,7 +23,7 @@ overlooks a demonstrated security boundary, or struggles with a genuinely
 complex design. First give it the relevant evidence and a focused question.
 Missing context and an overly broad task often need a clearer assignment.
 
-Use the next **effective, supported** level. For Codex and Opus this can be
+Use the next **effective, supported** level. On supported Codex and Claude Code routes this can be
 high → xhigh → max. Other routes have different scales. Reserve max for an
 occasional, tightly scoped problem whose importance justifies extra tokens
 and time. Record the reason, scope, time limit and known allowance before
@@ -54,6 +54,7 @@ come from `opencode models opencode-go --verbose` and
 | Codex / `gpt-6.1-sol` | Model: low, medium, high, xhigh, max; CLI configuration `model_reasoning_effort` | high; medium for routine work | xhigh, then exceptional max. Do not infer ultra support from another model or client. |
 | Claude / `claude-opus-5-5` | low, medium, high, xhigh, max; installed Claude Code accepts `--effort` | high; medium for routine coordination or writing | xhigh, then exceptional max. The model's API default is medium; pin the chosen level explicitly. |
 | Antigravity / `gemini-3.1-pro-high`, `gemini-3.1-pro-low` | Native `agy models` exposes High and Low for Gemini 3.1 Pro | `gemini-3.1-pro-high --effort high` | High is the top exposed level. Match the low model with low only when deliberately chosen. Generic CLI medium/xhigh/max flags do not create Pro variants; high/xhigh was rejected before inference. |
+| Antigravity / `claude-opus-4-6-thinking` | Native catalog lists the Thinking model; `--effort high` was rejected before inference on2026-10-07 | Exact model default; omit `--effort` | Effective reasoning level remains Unknown. This route is separate from Claude Code Opus5.5 and does not expose its effort scale. |
 | Grok / `grok-4.7` | low, medium, high, xhigh; installed Grok Build uses `--reasoning-effort` / `--effort` | high; medium for routine work | xhigh is the highest documented level. No documented max on this model. |
 | GLM / `opencode-go/glm-5.3` | Installed variants: low, high, max; `reasoningEffort` | high, the middle of this scale | max only for a justified hard task. No medium/xhigh variant. Native Z.ai default is max, so pin high rather than omit it. |
 | DeepSeek / `opencode-go/deepseek-v4-pro` | Installed variants: high, max; `reasoningEffort` | high | Exceptional max. Direct DeepSeek also documents low, but this installed route does not expose a low variant. Direct API xhigh maps to high, so it is not an escalation. |
