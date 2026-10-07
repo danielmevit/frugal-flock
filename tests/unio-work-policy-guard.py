@@ -520,7 +520,9 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
                     f"identity: {ident}\nstdout:\n{out_stdout}\nstderr:\n{out_stderr}")
 
         def still_executing(record):
+            remaining()
             current = read_proc_identity(record['pid'])
+            remaining()
             # PID reuse proves the recorded process ended, but cannot serve
             # as the required initial live observation.
             return (current is not None and current['starttime'] == record['starttime']
@@ -531,10 +533,14 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
             # our session, even after the Popen session leader has exited.
             cleanup_deadline = time.monotonic() + 3
             groups = {proc.pid}
-            for record in ([ident] if ident else []) + recorded_children:
-                current = read_proc_identity(record['pid'])
-                if (current and current['starttime'] == record['starttime']
-                        and current['sid'] == proc.pid):
+            # Include owned groups even if startup never published identity.
+            for entry in Path('/proc').iterdir():
+                if time.monotonic() >= cleanup_deadline:
+                    break
+                if not entry.name.isdigit():
+                    continue
+                current = read_proc_identity(int(entry.name))
+                if current and current['sid'] == proc.pid:
                     groups.add(current['pgid'])
             for group in groups:
                 try:
@@ -589,19 +595,20 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
 
             out_stdout, out_stderr = proc.communicate(timeout=remaining())
             t1_wall = time.monotonic()
+            remaining()
+            duration = t_end - t_start
+            out_msg = timing_output()
+            check('harness execution within 40s', t1_wall - t0_wall <= HARNESS_DEADLINE_SECS, out_msg)
+            check('timeout enforced', proc.returncode in (124, 137) and 0 <= duration <= 9, out_msg)
+            check('delayed fixture bookkeeping exceeds old assertion', t1_wall - t0_wall > 15, out_msg)
+            leftover_children = [c for c in recorded_children if still_executing(c)]
+            check('no leftover live mock child',
+                  not still_executing(ident) and not leftover_children,
+                  out_msg + f"\nleftover: {leftover_children}")
         except (subprocess.TimeoutExpired, TimeoutError):
             out_stdout, out_stderr = cleanup_timeout()
             check('harness execution deadline', False, timing_output())
 
-        duration = t_end - t_start
-        out_msg = timing_output()
-        check('harness execution within 40s', t1_wall - t0_wall <= HARNESS_DEADLINE_SECS, out_msg)
-        check('timeout enforced', proc.returncode in (124, 137) and 0 <= duration <= 9, out_msg)
-        check('delayed fixture bookkeeping exceeds old assertion', t1_wall - t0_wall > 15, out_msg)
-        leftover_children = [c for c in recorded_children if still_executing(c)]
-        check('no leftover live mock child',
-              not still_executing(ident) and not leftover_children,
-              out_msg + f"\nleftover: {leftover_children}")
         print(f"  lifecycle: {duration:.2f}s, wall: {t1_wall-t0_wall:.2f}s, exit: {proc.returncode}")
 
         del env['UNIO_TIMEOUT']
