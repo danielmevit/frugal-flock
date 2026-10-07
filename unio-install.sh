@@ -1416,7 +1416,7 @@ QUALITY_PY
 policy() {
   command -v python3 >/dev/null || die "Python 3 is required before mode/tier/lead/account/policy"
   python3 - "$@" <<'POLICY_PY'
-import datetime, fcntl, json, os, re, stat, sys, tempfile
+import datetime, fcntl, json, os, re, signal, stat, sys, tempfile
 
 MAX_STATE = 65536
 MAX_SLOT_META = 4096
@@ -2140,7 +2140,12 @@ def main(argv):
         check_label(task, 'admit task')
         if kind not in ('run', 'review'):
             fail('unknown admission kind: ' + kind)
-            
+        # Fail closed. Tests use this to prove a partial reply cannot admit.
+        if os.environ.get('UNIO_POLICY_ADMIT_PARTIAL') == '1':
+            sys.stdout.write('grp\n')
+            sys.stdout.flush()
+            sys.exit(0)
+
         fd_lock = open_policy_lock(root)
         try:
             doc = read_state_nolock(root)
@@ -2249,23 +2254,87 @@ def main(argv):
                 fcntl.flock(fd_lock, fcntl.LOCK_UN)
             finally:
                 os.close(fd_lock)
-                
+
+        # The transaction lock is already released. This process alone keeps
+        # the slot visible and locked until the parent asks it to release.
+        released = False
+
+        def release_held():
+            nonlocal released
+            if released:
+                return
+            released = True
+            try:
+                if os.path.islink(tmp_slot):
+                    return
+                try:
+                    st_path = os.lstat(tmp_slot)
+                except OSError:
+                    return
+                if not stat.S_ISREG(st_path.st_mode) or st_path.st_nlink != 1:
+                    return
+                st_fd = os.fstat(fd_slot)
+                if st_fd.st_ino != st_path.st_ino or st_fd.st_dev != st_path.st_dev:
+                    return
+                base = os.path.join(root, 'coord', '.locks', 'work-policy-slots')
+                real_base = os.path.realpath(base) if os.path.exists(base) else base
+                real_slot = os.path.realpath(tmp_slot)
+                try:
+                    if os.path.commonpath([real_slot, real_base]) != real_base:
+                        return
+                except ValueError:
+                    return
+                try:
+                    os.unlink(tmp_slot)
+                except FileNotFoundError:
+                    pass
+            finally:
+                try:
+                    os.close(fd_slot)
+                except OSError:
+                    pass
+
+        def on_signal(signum, _frame):
+            release_held()
+            try:
+                sys.stdout.write('RELEASED\n')
+                sys.stdout.flush()
+            except Exception:
+                pass
+            raise SystemExit(128 + int(signum))
+
         try:
-            fd_in = os.open(in_fifo, os.O_RDONLY | os.O_NONBLOCK)
-            flags = fcntl.fcntl(fd_in, fcntl.F_GETFL)
-            fcntl.fcntl(fd_in, fcntl.F_SETFL, flags & ~os.O_NONBLOCK)
-        except OSError as e:
-            fail('cannot open in_fifo: ' + str(e))
-        
-        sys.stdout.write(group + '\n')
-        sys.stdout.write(tmp_slot + '\n')
-        sys.stdout.write(effective_path + '\n')
-        sys.stdout.flush()
-        
-        try:
-            os.read(fd_in, 1)
-        except OSError:
-            pass
+            signal.signal(signal.SIGTERM, on_signal)
+            signal.signal(signal.SIGINT, on_signal)
+            ipc_dir = os.path.dirname(in_fifo)
+            st_dir = os.lstat(ipc_dir)
+            if (not stat.S_ISDIR(st_dir.st_mode) or stat.S_ISLNK(st_dir.st_mode)
+                    or stat.S_IMODE(st_dir.st_mode) != 0o700
+                    or st_dir.st_uid != os.getuid()):
+                fail('refusing unsafe admission ipc directory (left unchanged): ' + ipc_dir)
+            fd_in = os.open(in_fifo, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+            try:
+                if not stat.S_ISFIFO(os.fstat(fd_in).st_mode):
+                    fail('refusing unsafe admission ipc endpoint (not a fifo): ' + in_fifo)
+                flags = fcntl.fcntl(fd_in, fcntl.F_GETFL)
+                fcntl.fcntl(fd_in, fcntl.F_SETFL, flags & ~os.O_NONBLOCK)
+            except BaseException:
+                try:
+                    os.close(fd_in)
+                except OSError:
+                    pass
+                raise
+            sys.stdout.write('%s\n%s\n%s\n%s\nCOMPLETE\n' % (
+                os.getpid(), group, tmp_slot, effective_path))
+            sys.stdout.flush()
+            request = os.fdopen(fd_in, 'r', closefd=True).readline()
+            if request not in ('RELEASE\n', ''):
+                pass
+            release_held()
+            sys.stdout.write('RELEASED\n')
+            sys.stdout.flush()
+        finally:
+            release_held()
         sys.exit(0)
     else:
         fail('unknown policy command: ' + cmd)
@@ -2282,12 +2351,14 @@ host_warning() {
 # Native workflow guard (bash side). Admission resolves the provider's
 # budget group (accounts mapping, otherwise the agent name) and creates one
 # kernel-locked slot under coord/.locks/work-policy-slots/<group>/ while the
-# shared policy transaction lock is held. The policy lock is released before
-# any provider starts; the slot lock (fd 10) is held across the provider run
-# and released right after it finishes. Liveness comes from the kernel lock:
-# an unlocked slot file is a dead holder and is swept on the next admission.
-# Machine verification never counts as a workflow; internal helpers on one
-# assignment are not extra independent assignments.
+# shared policy transaction lock is held. That lock is released before any
+# provider starts. One already-open pipe carries a bounded COMPLETE handshake;
+# a private 0700 directory holds the release fifo. The holder process keeps
+# the slot locked until it acknowledges release, sees EOF, or exits. The slot
+# file is removed only after that release. Provider children do not inherit
+# the control descriptors or the worker lock. An unlocked slot file is a dead
+# holder and is swept on the next admission. Machine verification never counts
+# as a workflow; internal helpers on one assignment are not extra assignments.
 policy_refuse_report() { # $1=root $2=worker $3=task $4=kind $5=agent $6=reason
   local root="$1" worker="$2" task="$3" kind="$4" agent="$5" reason="$6"
   local report="$root/coord/reports/$task.md"
@@ -2302,63 +2373,332 @@ policy_refuse_report() { # $1=root $2=worker $3=task $4=kind $5=agent $6=reason
   printf 'unio: budget refused (%s %s/%s): %s\n' "$kind" "$worker" "$task" "$(printf '%s' "$reason" | head -1)" >&2
 }
 
+policy_text_label() { # $1=label; same rejection rules as the policy checker
+  local v="$1"
+  [ -n "$v" ] || return 1
+  case "$v" in
+    .|..|-*) return 1;;
+    *..*|*'/'*|*\\*|*[[:space:]]*|*[[:cntrl:]]*) return 1;;
+  esac
+  return 0
+}
+
+policy_dir_private() { # $1=directory; owner-only 0700, not a symlink
+  local dir="$1" mode="" owner=""
+  [ -n "$dir" ] && [ ! -L "$dir" ] && [ -d "$dir" ] || return 1
+  mode=$(stat -c %a -- "$dir" 2>/dev/null || true)
+  owner=$(stat -c %u -- "$dir" 2>/dev/null || true)
+  [ "$mode" = "700" ] && [ "$owner" = "$(id -u)" ]
+}
+
+policy_ppid() {
+  awk '/^PPid:/ {print $2; exit}' "/proc/$1/status" 2>/dev/null || true
+}
+
+policy_pgid() {
+  [ -r "/proc/$1/stat" ] || return 0
+  awk '{
+    rest = $0
+    sub(/^[^)]*\) /, "", rest)
+    split(rest, f, " ")
+    print f[3]
+  }' "/proc/$1/stat" 2>/dev/null || true
+}
+
+policy_holder_owns_slot() { # $1=pid $2=slot path; exact child fd, not a process scan
+  local pid="$1" slot="$2" fd target
+  [ -d "/proc/$pid/fd" ] || return 1
+  for fd in /proc/"$pid"/fd/*; do
+    [ -e "$fd" ] || continue
+    target=$(readlink -- "$fd" 2>/dev/null || true)
+    [ "$target" = "$slot" ] && return 0
+  done
+  return 1
+}
+
+policy_close_admission_fds() {
+  if [ -n "${POLICY_RD:-}" ]; then
+    case "$POLICY_RD" in
+      ''|*[!0-9]*|0|1|2) ;;
+      *) exec {POLICY_RD}>&- 2>/dev/null || true;;
+    esac
+    POLICY_RD=""
+  fi
+  if [ -n "${POLICY_WR:-}" ]; then
+    case "$POLICY_WR" in
+      ''|*[!0-9]*|0|1|2) ;;
+      *) exec {POLICY_WR}>&- 2>/dev/null || true;;
+    esac
+    POLICY_WR=""
+  fi
+  if [ -n "${POLICY_IN:-}" ]; then
+    case "$POLICY_IN" in
+      ''|*[!0-9]*|0|1|2) ;;
+      *) exec {POLICY_IN}>&- 2>/dev/null || true;;
+    esac
+    POLICY_IN=""
+  fi
+}
+
+policy_ipc_remove() { # $1=root — only a confirmed private directory we created
+  local root="$1" dir="${POLICY_IPC:-}"
+  [ -n "$dir" ] || return 0
+  case "$dir" in
+    "$root/coord/.locks/.ipc-"*) ;;
+    *) return 0;;
+  esac
+  policy_dir_private "$dir" || return 0
+  rm -rf -- "$dir"
+  POLICY_IPC=""
+}
+
+policy_broker_reason() { # $1=err file
+  local err="$1" owner="" mode="" text=""
+  [ -n "$err" ] && [ ! -L "$err" ] && [ -f "$err" ] || return 0
+  owner=$(stat -c %u -- "$err" 2>/dev/null || true)
+  mode=$(stat -c %a -- "$err" 2>/dev/null || true)
+  [ "$owner" = "$(id -u)" ] && [ "$mode" = "600" ] || return 0
+  text=$(head -n 3 -- "$err" 2>/dev/null || true)
+  [ -n "$text" ] || return 0
+  printf '%s\n' "$text"
+}
+
+policy_reap_holder() { # kill only the owned holder group, then its exact pids
+  local wrapper="${POLICY_PID:-}" holder="${POLICY_HOLDER_PID:-}" pgid="" n=0
+  [ -n "$wrapper" ] || return 0
+  pgid=$(policy_pgid "$wrapper")
+  if [ -n "$pgid" ] && [ "$pgid" = "$wrapper" ]; then
+    kill -TERM -- "-$wrapper" 2>/dev/null || true
+    while [ "$n" -lt 10 ]; do
+      kill -0 -- "-$wrapper" 2>/dev/null || break
+      n=$((n + 1))
+      sleep 0.1
+    done
+    kill -KILL -- "-$wrapper" 2>/dev/null || true
+  else
+    if [ -n "$holder" ] && [ "$(policy_ppid "$holder")" = "$wrapper" ]; then
+      kill -TERM -- "$holder" 2>/dev/null || true
+    fi
+    kill -TERM -- "$wrapper" 2>/dev/null || true
+    sleep 0.2
+    if [ -n "$holder" ] && [ "$(policy_ppid "$holder")" = "$wrapper" ]; then
+      kill -KILL -- "$holder" 2>/dev/null || true
+    fi
+    kill -KILL -- "$wrapper" 2>/dev/null || true
+  fi
+  wait "$wrapper" 2>/dev/null || true
+  if kill -0 -- "$wrapper" 2>/dev/null; then
+    return 1
+  fi
+  POLICY_PID=""
+  POLICY_HOLDER_PID=""
+  return 0
+}
+
+policy_unlink_dead_slot() { # $1=root $2=slot; holder must already be dead
+  local root="$1" slot="$2" links=""
+  [ -n "$root" ] && [ -n "$slot" ] || return 0
+  case "$slot" in
+    "$root/coord/.locks/work-policy-slots/"*) ;;
+    *) return 0;;
+  esac
+  [ -L "$slot" ] && return 0
+  [ -f "$slot" ] || return 0
+  links=$(stat -c %h -- "$slot" 2>/dev/null || echo "")
+  [ "$links" = "1" ] || return 0
+  policy "$root" _slot_release "$slot" >/dev/null 2>&1 || true
+}
+
+policy_fail_admission() { # $1=root $2=worker $3=task $4=kind $5=agent $6=reason
+  local root="$1" worker="$2" task="$3" kind="$4" agent="$5" reason="$6"
+  policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" "$reason"
+  policy_reap_holder || true
+  policy_close_admission_fds
+  policy_ipc_remove "$root"
+  POLICY_SLOT=""
+  POLICY_EFFECTIVE=""
+  POLICY_GROUP=""
+  POLICY_PID=""
+  POLICY_HOLDER_PID=""
+}
+
 policy_admit_hold() { # $1=root $2=agent $3=worker $4=task $5=kind $6=origfile
   local root="$1" agent="$2" worker="$3" task="$4" kind="$5" orig="$6"
   POLICY_SLOT=""; POLICY_EFFECTIVE=""; POLICY_GROUP=""; POLICY_PID=""
+  POLICY_HOLDER_PID=""; POLICY_RD=""; POLICY_WR=""; POLICY_IN=""; POLICY_IPC=""
   local lock="$root/coord/.locks/work-policy.lock"
   if [ -L "$root/coord" ] || [ -L "$root/coord/.locks" ] || [ -L "$lock" ]; then
     policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" \
       "unio: refusing unsafe policy lock path (symlink, left unchanged): $lock"
     return 2
   fi
-  mkdir -p "$root/coord/.locks"
-  local ipc_dir
-  ipc_dir=$(mktemp -d "$root/coord/.locks/.ipc-XXXXXXXX") || return 2
-  chmod 0700 "$ipc_dir"
-  local in_fifo="$ipc_dir/in"
-  local out_fifo="$ipc_dir/out"
-  local err="$ipc_dir/err"
-  mkfifo "$in_fifo" "$out_fifo" || { rm -rf "$ipc_dir"; return 2; }
-  
-  exec 8<> "$in_fifo"
-  
-  # Ensure the background subshell closes FD 8 so it doesn't hold the writer!
-  policy "$root" _admit_hold "$agent" "$worker" "$task" "$kind" "$orig" "$in_fifo" >"$out_fifo" 2>"$err" 8>&- &
-  POLICY_PID=$!
-  
-  local group slot effective
-  if ! read -t 5 -r group < "$out_fifo" || [ -z "$group" ]; then
-    local reason; reason=$(head -3 "$err" 2>/dev/null || echo "budget refused")
-    policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" "$reason"
-    exec 8>&-
-    kill "$POLICY_PID" 2>/dev/null
-    wait "$POLICY_PID" 2>/dev/null
-    rm -rf "$ipc_dir"
-    POLICY_PID=""
+  mkdir -p -- "$root/coord/.locks"
+  local ipc_dir=""
+  ipc_dir=$(mktemp -d -- "$root/coord/.locks/.ipc-XXXXXXXX") || {
+    policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" \
+      "unio: cannot create a private admission directory"
+    return 2
+  }
+  POLICY_IPC="$ipc_dir"
+  chmod 0700 -- "$ipc_dir" || { policy_fail_admission "$root" "$worker" "$task" "$kind" "$agent" "unio: cannot protect the admission directory"; return 2; }
+  if ! policy_dir_private "$ipc_dir"; then
+    policy_fail_admission "$root" "$worker" "$task" "$kind" "$agent" \
+      "unio: refusing an admission directory that is not private (mode 0700)"
     return 2
   fi
-  read -t 5 -r slot < "$out_fifo"
-  read -t 5 -r effective < "$out_fifo"
-  rm -rf "$ipc_dir"
-  
-  POLICY_SLOT="$slot"; POLICY_GROUP="$group"; POLICY_EFFECTIVE="$effective"
+  local in_fifo="$ipc_dir/in" err="$ipc_dir/err"
+  ( umask 077; mkfifo -- "$in_fifo" && : >"$err" ) || {
+    policy_fail_admission "$root" "$worker" "$task" "$kind" "$agent" \
+      "unio: cannot create private admission endpoints"
+    return 2
+  }
+  if [ -L "$in_fifo" ] || [ ! -p "$in_fifo" ] || [ -L "$err" ] || [ ! -f "$err" ]; then
+    policy_fail_admission "$root" "$worker" "$task" "$kind" "$agent" \
+      "unio: refusing an unsafe admission endpoint"
+    return 2
+  fi
+  # One duplex open. Later reads use the coproc pipe, never a second FIFO open.
+  exec {POLICY_IN}<>"$in_fifo" || {
+    policy_fail_admission "$root" "$worker" "$task" "$kind" "$agent" \
+      "unio: cannot open the admission release endpoint"
+    return 2
+  }
+  local had_monitor=0 deadline=0
+  case $- in *m*) had_monitor=1;; esac
+  deadline=$((SECONDS + 5))
+  set -m
+  coproc POLICY_HELD {
+    exec {POLICY_IN}>&- 9>&-
+    policy "$root" _admit_hold "$agent" "$worker" "$task" "$kind" "$orig" "$in_fifo" 2>"$err"
+  }
+  [ "$had_monitor" = 1 ] || set +m
+  POLICY_PID=${POLICY_HELD_PID:-}
+  if [ -n "${POLICY_HELD_PID:-}" ]; then
+    POLICY_RD=${POLICY_HELD[0]}
+    POLICY_WR=${POLICY_HELD[1]}
+  fi
+  if [ -z "${POLICY_PID:-}" ] || [ -z "${POLICY_RD:-}" ] || [ -z "${POLICY_WR:-}" ]; then
+    policy_fail_admission "$root" "$worker" "$task" "$kind" "$agent" \
+      "unio: admission holder did not start"
+    return 2
+  fi
+  local -a reply=()
+  local line="" remain=0
+  while [ "${#reply[@]}" -lt 5 ]; do
+    remain=$((deadline - SECONDS))
+    if [ "$remain" -le 0 ]; then
+      break
+    fi
+    if ! IFS= read -r -t "$remain" -u "$POLICY_RD" line; then
+      break
+    fi
+    reply+=("$line")
+  done
+  local why="" broker=""
+  broker=$(policy_broker_reason "$err" || true)
+  if [ "${#reply[@]}" -ne 5 ] || [ "${reply[4]:-}" != "COMPLETE" ]; then
+    if [ -n "$broker" ]; then
+      why="$broker"
+    else
+      why="admission handshake failed (timeout, EOF, or partial reply; no provider started)"
+    fi
+    policy_fail_admission "$root" "$worker" "$task" "$kind" "$agent" "$why"
+    return 2
+  fi
+  local pid_line="${reply[0]}" group="${reply[1]}" slot="${reply[2]}" effective="${reply[3]}"
+  local slot_dir="" slot_rel="" owned=0
+  if ! policy_text_label "$group"; then
+    why="admission reply has an invalid budget group"
+  elif [ "$effective" != "$root/coord/reports/$task.prompt.md" ] \
+    || [ -L "$effective" ] || [ ! -f "$effective" ]; then
+    why="admission reply has an unexpected effective prompt"
+  else
+    slot_dir="$root/coord/.locks/work-policy-slots/$group"
+    slot_rel="${slot#"$slot_dir"/}"
+    case "$slot_rel" in
+      wpslot-*.json)
+        case "$slot_rel" in
+          */*) why="admission reply names a slot outside its group";;
+        esac
+        ;;
+      *) why="admission reply names a slot outside its group";;
+    esac
+    if [ -z "$why" ]; then
+      if [ "$slot" != "$slot_dir/$slot_rel" ] || [ -L "$slot" ] || [ ! -f "$slot" ]; then
+        why="admission reply names a slot that is not a regular file"
+      elif ! case "$pid_line" in
+        ''|*[!0-9]*|0*) false;;
+        *) [ "${#pid_line}" -le 10 ];;
+      esac; then
+        why="admission reply has an invalid holder id"
+      elif [ "$(policy_ppid "$pid_line")" != "$POLICY_PID" ] \
+        || [ "$(policy_pgid "$pid_line")" != "$POLICY_PID" ] \
+        || [ "$(policy_pgid "$POLICY_PID")" != "$POLICY_PID" ]; then
+        why="admission holder is not the owned child of this run"
+      elif ! policy_holder_owns_slot "$pid_line" "$slot"; then
+        why="admission holder does not hold the named slot"
+      elif ! kill -0 -- "$pid_line" 2>/dev/null || ! kill -0 -- "$POLICY_PID" 2>/dev/null; then
+        why="admission holder exited before admission completed"
+      else
+        owned=1
+      fi
+    fi
+  fi
+  if [ "$owned" != 1 ]; then
+    [ -n "$why" ] || why="admission handshake was rejected"
+    policy_fail_admission "$root" "$worker" "$task" "$kind" "$agent" "$why"
+    return 2
+  fi
+  POLICY_HOLDER_PID="$pid_line"
+  POLICY_GROUP="$group"
+  POLICY_SLOT="$slot"
+  POLICY_EFFECTIVE="$effective"
   return 0
 }
 
-policy_release_slot() { # $1=root — close the slot lock, then remove the file
-  if [ -n "${POLICY_SLOT:-}" ]; then
-    if [ -n "${POLICY_PID:-}" ]; then
-      exec 8>&- 2>/dev/null || true
-      kill "$POLICY_PID" 2>/dev/null || true
-      wait "$POLICY_PID" 2>/dev/null || true
-      POLICY_PID=""
-    fi
-    exec 10>&- 2>/dev/null || true
-    case "$POLICY_SLOT" in
-      "$1/coord/.locks/work-policy-slots/"*) rm -f "$POLICY_SLOT" 2>/dev/null || true;;
-    esac
-    POLICY_SLOT=""
+policy_release_slot() { # $1=root — ask the holder to unlock and remove the slot
+  local root="${1:-}"
+  if [ "${POLICY_RELEASING:-0}" = 1 ]; then
+    return 0
   fi
+  POLICY_RELEASING=1
+  if [ -z "${POLICY_SLOT:-}${POLICY_PID:-}" ]; then
+    policy_close_admission_fds
+    POLICY_RELEASING=0
+    return 0
+  fi
+  local slot="${POLICY_SLOT:-}" can_unlink=1 ack="" n=0
+  if [ -n "${POLICY_IN:-}" ]; then
+    printf 'RELEASE\n' >&"${POLICY_IN}" 2>/dev/null || true
+  fi
+  if [ -n "${POLICY_RD:-}" ]; then
+    IFS= read -r -t 5 -u "$POLICY_RD" ack || ack=""
+  fi
+  if [ "$ack" = "RELEASED" ] && [ -n "${POLICY_PID:-}" ]; then
+    while [ "$n" -lt 20 ]; do
+      kill -0 -- "$POLICY_PID" 2>/dev/null || break
+      n=$((n + 1))
+      sleep 0.05
+    done
+  fi
+  if { [ -n "${POLICY_HOLDER_PID:-}" ] && kill -0 -- "$POLICY_HOLDER_PID" 2>/dev/null; } \
+    || { [ -n "${POLICY_PID:-}" ] && kill -0 -- "$POLICY_PID" 2>/dev/null; }; then
+    policy_reap_holder || can_unlink=0
+  elif [ -n "${POLICY_PID:-}" ]; then
+    wait "$POLICY_PID" 2>/dev/null || true
+    POLICY_PID=""
+    POLICY_HOLDER_PID=""
+  fi
+  if [ "$can_unlink" = 1 ] && [ -n "$slot" ]; then
+    policy_unlink_dead_slot "$root" "$slot"
+  fi
+  policy_close_admission_fds
+  policy_ipc_remove "$root"
+  POLICY_SLOT=""
+  POLICY_PID=""
+  POLICY_HOLDER_PID=""
+  POLICY_RELEASING=0
+  return 0
 }
 
 # Worker and task ids address files under wt/ and coord/; keep them simple
@@ -2807,6 +3147,12 @@ cmd_run() {
     trap "rm -f -- '$pidfile'; policy_release_slot '$root'" EXIT
     trap 'exit 143' TERM
     trap 'exit 130' INT
+  else
+    # Foreground Source must release the holder on signal and exit, not only
+    # a background pidfile trap.
+    trap "policy_release_slot '$root'" EXIT
+    trap 'exit 143' TERM
+    trap 'exit 130' INT
   fi
 
   # a run killed mid-commit can leave git's index.lock behind — clear it
@@ -2846,7 +3192,12 @@ cmd_run() {
   # before any structured start is recorded or any provider command runs.
   POLICY_SLOT=""; POLICY_EFFECTIVE=""; POLICY_GROUP=""
   policy_admit_hold "$root" "$agent" "$worker" "$task" run "$tf" || return 2
-  quality update "$root" "$worker" "$task" start "$revision_before" || { policy_release_slot "$root"; return $?; }
+  local start_rc=0
+  quality update "$root" "$worker" "$task" start "$revision_before" || start_rc=$?
+  if [ "$start_rc" -ne 0 ]; then
+    policy_release_slot "$root" || true
+    return "$start_rc"
+  fi
   echo "[$worker <- $agent] running task '$task' (timeout ${TIMEOUT}s), log: $log"
   ledger_add "$root" "$(printf '{"event":"run_start","ts":"%s","task":"%s","worker":"%s","agent":"%s"}' "$(date -Is)" "$task" "$worker" "$agent")"
   export TASKFILE="$POLICY_EFFECTIVE"
@@ -2858,7 +3209,10 @@ cmd_run() {
   # headless workers must not read stdin — an agent that does (e.g. codex)
   # would otherwise consume whatever the caller left on stdin and hang/misfire
   # --kill-after bounds a TERM-ignoring provider: TERM first, KILL 5s later.
-  ( cd "$wt" && timeout --kill-after=5s "$TIMEOUT" bash -c "$cmdline" </dev/null ) > "$log" 2>&1 || rc=$?
+  # Drop the release pipe, admission pipe, and worker lock in the provider.
+  # A child that inherits the writer keeps the holder from seeing EOF.
+  ( cd "$wt" && timeout --kill-after=5s "$TIMEOUT" bash -c "$cmdline" </dev/null ) \
+    >"$log" 2>&1 9>&- {POLICY_IN}>&- {POLICY_RD}>&- {POLICY_WR}>&- || rc=$?
   # The reservation ends with the provider invocation: release before the
   # post-run receipts so the next admission can reuse the group.
   policy_release_slot "$root"
@@ -3303,12 +3657,16 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
   # reviewer's budget group. Admit before the reviewer provider starts; a
   # refusal records an unknown review and preserves a rejection report.
   POLICY_SLOT=""; POLICY_EFFECTIVE=""; POLICY_GROUP=""
+  trap "policy_release_slot '$root'" EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   if ! policy_admit_hold "$root" "$reviewer" "$reviewer" "$task" review "$pf"; then
     quality update "$root" "$worker" "$task" review "$before" unknown "$reviewer" "" no budget_refused || { rm -rf "$nd"; return 2; }
     rm -rf "$nd"; return 2
   fi
   echo "[review] $reviewer reviewing $worker's '$task' (timeout ${UNIO_REVIEW_TIMEOUT:-900}s)"
-  ( cd "$nd" && TASKFILE="$POLICY_EFFECTIVE" UNIO_ORIGINAL_TASKFILE="$pf" timeout --kill-after=5s "${UNIO_REVIEW_TIMEOUT:-900}" bash -c "$rcmd" </dev/null ) > "$stdout" 2> "$stderr" || rc=$?
+  ( cd "$nd" && TASKFILE="$POLICY_EFFECTIVE" UNIO_ORIGINAL_TASKFILE="$pf" timeout --kill-after=5s "${UNIO_REVIEW_TIMEOUT:-900}" bash -c "$rcmd" </dev/null ) \
+    >"$stdout" 2>"$stderr" 9>&- {POLICY_IN}>&- {POLICY_RD}>&- {POLICY_WR}>&- || rc=$?
   policy_release_slot "$root"
   cat "$stdout"
   state=$(quality verdict "$stdout") || state=unknown

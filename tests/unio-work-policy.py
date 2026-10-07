@@ -10,14 +10,17 @@
 Mock-only. Installs under a temporary directory, drives a mock project
 whose path contains spaces, and exercises defaults, every enum switch,
 persistence, lead/account grouping, invalid arguments, malformed/unsafe/
-oversized state, preserved custom roles and the packaged guide. No real
-provider is called: `unio run` is never invoked.
+oversized state, preserved custom roles and the packaged guide. Provider
+commands are mock scripts; no funded provider is called.
 """
+import fcntl
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 source = Path(__file__).resolve().parent.parent
@@ -56,7 +59,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-') as directory:
 
     def unio(*args, cwd=None):
         return subprocess.run([at, *args], cwd=cwd or repo, env=env,
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, timeout=40)
 
     git('init', '-q', '-b', 'main')
     (repo / 'seed.txt').write_text('seed\n')
@@ -230,7 +233,10 @@ with tempfile.TemporaryDirectory(prefix='work-policy-') as directory:
     # mock regressions
     conf_dir = base / 'conf' / 'agents.conf'
     mock_success = repo / 'mock_success.sh'
-    mock_success.write_text("#!/bin/bash\nexit 0\n")
+    mock_success.write_text(
+        "#!/bin/bash\n"
+        "if [ -n \"${MOCK_MARKER:-}\" ]; then printf 'ran\\n' >> \"$MOCK_MARKER\"; fi\n"
+        "exit 0\n")
     mock_success.chmod(0o755)
     mock_fail = repo / 'mock_fail.sh'
     mock_fail.write_text("#!/bin/bash\nexit 1\n")
@@ -269,5 +275,131 @@ with tempfile.TemporaryDirectory(prefix='work-policy-') as directory:
     out_t = unio('run', 'mock_timeout', 'task_t')
     check('provider timeout enforced and released', out_t.returncode != 0)
     del env['UNIO_TIMEOUT']
+
+    def locked_slots():
+        base = root / 'coord' / '.locks' / 'work-policy-slots'
+        held = []
+        if not base.is_dir():
+            return held
+        for slot in base.rglob('wpslot-*.json'):
+            if slot.is_symlink():
+                continue
+            fd = os.open(slot, os.O_RDONLY)
+            try:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    held.append(slot)
+                else:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+            finally:
+                os.close(fd)
+        return held
+
+    def descendants(pid):
+        found = []
+        try:
+            raw = Path('/proc/%s/task/%s/children' % (pid, pid)).read_text().split()
+        except OSError:
+            return found
+        for tok in raw:
+            if tok.isdigit():
+                child = int(tok)
+                found.append(child)
+                found.extend(descendants(child))
+        return found
+
+    marker = repo / 'provider-marker'
+    marker.unlink(missing_ok=True)
+    env['MOCK_MARKER'] = str(marker)
+    env['UNIO_POLICY_ADMIT_PARTIAL'] = '1'
+    (root / 'coord' / 'tasks' / 'task_p.md').write_text('partial\n')
+    started = time.monotonic()
+    out_p = unio('run', 'mock_success', 'task_p')
+    partial_elapsed = time.monotonic() - started
+    check('partial broker reply refuses before any provider',
+          out_p.returncode == 2 and partial_elapsed < 12 and not marker.exists()
+          and locked_slots() == [])
+    del env['UNIO_POLICY_ADMIT_PARTIAL']
+    marker.unlink(missing_ok=True)
+
+    retry = root / 'coord' / 'retries' / 'task_q'
+    retry.mkdir(parents=True)
+    (root / 'coord' / 'tasks' / 'task_q.md').write_text('quality\n')
+    (retry / 'state.json').write_text(json.dumps({
+        'schema_version': 1, 'task': 'task_q', 'failed_attempts': 2,
+        'retry_granted': False, 'latest': {}}))
+    out_q = unio('run', 'mock_success', 'task_q')
+    check('quality-start failure returns nonzero and starts no provider',
+          out_q.returncode != 0 and not marker.exists() and locked_slots() == [])
+    del env['MOCK_MARKER']
+
+    hold = repo / 'mock_hold.sh'
+    hold.write_text(
+        "#!/bin/bash\n"
+        "barrier=\"${MOCK_BARRIER:-}\"\n"
+        "if [ -n \"$barrier\" ]; then\n"
+        "  touch \"$barrier.started\"\n"
+        "  while [ ! -f \"$barrier.release\" ]; do sleep 0.05; done\n"
+        "fi\n"
+        "exit 0\n")
+    hold.chmod(0o755)
+    with open(conf_dir, 'a') as handle:
+        handle.write("mock_hold=bash '%s'\n" % hold)
+    unio('init', 'mock_hold')
+    (root / 'coord' / 'tasks' / 'task_h.md').write_text('hold\n')
+    barrier = repo / 'holdbar'
+    env['MOCK_BARRIER'] = str(barrier)
+    proc = subprocess.Popen(
+        [at, 'run', 'mock_hold', 'task_h'], cwd=repo, env=env,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        start_new_session=True)
+    try:
+        seen = False
+        for _ in range(100):
+            if (Path(str(barrier) + '.started')).exists():
+                seen = True
+                break
+            time.sleep(0.1)
+        check('holder stays up while the provider runs', seen and proc.poll() is None)
+        slots = list((root / 'coord' / '.locks' / 'work-policy-slots').rglob('wpslot-*.json'))
+        check('slot stays visible while the provider runs', len(slots) == 1 and slots[0].is_file())
+        holder = None
+        for pid in [proc.pid, *descendants(proc.pid)]:
+            fd_dir = Path('/proc/%s/fd' % pid)
+            if not fd_dir.is_dir():
+                continue
+            for fdpath in fd_dir.iterdir():
+                try:
+                    target = os.readlink(fdpath)
+                except OSError:
+                    continue
+                if target == str(slots[0]):
+                    holder = pid
+        check('exact holder owns the live slot', holder is not None and holder != proc.pid)
+        Path(str(barrier) + '.release').touch()
+        out_h, err_h = proc.communicate(timeout=30)
+        released = (proc.returncode == 0 and not Path('/proc/%s' % holder).exists()
+                    and not slots[0].exists() and locked_slots() == [])
+        if not released:
+            print(out_h)
+            print(err_h)
+            print('rc', proc.returncode)
+        check('holder release reaps the owned holder', released)
+    finally:
+        if proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                proc.wait(timeout=5)
+    del env['MOCK_BARRIER']
 
 print('work-policy: %d checks passed' % passed[0])
