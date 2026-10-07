@@ -9,13 +9,18 @@ changes in separate versions with their implementation and changelog entries.
 | 0.5.1 | Limit-policy hardening and regression coverage | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.1); source af437b1 |
 | 0.5.2 | Queue approval, reservation and recovery library | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.2); source 1bddeab; latest completed public release |
 | 0.5.3 | One real browser-to-worker workflow, including worker output and console access | Execution service and API integrated; UI, progress addition, workflow validation and publication in progress |
-| 0.5.4 | Automatic recovery saves and checkpoint-based continuation | Approved; expanded saving contract to freeze before dispatch |
+| 0.5.4 | Automatic recovery saves, checkpoint continuation and lead CLI cooldown restart | Approved; saving and lead-restart contracts to freeze before dispatch |
 
 The owner approved the [delivery priorities](development/ROADMAP.md#approved-delivery-priorities)
 on 2026-10-06: finish 0.5.3, deliver 0.5.4, then allowance monitoring, agent
 connection reliability, smarter delegation, a built-in parallel review
 pipeline, reasoning/context efficiency and measured performance. The owner additionally requires
 [automatic work saving](WORK-SAVING.md) during runs and on failures in v0.5.4.
+On 2026-10-07 the owner added [lead cooldown restart](development/LEAD-COOLDOWN-RESTART.md):
+an owner-enabled supervisor waits outside the lead CLI and restarts it from
+the saved handoff after its allowance resets. The five-hour fallback is five
+hours and one minute. Repeated lead limits create new waits; existing worker
+limit handling stays unchanged. Implement work saving before this restart slice.
 Later release numbers and dates are not assigned yet. The
 [worker progress contract](WORKER-PROGRESS.md) records the newly requested
 browser feature; its implementation is a separate bounded native worker

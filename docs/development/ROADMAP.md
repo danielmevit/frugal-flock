@@ -12,11 +12,19 @@ continuation before expanding the coordination engine.
 | Order | Milestone | Intended result | Status |
 | --- | --- | --- | --- |
 | First | v0.5.3: browser-to-worker workflow | Prepare and approve a task, start a worker once, inspect results and reviews, and accept the exact verified changes. Add actual worker output and console access as described in the [worker progress contract](../WORKER-PROGRESS.md). | Backend and API integrated; UI, progress addition, full workflow and shipping checks in progress. |
-| Next | v0.5.4: recoverable continuation | Save recoverable work during runs and on failure, with a finish reserve; preserve actual files, decisions and checks so another agent can continue safely after a stop or usage limit. | Approved; implementation contract must be frozen before dispatch. |
+| Next | v0.5.4: recoverable continuation | Save recoverable work during runs and on failure, then let an owner-enabled supervisor restart the lead CLI after its allowance cooldown using the saved handoff. | Approved; work-saving and lead-restart contracts must be frozen before dispatch. |
 
 The v0.5.4 scope now includes [automatic work saving](../WORK-SAVING.md),
 requested after a real worker reached its quota before committing. This is
 a planned feature; existing handoffs remain context rather than backups.
+
+On 2026-10-07 the owner added [lead CLI cooldown restart](LEAD-COOLDOWN-RESTART.md)
+to the continuation milestone. Unio waits outside the stopped lead process,
+using a supported reset time plus one minute or a five-hour-and-one-minute
+fallback for a known five-hour limit, then starts the configured lead again.
+Repeated limits create new waits; stop and completion cancel further restarts.
+Existing worker limit handling stays unchanged. Deliver work saving first so
+each restarted session can reconcile the current work without duplicating it.
 
 After these two milestones, build the following in this order. They are
 approved planning priorities; implementation boundaries, release numbers and
