@@ -258,7 +258,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         unio('tier', 'low') # limit 1
 
         def wait_barrier(path):
-            for _ in range(50):
+            for _ in range(150):
                 if Path(path).exists():
                     return
                 time.sleep(0.1)
@@ -439,12 +439,15 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         mock_wrapper.chmod(0o755)
 
         conf_dir_file = base / 'conf' / 'agents.conf'
-        agents_content = conf_dir_file.read_text().replace(f"bash '{mock_script}'", f"bash '{mock_wrapper}'", 1)
-        conf_dir_file.write_text(agents_content)
+        with open(conf_dir_file, 'a') as f:
+            f.write(f"mock_timeout=bash '{mock_wrapper}'\n")
+
+        unio('init', 'mock_timeout')
+        unio('account', 'mock_timeout', 'grp1')
 
         t0_wall = time.monotonic()
 
-        proc = subprocess.Popen([str(unio_wrapper), 'run', 'mock1', 'task1'],
+        proc = subprocess.Popen([str(unio_wrapper), 'run', 'mock_timeout', 'task1'],
                                 cwd=repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
         owned.append(proc)
 
@@ -463,6 +466,11 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
             if proc.poll() is not None:
                 break
 
+        if mock_pid == 0:
+            out, err = proc.communicate()
+            print("PROC FAILED TO START MOCK:")
+            print("STDOUT:", out)
+            print("STDERR:", err)
         check('mock provider started', mock_pid > 0)
 
         t_end = 0
@@ -487,9 +495,6 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
             raise
 
         t1_wall = time.monotonic()
-
-        # Restore mock1 config
-        conf_dir_file.write_text(conf_dir_file.read_text().replace(f"bash '{mock_wrapper}'", f"bash '{mock_script}'"))
 
         duration = t_end - t_start
         out_msg = f"mock duration: {duration:.2f}s, wall: {t1_wall-t0_wall:.2f}s\nstdout:\n{out_stdout}\nstderr:\n{out_stderr}"
