@@ -1,0 +1,1 @@
+- Fix the worker-files boundary: tracked-file discovery uses the confirmed worktree descriptor, drains Git output under a two-second deadline and bounds cleanup. Replaced worktrees become unavailable. Completed by BROWSER-OBSERVATION-COMPLETION-1; the earlier BROWSER-FILES-BOUNDARY-FIX-1 invocation timed out without changes and remains recorded as failed.
