@@ -85,6 +85,37 @@ class ProgressAPITests(unittest.TestCase):
         self.assertEqual(self.request(runpath + '/output?cursor=' + cursor)[2]['output']['text'], 'append\n')
         self.assertEqual(self.request(runpath + '/output?cursor=' + cursor)[2]['output']['text'], 'append\n')
 
+    def test_http_lifecycle_first_output_buffered_verification_and_completion(self):
+        import fcntl
+        self.fixture.log.write_bytes(b'')
+        value = self.request(self.path)[2]
+        self.assertEqual(value['output']['state'], 'first_output_wait')
+        self.assertEqual(value['source']['state'], 'running')
+        self.fixture.log.write_text('worker prose says done\n')
+        self.assertEqual(self.request(self.path)[2]['source']['state'], 'running')
+        self.fixture.finish()
+        # Native verify holds the same lock and buffers its child's output.
+        lock = (self.root / 'coord/.locks' / (self.fixture.worker + '.lock')).open('a')
+        self.addCleanup(lock.close)
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        value = self.request(self.path)[2]
+        self.assertEqual(value['source']['state'], 'succeeded')
+        self.assertEqual(value['verification']['state'], 'not_run')
+        self.assertEqual(value['observed_phase'], 'unknown')
+        self.assertEqual(value['observed_liveness'], 'unknown')
+        self.assertIn('worker prose says done', value['output']['excerpt'])
+        self.fixture.native['validation'].update(state='passed', scope='OK', checks_run=2,
+            checks_failed=0, reasons=[], revision=self.fixture.revision)
+        self.fixture.save()
+        value = self.request(self.path)[2]
+        self.assertEqual(value['verification']['state'], 'passed')
+        self.assertEqual(value['review']['state'], 'not_run')
+        self.assertEqual(value['acceptance']['state'], 'unavailable')
+        self.fixture.finish(3)
+        value = self.request(self.path)[2]
+        self.assertEqual(value['source']['state'], 'failed')
+        self.assertEqual(value['source']['exit_code'], 3)
+
     def test_host_origin_session_refusal(self):
         for headers in ({'Host': 'evil.example'}, {'Host': 'localhost:' + str(self.server.server_port)},
                         {'Origin': 'null'}, {'Origin': 'https://evil.example'},
@@ -138,6 +169,29 @@ class ProgressAPITests(unittest.TestCase):
             code, _, error = self.request(self.path)
         self.assertEqual(code, 503)
         self.assertEqual(error, {'schema_version': 1, 'error': 'progress_unavailable'})
+
+    def test_malformed_or_spoofed_public_errors_remain_fixed(self):
+        from progress import ProgressError
+        class Foreign:
+            @property
+            def code(self): raise AssertionError('foreign fields accessed')
+            @property
+            def status(self): raise AssertionError('foreign fields accessed')
+        class ForeignError(Exception):
+            __class__ = ProgressError
+            code = 'invalid_request'
+            status = 400
+        for error in (ForeignError('PRIVATE'), ProgressError('invalid_request')):
+            if type(error) is ProgressError:
+                error.status = 200
+            with patch.object(self.progress, 'get', side_effect=error):
+                code, _, value = self.request(self.path)
+            self.assertEqual(code, 503)
+            self.assertEqual(value['error'], 'progress_unavailable')
+        handler = server.ActivityHandler.__new__(server.ActivityHandler)
+        with patch.object(handler, 'error_response') as respond:
+            handler.progress_error_response(Foreign())
+        respond.assert_called_once_with(503, 'progress_unavailable')
 
     def test_session_rotation_requires_new_session_without_dispatch(self):
         value = self.request(self.path + '/runs/' + self.request(self.path)[2]['run_id'] + '/output')[2]

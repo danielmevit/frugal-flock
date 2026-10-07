@@ -115,6 +115,19 @@ class ActivityHandler(BaseHTTPRequestHandler):
             pass  # Broken error properties/imports remain fixed internal errors.
         return self.error_response(status, code)
 
+    def progress_error_response(self, error):
+        status, code = 503, 'progress_unavailable'
+        try:
+            from progress import ERRORS, ProgressError
+            if issubclass(type(error), ProgressError):
+                public_code, public_status = error.code, error.status
+                if (type(public_code) is str and type(public_status) is int
+                        and ERRORS.get(public_code) == public_status):
+                    status, code = public_status, public_code
+        except Exception:
+            pass
+        return self.error_response(status, code)
+
     def origin_allowed(self, write=False):
         if self.headers.get_all('Host') != [self.server.origin.removeprefix('http://')]:
             self.error_response(403, 'host_refused')
@@ -165,10 +178,7 @@ class ActivityHandler(BaseHTTPRequestHandler):
                     return self.error_response(400, 'invalid_request')
                 return self.respond(200, json.dumps(value, ensure_ascii=True).encode())
             except Exception as error:
-                from progress import ProgressError, ERRORS
-                if issubclass(type(error), ProgressError) and ERRORS.get(error.code) == error.status:
-                    return self.error_response(error.status, error.code)
-                return self.error_response(503, 'progress_unavailable')
+                return self.progress_error_response(error)
 
         if self.server.plans is not None and self.path.startswith('/api/plans/'):
             if not self.token_allowed():

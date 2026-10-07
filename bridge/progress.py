@@ -21,6 +21,7 @@ from execution_service import _decode, _native_document
 JSON_LIMIT = 131072
 PAGE_BYTES = 16384
 LINE_BYTES = 4096
+TEXT_CHARS = 16384
 LEDGER_BYTES = 65536
 LEDGER_RECORDS = 256
 MAX_BINDINGS = 32
@@ -174,9 +175,12 @@ class ProgressService:
         start = self._start(worker, task)
         updated = stamp(native['updated_at'])
         retry_time = stamp(retry['updated_at'])
-        if start > updated + 1 or retry_time > updated:
-            raise ValueError('inconsistent receipts')
         state = native['process']['state']
+        if (retry_time > updated or (state == 'running' and start < int(updated))
+                or (state != 'running' and start > updated)):
+            raise ValueError('inconsistent receipts')
+        if (state == 'running' and attempt['failed']) or (state == 'failed' and not attempt['failed']):
+            raise ValueError('inconsistent failure')
         if (state == 'running') != attempt['pending']:
             raise ValueError('inconsistent attempt')
         run = digest((identity + attempt['id'] + task_hash).encode())
@@ -228,7 +232,7 @@ class ProgressService:
         try:
             info = os.fstat(fd)
             # Running receipt precedes the shell's truncate/open. Old output is unavailable.
-            earliest = updated if native['process']['state'] == 'running' else start
+            earliest = max(updated, start) if native['process']['state'] == 'running' else start
             if info.st_mtime < earliest or (native['process']['state'] != 'running' and info.st_mtime > updated):
                 raise ValueError('unbound log')
             prior = self.generations.get(identity)
@@ -254,34 +258,44 @@ class ProgressService:
             offset, skip = max(0, size - PAGE_BYTES), size > PAGE_BYTES
         if offset > size:
             raise ProgressError('cursor_mismatch')
-        raw = os.pread(fd, PAGE_BYTES, offset)
+        raw = os.pread(fd, min(PAGE_BYTES, size - offset), offset)
         end = raw.rfind(b'\n') + 1
         partial = len(raw) > end
-        output = []
-        consumed = end
+        output, characters, excerpt_text = [], 0, ''
+        consumed = 0
         if skip:
             first = raw.find(b'\n')
             if first < 0:
-                return '', offset + len(raw), True, partial
-            raw_records = raw[first + 1:end]
+                return '', offset + len(raw), True, partial, offset, digest(raw)
+            consumed = first + 1
             skip = False
-        else:
-            raw_records = raw[:end]
-        for line in raw_records.splitlines(keepends=True):
+        for record in raw[consumed:end].split(b'\n')[:-1]:
+            line = record + b'\n'
             if len(line) > LINE_BYTES:
-                output.append('[long output record excluded]\n')
+                rendered = '[long output record excluded]\n'
             else:
                 try:
-                    output.append(literal(line))
+                    rendered = literal(line)
                 except UnicodeError:
-                    output.append('[invalid UTF-8 record excluded]\n')
-        if len(raw) - end > LINE_BYTES:
-            consumed, skip = len(raw), True
-            output.append('[long output record excluded]\n')
-        text = ''.join(output)
-        if excerpt:
-            text = text[-1024:]
-        return text, offset + consumed, skip, partial
+                    rendered = '[invalid UTF-8 record excluded]\n'
+            if not excerpt and characters + len(rendered) > TEXT_CHARS:
+                break
+            consumed += len(line)
+            if excerpt:
+                excerpt_text = (excerpt_text + rendered)[-1024:]
+            else:
+                characters += len(rendered)
+                output.append(rendered)
+        if consumed == end and len(raw) - end > LINE_BYTES:
+            notice = '[long output record excluded]\n'
+            if excerpt or characters + len(notice) <= TEXT_CHARS:
+                consumed, skip = len(raw), True
+                if excerpt:
+                    excerpt_text = (excerpt_text + notice)[-1024:]
+                else:
+                    output.append(notice)
+        text = excerpt_text if excerpt else ''.join(output)
+        return text, offset + consumed, skip, partial, offset, digest(raw)
 
     def _view(self, identity, run_id=None, cursor=None, output=False):
         worker, task, native, run, start, updated = self._evidence(identity)
@@ -294,7 +308,7 @@ class ProgressService:
             observed_at=observed, recorded_at=native['updated_at'], observation_stale=now - updated > STALE_SECONDS,
             source=native['process'], verification=native['validation'], review=native['review'],
             acceptance={'state': 'unavailable'}, recorded_evidence_stale=native['stale'],
-            observed_liveness=life, observed_phase='source' if life == 'running' else 'unknown',
+            observed_liveness=life, observed_phase='source' if life == 'running' and native['process']['state'] == 'running' else 'unknown',
             output=dict(state='unavailable', generation=None, observed_at=observed, modified_at=None,
                         excerpt='', text='', next_cursor=None, at_end=None, partial_record=False))
         try:
@@ -311,12 +325,18 @@ class ProgressService:
                 raise ProgressError('cursor_mismatch') from None
             return view
         try:
-            text, offset, skip, partial = self._page(fd, info.st_size, run, generation, cursor, excerpt=not output)
+            text, offset, skip, partial, origin, page_hash = self._page(fd, info.st_size, run, generation, cursor, excerpt=not output)
             # Verify the same owned path, identity and already-read content after the read.
             other = self._open('coord', 'reports', task + '.log')
             try:
                 after = os.fstat(other)
-                if (after.st_dev, after.st_ino) != (info.st_dev, info.st_ino) or after.st_size < info.st_size:
+                snapshot = self.generations[identity]
+                if ((after.st_dev, after.st_ino) != (info.st_dev, info.st_ino)
+                        or after.st_size < info.st_size
+                        or (after.st_size == info.st_size and (after.st_mtime_ns, after.st_ctime_ns) != snapshot['times'])
+                        or os.pread(other, len(snapshot['prefix']), 0) != snapshot['prefix']
+                        or os.pread(other, len(snapshot['anchor']), snapshot['at']) != snapshot['anchor']
+                        or digest(os.pread(other, min(PAGE_BYTES, info.st_size - origin), origin)) != page_hash):
                     raise ProgressError('cursor_mismatch')
             finally:
                 os.close(other)
@@ -329,6 +349,9 @@ class ProgressService:
                 next_cursor=self._cursor(run, generation, offset, skip), at_end=offset == info.st_size,
                 partial_record=partial)
             return view
+        except BaseException:
+            self.generations.pop(identity, None)
+            raise
         finally:
             os.close(fd)
 
@@ -366,6 +389,6 @@ class ProgressService:
         return dict(schema_version=1, runs=[self.get(worker_id)])
 
     def get(self, worker_id, run_id=None, cursor=None, output=False):
-        if not isinstance(worker_id, str) or not OPAQUE.fullmatch(worker_id) or (run_id is not None and not OPAQUE.fullmatch(run_id)):
+        if not isinstance(worker_id, str) or not OPAQUE.fullmatch(worker_id) or (run_id is not None and (not isinstance(run_id, str) or not OPAQUE.fullmatch(run_id))):
             raise ProgressError('invalid_request')
         return self._operation(lambda _: self._view(worker_id, run_id, cursor, output))

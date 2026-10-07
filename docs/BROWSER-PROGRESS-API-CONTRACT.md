@@ -94,14 +94,17 @@ Git internals, reports Markdown and arbitrary logs are excluded.
 W is SHA-256 of worker, NUL and task. R is SHA-256 of W, the genuine latest
 retry attempt UUID and Source task SHA-256. No UUID is guessed from a PID,
 lock, prose or elapsed time. When native process state is running, log mtime
-must be at least the running receipt timestamp: this rejects the old log in
+must be at least both the running receipt and latest run_start timestamps:
+this rejects the old log in
 the native interval between publishing start evidence and opening/truncating
 Source output. For ended Source, log mtime must fall between its latest
-run_start timestamp and the result update timestamp. Retry/result timestamps
-and pending/state must also agree. Uncertain logs remain unavailable.
+run_start timestamp and the result update timestamp. Retry/result ordering and pending/state must also agree. Native update
+stamps precede its final snapshot and ledger publication, so a running
+run_start can legitimately be later than its result timestamp; no invented
+one-second startup bound is applied. Uncertain logs remain unavailable.
 
-The inspected live Source receipt had recorded running state, retry UUID
-`294c3192fb7b4621a9dffc5757d7d0ef`, a task-named Source log and no PID file.
+The inspected live Source receipt had recorded running state, a genuine
+32-hex retry UUID, a task-named Source log and no PID file.
 Actual foreground parent PIDs matched the installed engine SHA-256
 `002c8e65f0d559870fcc15c34edddb9ad5dff78aff2dc49e82e658c807be4275`.
 The installed runner and dependency source differ in version/prompt transport
@@ -140,7 +143,9 @@ evidence when execution authority is enabled.
 observed_liveness is running or unknown. Running requires the optional native
 background PID file plus bounded `/proc/PID/cmdline` identity with exact
 `bash ENGINE run WORKER TASK` argument boundaries and cwd=workspace/repo.
-Only that matching Source observation sets observed_phase to source.
+Only that matching observation together with recorded running Source
+sets observed_phase to source. An ended Source runner may still be alive
+during later phases; its observed phase remains unknown.
 Otherwise phase and liveness are unknown. A missing or reused PID, no PID,
 ended result or held worker lock does not prove that all children ended.
 Foreground Source has no PID file. Verification and review share the worker
@@ -207,10 +212,12 @@ filesystem can exceed that wall deadline before a fixed 503 is returned.
 There are at most 32 startup bindings and 32 remembered generations. Each
 receipt/task read is at most 128 KiB. Each ledger read is at most the last
 64 KiB and at most 256 complete records; older ownership is unavailable.
-Each Source page/excerpt reads at most 16 KiB plus bounded 256-byte prefix
-and end anchors. The excerpt is at most 1024 Unicode characters. Complete
+Each Source page/excerpt reads at most 16 KiB and rechecks that same
+bounded window once, plus bounded 256-byte prefix and end anchors. Public
+page text is at most 16384 Unicode characters, including exclusion notices;
+record boundaries advance only for the returned records. The excerpt is at most 1024 Unicode characters. Complete
 records over 4096 bytes are replaced with a fixed notice. Each successful
-view rechecks ownership after the output read; collection reads check the
+view rechecks ownership, file identity and the captured content after the output read; collection reads check the
 deadline between bindings. All capture bounds apply before decoding.
 
 ANSI CSI/OSC and complete terminal string escapes are removed. Other control,

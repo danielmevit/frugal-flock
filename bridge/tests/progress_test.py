@@ -55,6 +55,7 @@ class Fixture:
         self.native['process'].update(state='succeeded' if code == 0 else 'failed', exit_code=code)
         self.native['updated_at'] = date(time.time() + .001)
         self.retry['latest'][self.worker]['pending'] = False
+        self.retry['latest'][self.worker]['failed'] = code != 0
         self.retry['updated_at'] = date(time.time())
         self.save()
 
@@ -101,6 +102,18 @@ class ProgressTests(unittest.TestCase):
         self.assertTrue(value['observation_stale'])
         self.assertEqual(value['output']['state'], 'quiet')
         self.assertEqual(value['source']['state'], 'running')
+
+    def test_native_start_stamp_precedes_snapshot_and_ledger_publication(self):
+        # Native update stamps before its final snapshot; ledger is written later.
+        ledger_time = self.fixture.start + 2
+        (self.root / 'coord/reports/ledger.jsonl').write_text(json.dumps(dict(
+            event='run_start', ts=date(ledger_time), worker=self.fixture.worker, task=self.fixture.task)) + '\n')
+        self.fixture.log.write_text('genuine delayed native startup\n')
+        value = self.get()
+        self.assertEqual(value['source']['state'], 'running')
+        self.assertEqual(value['output']['state'], 'available')
+        os.utime(self.fixture.log, (self.fixture.start + .5,) * 2)
+        self.assertEqual(self.get()['output']['state'], 'unavailable')
 
     def test_buffered_verification_never_uses_source_log_or_completes(self):
         self.fixture.log.write_text('Source says done\n')
@@ -192,6 +205,8 @@ class ProgressTests(unittest.TestCase):
         self.fixture.native['updated_at'] = date(time.time() + .01)
         self.fixture.retry['updated_at'] = date(time.time() - .2)
         self.fixture.save()
+        with (self.root / 'coord/reports/ledger.jsonl').open('a') as ledger:
+            ledger.write(json.dumps(dict(event='run_start', ts=self.fixture.native['updated_at'], worker=self.fixture.worker, task=self.fixture.task)) + '\n')
         # Existing log predates the new Source receipt and must not leak.
         self.assertEqual(self.get()['output']['state'], 'unavailable')
         self.fixture.log.write_text('new attempt\n')
@@ -212,6 +227,29 @@ class ProgressTests(unittest.TestCase):
         with self.assertRaises(ProgressError): self.get()
         result = self.root / 'coord/results' / self.fixture.worker / (self.fixture.task + '.json')
         result.write_text('{"schema_version":1,"schema_version":1}')
+        with self.assertRaises(ProgressError): self.get()
+
+    def test_foreign_native_identity_private_reasons_and_symlink_receipts_refuse(self):
+        import copy
+        original = copy.deepcopy(self.fixture.native)
+        for mutate in (lambda d: d.update(worker='foreign-worker'),
+                       lambda d: d['process'].update(exit_code=1),
+                       lambda d: d['validation'].update(reasons=['PRIVATE /auth'])):
+            self.fixture.native = copy.deepcopy(original)
+            mutate(self.fixture.native)
+            self.fixture.save()
+            with self.assertRaises(ProgressError) as error: self.get()
+            self.assertEqual(error.exception.code, 'progress_unavailable')
+        self.fixture.native = original
+        self.fixture.save()
+        result = self.root / 'coord/results' / self.fixture.worker / (self.fixture.task + '.json')
+        owned = result.with_suffix('.saved')
+        result.rename(owned)
+        result.symlink_to(owned)
+        with self.assertRaises(ProgressError): self.get()
+        result.unlink(); owned.rename(result)
+        task = self.root / 'coord/tasks' / (self.fixture.task + '.md')
+        task.unlink(); os.mkfifo(task)
         with self.assertRaises(ProgressError): self.get()
 
     def test_unsafe_symlink_hardlink_and_special_logs(self):
@@ -250,6 +288,19 @@ class ProgressTests(unittest.TestCase):
         self.assertNotIn('z' * LINE_BYTES, seen)
         self.assertLessEqual(len(self.get()['output']['excerpt']), 1024)
 
+    def test_sensitive_notice_amplification_stays_bounded_without_losing_records(self):
+        from progress import TEXT_CHARS
+        self.fixture.log.write_bytes(b'\xff\n' * PAGE_BYTES + b'final\n')
+        page = self.page()
+        seen_final = False
+        for _ in range(80):
+            self.assertLessEqual(len(page['text']), TEXT_CHARS)
+            seen_final = seen_final or 'final\n' in page['text']
+            if page['at_end']: break
+            page = self.page(page['next_cursor'])
+        self.assertTrue(seen_final)
+        self.assertTrue(page['at_end'])
+
     def test_cursor_tamper_wrong_generation_and_service_restart(self):
         self.fixture.log.write_text('text\n')
         first = self.page()
@@ -258,6 +309,52 @@ class ProgressTests(unittest.TestCase):
         self.addCleanup(fresh.close)
         with self.assertRaises(ProgressError): fresh.get(self.identity, output=True, cursor=first['next_cursor'])
         self.assertEqual(fresh.get(self.identity, output=True)['output']['text'], 'text\n')
+
+    def test_concurrent_rewrite_or_rotation_refuses_the_read(self):
+        for change in ('rewrite', 'rotation', 'attempt'):
+            with self.subTest(change=change):
+                self.fixture.log.write_text('original record\n')
+                real_page = self.service._page
+                def mutate(*args, **kwargs):
+                    value = real_page(*args, **kwargs)
+                    if change == 'rotation':
+                        self.fixture.log.rename(self.fixture.log.with_suffix('.old'))
+                        self.fixture.log.write_text('different record\n')
+                    elif change == 'rewrite':
+                        self.fixture.log.write_text('different record and growth\n')
+                    else:
+                        self.fixture.retry['latest'][self.fixture.worker]['id'] = '4' * 32
+                        self.fixture.save()
+                    return value
+                with patch.object(self.service, '_page', side_effect=mutate):
+                    with self.assertRaises(ProgressError) as error:
+                        self.page()
+                self.assertEqual(error.exception.code, 'cursor_mismatch')
+                self.assertNotIn(self.identity, self.service.generations)
+
+    def test_large_log_reads_remain_bounded_and_prefix_rewrite_invalidates(self):
+        self.fixture.log.write_bytes(b'first\n' + b'x\n' * (PAGE_BYTES * 8))
+        original = self.page()
+        real_pread = os.pread
+        counts = []
+        def counted(fd, count, offset):
+            counts.append((count, offset))
+            return real_pread(fd, count, offset)
+        with patch('progress.os.pread', side_effect=counted):
+            self.page(original['next_cursor'])
+        self.assertTrue(all(count <= PAGE_BYTES or count == 65536 for count, _ in counts))
+        self.assertTrue(any(offset >= PAGE_BYTES for count, offset in counts if count <= PAGE_BYTES))
+        self.assertLess(sum(count for count, _ in counts), 200000)
+        with self.fixture.log.open('r+b') as source:
+            source.write(b'newer\n')
+        with self.assertRaises(ProgressError): self.page(original['next_cursor'])
+
+    def test_failed_background_runner_identity_does_not_claim_live_source_phase(self):
+        self.fixture.finish(1)
+        with patch.object(self.service, '_liveness', return_value='running'):
+            value = self.get()
+        self.assertEqual(value['source']['state'], 'failed')
+        self.assertEqual(value['observed_phase'], 'unknown')
 
     def test_collection_and_read_limits_deadline(self):
         with self.assertRaises(ValueError): ProgressService(self.root, self.root / 'unio', [])
