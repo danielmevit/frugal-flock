@@ -85,6 +85,12 @@ unfinished recovery data as unverified. Supervisor-owned automatic saving and
 portable checkpoint recovery remain planned work; these instructions do not
 claim that those features are implemented.
 
+Read [task time budgets](TASK-TIME-BUDGETS.md) before choosing a deadline.
+Give substantial implementation about 90 minutes, with up to two hours for
+heavier work. Keep Unio, wrapper and CLI limits consistent; keep individual
+checks bounded and save early progress. A task timeout is not evidence of
+exhausted subscription allowance.
+
 ## Independent reviews and owner control
 
 Keep source execution, checks, review, acceptance, merge and publication distinct.
