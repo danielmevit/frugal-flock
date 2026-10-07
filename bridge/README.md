@@ -391,9 +391,17 @@ all records must still parse, with none filtered or ignored. This narrow fixture
 diagnostic correction uses Python's existing standard-library file locking and
 does not change product/native-engine behavior or retry any call.
 
-The locked-fixture execution check is in progress; the recovery coverage and
-observed failures are preserved in an early source checkpoint before remaining
-validation. Native verification of this candidate
+The locked-fixture run then passed both session scenarios but exited 1 at the
+next explicit approval: the synchronous busy state was set before Playwright's
+request event reached the POST counter (actual 4, expected 5). The diagnostic
+showed the approval status and busy controls with no next-approval request yet.
+The double-click regression now registers and awaits that exact POST boundary
+before checking the original count and busy assertions, while the response is
+still held. No assertion or timeout was removed or relaxed.
+
+The updated execution check is in progress; the recovery coverage and observed
+failures are preserved in early source checkpoints before remaining validation.
+Native verification of this candidate
 has not run in this worker. The complete inherited UI still has Google + OpenAI
 author labs; the owner's 2026-10-07 instruction replaces additional reviewer
 scheduling with the lead's personal review. Fresh native verification, the

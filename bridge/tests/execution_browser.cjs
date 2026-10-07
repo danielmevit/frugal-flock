@@ -458,7 +458,9 @@ with open(os.path.join(sys.argv[1], 'calls.lock'), 'a') as lock:
     let releaseApproval;
     const approvalGate = new Promise((resolve) => releaseApproval = resolve);
     await page.route(origin + `/api/jobs/${currentJobId}/approve`, async (route) => {await approvalGate; await route.continue();}, {times:1});
+    const pendingApproval = page.waitForRequest((request) => request.url() === approvalUrl && request.method() === "POST");
     await approve.dblclick();
+    await pendingApproval;
     assert.equal(await page.locator("#execution-panel").getAttribute("aria-busy"), "true");
     assert.equal(await page.locator("#save-draft").isDisabled(), true);
     assert.equal(posts, beforeSession + 3);
