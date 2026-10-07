@@ -1,0 +1,43 @@
+# bash completion for frugal-flock — commands, then workers/tasks/agents in context
+_agentteam() {
+  local cur cmd root d cmds
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  cmds="new init run verify result handoff diff sync review race sabotage score doctor tail kill report status agents off on smoke selftest stop resume version help"
+  if [ "$COMP_CWORD" -eq 1 ]; then
+    COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ); return
+  fi
+  cmd="${COMP_WORDS[1]}"
+  d="$PWD"; root=""
+  while [ "$d" != "/" ]; do
+    if [ -d "$d/coord" ] && [ -d "$d/wt" ]; then root="$d"; break; fi
+    d=$(dirname "$d")
+  done
+  local workers="" tasks="" agents=""
+  [ -n "$root" ] && workers=$(ls "$root/wt" 2>/dev/null)
+  [ -n "$root" ] && tasks=$(ls "$root/coord/tasks" 2>/dev/null | sed 's/\.md$//' | grep -v '^TEMPLATE$')
+  agents=$(sed -n 's/^\([a-zA-Z0-9_-]*\)=.*/\1/p' \
+    "${AGENTTEAM_CONF_DIR:-$HOME/.config/agentteam}/agents.conf" 2>/dev/null)
+  case "$cmd" in
+    run)
+      if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "-b $workers" -- "$cur") )
+      elif [ "${COMP_WORDS[2]}" = "-b" ] && [ "$COMP_CWORD" -eq 3 ]; then COMPREPLY=( $(compgen -W "$workers" -- "$cur") )
+      else COMPREPLY=( $(compgen -W "$tasks" -- "$cur") ); fi;;
+    verify|result|handoff)
+      if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "$workers" -- "$cur") )
+      elif [ "$COMP_CWORD" -eq 3 ]; then COMPREPLY=( $(compgen -W "$tasks" -- "$cur") ); fi;;
+    review)
+      if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "$workers" -- "$cur") )
+      elif [ "$COMP_CWORD" -eq 3 ]; then COMPREPLY=( $(compgen -W "$tasks" -- "$cur") )
+      elif [ "$COMP_CWORD" -eq 4 ]; then COMPREPLY=( $(compgen -W "$agents" -- "$cur") ); fi;;
+    agents)
+      if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "--json" -- "$cur") ); fi;;
+    diff|sync) COMPREPLY=( $(compgen -W "$workers" -- "$cur") );;
+    sabotage)  COMPREPLY=( $(compgen -W "--all $workers" -- "$cur") );;
+    race)
+      if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "$tasks" -- "$cur") )
+      else COMPREPLY=( $(compgen -W "$workers" -- "$cur") ); fi;;
+    tail|kill|report) COMPREPLY=( $(compgen -W "$tasks" -- "$cur") );;
+    off|on) COMPREPLY=( $(compgen -W "$agents" -- "$cur") );;
+  esac
+}
+complete -F _agentteam frugal-flock frgl-flc agentteam
