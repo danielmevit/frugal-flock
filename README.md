@@ -151,9 +151,7 @@ unio policy                       # current state (--json for machines)
 
 These commands exist in development source and are a core product
 benefit: deliberate pace and budget choices instead of ad-hoc
-delegation. Released Unio 0.5.2 still lacks them. This slice is
-guidance and state only (`workflow_enforcement` is `advisory`); native
-enforced slots are the next slice.
+delegation. Released Unio 0.5.2 still lacks them. This slice provides guidance, state, and native workflow enforcement (`workflow_enforcement` is `native_workflows`) via strict slots and budget groups.
 
 Current owner cadence is YOLO with a low tier: coherent features,
 focused checks with personal lead review, and the full gate at release

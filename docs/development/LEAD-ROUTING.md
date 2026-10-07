@@ -119,8 +119,7 @@ Before planning or delegation, run `unio policy` and read the
 planning; the tier caps independent workflows per shared provider/account
 budget (low 1, medium 2, high 4, lead included). Register the lead with
 `unio lead <agent>` and group aliases sharing one budget with
-`unio account <agent> <group>`. This slice is advisory guidance; native
-slot enforcement is the next slice.
+`unio account <agent> <group>`. This slice provides guidance and native slot enforcement via strict budget groups.
 
 This document is an operating policy for the lead. The current runner does
 not automatically enforce these routing choices, read pricing, escalate

@@ -167,8 +167,7 @@ before planning. `unio mode [yolo|medium|safe]` sets the pace (default
 (default `low`: one independent workflow per shared budget, lead
 included; `medium` 2, `high` 4). Register the lead with
 `unio lead <agent>` and group aliases sharing one budget with
-`unio account <agent> <group>`. These settings are advisory guidance in
-this slice; native enforcement ships next. The installed copy lives at
+`unio account <agent> <group>`. These settings provide guidance and enforce concurrency natively via strict budget slots. The installed copy lives at
 `coord/docs/WORK-MODES.md` after `unio init`.
 
 You merge, nobody else — into dev, per your model:

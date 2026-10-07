@@ -13,8 +13,8 @@ Read [lead routing and spending](../development/LEAD-ROUTING.md),
 [work modes and subscription tiers](../WORK-MODES.md), and
 [workspace rules](../development/WORKSPACE-RULES.md). Run `unio policy`
 before planning or delegation: the mode shapes scope and review planning
-and the tier caps independent workflows per shared budget (low 1, medium
-2, high 4, lead included). The installed copy is
+and the tier strictly caps independent concurrent native workflows per shared budget
+(low 1, medium 2, high 4, lead included), rejecting over-dispatch. The installed copy is
 `coord/docs/WORK-MODES.md` after `unio init`. Then use the
 [current handoff](../development/continue-with-ai-prompt.md), the newest
 workspace coordination log and actual current worker receipts. Existing
