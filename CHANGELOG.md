@@ -6,6 +6,12 @@ version is released.
 
 ## 0.5.3 — browser workspace and work policies
 
+- Measure provider timeout from the mock's own monotonic start; require live
+  parent and child identity/session observations and bounded termination. Keep
+  startup/final bookkeeping separate from the provider limit, bound the whole
+  test harness and prove the next same-budget run can obtain its released slot.
+- Document the owner preference for Grok on nuanced reasoning, observed Gemini
+  review gaps and native AGY Opus's supported model default without an effort flag.
 - Upgrade cleanup recognizes the exact markerless v0.4.0 completion and removes
   aliases only when their target is an owned legacy install. Preserve unrelated
   targets, their aliases and modified completion files.

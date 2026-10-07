@@ -18,9 +18,10 @@ A separate shipping upgrade check exposed old completion retention and deletion
 of aliases to unrelated targets. Gemini correction d13a98a passed frozen native
 checks and the original upgrade/rollback procedure; Root reviewed and integrated
 it. The subsequent combined gate exposed a timeout fixture measuring whole-command
-Git bookkeeping rather than actual provider lifetime. Its scoped correction
-remains under personal review: child observation must be mandatory and harness
-failure paths bounded. Preserve earlier passed checks and rejected candidates;
+Git bookkeeping rather than actual provider lifetime. Codex correction
+c595706 passed Source, all three native checks and the lead's personal review.
+It requires actual live child identity/session observation and bounded harness
+failure paths. Preserve earlier passed checks and rejected candidates;
 none is a published0.5.3. The final accepted source still needs its full gate and
 exact public assets before publication and installation. Read the [version plan](../VERSION-PLAN.md)
 and current repository/release state before claiming delivery.
