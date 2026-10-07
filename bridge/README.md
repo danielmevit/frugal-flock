@@ -424,3 +424,62 @@ scheduling with the lead's personal review. Fresh native verification, the
 lead's complete assessment and full merge gate remain required. Source checks
 are separate from verification, acceptance, integration and release; no push,
 merge, live provider demonstration, install or public release occurs here.
+
+## Bounded Git observation optimization (API-GIT-SNAPSHOT-OPT-1)
+
+The next native verification of recovery candidate `620105a` failed 6/7:
+all four Chromium suites, docs and full-base whitespace passed, while the
+API suite passed 20/21 and timed out after 188.691 seconds. Its retained tail
+does not identify the complete failing traceback or an exact failing line.
+The earlier source acceptance timeout, this native failure and the source
+21/21 pass in 179.914 seconds remain historical evidence.
+
+The lead's unchanged, isolated offline HTTP diagnostic then passed once with
+the original 15-second client timeout and assertions. Acceptance took 12.228
+seconds, including 8.767 seconds in 40 service subprocesses and two native
+result reads; no measured fsync exceeded 20ms. That single pass established
+repeated Git overhead and narrow headroom, without proving the complete cause
+of the failures.
+
+The service now uses four rather than seven Git subprocesses per worker
+observation: one fixed `rev-parse` reads the owned common directory, peeled
+HEAD commit and full branch name; one `ls-files --stage -v -z` reads both
+unmerged stages and hidden-edit flags. The repository common directory and
+sparse configuration remain fresh separate reads. Strict framing, field and
+cardinality checks refuse malformed or ambiguous output, detached/wrong
+branches, foreign repositories, unmerged stages, hidden flags and sparse
+state. Literal filenames remain NUL-delimited data, including tabs/newlines.
+Clean/base checks, safe argv, bounded output/deadlines, immutable bindings,
+STOP/ownership locks and durable action keys retain their existing behavior.
+
+Every `_check`, `_native` and response observation still reads current Git
+state. Acceptance retains five worker observations, two fresh native result
+reads, all four revision fields and the native writer lock. No observations
+are cached, combined across calls or moved after acceptance. Replays still
+cannot launch or spend again; all client/browser/native deadlines are unchanged.
+
+The new cost regression invokes the inherited real HTTP happy path unchanged,
+including all assertions and the 15-second client timeout. Its first measured
+pass (32.330 seconds overall) produced the following evidence. Focused service
+guard tests also ran during this measurement; elapsed times depend on current
+filesystem and machine load. Subprocess counts use the same service `_call`
+boundary as the preserved diagnostic, excluding mock-engine internal calls.
+
+| Action | Before seconds / calls | After seconds / calls | After subprocess seconds |
+| --- | --- | --- | --- |
+| Start | 11.128 / 37 | 5.269 / 25 | 4.350 |
+| Verify | 11.602 / 41 | 5.717 / 26 | 4.628 |
+| Review | 11.314 / 41 | 6.749 / 26 | 5.356 |
+| Accept | 12.228 / 40 | 6.617 / 25 | 4.375 |
+
+The regression bounds subprocess counts while requiring the original fresh
+observation and result-read counts. Additional guards exercise malformed
+metadata/index/config output, real foreign repositories and unmerged indices,
+fresh HEAD/branch changes, all four acceptance revision changes, disappearing
+readiness and hidden-index changes between native observations. Existing UI
+journeys and regressions are unchanged. Timing is measured evidence, not a
+guarantee for every filesystem or a substitute for security checks.
+
+Focused and full source validation outcomes are recorded separately below
+after completion. Fresh native verification and the owner's personal lead
+review remain required; this worker does not accept, merge, push or release.

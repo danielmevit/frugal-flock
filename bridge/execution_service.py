@@ -605,26 +605,44 @@ class ExecutionService:
 
     def _worker_revision(self, clean=False):
         _real_path(self._wt, True)
-        branch = self._git(self._wt, 'symbolic-ref', '--short', 'HEAD').decode().strip()
-        if branch != 'agent/' + self._worker:
-            raise ExecutionError('worker_unavailable')
-        common = self._git(self._wt, 'rev-parse', '--path-format=absolute', '--git-common-dir').decode().strip()
-        repo_common = self._git(self._repo, 'rev-parse', '--path-format=absolute', '--git-common-dir').decode().strip()
-        if Path(common).resolve() != Path(repo_common).resolve():
-            raise ExecutionError('worker_unavailable')
-        revision = self._git(self._wt, 'rev-parse', '--verify', 'HEAD^{commit}').decode().strip()
-        if not _matches(GIT_ID, revision):
-            raise ExecutionError('worker_unavailable')
-        if self._git(self._wt, 'ls-files', '--unmerged', '-z'):
-            raise ExecutionError('worker_unavailable')
-        flags = self._git(self._wt, 'ls-files', '-v', '-z').split(b'\0')
-        if any(row and (row[:1].islower() or row[:1] in (b'S', b's')) for row in flags):
+        # Batch only facts within this observation. No evidence is cached or
+        # shared with another _check/_native call. rev-parse emits the common
+        # directory, peeled commit, then full symbolic HEAD in that order.
+        try:
+            raw = self._git(self._wt, 'rev-parse', '--path-format=absolute',
+                            '--git-common-dir', 'HEAD^{commit}', '--symbolic-full-name', 'HEAD')
+            common, revision, branch, end = raw.decode().split('\n')
+            repo_common, repo_end = self._git(
+                self._repo, 'rev-parse', '--path-format=absolute', '--git-common-dir').decode().split('\n')
+            if (end or repo_end or branch != 'refs/heads/agent/' + self._worker
+                    or not _matches(GIT_ID, revision)
+                    or any(not Path(path).is_absolute() or any(ord(c) < 32 for c in path)
+                           for path in (common, repo_common))
+                    or Path(common).resolve() != Path(repo_common).resolve()):
+                raise ExecutionError('worker_unavailable')
+        except (ValueError, OSError) as error:
+            raise ExecutionError('worker_unavailable') from error
+
+        # -v supplies hidden-edit flags; --stage supplies unmerged stages in
+        # the same NUL-delimited read. Parse the fixed header only: filenames
+        # may contain tabs/newlines and must never become shell input.
+        raw = self._git(self._wt, 'ls-files', '--stage', '-v', '-z')
+        seen = set()
+        for row in raw.split(b'\0')[:-1]:
+            header, separator, path = row.partition(b'\t')
+            if (not separator or not path or path in seen
+                    or re.fullmatch(rb'[HMRCK?] (?:100644|100755|120000|160000) '
+                                    rb'(?:[0-9a-f]{40}|[0-9a-f]{64}) 0', header) is None):
+                raise ExecutionError('worker_unavailable')
+            seen.add(path)
+        if raw and not raw.endswith(b'\0'):
             raise ExecutionError('worker_unavailable')
         try:
-            code, raw = self._call(['git', '-C', str(self._wt), 'config', '--get', 'core.sparseCheckout'], 15)
+            code, raw = self._call(['git', '-C', str(self._wt), 'config', '--get-all', 'core.sparseCheckout'], 15)
         except _NativeFailure as error:
             raise ExecutionError('worker_unavailable') from error
-        if code not in (0, 1) or raw.strip().lower() not in (b'', b'false', b'0', b'no', b'off'):
+        if not ((code == 1 and raw == b'') or (code == 0 and raw.endswith(b'\n')
+                and raw.count(b'\n') == 1 and raw[:-1].lower() in (b'', b'false', b'0', b'no', b'off'))):
             raise ExecutionError('worker_unavailable')
         if clean:
             base, base_revision = self._base()
