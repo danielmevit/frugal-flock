@@ -72,11 +72,11 @@ verified provenance. Fledge/Exo identity is likewise not established here.
 | LongCat 2.5 Preview: ROADMAP-PRIORITIES-1 review, 2026-10-06 | Native exit 0 and APPROVE. | It completed one scoped roadmap assessment at high effort. |
 | LongCat 2.5 Preview: LEAD-POLICY-STARTUP-DOCS-1 review, 2026-10-06 | Native exit 0, complete material, APPROVE at medium effort; candidate subsequently integrated. | It completed a second documentation review; the sample remains small. |
 | Nemotron 3 Ultra: BROWSER-API-ERRORS-1 review, 2026-10-06 | Native exit 0, complete material, APPROVE. | It completed a code-review call; approval alone does not establish that it found all defects or that the whole workflow was shipped. |
-| MiMo V2.6 Flash: WORK-POLICY-1 Source, 2026-10-07 | A real Unio command/state implementation assignment is currently active. | This is the first current production-code trial; verification, review and integration are pending. |
+| MiMo V2.6 Flash: WORK-POLICY-1 Source, 2026-10-07 | Native timeout exit 124 after the 1500-second worker bound, with delayed shutdown; zero commits or changed files. No verification/review/acceptance. | It did not deliver this broad CLI/state assignment. This is a task/route-specific failure, not a judgment of code that was never produced. |
 
 The underlying private receipts remain in the workspace. Do not publish raw
 prompts, log output or authentication to make these conclusions portable.
-Update this table with exact checked outcomes after the active Source finishes;
+Update this table with exact checked outcomes after each Source finishes;
 a model's final self-report is not sufficient evidence.
 
 ## Trials should deliver work, not consume it
