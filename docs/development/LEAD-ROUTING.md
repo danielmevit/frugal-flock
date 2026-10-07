@@ -8,10 +8,17 @@ approved plans, task scope or invocation budget.
 
 ## Match the agent to the work
 
-Use the verified-free MiMo and LongCat routes for useful, bounded routine
-work: documentation, formatting, mechanical file/link inventories, boilerplate
-and supplementary checks. Give them precise scopes and verify their output.
+Use the [verified free worker pool](../FREE-MODELS.md) for useful, bounded
+assignments: routine work, focused code changes, documentation and
+supplementary checks. Choose by checked project outcomes and a clear scope.
 Free pricing does not establish model quality or current availability.
+
+All free OpenCode routes are **worker-only**. They must never lead the team,
+choose its overall direction or provide final acceptance. Keep a stronger
+subscription agent as lead; when that lead hits a limit, preserve the handoff
+and wait or use another owner-approved lead. Do not promote a free worker
+as a cooldown fallback. This role policy does not assert measured reasoning
+scores for models that have not been evaluated.
 
 Prefer stronger available subscription agents for architecture, complex
 coding, UI design, difficult debugging, security and final release assessment.
@@ -31,20 +38,14 @@ use the `opencode-go` route. Do not substitute a pay-as-you-go model or buy
 credits, top up, change billing, create an account or alter authentication
 to get around a limit. Those actions require explicit owner authorization.
 
-The following exact Zen routes are an exception for routine supporting work
-while their prices remain zero:
-
-- `opencode/mimo-v2.6-flash-free`
-- `opencode/longcat-2.5-preview-free`
-
-Both were listed free in official pricing and native cost metadata on
-2026-10-06. This is a dated observation, not a promise that they stay free.
-Before every new free-route assignment, check current official pricing and
-native input, output and cache costs. Missing, conflicting or nonzero cost
-means the route is ineligible. Pin the primary model and any title/helper
-`small_model` to the same eligible free model. Do not enable a paid fallback
-or silently replace an unavailable free model. Other Zen routes are not
-covered by this exception. See [OpenCode's pricing](https://opencode.ai/docs/zen/#pricing).
+The eleven exact Zen free routes in [the inventory](../FREE-MODELS.md) are
+an owner-approved exception for worker assignments while prices remain zero.
+Before each new assignment, check current official pricing and native input,
+output and cache costs. Missing, conflicting or nonzero cost means the route
+is ineligible. Pin the primary model and any title/helper `small_model` to
+the same eligible free model. Do not enable paid fallback or silently replace
+an unavailable free model. Exo's local eligibility is still unestablished.
+See [OpenCode's pricing](https://opencode.ai/docs/zen/#pricing).
 
 ## Start at high or the supported middle
 
@@ -85,14 +86,18 @@ claim that those features are implemented.
 
 Keep source execution, checks, review, acceptance, merge and publication distinct.
 Use independent agents from different AI labs under the project's review rules;
-this project requires two nonauthor labs, then the lead's own complete review.
+the project's current owner instructions decide the review count and the
+lead always performs its own assessment. The current Unio session uses
+personal lead review without extra reviewer workers, under the owner-selected
+YOLO mode. Preserve that explicit exception in review receipts.
 Prepare reviewers separately with complete material and no peer verdicts.
 Supplementary routine checks do not replace a competent final security review.
 Fixes require fresh reviews of the changed candidate. Reviews reduce risk;
 they cannot guarantee every error will be found.
 
-Run the required full merged-tree quality gate and push the exact passing
-revision. Keep releases and installation within the owner's authorization.
+Run the checks frozen for the task and push the exact accepted revision.
+Under the current YOLO cadence, use focused checks per coherent feature and
+reserve the full repository gate for release or demonstrated need. Keep releases and installation within the owner's authorization.
 The owner remains in control of plans, spending and published changes.
 
 ## Where leads find these instructions

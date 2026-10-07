@@ -6,6 +6,13 @@ The owner now permits all listed routes when they are verifiably free; this
 supersedes the earlier MiMo/LongCat-only exception for future assignments.
 Use existing native authentication. No billing changes or paid fallback.
 
+**Worker-only role:** every free OpenCode route in this pool may carry out
+a bounded assignment or supplementary check, but must not become the lead.
+The owner assigns the lead role to a stronger subscription agent. Planning,
+team coordination, integration and final approval stay with that lead;
+usage-limit fallback must not promote a free worker into the lead role.
+This is the owner's routing policy, not a measured reasoning-score claim.
+
 [OpenCode's official pricing](https://opencode.ai/docs/zen/#pricing) lists
 all eleven as free. A read-only local `opencode models opencode --verbose`
 on 2026-10-07 found ten with input, output, cache-read and cache-write costs
@@ -73,6 +80,7 @@ verified provenance. Fledge/Exo identity is likewise not established here.
 | LongCat 2.5 Preview: LEAD-POLICY-STARTUP-DOCS-1 review, 2026-10-06 | Native exit 0, complete material, APPROVE at medium effort; candidate subsequently integrated. | It completed a second documentation review; the sample remains small. |
 | Nemotron 3 Ultra: BROWSER-API-ERRORS-1 review, 2026-10-06 | Native exit 0, complete material, APPROVE. | It completed a code-review call; approval alone does not establish that it found all defects or that the whole workflow was shipped. |
 | MiMo V2.6 Flash: WORK-POLICY-1 Source, 2026-10-07 | Native timeout exit 124 after the 1500-second worker bound, with delayed shutdown; zero commits or changed files. No verification/review/acceptance. | It did not deliver this broad CLI/state assignment. This is a task/route-specific failure, not a judgment of code that was never produced. |
+| Muse Spark1.3: WORK-POLICY-CLI-1 Source, 2026-10-07 | Saved two commits; native Source0 and focused4/4 PASS, but personal lead review REQUEST-CHANGES for proven state-update and file-write gaps. Not accepted or merged. | It delivered a bounded candidate in about seven minutes. Passing its initial checks did not establish correctness; acceptance depends on fixing the demonstrated findings. |
 
 The underlying private receipts remain in the workspace. Do not publish raw
 prompts, log output or authentication to make these conclusions portable.

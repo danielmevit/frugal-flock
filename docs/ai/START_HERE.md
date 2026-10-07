@@ -15,8 +15,10 @@ workspace coordination log and actual current worker receipts. Existing
 MASTER.md reading instructions name this startup file; it supplies the
 public repository entry point instead of relying on unpublished role cards.
 
-Use the exact verified-free MiMo/LongCat Zen routes for useful bounded routine
-chores and supplementary documentation checks. Prefer stronger available
+Use the [verified free OpenCode pool](../FREE-MODELS.md) only as workers
+on bounded assignments or supplementary checks. Free models must not lead
+the team or replace its subscription lead during a cooldown. Planning,
+coordination and final approval remain with the lead. Prefer stronger available
 subscription agents for complex code, UI, debugging/security and final
 assessment. OpenCode subscription models use Go. Recheck current zero costs
 and pin title/helper models free too. No paid fallback, extra token charges,
