@@ -41,6 +41,7 @@ def after(flag):
     assert argv.count(flag) == 1, argv
     return argv[argv.index(flag) + 1]
 tf = os.environ['TASKFILE']
+otf = os.environ['UNIO_ORIGINAL_TASKFILE']
 if agent == 'claude':
     assert argv == ['-p', '--dangerously-skip-permissions'], argv
     payload = stdin
@@ -58,18 +59,25 @@ elif agent == 'antigravity':
     assert argv[0] == '-p' and argv[2:] == ['--dangerously-skip-permissions', '--print-timeout', '55m'], argv
     assert 'read the ENTIRE file' in argv[1] and 'every chunk through its last line' in argv[1], argv
     payload = Path(argv[1].rsplit('File: ', 1)[1]).read_bytes()
+original = Path(otf).read_bytes()
+review = original.startswith(b'You are an independent code reviewer')
+delimiter = b'--- original review material follows ---\n' if review else b'--- original run material follows ---\n'
 receipts = Path(os.environ['STUB_RECEIPTS'])
 n = len(list(receipts.iterdir()))
-review = payload.startswith(b'You are an independent code reviewer')
 (receipts / f'{n:03d}-{agent}.json').write_text(json.dumps(dict(
-    agent=agent, phase='review' if review else 'run', argv=argv, cwd=os.getcwd(), taskfile=tf,
+    agent=agent, phase='review' if review else 'run', argv=argv, cwd=os.getcwd(), taskfile=tf, original_taskfile=otf,
     taskfile_sha=hashlib.sha256(Path(tf).read_bytes()).hexdigest(), stdin_len=len(stdin),
     payload_len=len(payload), payload_sha=hashlib.sha256(payload).hexdigest(),
+    original_len=len(original), original_sha=hashlib.sha256(original).hexdigest(),
+    has_authority=b'UNIO_ORIGINAL_TASKFILE' in payload,
+    has_header_prefix=payload.startswith(b'# Unio work-policy header (effective prompt; the original task is unchanged)\n'),
+    has_delimiter=delimiter in payload,
+    exact_match=(payload == payload[:payload.index(delimiter) + len(delimiter)] + original) if delimiter in payload else False,
     max_arg=max(len(a.encode()) for a in sys.argv), argv_bytes=sum(len(a.encode()) + 1 for a in sys.argv),
     max_env=max(len(k) + len(v) for k, v in os.environb.items()),
     sentinel_in_argv=any(b'PAYLOAD-SENTINEL' in os.fsencode(a) for a in sys.argv),
     sentinel_in_env=any(b'PAYLOAD-SENTINEL' in v for v in os.environb.values()),
-    ends=payload[-200:].decode('utf-8'))))
+    ends=original[-200:].decode('utf-8'))))
 if os.environ.get('STUB_EXIT'):
     sys.exit(int(os.environ['STUB_EXIT']))
 if review:
@@ -150,14 +158,16 @@ with tempfile.TemporaryDirectory(prefix='prompt-transport-') as directory:
         check(f'{agent}: run launched the fake provider exactly once', len(new) == 1 and new[0]['phase'] == 'run')
         r = new[0]
         check(f'{agent}: run prompt is the complete task, byte/hash identical ({len(data)} bytes)',
-              len(data) > 180000 and r['payload_len'] == len(data)
-              and r['payload_sha'] == hashlib.sha256(data).hexdigest() == r['taskfile_sha'])
+              len(data) > 180000 and r['original_len'] == len(data)
+              and r['original_sha'] == hashlib.sha256(data).hexdigest()
+              and r['payload_sha'] == r['taskfile_sha']
+              and r['has_authority'] and r['has_header_prefix'] and r['has_delimiter'] and r['exact_match'])
         check(f'{agent}: run argv and environment stay bounded and prompt-free',
               r['max_arg'] < 1024 and r['argv_bytes'] < 4096 and r['max_env'] < ARG_MAX_ONE
               and not r['sentinel_in_argv'] and not r['sentinel_in_env'])
         check(f'{agent}: run cwd is the worker checkout', Path(r['cwd']) == (root / 'wt' / agent).resolve())
         check(f'{agent}: stdin carries the task only for stdin transports',
-              r['stdin_len'] == (len(data) if agent in ('claude', 'codex') else 0))
+              r['stdin_len'] == (r['payload_len'] if agent in ('claude', 'codex') else 0))
         call('verify', agent, 'big-' + agent)
         result = json.loads(call('result', agent, 'big-' + agent).stdout)
         check(f'{agent}: native process succeeded and validation passed',
@@ -176,13 +186,14 @@ with tempfile.TemporaryDirectory(prefix='prompt-transport-') as directory:
         task_bytes = (root / 'coord/tasks' / f'big-{agent}.md').read_bytes()
         check(f'{reviewer}: complete material file delivered byte/hash identical ({r["payload_len"]} bytes)',
               r['payload_len'] > ARG_MAX_ONE and r['payload_sha'] == r['taskfile_sha']
+              and r['has_authority'] and r['has_header_prefix'] and r['has_delimiter'] and r['exact_match']
               and r['ends'].endswith('VERDICT: APPROVE or VERDICT: REQUEST-CHANGES\n'))
-        check(f'{reviewer}: material holds the whole task, never clipped', r['payload_len'] > len(task_bytes))
+        check(f'{reviewer}: material holds the whole task, never clipped', r['original_len'] > len(task_bytes))
         check(f'{reviewer}: review argv and environment stay bounded and prompt-free',
               r['max_arg'] < 1024 and r['argv_bytes'] < 4096 and r['max_env'] < ARG_MAX_ONE
               and not r['sentinel_in_argv'] and not r['sentinel_in_env'])
         check(f'{reviewer}: review runs beside the material file, not in the worker checkout',
-              Path(r['cwd']) == Path(r['taskfile']).parent and Path(r['cwd']) != (root / 'wt' / agent).resolve())
+              Path(r['cwd']) == Path(r['original_taskfile']).parent and Path(r['cwd']) != (root / 'wt' / agent).resolve())
         result = json.loads(call('result', agent, 'big-' + agent).stdout)
         check(f'{reviewer}: actual verdict and readiness recorded',
               result['review']['state'] == 'approved' and result['review']['material_complete']
