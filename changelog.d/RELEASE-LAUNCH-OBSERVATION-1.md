@@ -1,0 +1,2 @@
+- Use precise subprocess.Popen wrapping to observe actual launch attempts instead of relying on Python mock logs.
+- This ensures correct validation of bounds when timeout processes die before Python initialization completes.

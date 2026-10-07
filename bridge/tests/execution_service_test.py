@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
 """Disposable real Git/PlanStore/JobStore fixtures; native mock, zero providers."""
 import concurrent.futures
+from contextlib import contextmanager
 import copy
 import hashlib
 import importlib.util
@@ -274,6 +275,13 @@ class ExecutionServiceTests(unittest.TestCase):
         while not path.exists() and time.monotonic() < end:
             time.sleep(.01)
         self.assertTrue(path.exists(), str(path.name))
+
+    @contextmanager
+    def observe_engine_starts(self, operation):
+        with patch('subprocess.Popen', wraps=subprocess.Popen) as popen:
+            yield lambda: [call.args[0] for call in popen.call_args_list
+                           if call.args and call.args[0] and call.args[0][0] == str(self.engine)
+                           and len(call.args[0]) > 1 and call.args[0][1] == operation]
 
     def test_frozen_signatures_and_errors(self):
         signatures = dict(prepare='draft_id expected_hash request_key', approve='job_id expected_hash approval_key preview_hash',
@@ -713,11 +721,13 @@ class ExecutionServiceTests(unittest.TestCase):
     def test_bounded_launch_timeout_and_nonzero_are_unknown_not_retryable(self):
         draft, view, approval = self.approved(); identity = view['job']['id']; key = self.key()
         self.control(hang='run')
-        with patch.dict(service.DEADLINES, run=.15):
-            self.error('outcome_unknown', self.instance.start, identity, approval, key)
-        replay = self.open().start(identity,approval,key)
+        with self.observe_engine_starts('run') as attempts:
+            with patch.dict(service.DEADLINES, run=.15):
+                self.error('outcome_unknown', self.instance.start, identity, approval, key)
+            replay = self.open().start(identity,approval,key)
         self.assertEqual(replay['job']['state'], 'completion_unknown')
-        self.assertEqual(len(self.calls('run')), 1)
+        self.assertLessEqual(len(self.calls('run')), 1, 'killed mock may not have logged')
+        self.assertEqual(len(attempts()), 1, 'must have exactly one native Popen attempt')
 
     def test_unavailable_engine_after_intent_maps_failure_without_retry(self):
         draft, view, approval = self.approved(); identity = view['job']['id']; key = self.key()
@@ -886,11 +896,13 @@ class ExecutionServiceTests(unittest.TestCase):
     def test_review_timeout_preserves_paid_intent_after_restart(self):
         _, view, _, _ = self.started(); identity = view['job']['id']; self.instance.verify(identity,self.key())
         self.control(hang='review'); key = self.key()
-        with patch.dict(service.DEADLINES, review=.15):
-            self.error('outcome_unknown', self.instance.review, identity,key)
-        reopened = self.open(); reopened.review(identity,key)
-        self.error('outcome_unknown', reopened.review, identity,self.key())
-        self.assertEqual(len(self.calls('review')), 1)
+        with self.observe_engine_starts('review') as attempts:
+            with patch.dict(service.DEADLINES, review=.15):
+                self.error('outcome_unknown', self.instance.review, identity,key)
+            reopened = self.open(); reopened.review(identity,key)
+            self.error('outcome_unknown', reopened.review, identity,self.key())
+        self.assertLessEqual(len(self.calls('review')), 1, 'killed mock may not have logged')
+        self.assertEqual(len(attempts()), 1, 'must have exactly one native Popen attempt')
 
     def test_orphan_review_intent_refuses_other_keys_without_a_provider_call(self):
         _, view, _, _ = self.started(); identity = view['job']['id']; self.instance.verify(identity,self.key())
