@@ -7,10 +7,12 @@ not require a slower workflow, and a smaller one should not exhaust the lead.
 Implementation status: approved command and behavior contract on 2026-10-07;
 the command/state slice (mode, tier, policy, lead and account commands,
 persistence in `coord/work-policy.json`, visibility and worker
-instructions) is implemented in development source and reports
-`workflow_enforcement` as `advisory`. Released Unio 0.5.2 does not yet have
-these switches. Native slot locking for Source and review dispatch is the
-next slice. Commands below describe the new development functionality.
+instructions) and the native guard slice are both implemented in
+development source, which reports `workflow_enforcement` as
+`native_workflows`. Released Unio 0.5.2 does not yet have these switches.
+Foreground/background Source runs and independent reviews hold one locked
+slot per shared budget group, admitted before any provider call. Commands
+below describe the development functionality.
 
 ## Choose the pace
 
