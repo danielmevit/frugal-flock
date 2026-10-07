@@ -1406,6 +1406,247 @@ except (ValueError,OSError,KeyError,TypeError) as exc:
 QUALITY_PY
 }
 
+# Lean work-policy state helper: mode/tier/lead/account guidance and only
+# that. Separate from QUALITY_PY so the strict quality-result schema stays
+# untouched. Queries and setters never dispatch, authenticate, probe quota
+# or alter agents.conf. Workflow enforcement stays advisory here; native
+# slot locking ships in the follow-up guard slice.
+policy() {
+  command -v python3 >/dev/null || die "Python 3 is required before mode/tier/lead/account/policy"
+  python3 - "$@" <<'POLICY_PY'
+import datetime, fcntl, json, os, stat, sys
+
+MAX_STATE = 65536
+ALLOWED_KEYS = {'schema_version', 'mode', 'tier', 'lead_agent', 'accounts', 'updated_at'}
+MODES = ('yolo', 'medium', 'safe')
+TIERS = ('low', 'medium', 'high')
+LIMITS = {'low': 1, 'medium': 2, 'high': 4}
+MODE_BLURB = {
+    'yolo': 'finish a useful feature in a coherent batch; focused checks, a real smoke check, brief lead review; full gate at release',
+    'medium': 'manageable batches with integration attention; focused plus relevant integration checks; independent review when warranted',
+    'safe': 'smaller checkpoints, careful interface and failure-path inspection; broader checks plus independent reviews',
+}
+TIER_BLURB = {
+    'low': '1 independent workflow per shared provider/account budget, including the lead; delegate implementation to other providers',
+    'medium': '2 independent workflows per shared budget, including the lead; prefer other funded providers before the lead reserve',
+    'high': '4 independent workflows per shared budget, including the lead; no busywork, no automatic maximum effort',
+}
+
+def fail(message):
+    print('unio: ' + message, file=sys.stderr)
+    sys.exit(2)
+
+def check_label(value, what):
+    if (not value or value in ('.', '..') or '..' in value or value.startswith('-')
+            or any(c.isspace() or ord(c) < 32 or c in '/\\' for c in value)):
+        fail('invalid %s label: %r' % (what, value))
+
+def state_path(root):
+    return os.path.join(root, 'coord', 'work-policy.json')
+
+def defaults():
+    return {'schema_version': 1, 'mode': 'medium', 'tier': 'low', 'lead_agent': None, 'accounts': {}}
+
+def read_state(root):
+    path = state_path(root)
+    if not os.path.lexists(path):
+        return defaults()
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        fail('refusing to read policy state (symlink or unreadable, left unchanged): ' + path)
+    with os.fdopen(fd, 'rb') as f:
+        st = os.fstat(f.fileno())
+        if not stat.S_ISREG(st.st_mode):
+            fail('refusing to read policy state (not a regular file, left unchanged): ' + path)
+        if st.st_nlink != 1:
+            fail('refusing to read policy state (hardlinked, left unchanged): ' + path)
+        if st.st_size > MAX_STATE:
+            fail('refusing to read policy state (oversized, left unchanged): ' + path)
+        raw = f.read()
+    if len(raw) > MAX_STATE:
+        fail('refusing to read policy state (oversized, left unchanged): ' + path)
+    try:
+        text = raw.decode('utf-8')
+    except UnicodeDecodeError:
+        fail('policy state is malformed (left unchanged): ' + path)
+
+    def _unique_object(pairs):
+        obj = {}
+        for key, value in pairs:
+            if key in obj:
+                raise ValueError('duplicate key: ' + str(key))
+            obj[key] = value
+        return obj
+
+    try:
+        doc = json.loads(text, object_pairs_hook=_unique_object)
+    except ValueError as exc:
+        message = str(exc)
+        if message.startswith('duplicate key: '):
+            fail('policy state has a duplicate key (left unchanged): ' + message[len('duplicate key: '):])
+        fail('policy state is malformed (left unchanged): ' + path)
+    if not isinstance(doc, dict):
+        fail('policy state is malformed (left unchanged): ' + path)
+    unknown = set(doc) - ALLOWED_KEYS
+    if unknown:
+        fail('policy state has unknown keys (left unchanged): ' + ', '.join(sorted(unknown)))
+    if type(doc.get('schema_version')) is not int or doc.get('schema_version') != 1:
+        fail('policy state has an unknown schema (schema_version must be 1; left unchanged)')
+    for required in ('mode', 'tier', 'lead_agent', 'accounts'):
+        if required not in doc:
+            fail('policy state is missing key (left unchanged): ' + required)
+    if doc.get('mode') not in MODES:
+        fail('policy state has an invalid mode (left unchanged)')
+    if doc.get('tier') not in TIERS:
+        fail('policy state has an invalid tier (left unchanged)')
+    lead = doc.get('lead_agent')
+    if lead is not None:
+        if type(lead) is not str:
+            fail('policy state has an invalid lead_agent (left unchanged)')
+        check_label(lead, 'lead agent')
+    accounts = doc.get('accounts')
+    if type(accounts) is not dict:
+        fail('policy state has invalid accounts (left unchanged)')
+    for agent, group in accounts.items():
+        if type(agent) is not str or type(group) is not str:
+            fail('policy state has an invalid account mapping (left unchanged)')
+        check_label(agent, 'account agent')
+        check_label(group, 'account group')
+    if 'updated_at' in doc and type(doc['updated_at']) is not str:
+        fail('policy state has an invalid updated_at (left unchanged)')
+    return doc
+
+def stamp():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+def write_state(root, doc):
+    path = state_path(root)
+    os.makedirs(os.path.join(root, 'coord', '.locks'), exist_ok=True)
+    with open(os.path.join(root, 'coord', '.locks', 'work-policy.lock'), 'a+b') as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            read_state(root)  # validate before mutation; malformed state refuses without reset
+            data = (json.dumps(doc, sort_keys=True, ensure_ascii=True) + '\n').encode('utf-8')
+            if len(data) > MAX_STATE:
+                fail('policy state would exceed the size limit (not written)')
+            tmp = path + '.tmp'
+            with open(tmp, 'wb') as f:
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+def describe(doc):
+    out = {'schema_version': 1, 'mode': doc['mode'], 'tier': doc['tier'],
+           'lead_agent': doc['lead_agent'], 'accounts': doc['accounts'],
+           'workflow_limit_per_group': LIMITS[doc['tier']],
+           'capacity': 'unknown', 'workflow_enforcement': 'advisory'}
+    if 'updated_at' in doc:
+        out['updated_at'] = doc['updated_at']
+    return out
+
+def render_human(root, doc):
+    lead = doc['lead_agent'] if doc['lead_agent'] is not None else '(none)'
+    if doc['accounts']:
+        accounts = ', '.join('%s=%s' % (a, doc['accounts'][a]) for a in sorted(doc['accounts']))
+    else:
+        accounts = '(none)'
+    return (
+        'work policy (coord/work-policy.json; a missing file means defaults medium/low):\n'
+        '  mode: %(mode)s — %(mode_blurb)s\n'
+        '  tier: %(tier)s — %(tier_blurb)s\n'
+        '  lead: %(lead)s — register with `unio lead <agent>`; it counts as one workflow in its budget group until `unio lead none`\n'
+        '  accounts: %(accounts)s — group aliases sharing one budget with `unio account <agent> <group>`\n'
+        '  capacity: unknown\n'
+        '  workflow_enforcement: advisory — guidance for the lead only; native slot locking ships in the next slice\n'
+        '  guide: coord/docs/WORK-MODES.md (`unio policy --json` for machines)\n'
+    ) % {'mode': doc['mode'], 'mode_blurb': MODE_BLURB[doc['mode']],
+         'tier': doc['tier'], 'tier_blurb': TIER_BLURB[doc['tier']],
+         'lead': lead, 'accounts': accounts}
+
+def main(argv):
+    if len(argv) < 3:
+        fail('usage: policy <root> <command> [args]')
+    root, cmd, args = argv[1], argv[2], argv[3:]
+    if cmd == 'human':
+        if args:
+            fail('usage: unio policy [--json]')
+        sys.stdout.write(render_human(root, read_state(root)))
+    elif cmd == 'json':
+        if args:
+            fail('usage: unio policy [--json]')
+        sys.stdout.write(json.dumps(describe(read_state(root)), sort_keys=True, indent=2) + '\n')
+    elif cmd == 'get-mode':
+        if args:
+            fail('usage: unio mode [yolo|medium|safe]')
+        sys.stdout.write('mode: ' + read_state(root)['mode'] + '\n')
+    elif cmd == 'get-tier':
+        if args:
+            fail('usage: unio tier [low|medium|high]')
+        sys.stdout.write('tier: ' + read_state(root)['tier'] + '\n')
+    elif cmd == 'get-lead':
+        if args:
+            fail('usage: unio lead [agent|none]')
+        lead = read_state(root)['lead_agent']
+        sys.stdout.write('lead: ' + (lead if lead is not None else '(none)') + '\n')
+    elif cmd == 'show-accounts':
+        if args:
+            fail('usage: unio account [agent group]')
+        accounts = read_state(root)['accounts']
+        if not accounts:
+            sys.stdout.write('accounts: (none)\n')
+        else:
+            for agent in sorted(accounts):
+                sys.stdout.write('accounts: %s=%s\n' % (agent, accounts[agent]))
+    elif cmd == 'set-mode':
+        if len(args) != 1 or args[0] not in MODES:
+            fail('usage: unio mode [yolo|medium|safe]')
+        doc = read_state(root)
+        doc['mode'] = args[0]
+        doc['updated_at'] = stamp()
+        write_state(root, doc)
+        sys.stdout.write('mode: ' + args[0] + '\n')
+    elif cmd == 'set-tier':
+        if len(args) != 1 or args[0] not in TIERS:
+            fail('usage: unio tier [low|medium|high]')
+        doc = read_state(root)
+        doc['tier'] = args[0]
+        doc['updated_at'] = stamp()
+        write_state(root, doc)
+        sys.stdout.write('tier: ' + args[0] + '\n')
+    elif cmd == 'set-lead':
+        if len(args) != 1:
+            fail('usage: unio lead [agent|none]')
+        if args[0] == 'none':
+            lead = None
+        else:
+            check_label(args[0], 'lead agent')
+            lead = args[0]
+        doc = read_state(root)
+        doc['lead_agent'] = lead
+        doc['updated_at'] = stamp()
+        write_state(root, doc)
+        sys.stdout.write('lead: ' + (lead if lead is not None else '(none)') + '\n')
+    elif cmd == 'set-account':
+        if len(args) != 2:
+            fail('usage: unio account [agent group]')
+        check_label(args[0], 'account agent')
+        check_label(args[1], 'account group')
+        doc = read_state(root)
+        doc['accounts'][args[0]] = args[1]
+        doc['updated_at'] = stamp()
+        write_state(root, doc)
+        sys.stdout.write('accounts: %s=%s\n' % (args[0], args[1]))
+    else:
+        fail('unknown policy command: ' + cmd)
+
+main(sys.argv)
+POLICY_PY
+}
+
 host_warning() {
   quality preflight || return $?
   echo 'Execution boundary: trusted_host — configured commands may have host-level access. Worktrees and temporary directories are not OS sandboxes.' >&2
@@ -1773,8 +2014,28 @@ cmd_init() {
   if [ "$cg_bg" = "1" ]; then
     echo "codegraph    : indexing worktrees in the background (repo/ is indexed)"
   fi
+  [ -f "$root/coord/docs/WORK-MODES.md" ] || cp "$TPL_DIR/WORK-MODES.md" "$root/coord/docs/WORK-MODES.md"
+
+  # readable work-policy reference: fresh installs get it from the template;
+  # existing custom MASTER.md files keep their content and gain one block
+  if ! grep -q 'UNIO-WORK-POLICY' "$main_dir/MASTER.md" 2>/dev/null; then
+    cat >> "$main_dir/MASTER.md" <<'POLICY_MD_EOF'
+
+## Work policy (mode + coordination budget)
+<!-- UNIO-WORK-POLICY -->
+Read `unio policy` before planning or delegation, and the installed guide
+at ../coord/docs/WORK-MODES.md. The mode shapes scope and review planning;
+the tier caps independent workflows per shared provider/account budget
+(low 1, medium 2, high 4, including a registered lead). These settings are
+advisory guidance: they do not constrain unmanaged CLI sessions, and native
+slot enforcement ships in a later slice.
+POLICY_MD_EOF
+  fi
+
   echo "playbooks    : drop your operational .md files into $root/coord/docs/"
   echo "next         : unio agents"
+  echo
+  policy "$root" human || true
 }
 
 # ------------------------------------------------------------------- run
@@ -2222,6 +2483,8 @@ cmd_status() {
   local pg; pg=$(pgrep -af "bin/unio run" 2>/dev/null | grep -v "^$$ " || true)
   if [ -n "$pg" ]; then printf '%s\n' "$pg" | sed 's/^/  /'; any=1; fi
   [ "$any" = 1 ] || echo "  (none)"
+  echo; echo "== work policy (advisory guidance; native enforcement pending) =="
+  policy "$root" human || echo "  (policy state unreadable — see the error above; left unchanged)"
 }
 
 cmd_watch() {
@@ -3073,6 +3336,49 @@ cmd_license() {
   cat "$CONF_DIR/legal/NOTICE" "$CONF_DIR/legal/LICENSE"
 }
 
+# Work-policy commands: guidance/state only (workflow_enforcement=advisory).
+# Setters validate before writing and never dispatch anything; invalid or
+# surplus arguments fail without touching coord/work-policy.json.
+cmd_mode() {
+  local root; root=$(find_root) || die "not inside a Unio project"
+  [ $# -gt 1 ] && die "usage: unio mode [yolo|medium|safe]"
+  if [ $# -eq 0 ]; then policy "$root" get-mode
+  else policy "$root" set-mode "$1"
+  fi
+}
+
+cmd_tier() {
+  local root; root=$(find_root) || die "not inside a Unio project"
+  [ $# -gt 1 ] && die "usage: unio tier [low|medium|high]"
+  if [ $# -eq 0 ]; then policy "$root" get-tier
+  else policy "$root" set-tier "$1"
+  fi
+}
+
+cmd_lead() {
+  local root; root=$(find_root) || die "not inside a Unio project"
+  [ $# -gt 1 ] && die "usage: unio lead [agent|none]"
+  if [ $# -eq 0 ]; then policy "$root" get-lead
+  else policy "$root" set-lead "$1"
+  fi
+}
+
+cmd_account() {
+  local root; root=$(find_root) || die "not inside a Unio project"
+  if [ $# -eq 0 ]; then policy "$root" show-accounts
+  elif [ $# -eq 2 ]; then policy "$root" set-account "$1" "$2"
+  else die "usage: unio account [agent group]"
+  fi
+}
+
+cmd_policy() {
+  local root; root=$(find_root) || die "not inside a Unio project"
+  if [ $# -eq 0 ]; then policy "$root" human
+  elif [ $# -eq 1 ] && [ "$1" = "--json" ]; then policy "$root" json
+  else die "usage: unio policy [--json]"
+  fi
+}
+
 cmd_help() {
   cat <<'HELP'
 Unio — Small plans. Big ideas.
@@ -3172,6 +3478,21 @@ switches
   unio version                  installed version + config path
   unio license                  original credit and full AGPLv3 terms
 
+work policy (guidance/state only; workflow_enforcement=advisory)
+  unio mode [yolo|medium|safe]  show or set the work pace (default medium)
+  unio tier [low|medium|high]   show or set the coordination budget
+                                      (default low: 1 workflow per shared
+                                      budget; medium 2, high 4, lead included)
+  unio lead [agent|none]        show or register the lead reservation
+  unio account [agent group]    show mappings, or group aliases that share
+                                      one budget (names are budget labels,
+                                      never credentials)
+  unio policy [--json]          current mode/tier/lead/accounts, limits and
+                                      the advisory note (details in
+                                      coord/docs/WORK-MODES.md)
+      Policy guides the lead; it does not constrain unmanaged sessions.
+      Native slot enforcement ships in the next slice.
+
 Worker -> agent: prefix before first "-" ("codex-2" uses agent "codex").
 Config: ~/.config/unio/agents.conf (project override: coord/agents.conf).
 Configuration overrides use UNIO_* environment variables.
@@ -3213,6 +3534,11 @@ case "${1:-help}" in
   version|-V|--version) cmd_version;;
   license)  cmd_license;;
   status)   shift; cmd_status "$@";;
+  mode)     shift; cmd_mode "$@";;
+  tier)     shift; cmd_tier "$@";;
+  lead)     shift; cmd_lead "$@";;
+  account)  shift; cmd_account "$@";;
+  policy)   shift; cmd_policy "$@";;
   agents)   shift; cmd_agents "$@";;
   watch)    shift; cmd_watch "$@";;
   off)      shift; cmd_off "$@";;
@@ -3298,6 +3624,15 @@ Coordination = ../coord.
 2. This repo's own AGENTS.md router and docs/ai/START_HERE.md, if present.
 3. Navigate code with CodeGraph (`codegraph explore "..."`) — no grep-loops.
 Plan first: present the breakdown to Daniel; delegate only after his "go".
+
+## Work policy (mode + coordination budget)
+<!-- UNIO-WORK-POLICY -->
+Read `unio policy` before planning or delegation, and the installed guide
+at ../coord/docs/WORK-MODES.md. The mode shapes scope and review planning;
+the tier caps independent workflows per shared provider/account budget
+(low 1, medium 2, high 4, including a registered lead). These settings are
+advisory guidance: they do not constrain unmanaged CLI sessions, and native
+slot enforcement ships in a later slice.
 
 ## How to delegate
 1. `unio agents` — who is ON. OFF = quota-exhausted (5h/weekly cap).
@@ -3461,6 +3796,72 @@ MINOR / NIT, then exactly one final line:
 VERDICT: APPROVE            (nothing blocking)
 VERDICT: REQUEST-CHANGES    (one or more blockers)
 REVIEW_TPL_EOF
+
+cat > "$TPL_DIR/WORK-MODES.md" <<'WORKMODES_TPL_EOF'
+# Work modes and subscription tiers (installed guide)
+
+Unio has two independent settings: the pace of work and the budget
+available for coordinating it. A larger subscription does not require a
+slower workflow, and a smaller one should not exhaust the lead. Both
+settings are workspace-wide and persist in `coord/work-policy.json`; a
+missing file means the defaults (`medium` / `low`).
+
+Status: the command/state slice is installed here. `unio policy --json`
+reports `workflow_enforcement` as `advisory`: these settings guide the
+lead but do not constrain unmanaged CLI sessions. Native slot locking for
+foreground/background runs and independent reviews ships in the next slice.
+
+## Choose the pace: `unio mode [yolo|medium|safe]`
+
+- `yolo` — finish a useful feature in a coherent batch; focused checks, a
+  real smoke check where relevant, brief lead review; full gate at release.
+- `medium` (default) — manageable batches with integration attention;
+  focused plus relevant integration checks; independent review when warranted.
+- `safe` — smaller checkpoints, careful interface and failure-path
+  inspection; broader checks plus independent reviews.
+
+A mode shapes the next task's scope and review plan; it never removes a
+frozen task's Validate commands. Modes change no models, effort wrappers,
+permissions or billing.
+
+## Choose a coordination budget: `unio tier [low|medium|high]`
+
+Independent workflows allowed per shared provider/account budget, lead
+included: `low` 1 (default), `medium` 2, `high` 4. `low` still allows
+other budget groups concurrently (for example Codex leads while Claude
+and GLM work separately), plus helpers inside their same authorized
+assignment. Missing capacity stays `unknown`. Higher tiers never create
+extra allowance.
+
+Register the lead's reservation with `unio lead <agent>` (cleared by
+`unio lead none`); it counts as one workflow in its group. Group aliases
+sharing one budget with `unio account <agent> <group>`. These names are
+logical budget labels, never credentials.
+
+## Commands
+
+```bash
+unio mode yolo        # set the pace (persists; the other setting is kept)
+unio tier low         # set the budget
+unio lead codex       # register the lead reservation
+unio policy           # human-readable state, limits and the advisory note
+unio policy --json    # machine-readable state (schema 1, limits, advisory)
+
+unio mode             # show one value without changing it
+unio tier
+unio lead
+unio account          # show mappings (empty until grouped)
+
+unio account opencode go-primary   # aliases sharing one budget
+unio account glm go-primary
+```
+
+Only `yolo`, `medium`, `safe` modes and `low`, `medium`, `high` tiers are
+accepted; extra arguments and invalid values fail without changing state.
+Malformed, unknown-schema or unsafe state files fail locally instead of
+resetting settings. Start model effort at high or the supported middle;
+escalate only for demonstrated reasoning difficulty.
+WORKMODES_TPL_EOF
 
 cat > "$TPL_DIR/SABOTEUR.md" <<'SABOTEUR_TPL_EOF'
 # Task {{ID}} — worker: {{WORKER}} (the saboteur seat)
@@ -3931,7 +4332,7 @@ cat > "$COMP_DIR/unio" <<'COMPLETION_EOF'
 _unio() {
   local cur cmd root d cmds
   cur="${COMP_WORDS[COMP_CWORD]}"
-  cmds="new init run verify result handoff diff sync review race sabotage score doctor tail kill report status agents watch off on smoke selftest stop resume allow-retry version license help"
+  cmds="new init run verify result handoff diff sync review race sabotage score doctor tail kill report status mode tier lead account policy agents watch off on smoke selftest stop resume allow-retry version license help"
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ); return
   fi
@@ -3969,6 +4370,10 @@ _unio() {
       else COMPREPLY=( $(compgen -W "$workers" -- "$cur") ); fi;;
     tail|kill|report) COMPREPLY=( $(compgen -W "$tasks" -- "$cur") );;
     off|on) COMPREPLY=( $(compgen -W "$agents" -- "$cur") );;
+    mode) COMPREPLY=( $(compgen -W "yolo medium safe" -- "$cur") );;
+    tier) COMPREPLY=( $(compgen -W "low medium high" -- "$cur") );;
+    lead) COMPREPLY=( $(compgen -W "none $agents" -- "$cur") );;
+    policy) COMPREPLY=( $(compgen -W "--json" -- "$cur") );;
   esac
 }
 complete -F _unio unio
