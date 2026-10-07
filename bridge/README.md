@@ -399,10 +399,22 @@ The double-click regression now registers and awaits that exact POST boundary
 before checking the original count and busy assertions, while the response is
 still held. No assertion or timeout was removed or relaxed.
 
-The updated execution check is in progress; the recovery coverage and observed
-failures are preserved in early source checkpoints before remaining validation.
-Native verification of this candidate
-has not run in this worker. The complete inherited UI still has Google + OpenAI
+The final execution-browser check passed the complete journey, including both
+gated session scenarios, exact intent retention, blocked writes, explicit
+read-only reconnect, locked fixture evidence and the next-approval boundary.
+The three earlier new-candidate failures remain documented above; each subsequent
+execution check followed a concrete test correction rather than an unchanged
+failure retry. The initial coherent source checkpoint was committed as
+`53b8bee090529564a11004fc6e15e252fad597a2` within the 600-second preservation
+target, followed by the request-boundary correction
+`ee639222c0cf19f54f288ce2338fd67d0caf9de6` before remaining browser checks.
+Default Activity, manual draft and prototype Chromium suites passed on their
+first current-candidate runs. The execution API check is now running once,
+after all browser processes exited. Scoped docs lint and the complete
+frozen-base whitespace check passed; final results will be committed separately.
+
+Native verification of this candidate has not run in this worker.
+The complete inherited UI still has Google + OpenAI
 author labs; the owner's 2026-10-07 instruction replaces additional reviewer
 scheduling with the lead's personal review. Fresh native verification, the
 lead's complete assessment and full merge gate remain required. Source checks
