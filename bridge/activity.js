@@ -114,6 +114,8 @@
       row.append(info);
       limits.append(row);
     }
+    if (!data.agents.length)
+      limits.append(text("p", "No tool observations recorded. Authentication and capacity remain unknown.", "small"));
     for (const retry of data.retries)
       limits.append(
         text(
@@ -145,6 +147,7 @@
   async function refresh() {
     if (busy) return;
     busy = true;
+    document.getElementById("tasks").setAttribute("aria-busy", "true");
     try {
       const response = await fetch("/api/activity", { cache: "no-store" });
       if (!response.ok) throw new Error("observer unavailable");
@@ -159,6 +162,7 @@
         "Local activity is unavailable. No current state is claimed.";
     } finally {
       busy = false;
+      document.getElementById("tasks").setAttribute("aria-busy", "false");
     }
   }
   document.getElementById("refresh").addEventListener("click", refresh);
