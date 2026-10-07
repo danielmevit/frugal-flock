@@ -12,6 +12,17 @@ repeated broad test cycles and reserves the lead for coordination. The
 browser milestone remains active; its saved work is preserved. Browser
 selectors and account-specific scheduling can follow the core controls.
 
+## Learn from actual project work
+
+Owner-approved on 2026-10-07: [model experience and task-fit recommendations](MODEL-EXPERIENCE.md)
+become a separate Unio feature. Build on the existing ledger/scorecard to record
+accepted changes, actual failures, demonstrated review findings, corrections
+and time spent, grouped by model/route/effort and task type. Use official model
+claims only to propose first trials; recommendations need Unio's own checked
+project evidence. The [free model inventory](../FREE-MODELS.md) records the
+eleven approved candidates and initial dated observations. The richer runtime
+profiles and automatic suggestions are planned, not implemented.
+
 ## Approved delivery priorities
 
 Owner-approved on 2026-10-06. The goal is more verified work from existing
