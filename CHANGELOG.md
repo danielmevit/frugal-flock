@@ -24,6 +24,9 @@ version is released.
   the actual holder. Run and review stop their owned provider on interruption;
   quality-start failures retain their original status. Bounded mock regressions
   cover the shared budgets, partial replies, failure, timeout and signal cleanup.
+- Preserve caller stderr after closing control descriptors and keep EXIT cleanup
+  roots/pidfiles as quoted data after their function locals expire. Generated
+  runtime ShellCheck passes; a new check proves fd closure and stderr visibility.
 - Transport large UTF-8 tasks and review material without placing the entire
   file in one command argument. Claude and Codex use stdin, Grok uses
   `--prompt-file`, OpenCode uses `--file`, and Antigravity receives a short file
