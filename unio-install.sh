@@ -2417,27 +2417,36 @@ policy_holder_owns_slot() { # $1=pid $2=slot path; exact child fd, not a process
 }
 
 policy_close_admission_fds() {
-  if [ -n "${POLICY_RD:-}" ]; then
-    case "$POLICY_RD" in
-      ''|*[!0-9]*|0|1|2) ;;
-      *) exec {POLICY_RD}>&- 2>/dev/null || true;;
+  # exec with no command applies every redirection to this shell. A bare
+  # `exec {fd}>&- 2>/dev/null` would leave the caller's stderr on /dev/null.
+  # Duplicate stderr, close only the owned control fd, then restore stderr.
+  local name fd saved
+  for name in POLICY_RD POLICY_WR POLICY_IN; do
+    case "$name" in
+      POLICY_RD) fd="${POLICY_RD:-}";;
+      POLICY_WR) fd="${POLICY_WR:-}";;
+      POLICY_IN) fd="${POLICY_IN:-}";;
+      *) fd="";;
     esac
-    POLICY_RD=""
-  fi
-  if [ -n "${POLICY_WR:-}" ]; then
-    case "$POLICY_WR" in
+    [ -n "$fd" ] || continue
+    case "$fd" in
       ''|*[!0-9]*|0|1|2) ;;
-      *) exec {POLICY_WR}>&- 2>/dev/null || true;;
+      *)
+        saved=""
+        if exec {saved}>&2; then
+          exec {fd}>&- 2>/dev/null || true
+          exec 2>&"$saved" {saved}>&- || true
+        else
+          exec {fd}>&- || true
+        fi
+        ;;
     esac
-    POLICY_WR=""
-  fi
-  if [ -n "${POLICY_IN:-}" ]; then
-    case "$POLICY_IN" in
-      ''|*[!0-9]*|0|1|2) ;;
-      *) exec {POLICY_IN}>&- 2>/dev/null || true;;
+    case "$name" in
+      POLICY_RD) POLICY_RD="";;
+      POLICY_WR) POLICY_WR="";;
+      POLICY_IN) POLICY_IN="";;
     esac
-    POLICY_IN=""
-  fi
+  done
 }
 
 policy_ipc_remove() { # $1=root — only a confirmed private directory we created
@@ -2706,7 +2715,7 @@ policy_release_slot() { # $1=root — ask the holder to unlock and remove the sl
   fi
   local slot="${POLICY_SLOT:-}" can_unlink=1 ack="" n=0
   if [ -n "${POLICY_IN:-}" ]; then
-    printf 'RELEASE\n' >&"${POLICY_IN}" 2>/dev/null || true
+    printf 'RELEASE\n' 1>&"${POLICY_IN}" 2>/dev/null || true
   fi
   if [ -n "${POLICY_RD:-}" ]; then
     IFS= read -r -t 5 -u "$POLICY_RD" ack || ack=""
@@ -3177,17 +3186,19 @@ cmd_run() {
   if [ "${UNIO_BG:-0}" = "1" ]; then
     pidfile="$root/coord/reports/$task.pid"
     echo "$$" > "$pidfile"
-    # bake the path into the trap: it fires at script EXIT, after cmd_run has
-    # returned and its locals are gone, so a '$pidfile' reference would be
-    # empty and never clean up (orphaned pidfile). Expand it now instead.
-    # shellcheck disable=SC2064  # expanding $pidfile now is the point
-    trap "rm -f -- '$pidfile'; policy_release_slot '$root'" EXIT
+    # The EXIT trap runs after cmd_run returns, so its locals are gone.
+    # Keep both paths in globals. A root or pidfile with spaces or quotes
+    # must stay data, not text inside the handler.
+    POLICY_CLEANUP_ROOT="$root"
+    POLICY_CLEANUP_PIDFILE="$pidfile"
+    trap 'rm -f -- "$POLICY_CLEANUP_PIDFILE"; policy_release_slot "$POLICY_CLEANUP_ROOT"' EXIT
     trap 'exit 143' TERM
     trap 'exit 130' INT
   else
     # Foreground Source must release the holder on signal and exit, not only
-    # a background pidfile trap.
-    trap "policy_release_slot '$root'" EXIT
+    # a background pidfile trap. The local root does not survive until EXIT.
+    POLICY_CLEANUP_ROOT="$root"
+    trap 'policy_release_slot "$POLICY_CLEANUP_ROOT"' EXIT
     trap 'exit 143' TERM
     trap 'exit 130' INT
   fi
@@ -3701,7 +3712,9 @@ cmd_review() { # a DIFFERENT vendor judges the task order + the diff
   # reviewer's budget group. Admit before the reviewer provider starts; a
   # refusal records an unknown review and preserves a rejection report.
   POLICY_SLOT=""; POLICY_EFFECTIVE=""; POLICY_GROUP=""
-  trap "policy_release_slot '$root'" EXIT
+  # The local root does not survive until EXIT. Keep it as data for the trap.
+  POLICY_CLEANUP_ROOT="$root"
+  trap 'policy_release_slot "$POLICY_CLEANUP_ROOT"' EXIT
   trap 'exit 130' INT
   trap 'exit 143' TERM
   if ! policy_admit_hold "$root" "$reviewer" "$reviewer" "$task" review "$pf"; then
