@@ -402,4 +402,45 @@ with tempfile.TemporaryDirectory(prefix='work-policy-') as directory:
                 proc.wait(timeout=5)
     del env['MOCK_BARRIER']
 
+    # Source the installed closer by itself. Closing an owned descriptor must
+    # not leave this shell's stderr on /dev/null.
+    close_lines = Path(at).read_text().splitlines()
+    try:
+        close_start = close_lines.index('policy_close_admission_fds() {')
+        close_end = close_lines.index('}', close_start + 1)
+    except ValueError:
+        close_start = None
+        close_end = None
+    close_fn = ''
+    if close_start is not None and close_lines[close_end] == '}':
+        close_fn = '\n'.join(close_lines[close_start:close_end + 1]) + '\n'
+    close_probe = None
+    if close_fn:
+        close_probe = subprocess.run(
+            ['bash', '-c', close_fn + (
+                'set -euo pipefail\n'
+                'exec {owned}>/dev/null\n'
+                'POLICY_RD=$owned\n'
+                'POLICY_WR=\n'
+                'POLICY_IN=\n'
+                'policy_close_admission_fds\n'
+                'if [ -e "/proc/$$/fd/$owned" ]; then\n'
+                '  echo "still-open" >&2\n'
+                '  exit 3\n'
+                'fi\n'
+                'echo "stdout-sentinel"\n'
+                'echo "stderr-sentinel" >&2\n'
+            )],
+            capture_output=True, text=True, timeout=20)
+    if (close_probe is None or close_probe.returncode != 0
+            or close_probe.stderr != 'stderr-sentinel\n'):
+        if close_probe is not None:
+            print(close_probe.stdout)
+            print(close_probe.stderr)
+            print('rc', close_probe.returncode)
+    check('closing an admission fd keeps caller stderr',
+          close_probe is not None and close_probe.returncode == 0
+          and close_probe.stdout == 'stdout-sentinel\n'
+          and close_probe.stderr == 'stderr-sentinel\n')
+
 print('work-policy: %d checks passed' % passed[0])
