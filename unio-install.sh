@@ -1603,6 +1603,9 @@ def open_policy_lock(root):
     if not stat.S_ISREG(st.st_mode):
         os.close(fd)
         fail('refusing unsafe policy lock path (not a regular file, left unchanged): ' + path)
+    if st.st_nlink != 1:
+        os.close(fd)
+        fail('refusing unsafe policy lock path (hardlinked, left unchanged): ' + path)
     fcntl.flock(fd, fcntl.LOCK_EX)
     return fd
 
@@ -1676,50 +1679,55 @@ def lead_group_of(doc):
 def read_slot_meta(path):
     try:
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-    except OSError:
+    except FileNotFoundError:
         return None
+    except OSError:
+        fail('refusing unreadable slot: ' + path)
     try:
         st = os.fstat(fd)
-        if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_size > MAX_SLOT_META:
-            return None
+        if not stat.S_ISREG(st.st_mode):
+            fail('refusing unsafe slot (not a regular file): ' + path)
+        if st.st_nlink != 1:
+            fail('refusing unsafe slot (hardlinked): ' + path)
+        if st.st_size > MAX_SLOT_META:
+            fail('refusing unsafe slot (oversized): ' + path)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             return {'locked': True}
+
+        chunks = []
+        total = 0
+        while True:
+            piece = os.read(fd, 2048)
+            if not piece:
+                break
+            total += len(piece)
+            if total > MAX_SLOT_META:
+                fail('refusing unsafe slot (oversized): ' + path)
+            chunks.append(piece)
         try:
-            chunks = []
-            total = 0
-            while True:
-                piece = os.read(fd, 2048)
-                if not piece:
-                    break
-                total += len(piece)
-                if total > MAX_SLOT_META:
-                    return {'locked': False, 'stale': True}
-                chunks.append(piece)
-            try:
-                meta = json.loads(b''.join(chunks).decode('utf-8'))
-            except ValueError:
-                return {'locked': False, 'stale': True}
-            if (not isinstance(meta, dict) or meta.get('schema_version') != 1
-                    or type(meta.get('group')) is not str or type(meta.get('agent')) is not str
-                    or type(meta.get('worker')) is not str or type(meta.get('task')) is not str
-                    or meta.get('kind') not in ('run', 'review')):
-                return {'locked': False, 'stale': True}
-            try:
-                check_label(meta['group'], 'budget group')
-                check_label(meta['agent'], 'slot agent')
-                check_updated_at(meta.get('created_at', ''))
-            except SystemExit:
-                return {'locked': False, 'stale': True}
-            meta['locked'] = False
-            return meta
-        finally:
-            try:
-                fcntl.flock(fd, fcntl.LOCK_UN)
-            except OSError:
-                pass
+            meta = json.loads(b''.join(chunks).decode('utf-8'))
+        except ValueError:
+            fail('refusing unsafe slot (malformed json): ' + path)
+        if (not isinstance(meta, dict) or meta.get('schema_version') != 1
+                or type(meta.get('group')) is not str or type(meta.get('agent')) is not str
+                or type(meta.get('worker')) is not str or type(meta.get('task')) is not str
+                or meta.get('kind') not in ('run', 'review')):
+            fail('refusing unsafe slot (invalid schema): ' + path)
+        try:
+            check_label(meta['group'], 'budget group')
+            check_label(meta['agent'], 'slot agent')
+            check_updated_at(meta.get('created_at', ''))
+        except SystemExit:
+            fail('refusing unsafe slot (invalid data): ' + path)
+        meta['locked'] = False
+        return meta
     finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
         os.close(fd)
 
 def count_active(root, group):
@@ -1751,6 +1759,20 @@ def active_map(root):
         base = slots_base(root)
     except SystemExit:
         return counts
+    if not os.path.isdir(base) or os.path.islink(base):
+        return counts
+    try:
+        groups = os.listdir(base)
+    except OSError:
+        return counts
+    for group in groups:
+        if group.startswith('.'):
+            continue
+        check_label(group, 'budget group')
+        n = count_active(root, group)
+        if n:
+            counts[group] = n
+    return counts
     if not os.path.isdir(base) or os.path.islink(base):
         return counts
     try:
@@ -1804,10 +1826,7 @@ def known_groups(root, doc):
             for group in os.listdir(base):
                 if group.startswith('.'):
                     continue
-                try:
-                    check_label(group, 'budget group')
-                except SystemExit:
-                    continue
+                check_label(group, 'budget group')
                 groups.add(group)
     except OSError:
         pass
@@ -2000,7 +2019,10 @@ def main(argv):
             fail('budget group %r holds %d native workflow(s) plus %d lead reservation(s) at cap %d: refusing %s %s/%s before any provider call (no retry, no queue)'
                  % (group, native, lead_here, cap, kind, worker, task))
         directory = slot_group_dir(root, group)
-        os.makedirs(directory, exist_ok=True)
+        try:
+            os.makedirs(directory, exist_ok=True)
+        except FileExistsError:
+            pass
         if os.path.islink(directory):
             fail('refusing unsafe slot directory (symlink, left unchanged): ' + directory)
         meta = {'schema_version': 1, 'group': group, 'agent': agent,
@@ -2109,6 +2131,142 @@ def main(argv):
                     except OSError:
                         pass
         sys.stdout.write(os.path.join(reports, task + '.prompt.md') + '\n')
+    elif cmd == '_admit_hold':
+        if len(args) != 6:
+            fail('usage: policy _admit_hold <agent> <worker> <task> <kind> <orig> <in_fifo>')
+        agent, worker, task, kind, orig, in_fifo = args
+        check_label(agent, 'admit agent')
+        check_label(worker, 'admit worker')
+        check_label(task, 'admit task')
+        if kind not in ('run', 'review'):
+            fail('unknown admission kind: ' + kind)
+            
+        fd_lock = open_policy_lock(root)
+        try:
+            doc = read_state_nolock(root)
+            group = group_of(doc, agent)
+            cap = LIMITS[doc['tier']]
+            
+            sweep_group(root, group)
+            native = count_active(root, group)
+            lead_here = 1 if lead_group_of(doc) == group else 0
+            if native + lead_here + 1 > cap:
+                fail('budget group %r holds %d native workflow(s) plus %d lead reservation(s) at cap %d: refusing %s %s/%s before any provider call (no retry, no queue)'
+                     % (group, native, lead_here, cap, kind, worker, task))
+                     
+            directory = slot_group_dir(root, group)
+            try:
+                os.makedirs(directory, exist_ok=True)
+            except FileExistsError:
+                pass
+            if os.path.islink(directory):
+                fail('refusing unsafe slot directory (symlink, left unchanged): ' + directory)
+            
+            meta = {'schema_version': 1, 'group': group, 'agent': agent,
+                    'worker': worker, 'task': task, 'kind': kind, 'created_at': stamp()}
+            data = (json.dumps(meta, sort_keys=True, ensure_ascii=True) + '\n').encode('utf-8')
+            if len(data) > MAX_SLOT_META:
+                fail('slot metadata would exceed the size limit (not written)')
+                
+            fd_slot, tmp_slot = tempfile.mkstemp(prefix=WPSLOT_PREFIX, suffix='.json', dir=directory)
+            try:
+                fcntl.flock(fd_slot, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                os.write(fd_slot, data)
+                
+                snap = describe(root, doc)
+                try:
+                    with open(orig, 'rb') as f_orig:
+                        original = f_orig.read(2 * 1024 * 1024 + 1)
+                except OSError as exc:
+                    fail('cannot read original task material (left unchanged): %s' % exc)
+                if len(original) > 2 * 1024 * 1024:
+                    fail('original task material exceeds the transport bound (left unchanged)')
+                try:
+                    original_text = original.decode('utf-8')
+                except UnicodeDecodeError:
+                    fail('original task material is not UTF-8 (left unchanged)')
+                    
+                slot_name = os.path.basename(tmp_slot)
+                sidecar = {'schema_version': 1, 'group': group, 'worker': worker, 'task': task,
+                           'kind': kind, 'slot': slot_name, 'created_at': meta['created_at'], 'policy': snap}
+                sidecar_data = (json.dumps(sidecar, sort_keys=True, ensure_ascii=True) + '\n').encode('utf-8')
+                if len(sidecar_data) > 16384:
+                    fail('policy sidecar would exceed the size limit (not written)')
+                    
+                check_control_path(root, 'coord', 'reports', task + '.policy.json')
+                check_control_path(root, 'coord', 'reports', task + '.prompt.md')
+                reports = os.path.join(root, 'coord', 'reports')
+                os.makedirs(reports, exist_ok=True)
+                if os.path.islink(reports):
+                    fail('refusing unsafe reports path (symlink, left unchanged): ' + reports)
+                    
+                header = (
+                    '# Unio work-policy header (effective prompt; the original task is unchanged)\n'
+                    'mode: %(mode)s — %(mode_blurb)s\n'
+                    'tier: %(tier)s — %(tier_blurb)s\n'
+                    'lead: %(lead)s (group %(lead_group)s) — the registered lead counts as one workflow in its budget group\n'
+                    'budget_group: %(group)s — %(native)d native + %(lead_here)d lead = %(total)d/%(limit)d in this group; other groups stay concurrent\n'
+                    'capacity: unknown — workspace registered workflows only, not a quota meter\n'
+                    'workflow_enforcement: native_workflows\n'
+                    'Mid-run setting changes affect future admissions only. Frozen Validate commands still apply; no mode waives them.\n'
+                    'Wrappers needing original task authority use UNIO_ORIGINAL_TASKFILE. The original file below is unchanged.\n'
+                    '--- original %(kind)s material follows ---\n'
+                ) % {'mode': doc['mode'], 'mode_blurb': MODE_BLURB[doc['mode']],
+                     'tier': doc['tier'], 'tier_blurb': TIER_BLURB[doc['tier']],
+                     'lead': doc['lead_agent'] if doc['lead_agent'] is not None else '(none)',
+                     'lead_group': snap['lead_group'] if snap['lead_group'] is not None else '(none)',
+                     'group': group, 'native': native, 'lead_here': lead_here,
+                     'total': native + lead_here, 'limit': cap, 'kind': kind}
+                body = (header + original_text).encode('utf-8')
+                if not body.endswith(b'\n'):
+                    body += b'\n'
+                    
+                for name, payload in ((task + '.policy.json', sidecar_data), (task + '.prompt.md', body)):
+                    fd_sidecar, tmp_sidecar = tempfile.mkstemp(prefix='.sidecar-', dir=reports)
+                    try:
+                        with os.fdopen(fd_sidecar, 'wb') as f_sidecar:
+                            f_sidecar.write(payload)
+                            f_sidecar.flush()
+                            os.fsync(f_sidecar.fileno())
+                        os.replace(tmp_sidecar, os.path.join(reports, name))
+                    finally:
+                        if os.path.exists(tmp_sidecar):
+                            try:
+                                os.unlink(tmp_sidecar)
+                            except OSError:
+                                pass
+                effective_path = os.path.join(reports, task + '.prompt.md')
+                
+            except BaseException:
+                os.close(fd_slot)
+                try:
+                    os.unlink(tmp_slot)
+                except OSError:
+                    pass
+                raise
+        finally:
+            try:
+                fcntl.flock(fd_lock, fcntl.LOCK_UN)
+            finally:
+                os.close(fd_lock)
+                
+        try:
+            fd_in = os.open(in_fifo, os.O_RDONLY | os.O_NONBLOCK)
+            flags = fcntl.fcntl(fd_in, fcntl.F_GETFL)
+            fcntl.fcntl(fd_in, fcntl.F_SETFL, flags & ~os.O_NONBLOCK)
+        except OSError as e:
+            fail('cannot open in_fifo: ' + str(e))
+        
+        sys.stdout.write(group + '\n')
+        sys.stdout.write(tmp_slot + '\n')
+        sys.stdout.write(effective_path + '\n')
+        sys.stdout.flush()
+        
+        try:
+            os.read(fd_in, 1)
+        except OSError:
+            pass
+        sys.exit(0)
     else:
         fail('unknown policy command: ' + cmd)
 
@@ -2146,7 +2304,7 @@ policy_refuse_report() { # $1=root $2=worker $3=task $4=kind $5=agent $6=reason
 
 policy_admit_hold() { # $1=root $2=agent $3=worker $4=task $5=kind $6=origfile
   local root="$1" agent="$2" worker="$3" task="$4" kind="$5" orig="$6"
-  POLICY_SLOT=""; POLICY_EFFECTIVE=""; POLICY_GROUP=""
+  POLICY_SLOT=""; POLICY_EFFECTIVE=""; POLICY_GROUP=""; POLICY_PID=""
   local lock="$root/coord/.locks/work-policy.lock"
   if [ -L "$root/coord" ] || [ -L "$root/coord/.locks" ] || [ -L "$lock" ]; then
     policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" \
@@ -2154,34 +2312,33 @@ policy_admit_hold() { # $1=root $2=agent $3=worker $4=task $5=kind $6=origfile
     return 2
   fi
   mkdir -p "$root/coord/.locks"
-  exec 8>>"$lock" || return 2
-  flock 8 || { exec 8>&-; return 2; }
-  local err admit group slot effective
-  err=$(mktemp "$root/coord/.locks/.admit-XXXXXX") || { flock -u 8; exec 8>&-; return 2; }
-  if ! admit=$(policy "$root" _admit_check "$agent" "$worker" "$task" "$kind" 2>"$err"); then
+  local in_fifo="$root/coord/.locks/.in-$$"
+  local out_fifo="$root/coord/.locks/.out-$$"
+  local err="$root/coord/.locks/.err-$$"
+  rm -f "$in_fifo" "$out_fifo" "$err"
+  mkfifo "$in_fifo" "$out_fifo" || return 2
+  
+  exec 8<> "$in_fifo"
+  
+  # Ensure the background subshell closes FD 8 so it doesn't hold the writer!
+  policy "$root" _admit_hold "$agent" "$worker" "$task" "$kind" "$orig" "$in_fifo" >"$out_fifo" 2>"$err" 8>&- &
+  POLICY_PID=$!
+  
+  local group slot effective
+  if ! read -r group < "$out_fifo"; then
     local reason; reason=$(head -3 "$err" 2>/dev/null || echo "budget refused")
-    rm -f "$err"
-    flock -u 8; exec 8>&-
     policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" "$reason"
+    exec 8>&-
+    kill "$POLICY_PID" 2>/dev/null
+    wait "$POLICY_PID" 2>/dev/null
+    rm -f "$out_fifo" "$err" "$in_fifo"
+    POLICY_PID=""
     return 2
   fi
-  rm -f "$err"
-  group=$(printf '%s' "$admit" | sed -n 's/^GROUP=\([^ ]*\).*/\1/p')
-  [ -n "$group" ] || { flock -u 8; exec 8>&-; return 2; }
-  if ! slot=$(policy "$root" _slot_create "$group" "$agent" "$worker" "$task" "$kind" 2>&1); then
-    flock -u 8; exec 8>&-
-    policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" "$slot"
-    return 2
-  fi
-  exec 10<>"$slot" || { rm -f "$slot"; flock -u 8; exec 8>&-; return 2; }
-  flock -n 10 || { exec 10>&-; rm -f "$slot"; flock -u 8; exec 8>&-; return 2; }
-  if ! effective=$(policy "$root" _snapshot_sidecar "$group" "$slot" "$worker" "$task" "$kind" "$orig" 2>&1); then
-    exec 10>&-; rm -f "$slot"
-    flock -u 8; exec 8>&-
-    policy_refuse_report "$root" "$worker" "$task" "$kind" "$agent" "$effective"
-    return 2
-  fi
-  flock -u 8; exec 8>&-
+  read -r slot < "$out_fifo"
+  read -r effective < "$out_fifo"
+  rm -f "$out_fifo" "$err" "$in_fifo"
+  
   POLICY_SLOT="$slot"; POLICY_GROUP="$group"; POLICY_EFFECTIVE="$effective"
   return 0
 }

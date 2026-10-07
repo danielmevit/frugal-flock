@@ -96,14 +96,14 @@ fi
 
     # same-lock concurrent setters
     def set_mode(m):
-        return unio('mode', m).stdout
+        p=unio('mode', m); print('MODE ERR:', repr(p.stderr)); return p.stdout
     def set_tier(t):
         return unio('tier', t).stdout
     with ThreadPoolExecutor(max_workers=2) as ex:
         f1 = ex.submit(set_mode, 'yolo')
         f2 = ex.submit(set_tier, 'high')
-        f1.result()
-        f2.result()
+        print('f1:', repr(f1.result()))
+        print('f2:', repr(f2.result()))
     st = unio('policy').stdout
     check('same-lock concurrent setters', 'mode: yolo' in st and 'tier: high' in st)
 
@@ -221,6 +221,76 @@ fi
     for i in range(3): (repo / f'bar4_{i}.release').touch()
     for p in ps:
         p.wait()
+
+
+    # held oversized/malformed metadata cannot bypass low cap or lower/regroup
+    unio('tier', 'low')
+    unio('lead', 'none')
+    
+    # 1. Create a held slot by running a background mock that waits
+    env['MOCK_BARRIER'] = str(repo / 'bar_oversized')
+    p_over = unio('run', 'mock1', 'task1', wait=False)
+    wait_barrier(repo / 'bar_oversized.started')
+    
+    # 2. Find the slot file and rewrite it to be oversized
+    import fcntl
+    slot_dir = root / 'coord' / '.locks' / 'work-policy-slots' / 'grp1'
+    slot_files = list(slot_dir.glob('wpslot-*.json'))
+    check('slot file created', len(slot_files) > 0)
+    slot_file = slot_files[0]
+    
+    # Rewrite its content to be oversized but STILL HELD by python!
+    # Wait, the python process holds the fd. We can just append to the file path to make it oversized.
+    try:
+        with open(slot_file, 'a') as sf:
+            sf.write(" " * 5000)
+    except Exception as e:
+        print("Failed to append", e)
+
+    # Now verify admission is refused (it's oversized but held, so considered active)
+    out_admit = unio('run', 'mock2', 'task2')
+    check('held oversized slot refuses admit', out_admit.returncode != 0 and 'budget refused' in out_admit.stderr)
+    
+    # Verify tier reduction is refused
+    out_tier = unio('tier', 'high') # wait, tier medium... wait, tier reduction.
+    unio('tier', 'medium')
+    out_tier = unio('tier', 'low')
+    check('held oversized slot refuses tier reduction', out_tier.returncode != 0)
+    
+    # Verify regroup is refused
+    out_regroup = unio('account', 'mock1', 'grp2')
+    check('held oversized slot refuses regroup', out_regroup.returncode != 0)
+
+    # release
+    (repo / 'bar_oversized.release').touch()
+    p_over.wait()
+    
+    # hardlinked policy lock rejected with state/sentinel intact
+    lock_file = root / 'coord' / '.locks' / 'work-policy.lock'
+    lock_link = root / 'coord' / '.locks' / 'work-policy.hardlink'
+    if lock_file.exists():
+        try:
+            os.link(lock_file, lock_link)
+            out_hardlink = unio('mode', 'yolo')
+            check('hardlinked policy lock rejected', out_hardlink.returncode != 0 and 'hardlinked' in out_hardlink.stderr)
+            lock_link.unlink()
+        except OSError:
+            pass # FS doesn't support hardlinks
+            
+    # unsafe admission path rejection before a counted mock command
+    # Create an unsafe slot directory (symlink)
+    unio('account', 'mock3', 'grp_unsafe')
+    unsafe_dir = root / 'coord' / '.locks' / 'work-policy-slots' / 'grp_unsafe'
+    if unsafe_dir.exists():
+        unsafe_dir.rmdir()
+    unsafe_target = root / 'coord' / '.locks' / 'target_unsafe'
+    unsafe_target.mkdir(parents=True, exist_ok=True)
+    unsafe_dir.symlink_to('target_unsafe')
+    
+    out_unsafe = unio('run', 'mock3', 'task3')
+    print('RC:', out_unsafe.returncode, 'STDERR:', out_unsafe.stderr, 'STDOUT:', out_unsafe.stdout); check('unsafe admission path rejection', out_unsafe.returncode != 0 and 'symlink' in out_unsafe.stderr)
+    
+    unsafe_dir.unlink()
 
     # check failure/timeout release
     # Add bounded --kill-after=5s to Source/review timeouts

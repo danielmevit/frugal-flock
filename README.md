@@ -149,16 +149,11 @@ unio account opencode go-primary  # aliases sharing one budget
 unio policy                       # current state (--json for machines)
 ```
 
-These commands exist in development source and are a core product
-benefit: deliberate pace and budget choices instead of ad-hoc
-delegation. Released Unio 0.5.2 still lacks them. This slice provides guidance, state, and native workflow enforcement (`workflow_enforcement` is `native_workflows`) via strict slots and budget groups.
+These commands exist in development source (0.5.3) and are a core product
+benefit: deliberate pace and protecting the lead budget instead of ad-hoc
+delegation. Released Unio 0.5.2 still lacks them. This slice provides guidance, state, and native workflow enforcement (`workflow_enforcement` is `native_workflows`) via strict slots and budget groups. Guard is now truly native but external/unmanaged sessions remain uncounted.
 
-Current owner cadence is YOLO with a low tier: coherent features,
-focused checks with personal lead review, and the full gate at release
-or when an actual demonstrated need calls for it. Free model eligibility
-now covers all 11 routes in [docs/FREE-MODELS.md](docs/FREE-MODELS.md),
-conditional on current official and native zero prices, with no paid
-fallback.
+Fresh master/installed readable guide explicitly says verified-free OpenCode routes are worker-only and never a lead/cooldown replacement, an enduring rule. Lead reads policy before planning.
 
 ## FAQ
 

@@ -39,7 +39,7 @@ The command/state slice implements mode, tier, policy, lead and account,
 first-contact instructions and a readable installed guide. Policy JSON
 reports schema_version, selected state, derived account workflow limit
 (low1/medium2/high4), and `capacity: "unknown"`. It also explicitly reports
-`workflow_enforcement: "native_workflows"`.
+`workflow_enforcement: "advisory"` until the next guard slice is delivered.
 Human output and README explain that distinction. Settings guide the lead
 but do not pretend to constrain unmanaged CLI sessions.
 
