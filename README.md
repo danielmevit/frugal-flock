@@ -13,8 +13,9 @@ and you stay in control.
   tasks, chooses workers and delegates the work. It coordinates their next
   steps within the plan you have approved.
 - **Work on several tasks at once.** Workers can build separate parts of
-  the project in parallel, each in its own copy. The lead keeps related
-  tasks in order and brings their results together for review.
+  the project in parallel, each in its own copy. The lead moves independent
+  tasks forward while other workers are busy, keeps related tasks in order
+  and brings their results together for review.
 - **Strengthen code and security with worker reviews.** AI agent workers
   from different AI labs can check one another's changes independently.
   Multiple review rounds help find bugs, security issues and ways to improve
@@ -31,7 +32,9 @@ and you stay in control.
   and choose what becomes part of your project.
 
 Read [how Unio assigns model roles](docs/ai/MODEL-ROLES.md): main implementation
-agents build the features; verified-free workers handle routine support.
+agents build the features; verified-free workers handle routine support. Read
+[how the lead keeps work moving](docs/development/PARALLEL-WORK.md): low tier
+allows one workflow per shared account, while independent accounts work together.
 
 **Available today:** a command-line tool for Linux, including Windows
 through WSL, plus a [local browser workspace](bridge/README.md) in the source
