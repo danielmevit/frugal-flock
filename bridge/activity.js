@@ -6,13 +6,14 @@
 
   const themeSelector = document.getElementById("theme-selector");
   const STORAGE_KEY = "unio-theme-preference";
+  const mql = window.matchMedia("(prefers-color-scheme: dark)");
 
   function applyTheme(theme) {
-    if (theme === "system") {
-      delete document.documentElement.dataset.theme;
-      return;
+    let actualTheme = theme;
+    if (actualTheme === "system") {
+      actualTheme = mql.matches ? "dark" : "light";
     }
-    document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.theme = actualTheme;
   }
 
   function loadTheme() {
@@ -34,6 +35,15 @@
       applyTheme(value);
     });
   }
+
+  mql.addEventListener("change", () => {
+    let saved = "system";
+    try { saved = localStorage.getItem(STORAGE_KEY) || "system"; } catch(e) {}
+    if (saved === "system") {
+      applyTheme("system");
+    }
+  });
+
   loadTheme();
 
   const status = document.getElementById("status");
@@ -42,6 +52,8 @@
   let currentView = window.innerWidth >= 1000 ? "map" : "list";
   let mapHistoryVisible = false;
   let mapSearchQuery = "";
+  let mapWorkerFilter = "";
+  let mapStateFilter = "";
   let mapCurrentPage = 0;
   const MAP_PAGE_SIZE = 24;
   let lastData = null;
@@ -63,6 +75,8 @@
     document.getElementById("view-list").addEventListener("click", () => { currentView = "list"; updateViewSwitch(); if(lastData) render(lastData); });
     document.getElementById("map-history-toggle").addEventListener("change", (e) => { mapHistoryVisible = e.target.checked; mapCurrentPage = 0; if(lastData) render(lastData); });
     document.getElementById("map-search").addEventListener("input", (e) => { mapSearchQuery = e.target.value.toLowerCase(); mapCurrentPage = 0; if(lastData) render(lastData); });
+    document.getElementById("map-worker-filter").addEventListener("change", (e) => { mapWorkerFilter = e.target.value; mapCurrentPage = 0; if(lastData) render(lastData); });
+    document.getElementById("map-state-filter").addEventListener("change", (e) => { mapStateFilter = e.target.value; mapCurrentPage = 0; if(lastData) render(lastData); });
     document.getElementById("map-prev-page").addEventListener("click", () => { mapCurrentPage = Math.max(0, mapCurrentPage - 1); if(lastData) render(lastData); });
     document.getElementById("map-next-page").addEventListener("click", () => { mapCurrentPage++; if(lastData) render(lastData); });
     updateViewSwitch();
@@ -235,17 +249,39 @@ function render(data) {
     const nextBtn = document.getElementById("map-next-page");
     const pageInfo = document.getElementById("map-page-info");
 
+    const workerFilterSelect = document.getElementById("map-worker-filter");
+    if (workerFilterSelect.options.length <= 1 && data.results.length > 0) {
+        const workers = new Set();
+        data.results.forEach(r => workers.add(r.worker));
+        Array.from(workers).sort().forEach(w => {
+            const opt = document.createElement("option");
+            opt.value = w;
+            opt.textContent = w;
+            workerFilterSelect.appendChild(opt);
+        });
+    }
+
     let filtered = [];
     let finishedCount = 0;
 
     for (let r of data.results) {
       const stateStr = (r.process.state + " " + r.activity + " " + r.validation.state + " " + r.review.state).toLowerCase();
 
-      let isFinished = r.process.state !== "running" && r.process.state !== "starting" && r.process.state !== "unknown";
-      if (r.activity === "completion_unknown") isFinished = false;
+      const isFailedOrUnknown =
+          r.process.state === "failed" || r.process.state === "unknown" ||
+          r.validation.state === "failed" || r.validation.state === "unknown" ||
+          r.review.state === "failed" || r.review.state === "unknown" ||
+          r.activity === "completion_unknown" ||
+          r.process.state === "running" || r.process.state === "starting";
+
+      let isFinished = !isFailedOrUnknown;
 
       if (isFinished) finishedCount++;
       if (!mapHistoryVisible && isFinished) continue;
+
+      if (mapWorkerFilter && r.worker !== mapWorkerFilter) continue;
+      if (mapStateFilter === "finished" && !isFinished) continue;
+      if (mapStateFilter === "attention" && isFinished) continue;
 
       const searchMatch = !mapSearchQuery ||
           r.worker.toLowerCase().includes(mapSearchQuery) ||
@@ -343,81 +379,114 @@ function render(data) {
     }
 
     // Nodes
-    let selectedNodeExists = false;
-    for (let i = 0; i < nodes.length; i++) {
-      const n = nodes[i];
-      let g = oldGroups[i];
-      if (!g) {
-        g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        g.appendChild(rect);
-        g.appendChild(text);
-        svg.appendChild(g);
+      let selectedNodeExists = false;
+      for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        let g = oldGroups[i];
+        if (!g) {
+          g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+          const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+          const textLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          const textState = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          textLabel.setAttribute("class", "node-label");
+          textState.setAttribute("class", "node-state");
+          g.appendChild(rect);
+          g.appendChild(title);
+          g.appendChild(textLabel);
+          g.appendChild(textState);
+          svg.appendChild(g);
+        }
+        g.setAttribute("transform", `translate(${n.x}, ${n.y})`);
+        g.style.cursor = "pointer";
+        g.setAttribute("tabindex", "0");
+        g.id = "map-node-" + n.id;
+        g._nodeData = n;
+        g.onclick = function() {
+           selectedNodeId = this._nodeData.id;
+           if (this._nodeData.type === "task") {
+              showDetails(this._nodeData.data);
+           } else {
+              details.hidden = true;
+           }
+           if (lastData) renderMap(lastData);
+        };
+        g.onkeydown = function(e) {
+           if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              this.onclick();
+           }
+        };
+
+        const rect = g.querySelector("rect");
+        rect.setAttribute("x", -60);
+        rect.setAttribute("y", -18);
+        rect.setAttribute("width", 120);
+        rect.setAttribute("height", 36);
+        rect.setAttribute("rx", 5);
+        rect.setAttribute("fill", "var(--paper)");
+        rect.setAttribute("stroke", n.id === selectedNodeId ? "var(--focus-ring)" : "var(--btn-border)");
+        rect.setAttribute("stroke-width", n.id === selectedNodeId ? "3" : "1");
+        if (n.id === selectedNodeId) selectedNodeExists = true;
+
+        const title = g.querySelector("title");
+        let fullLabel = n.label;
+        if (n.type === "task") {
+           const r = n.data;
+           fullLabel = `${r.worker} / ${r.task}\nProcess: ${r.process.state}\nValidation: ${r.validation.state}\nReview: ${r.review.state}`;
+        }
+        title.textContent = fullLabel;
+
+        const textLabel = g.querySelector(".node-label");
+        textLabel.textContent = n.label.length > 15 ? n.label.substring(0, 13) + "..." : n.label;
+        textLabel.setAttribute("text-anchor", "middle");
+        textLabel.setAttribute("y", "-2");
+        textLabel.setAttribute("fill", "var(--text-main)");
+        textLabel.setAttribute("font-size", "12px");
+        textLabel.style.pointerEvents = "none";
+
+        const textState = g.querySelector(".node-state");
+        if (n.type === "task") {
+           const r = n.data;
+           const s = r.process.state !== "succeeded" ? r.process.state : (r.validation.state !== "passed" ? r.validation.state : r.review.state);
+           textState.textContent = s.length > 15 ? s.substring(0,13)+"..." : s;
+        } else {
+           textState.textContent = "";
+        }
+        textState.setAttribute("text-anchor", "middle");
+        textState.setAttribute("y", "10");
+        textState.setAttribute("fill", "var(--muted)");
+        textState.setAttribute("font-size", "10px");
+        textState.style.pointerEvents = "none";
       }
-      g.setAttribute("transform", `translate(${n.x}, ${n.y})`);
-      g.style.cursor = "pointer";
-      g.setAttribute("tabindex", "0");
-      g.id = "map-node-" + n.id;
-
-      // We must clear old event listeners.
-      // The easiest way without removing DOM is to just set an onclick attribute.
-      // But we can't capture `n.data` easily. We can attach it to the element.
-      g._nodeData = n;
-      g.onclick = function() {
-         selectedNodeId = this._nodeData.id;
-         if (this._nodeData.type === "task") {
-            showDetails(this._nodeData.data);
-         } else {
-            details.hidden = true;
-         }
-         if (lastData) renderMap(lastData);
-      };
-      g.onkeydown = function(e) {
-         if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            this.onclick();
-         }
-      };
-
-      const rect = g.querySelector("rect");
-      rect.setAttribute("x", -60);
-      rect.setAttribute("y", -15);
-      rect.setAttribute("width", 120);
-      rect.setAttribute("height", 30);
-      rect.setAttribute("rx", 5);
-      rect.setAttribute("fill", "var(--paper)");
-      rect.setAttribute("stroke", n.id === selectedNodeId ? "var(--focus-ring)" : "var(--btn-border)");
-      rect.setAttribute("stroke-width", n.id === selectedNodeId ? "3" : "1");
-      if (n.id === selectedNodeId) selectedNodeExists = true;
-
-      const text = g.querySelector("text");
-      text.textContent = n.label.length > 15 ? n.label.substring(0, 13) + "..." : n.label;
-      text.setAttribute("text-anchor", "middle");
-      text.setAttribute("alignment-baseline", "middle");
-      text.setAttribute("fill", "var(--text-main)");
-      text.setAttribute("font-size", "12px");
-      text.style.pointerEvents = "none";
-    }
     for (let i = nodes.length; i < oldGroups.length; i++) {
       oldGroups[i].remove();
     }
 
-    if (!selectedNodeExists) {
-       details.hidden = true;
-    } else if (selectedNodeId && selectedNodeId.includes(":::")) {
+    if (selectedNodeId && selectedNodeId.includes(":::")) {
        const r = pageTasks.find(t => `${t.worker}:::${t.task}` === selectedNodeId);
        if (r) {
           showDetails(r);
        } else {
           details.hidden = false;
-          details.innerHTML = `<p class="warnings">Selected task is off-page or filtered out. <button type="button" id="map-clear-sel">Clear selection</button></p>`;
-          document.getElementById("map-clear-sel").addEventListener("click", () => {
+          details.replaceChildren();
+          const p = document.createElement("p");
+          p.className = "warnings";
+          p.textContent = "Selected task is off-page or filtered out. ";
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.id = "map-clear-sel";
+          btn.textContent = "Clear selection";
+          btn.addEventListener("click", () => {
              selectedNodeId = null;
              details.hidden = true;
              if (lastData) renderMap(lastData);
           });
+          p.appendChild(btn);
+          details.appendChild(p);
        }
+    } else {
+       details.hidden = true;
     }
   }
 
@@ -425,53 +494,85 @@ function render(data) {
     const details = document.getElementById("map-details");
     details.hidden = false;
 
-    // Check if worker console has this worker
     const buttons = Array.from(document.querySelectorAll("#console-workers button.console-worker"));
-    const workerBtn = buttons.find(b => b.querySelector('strong') && b.querySelector('strong').textContent.startsWith(r.worker));
+    const workerBtn = buttons.find(b => b.dataset.worker === r.worker);
 
     let consoleText = "Protected output unavailable.";
     let hasConsole = false;
     if (workerBtn) {
-       const title = workerBtn.querySelector('strong').textContent;
-       if (title.includes(r.task)) {
+       if (workerBtn.dataset.task === r.task) {
           consoleText = "Source output and tracked files are available for this task.";
           hasConsole = true;
        } else {
-          const latestTask = title.split(" / ")[1] || "unknown task";
+          const latestTask = workerBtn.dataset.task || "unknown task";
           consoleText = `Protected output is currently showing a different/latest task (${latestTask}), not this historical record.`;
           hasConsole = true;
        }
     }
 
-    const consoleBtn = hasConsole ? `<button type="button" class="primary" onclick="document.dispatchEvent(new CustomEvent('unio-open-console', { detail: { worker: '${r.worker}', task: '${r.task}' } }))">Open Source Console</button>` : '';
+    details.replaceChildren();
 
-    details.innerHTML = `
-      <div class="map-details-header">
-         <h3>${r.worker} / ${r.task}</h3>
-      </div>
-      <div class="evidence-grid" style="margin: 16px 0;">
-         <div>
-           <dt>Recorded</dt>
-           <dd>${r.recorded_at || "unknown"}</dd>
-         </div>
-         <div>
-           <dt>Activity</dt>
-           <dd><span class="chip">${r.activity.replaceAll("_", " ")}</span></dd>
-         </div>
-         <div>
-           <dt>Process</dt>
-           <dd>${r.process.state.replaceAll("_", " ")} · exit ${r.process.exit_code ?? "unknown"}</dd>
-         </div>
-         <div>
-           <dt>Validation</dt>
-           <dd>${r.validation.state.replaceAll("_", " ")}</dd>
-         </div>
-      </div>
-      <div class="map-details-console">
-         <p class="small">${consoleText}</p>
-         ${consoleBtn}
-      </div>
-    `;
+    const header = document.createElement("div");
+    header.className = "map-details-header";
+    const h3 = document.createElement("h3");
+    h3.textContent = `${r.worker} / ${r.task}`;
+    header.appendChild(h3);
+    details.appendChild(header);
+
+    const grid = document.createElement("div");
+    grid.className = "evidence-grid";
+    grid.style.margin = "16px 0";
+
+    function addRow(dtText, ddElement) {
+        const div = document.createElement("div");
+        const dt = document.createElement("dt");
+        dt.textContent = dtText;
+        const dd = document.createElement("dd");
+        if (typeof ddElement === "string") {
+            dd.textContent = ddElement;
+        } else {
+            dd.appendChild(ddElement);
+        }
+        div.appendChild(dt);
+        div.appendChild(dd);
+        grid.appendChild(div);
+    }
+
+    addRow("Recorded", r.recorded_at || "unknown");
+
+    const actSpan = document.createElement("span");
+    actSpan.className = "chip";
+    actSpan.textContent = r.activity.replaceAll("_", " ");
+    addRow("Activity", actSpan);
+
+    addRow("Process", `${r.process.state.replaceAll("_", " ")} · exit ${r.process.exit_code ?? "unknown"}`);
+
+    addRow("Validation", `${r.validation.state.replaceAll("_", " ")} · ${r.validation.checks_run} checks / ${r.validation.checks_failed} failed`);
+
+    addRow("Review", `${r.review.state.replaceAll("_", " ")} · reviewer ${r.review.reviewer || "not recorded"}`);
+
+    details.appendChild(grid);
+
+    const consoleDiv = document.createElement("div");
+    consoleDiv.className = "map-details-console";
+
+    const p = document.createElement("p");
+    p.className = "small";
+    p.textContent = consoleText;
+    consoleDiv.appendChild(p);
+
+    if (hasConsole) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "primary";
+        btn.textContent = "Open Source Console";
+        btn.addEventListener("click", () => {
+            document.dispatchEvent(new CustomEvent('unio-open-console', { detail: { worker: r.worker, task: r.task } }));
+        });
+        consoleDiv.appendChild(btn);
+    }
+
+    details.appendChild(consoleDiv);
   }
 
 
@@ -484,6 +585,7 @@ function render(data) {
       if (!response.ok) throw new Error("observer unavailable");
       render(await response.json());
     } catch (_) {
+      lastData = null;
       // Remove old states so a failed observation cannot look current.
       document.getElementById("work-map").replaceChildren();
 document.getElementById("map-details").replaceChildren();

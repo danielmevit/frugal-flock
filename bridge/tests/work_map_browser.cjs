@@ -111,6 +111,15 @@ else:
     console.log("goto"); await page.goto(origin);
     console.log("waitForSelector map"); await page.waitForSelector("#tasks-map-container:not([hidden])"); // defaults to map on desktop
 
+    // OS Theme preference
+    console.log("theme system dark");
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.selectOption("#theme-selector", "system");
+    await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
+    console.log("theme system light");
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
+
     // Test theme change
     console.log("theme dark"); await page.selectOption("#theme-selector", "dark");
     await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
@@ -147,6 +156,23 @@ else:
     const detailsHtml = await page.locator("#map-details").innerHTML();
     assert.ok(detailsHtml.includes("worker-0 / task-0"), "Details should show selected task");
 
+    // Malicious detail label creates no elements
+    console.log("click malicious node");
+    await page.locator("g[id='map-node-worker-1:::task-1 <script>alert(1)</script>']").click();
+    await page.waitForSelector("#map-details:not([hidden])");
+    const scriptCount = await page.locator("#map-details script").count();
+    assert.equal(scriptCount, 0, "Should not render malicious script in details");
+    const detailsText = await page.locator("#map-details").innerText();
+    assert.ok(detailsText.includes("<script>alert(1)</script>"), "Should retain literal text");
+
+    // Filtered/off-page selection reconciled
+    console.log("filter off-page");
+    await page.fill("#map-search", "nonexistent");
+    await page.waitForFunction(() => document.getElementById("work-map").querySelectorAll("g[id*=':::']").length === 0);
+    await page.locator("#map-clear-sel").click();
+    await page.waitForFunction(() => document.getElementById("map-details").hidden);
+    await page.fill("#map-search", "");
+
     // Keyboard focus & selection
     await page.keyboard.press('Tab');
 
@@ -159,6 +185,12 @@ else:
     const emptyNodes = await page.locator("g[id*=':::']").count();
     assert.equal(emptyNodes, 0, "Map should clear on observation failure");
 
+    // Failure then ALL view/filter controls cannot resurrect nodes
+    await page.fill("#map-search", "task");
+    assert.equal(await page.locator("g[id*=':::']").count(), 0, "Search should not resurrect nodes on failure");
+    await page.selectOption("#map-state-filter", "finished");
+    assert.equal(await page.locator("g[id*=':::']").count(), 0, "Filter should not resurrect nodes on failure");
+
 
     // Restore engine for mobile test
     fs.writeFileSync(
@@ -166,6 +198,10 @@ else:
       `#!/usr/bin/env python3\nimport sys\nfrom pathlib import Path\nif sys.argv[1:] == ['watch','--once','--json']:\n    sys.stdout.buffer.write((Path(__file__).parent/'coord/snapshot.json').read_bytes())\nelse:\n    print('{"schema_version":1,"workers":[]}')\n`,
       { mode: 0o755 },
     );
+    // Recovery without reload
+    console.log("waitForRecovery");
+    await page.waitForFunction(() => document.getElementById("work-map").querySelectorAll("g[id*=':::']").length > 0);
+
     // Test small viewport
     await page.setViewportSize({ width: 390, height: 844 });
     // Reload

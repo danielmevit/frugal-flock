@@ -190,6 +190,12 @@
             <button id="map-fit" type="button">Fit view</button>
             <button id="map-reset" type="button">Reset</button>
             <label class="history-toggle"><input type="checkbox" id="map-history-toggle"> Show finished history</label>
+            <select id="map-worker-filter" aria-label="Filter by worker"><option value="">All Workers</option></select>
+            <select id="map-state-filter" aria-label="Filter by state">
+              <option value="">All States</option>
+              <option value="attention">Needs Attention</option>
+              <option value="finished">Finished</option>
+            </select>
             <input type="search" id="map-search" placeholder="Filter tasks..." aria-label="Filter tasks">
             <span id="map-counts" class="map-counts"></span>
           </div>

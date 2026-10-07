@@ -347,6 +347,8 @@
       button.className = "console-worker";
       button.setAttribute("aria-controls", "console-panel");
       button.setAttribute("aria-expanded", selectedName === name && !panel.hidden ? "true" : "false");
+      button.dataset.worker = name;
+      button.dataset.task = view && view.task ? view.task : "";
       const title = view && view.task ? name + " / " + view.task : name;
       const excerpt = view && view.output && typeof view.output.excerpt === "string" && view.output.excerpt
         ? view.output.excerpt : (view ? "No filtered excerpt in this observation." : "Source output is not enabled. No Source excerpt is claimed.");
@@ -519,13 +521,10 @@
 
   document.addEventListener("unio-open-console", (event) => {
     const { worker, task } = event.detail;
-    // We can simulate clicking the worker button if it exists
     const buttons = workers.querySelectorAll("button.console-worker");
     for (let b of buttons) {
-       // text content has 'worker / task' or 'worker'
-       if (b.textContent.includes(worker)) {
+       if (b.dataset.worker === worker) {
           b.click();
-          // scroll to console
           section.scrollIntoView({behavior: "smooth"});
           break;
        }

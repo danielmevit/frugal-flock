@@ -724,3 +724,7 @@ the list and details.
 Offline checks are included in `bridge/tests/work_map_browser.cjs`.
 These UI enhancements are implemented-in-source; the published official version
 remains 0.5.3.
+
+### Browser Theme and Map Correction (BROWSER-THEME-MAP-FIX-1)
+
+The browser map and themes underwent concrete corrections to actually resolve system theme preference dynamically, fix primary button contrast in dark mode, and enforce semantic `createElement` rendering for task details instead of interpolated HTML. The map accurately collapses only genuinely finished work lacking failed or unknown states. SVG nodes and console bindings now use exact worker and task identities instead of substring checks. Map controls, view states, and focus survive observation failures without resurrecting stale nodes, and recovery functions properly. Added worker and state filters. These corrections are verified offline via strengthened `bridge/tests/work_map_browser.cjs` checks.

@@ -24,6 +24,7 @@
   --btn-disabled-bg: #e5e6df;
   --btn-disabled-text: #696d63;
   --btn-disabled-border: #ced1c7;
+  --btn-primary-text: #ffffff;
   --focus-ring: #3b6d43;
   --text-placeholder: #717669;
   --line-alt: #ccd2c4;
@@ -41,6 +42,10 @@
   --text-chip: #36523a;
   --bg-chip-warn: #f1e7cc;
   --text-chip-warn: #765014;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
 }
 
 [data-theme="dark"] {
@@ -65,6 +70,7 @@
   --btn-disabled-bg: #2e312d;
   --btn-disabled-text: #787e74;
   --btn-disabled-border: #464a44;
+  --btn-primary-text: #1e201e;
   --focus-ring: #5c9c67;
   --text-placeholder: #9ca395;
   --line-alt: #464b44;
@@ -122,7 +128,7 @@ p { overflow-wrap: anywhere; }
 button { min-height: 44px; border: 1px solid var(--btn-border); background: var(--paper); color: var(--btn-text); border-radius: 5px; padding: 9px 14px; cursor: pointer; font-size: 13px; font-weight: 600; transition: background-color 140ms, border-color 140ms; }
 button:hover { background: var(--btn-hover-bg); border-color: var(--btn-hover-border); }
 button:active:not(:disabled) { transform: translateY(1px); }
-button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--btn-primary-text); border-color: var(--accent); }
 button.primary:hover { background: var(--btn-primary-hover); }
 button.danger { color: var(--btn-danger-text); border-color: var(--btn-danger-border); }
 button.danger:hover { background: var(--btn-danger-hover); }
