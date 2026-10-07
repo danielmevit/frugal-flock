@@ -4,6 +4,7 @@
 | --- | --- |
 | Install and configure Unio | [Setup](SETUP.md) · [Complete guide](GUIDEBOOK.md) |
 | Learn the workflow | [Worked example](EXAMPLE.md) · [Handbook](HANDBOOK.md) |
+| Choose delivery pace and subscription budget | [Work modes and tiers](WORK-MODES.md) |
 | Understand checks and reviews | [Quality guide](QUALITY-USAGE.md) · [Task protocol](PROTOCOL.md) |
 | Lead a team within your spending rules | [Lead routing policy](development/LEAD-ROUTING.md) |
 | Choose an agent's reasoning effort | [Model effort guide](development/MODEL-EFFORT.md) |

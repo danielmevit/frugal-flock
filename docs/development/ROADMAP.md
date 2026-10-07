@@ -2,6 +2,16 @@
 
 Give your AI subscriptions a group project.
 
+## Work modes and lead budget
+
+On 2026-10-07 the owner approved [YOLO, medium and safe work modes](../WORK-MODES.md)
+and separate low, medium and high subscription-budget tiers as core Unio
+controls. Implement persistent CLI switches, visible policy and worker
+instructions next, using YOLO + low tier for this project. This avoids
+repeated broad test cycles and reserves the lead for coordination. The
+browser milestone remains active; its saved work is preserved. Browser
+selectors and account-specific scheduling can follow the core controls.
+
 ## Approved delivery priorities
 
 Owner-approved on 2026-10-06. The goal is more verified work from existing
