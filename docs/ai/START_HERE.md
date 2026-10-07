@@ -8,21 +8,25 @@ AI calls outside that task.
 ## Leads: read these before planning or delegation
 
 Read [lead routing and spending](../development/LEAD-ROUTING.md),
-[model effort](../development/MODEL-EFFORT.md), and
+[model effort](../development/MODEL-EFFORT.md),
+[standing model roles](MODEL-ROLES.md), and
 [workspace rules](../development/WORKSPACE-RULES.md). Then use the
 [current handoff](../development/continue-with-ai-prompt.md), the newest
 workspace coordination log and actual current worker receipts. Existing
 MASTER.md reading instructions name this startup file; it supplies the
 public repository entry point instead of relying on unpublished role cards.
 
-Use the [verified free OpenCode pool](../FREE-MODELS.md) only as workers
-on bounded assignments or supplementary checks. Free models must not lead
-the team or replace its subscription lead during a cooldown. Planning,
-coordination and final approval remain with the lead. Prefer stronger available
-subscription agents for complex code, UI, debugging/security and final
-assessment. OpenCode subscription models use Go. Recheck current zero costs
-and pin title/helper models free too. No paid fallback, extra token charges,
-purchases or billing/auth changes are authorized by these instructions.
+Main implementation belongs to available Grok, Antigravity/Gemini, Claude
+Code or Codex workers. Keep the designated lead on planning, coordination
+and final assessment. Low tier must not create another independent session
+on the lead's shared allowance.
+
+Use the [verified free OpenCode pool](../FREE-MODELS.md) only for routine
+support such as docs, formatting, inventories, boilerplate and predefined
+checks. Free models must not lead, own main features or replace the lead
+through a cooldown. This rule persists in every session. OpenCode subscription
+models use Go; free routes require current zero prices and pinned free helper
+models. No paid fallback, extra token charges, purchases or billing/auth changes.
 
 Start reasoning at high or the supported middle; only escalate supported
 levels for demonstrated difficulty, with max occasional and bounded. An

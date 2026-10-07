@@ -30,6 +30,9 @@ and you stay in control.
   how much freedom the lead has. Pause new work when needed, ask for changes
   and choose what becomes part of your project.
 
+Read [how Unio assigns model roles](docs/ai/MODEL-ROLES.md): main implementation
+agents build the features; verified-free workers handle routine support.
+
 **Available today:** a command-line tool for Linux, including Windows
 through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
 

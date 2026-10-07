@@ -3299,6 +3299,25 @@ Coordination = ../coord.
 3. Navigate code with CodeGraph (`codegraph explore "..."`) — no grep-loops.
 Plan first: present the breakdown to Daniel; delegate only after his "go".
 
+## Standing model roles — read in every session
+
+Main implementation workers are Grok, Antigravity/Gemini, Claude Code and
+Codex, selected by current capacity and task fit. The designated lead plans,
+delegates, coordinates and performs final assessment. In low tier, do not
+start another independent implementation job on the lead's shared allowance.
+
+All verified-free OpenCode Zen models are routine supporting workers only:
+docs, formatting, inventories, mechanical edits, boilerplate and predefined
+checks. They must never lead, own main features, give final acceptance or
+replace a lead during cooldown. Higher effort does not change this role.
+If a routine task reveals a difficult bug or security issue, preserve the
+finding and assign the substantive correction to a main implementation worker.
+
+Read ${UNIO_CONF_DIR:-$HOME/.config/unio}/templates/MODEL-ROLES.md. In the Unio repository,
+read docs/ai/MODEL-ROLES.md and docs/development/LEAD-ROUTING.md. This rule
+persists through handoffs. Current owner instructions, account availability,
+spending restrictions and task invocation limits still apply.
+
 ## How to delegate
 1. `unio agents` — who is ON. OFF = quota-exhausted (5h/weekly cap).
    Reroute per the policy below; never queue work on an OFF agent. If a
@@ -3365,6 +3384,13 @@ cat > "$TPL_DIR/WORKER.md" <<'WORKER_TPL_EOF'
 You are one worker in a Unio team. Your entire assignment is the
 task prompt you were given. Follow it exactly.
 
+Follow the standing model roles in docs/ai/MODEL-ROLES.md when present,
+or ${UNIO_CONF_DIR:-$HOME/.config/unio}/templates/MODEL-ROLES.md. Main implementation
+belongs to Grok, Antigravity/Gemini, Claude Code and Codex workers. Free
+OpenCode models are routine support only; never become lead, own main
+features, decide final acceptance or replace a lead during cooldown. Report
+substantive problems to the lead instead of expanding a routine assignment.
+
 - Onboard first if present: this repo's AGENTS.md and docs/ai/START_HERE.md
   (reading ritual). The rules HERE override them on branches, scope, commits.
 - Work ONLY in this directory — a git worktree on branch agent/{{WORKER}}.
@@ -3391,6 +3417,34 @@ task prompt you were given. Follow it exactly.
 - End your output with exactly: SUMMARY / FILES CHANGED / TESTS RUN +
   RESULTS / ASSUMPTIONS / RISKS / NEEDS-REVIEW
 WORKER_TPL_EOF
+
+cat > "$TPL_DIR/MODEL-ROLES.md" <<'MODEL_ROLES_TPL_EOF'
+# Standing model roles — every Unio session
+
+The designated subscription lead plans, coordinates, reviews and performs
+owner-authorized integration. Main implementation workers are Grok,
+Antigravity/Gemini, Claude Code and Codex, chosen by current capacity and fit.
+In low tier, the lead counts as its shared budget's one independent workflow;
+do not create a second feature/test job on that same allowance.
+
+Verified-free OpenCode Zen models are routine supporting workers only:
+documentation, formatting, inventories, mechanical edits, boilerplate and
+predefined checks. They must never lead, own main features, make final
+acceptance decisions or replace the lead during cooldown. Raising effort
+does not change the role. Escalate difficult bugs/security/design work to a
+main implementation worker. This rule persists across all sessions and handoffs.
+
+Use existing owner-approved subscriptions and verified zero-cost free routes.
+Pin primary/helper models free; no paid fallback, purchases or billing/auth
+changes. Supported current metadata and the owner's latest availability
+information take precedence over stale failure assumptions. A model list is
+not proof of quota. Preserve frozen task checks, failed receipts and invocation
+limits; no automatic retries. These are agent instructions, not automatic
+runtime detection of a model class.
+
+For the full source policy read docs/ai/MODEL-ROLES.md and
+docs/development/LEAD-ROUTING.md in the Unio repository.
+MODEL_ROLES_TPL_EOF
 
 cat > "$TPL_DIR/TASK.md" <<'TASK_TPL_EOF'
 # Task <ID> — worker: <name>

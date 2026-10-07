@@ -6,12 +6,14 @@ The owner now permits all listed routes when they are verifiably free; this
 supersedes the earlier MiMo/LongCat-only exception for future assignments.
 Use existing native authentication. No billing changes or paid fallback.
 
-**Worker-only role:** every free OpenCode route in this pool may carry out
-a bounded assignment or supplementary check, but must not become the lead.
-The owner assigns the lead role to a stronger subscription agent. Planning,
-team coordination, integration and final approval stay with that lead;
-usage-limit fallback must not promote a free worker into the lead role.
-This is the owner's routing policy, not a measured reasoning-score claim.
+**Routine worker-only role:** every free route in this pool may perform
+precise supporting assignments such as documentation, formatting, mechanical
+edits, boilerplate or predefined checks. Free models must never lead, own
+main features, make final acceptance decisions or replace the lead during a
+cooldown. This applies in every future session. Substantive implementation
+belongs to available Grok, Antigravity/Gemini, Claude Code or Codex workers;
+see [the standing model roles](ai/MODEL-ROLES.md). This is the owner's routing
+policy, not a measured reasoning-score claim.
 
 [OpenCode's official pricing](https://opencode.ai/docs/zen/#pricing) lists
 all eleven as free. A read-only local `opencode models opencode --verbose`
@@ -26,38 +28,37 @@ Refuse missing/conflicting/nonzero prices. Pin both the primary and helper
 `small_model` to the eligible route and disable paid fallback. Do not
 silently switch a failed free call onto its paid model counterpart.
 
-## Inventory and suggested first assignments
+## Inventory and routine assignments
 
-These task suggestions are **trial plans**, not established quality rankings.
+These task suggestions are routing guidance, not established quality rankings.
 Supported effort variants below come from this installed gateway, not guesses
 from a different model, CLI or direct lab API. Start at high or the supported
 middle for the task; when no override is exposed, record effort as unknown.
 
-| Display name | Exact route | Price/availability evidence | Observed effort variants | Suggested first useful trial |
+| Display name | Exact route | Price/availability evidence | Observed effort variants | Routine supporting assignment |
 | --- | --- | --- | --- | --- |
 | Exo Free | `opencode/exo-free` | Official free listing; missing locally | Not observed | Availability check before any assignment |
-| Fledge Alpha Free | `opencode/fledge-alpha-free` | Native input/output/cache all 0 | low, high, max | Bounded coding or test-generation trial |
-| Ling 3.1 Flash Free | `opencode/ling-3.1-flash-free` | Native input/output/cache all 0 | low, medium, high | Code/document analysis or focused test trial |
-| LongCat 2.5 Preview Free | `opencode/longcat-2.5-preview-free` | Native input/output/cache all 0 | low, medium, high | Documentation consistency, context-heavy audit, then bounded code trial |
-| Space Bunny Free | `opencode/space-bunny-free` | Native input/output/cache all 0 | low, medium, high, xhigh, max | Small code or UI trial; identity not verified |
-| MiMo-V2.6-Flash Free | `opencode/mimo-v2.6-flash-free` | Native input/output/cache all 0 | No exposed override | Routine CLI/configuration, docs and bounded code changes |
-| Muse Spark 1.3 Free | `opencode/muse-spark-1.3-contributor-free` | Native input/output/cache all 0 | minimal, low, medium, high, xhigh | Bounded multi-file code trial |
-| Ling 3.0 Flash Fin Free | `opencode/ling-3.0-flash-fin-free` | Native input/output/cache all 0 | low, medium, high | Document/data interpretation trial; do not infer expertise from its name |
-| Nemotron 3.5 Lightning Free | `opencode/nemotron-3.5-lightning-free` | Native input/output/cache all 0 | No exposed override | Small implementation or targeted regression-test trial |
-| Nemotron 3 Ultra Free | `opencode/nemotron-3-ultra-free` | Native input/output/cache all 0 | No exposed override | Code analysis or a scoped implementation trial |
-| Big Pickle | `opencode/big-pickle` | Native input/output/cache all 0 | No exposed override | Routine formatting/docs or a small code trial; identity not verified |
+| Fledge Alpha Free | `opencode/fledge-alpha-free` | Native input/output/cache all 0 | low, high, max | Predefined checks or boilerplate; current country unavailable |
+| Ling 3.1 Flash Free | `opencode/ling-3.1-flash-free` | Native input/output/cache all 0 | low, medium, high | File/link inventories or documentation checks |
+| LongCat 2.5 Preview Free | `opencode/longcat-2.5-preview-free` | Native input/output/cache all 0 | low, medium, high | Documentation consistency and mechanical inventories |
+| Space Bunny Free | `opencode/space-bunny-free` | Native input/output/cache all 0 | low, medium, high, xhigh, max | Formatting or mechanical edits; identity not verified |
+| MiMo-V2.6-Flash Free | `opencode/mimo-v2.6-flash-free` | Native input/output/cache all 0 | No exposed override | Documentation, simple configuration and predefined checks |
+| Muse Spark 1.3 Free | `opencode/muse-spark-1.3-contributor-free` | Native input/output/cache all 0 | minimal, low, medium, high, xhigh | Documentation and mechanical changes |
+| Ling 3.0 Flash Fin Free | `opencode/ling-3.0-flash-fin-free` | Native input/output/cache all 0 | low, medium, high | Structured inventories; do not infer expertise from its name |
+| Nemotron 3.5 Lightning Free | `opencode/nemotron-3.5-lightning-free` | Native input/output/cache all 0 | No exposed override | Execute predefined regression checks |
+| Nemotron 3 Ultra Free | `opencode/nemotron-3-ultra-free` | Native input/output/cache all 0 | No exposed override | Predefined checks and supplementary inventories |
+| Big Pickle | `opencode/big-pickle` | Native input/output/cache all 0 | No exposed override | Formatting and documentation; identity not verified |
 
 ## What the small research establishes
 
 The exact [LongCat 2.5 release notes](https://longcat.ai/platform/docs/ChangeLog.html)
 describe coding, image understanding and development-tool integration. This
-supports trying a code/context task; it does not prove superiority over
+provides capability context, while current Unio policy limits it to routine support; it does not prove superiority over
 another agent or the same results through OpenCode's free gateway.
 
 [NVIDIA's Lightning cookbook](https://github.com/NVIDIA-NeMo/Nemotron/blob/main/usage-cookbook/Nemotron-3.5-Lightning/README.md)
-describes fast reasoning, coding and structured tool use. A focused code/test
-assignment is a reasonable first experiment, rather than giving it a broad
-architecture change before any local evidence exists.
+describes fast reasoning, coding and structured tool use. Under the current role policy, use it for predefined checks or mechanical
+work; the capability claim does not authorize main feature ownership.
 
 The [Ling 3.1 gateway announcement](https://vercel.com/changelog/ling-3-1-flash-is-now-available-on-ai-gateway)
 describes coding, multi-step analysis and tool use. That is capability context
@@ -81,6 +82,8 @@ verified provenance. Fledge/Exo identity is likewise not established here.
 | Nemotron 3 Ultra: BROWSER-API-ERRORS-1 review, 2026-10-06 | Native exit 0, complete material, APPROVE. | It completed a code-review call; approval alone does not establish that it found all defects or that the whole workflow was shipped. |
 | MiMo V2.6 Flash: WORK-POLICY-1 Source, 2026-10-07 | Native timeout exit 124 after the 1500-second worker bound, with delayed shutdown; zero commits or changed files. No verification/review/acceptance. | It did not deliver this broad CLI/state assignment. This is a task/route-specific failure, not a judgment of code that was never produced. |
 | Muse Spark1.3: WORK-POLICY-CLI-1 Source, 2026-10-07 | Saved two commits; native Source0 and focused4/4 PASS, but personal lead review REQUEST-CHANGES for proven state-update and file-write gaps. Not accepted or merged. | It delivered a bounded candidate in about seven minutes. Passing its initial checks did not establish correctness; acceptance depends on fixing the demonstrated findings. |
+| Fledge Alpha: WORK-POLICY-STATE-FIX-1 Source, 2026-10-07 | Provider refused: model unavailable in the current country; exit1, zero edits, no verification or acceptance. No retry. | A catalog route with zero costs did not establish local transport availability or code quality. |
+| Muse Spark1.3: WORK-POLICY-GUARD-1 Source, 2026-10-07 | Lead stopped the run after the owner restricted free workers to routine support; two edited files preserved unverified. Native exit241, no verification or acceptance. | An operator reroute is not a model quality verdict. Main implementation transfers to the designated implementation agents. |
 
 The underlying private receipts remain in the workspace. Do not publish raw
 prompts, log output or authentication to make these conclusions portable.
@@ -89,8 +92,9 @@ a model's final self-report is not sufficient evidence.
 
 ## Trials should deliver work, not consume it
 
-Use pending useful project tasks: a documented bug fix, a small CLI feature,
-a focused regression, a documentation correction or a UI refinement. Keep
+Use pending routine project tasks: a documentation correction, formatting,
+a file/link inventory, a mechanical edit or execution of predefined checks.
+Give core features, complex fixes and UI implementation to main workers. Keep
 scopes and expectations clear and compare similar work before recommending
 one model over another. Avoid eleven-way races or benchmark chores invented
 solely to fill a scoreboard. Each trial follows the current

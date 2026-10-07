@@ -8,24 +8,27 @@ approved plans, task scope or invocation budget.
 
 ## Match the agent to the work
 
-Use the [verified free worker pool](../FREE-MODELS.md) for useful, bounded
-assignments: routine work, focused code changes, documentation and
-supplementary checks. Choose by checked project outcomes and a clear scope.
-Free pricing does not establish model quality or current availability.
+Read [the standing model roles](../ai/MODEL-ROLES.md) before each session.
+Grok, Antigravity/Gemini, Claude Code and Codex are the main implementation
+agents. Use available workers from that group for product features, core
+behavior, UI, complex debugging and substantive security corrections. The
+owner's designated lead plans, coordinates, reviews and integrates.
 
-All free OpenCode routes are **worker-only**. They must never lead the team,
-choose its overall direction or provide final acceptance. Keep a stronger
-subscription agent as lead; when that lead hits a limit, preserve the handoff
-and wait or use another owner-approved lead. Do not promote a free worker
-as a cooldown fallback. This role policy does not assert measured reasoning
-scores for models that have not been evaluated.
+Use the [verified free worker pool](../FREE-MODELS.md) only for routine
+support: documentation, formatting, inventories, mechanical changes,
+boilerplate, predefined checks and supplementary observations. Free routes
+must never lead, own main feature implementation, decide final acceptance or
+replace the lead during a cooldown. Increasing effort does not promote a
+free model into another role. Escalate difficult findings to a main worker.
+This is a standing owner policy, not an invented reasoning-score ranking.
 
-Prefer stronger available subscription agents for architecture, complex
-coding, UI design, difficult debugging, security and final release assessment.
-Choose using supported capabilities and actual task results, not a permanent
-ranking. Codex, Claude, Grok and Antigravity are possible routes, not guarantees
-that their accounts have usable capacity. Antigravity (`agy`) is a multi-model
-CLI; record its selected model and AI lab as well as the CLI name.
+Choose using task fit and current availability. Low tier counts the lead's
+workflow, so do not launch a second independent job on its shared allowance.
+If Codex leads and Claude is exhausted, use available Grok and
+Antigravity/Gemini for implementation. Antigravity (`agy`) is a multi-model
+CLI; record its selected model and AI lab. A past capacity failure is dated
+evidence: check the owner's new availability report instead of treating it
+as permanent, while preserving invocation and no-paid-fallback rules.
 
 Do not invent chores merely to keep workers busy. Use parallel agents for
 independent scopes and blind reviews; keep dependent changes ordered. The
