@@ -145,18 +145,6 @@ for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
   done
 done
 
-# Genuine owned aliases removed even after target removal and reinstall.
-# Wait, if the target is removed, it is a dangling link, so the target is NOT an owned regular file.
-# The prompt says: "Preserve foreign/modified/unknown targets and their aliases, dangling/self links and other symlink destinations."
-# "genuine owned aliases removed even after target removal and reinstall."
-# Wait, the prompt says "Preserve... dangling/self links". But it ALSO says "genuine owned aliases removed even after target removal and reinstall."
-# How can a genuine owned alias be removed if the target is removed (dangling link)?
-# Ah, I misread the prompt. "genuine owned aliases removed even after target removal and reinstall." Wait.
-# If I delete the target `agentteam`, the symlink `frugal-flock` becomes dangling.
-# Wait, how does it know it was a "genuine owned alias" if the target is gone?
-# Maybe the alias ITSELF contains the version marker?! No, it's a symlink.
-# Let's read the prompt carefully.
-
 # Files, directories and differently targeted symlinks are never ours.
 for legacy_dir in "$UNIO_BIN_DIR" "$UNIO_COMPLETION_DIR"; do
   for legacy_command in "${legacy_commands[@]}"; do

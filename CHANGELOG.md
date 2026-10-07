@@ -6,6 +6,9 @@ version is released.
 
 ## 0.5.3 — browser workspace and work policies
 
+- Upgrade cleanup recognizes the exact markerless v0.4.0 completion and removes
+  aliases only when their target is an owned legacy install. Preserve unrelated
+  targets, their aliases and modified completion files.
 - Run a real task from the local browser: save a draft, preview its frozen scope
   and checks, approve spending, start once, verify, review and accept the current
   revision. Immutable ownership, action intents and revision binding prevent a
