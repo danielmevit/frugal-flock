@@ -68,7 +68,7 @@ come from `opencode models opencode-go --verbose` and
 Empty variants mean **no exposed override**, not no reasoning and not high
 by default. If a route cannot meet the requested high/middle policy, record
 that exception. Do not silently translate labels or create a custom variant
-without verifying the gateway actually supports its parameter.
+without verifying the gateway actually supports its parameter. Check advertised model variants rather than inferring from generic CLI effort choices. Unknown effective effort stays unknown.
 
 ## How the lead applies a choice
 

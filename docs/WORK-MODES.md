@@ -5,8 +5,14 @@ for coordinating it. Choose them deliberately; a larger subscription does
 not require a slower workflow, and a smaller one should not exhaust the lead.
 
 Implementation status: approved command and behavior contract on 2026-10-07;
-runtime implementation is in progress. Released Unio 0.5.2 does not yet have
-these switches. Commands below describe the new development functionality.
+the command/state slice (mode, tier, policy, lead and account commands,
+persistence in `coord/work-policy.json`, visibility and worker
+instructions) and the native guard slice are both implemented in
+development source, which reports `workflow_enforcement` as
+`native_workflows`. Released Unio 0.5.2 does not yet have these switches.
+Foreground/background Source runs and independent reviews hold one locked
+slot per shared budget group, admitted before any provider call. Commands
+below describe the development functionality.
 
 ## Choose the pace
 

@@ -111,6 +111,16 @@ The local workspace entry instructions and installed lead template should
 point to readable copies before any assignment. Preserve existing owner role
 cards when adding those references; do not replace custom instructions.
 
+## Work policy commands
+
+Before planning or delegation, run `unio policy` and read the
+[work modes guide](../WORK-MODES.md) (installed as
+`coord/docs/WORK-MODES.md` after `unio init`). The mode shapes scope and review
+planning; the tier caps independent workflows per shared provider/account
+budget (low 1, medium 2, high 4, lead included). Register the lead with
+`unio lead <agent>` and group aliases sharing one budget with
+`unio account <agent> <group>`. This slice provides guidance and native slot enforcement via strict budget groups.
+
 This document is an operating policy for the lead. The current runner does
 not automatically enforce these routing choices, read pricing, escalate
 reasoning effort or expose a fleet-wide quota meter. Standalone installer
