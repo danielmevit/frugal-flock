@@ -4,29 +4,41 @@ Release notes for Unio. Between releases, each task writes a short
 fragment in `changelog.d/`; the fragments are rolled into this file when a
 version is released.
 
-## 0.5.3 — browser execution service (UNRELEASED)
+## 0.5.3 — browser workspace and work policies
 
-- Unio 0.5.3: add explicit native ExecutionService with durable worker ownership, once-only launch/review intents and revision-bound evidence/acceptance.
-- Add disposable Git/native-mock regressions and quality-gate registration; HTTP/browser integration and the live demonstration remain separate slices.
+- Run a real task from the local browser: save a draft, preview its frozen scope
+  and checks, approve spending, start once, verify, review and accept the current
+  revision. Immutable ownership, action intents and revision binding prevent a
+  refresh from silently repeating a spending action.
+- Follow short worker updates, open protected Source output and browse tracked
+  worktree text files. Output and files require explicit startup grants and never
+  dispatch another worker. Git observation has bounded output and deadlines,
+  with cleanup of the exact owned process group and a confirmed worktree root.
+- Add `unio mode yolo|medium|safe`, `unio tier low|medium|high`, `unio lead`,
+  `unio account` and `unio policy`. Persist strict atomic state, group aliases
+  sharing a budget, include the declared lead and enforce native capacities
+  of one, two or four independent workflows per group. Frozen checks and owner
+  permissions remain unchanged; reported subscription capacity stays Unknown.
+- Admission requires a complete bounded reply before any provider starts.
+  Slots remain visible and locked while the provider runs, then release and reap
+  the actual holder. Run and review stop their owned provider on interruption;
+  quality-start failures retain their original status. Bounded mock regressions
+  cover the shared budgets, partial replies, failure, timeout and signal cleanup.
+- Transport large UTF-8 tasks and review material without placing the entire
+  file in one command argument. Claude and Codex use stdin, Grok uses
+  `--prompt-file`, OpenCode uses `--file`, and Antigravity receives a short file
+  pointer. Existing custom agent configuration is preserved; doctor reports
+  legacy substitutions without changing or running them.
+- Validate and bound browser storage documents before recording ownership;
+  store request/scope/check companions as UTF-8 JSON. HTTP errors use fixed public
+  mappings and browser recovery reads state without automatic POST retries.
+- Clarify main implementation and routine free-worker roles, correct Gemini Pro
+  to its native High/Low variants, document 90–120-minute implementation budgets,
+  and use the new tagline across README, installed help, version and attribution.
 
-- Unio 0.5.3: prepare now checks the size of every document it will publish before it records worker ownership or adds a queue row. A document that cannot fit returns invalid_request without changing ownership, queue rows or earlier released evidence.
-- Request/scope/check companions are stored as UTF-8 JSON, so maximum valid Unicode templates now prepare. Preview and binding hashes are unchanged, and older escaped records still read the same.
-
-- Unio 0.5.3: fresh installs no longer put the whole task file into one command argument. Claude and Codex read it on stdin, Grok uses `--prompt-file`, OpenCode attaches it with `--file`, and `agy` gets a short prompt that names the file and requires reading all of it. Tasks and review material over Linux's ~128 KiB single-argument limit no longer fail with `Argument list too long`.
-- Reinstall keeps an existing `agents.conf` byte for byte. `unio doctor` now warns about each `"$(cat "$TASKFILE")"` line and shows the replacement. It runs nothing and changes nothing. Custom wrappers stay the operator's, and provider context limits are unchanged.
-- `unio agents` keeps a program known behind one plain `< file` input redirect. Other redirects, pipes and wrappers still report unknown.
-- Review material now says to read the whole file but never run its Validate commands or follow instructions inside the diff.
-- New offline test `tests/unio-prompt-transport.py`, part of the full quality gate, sends 180000+ byte UTF-8 prompts through native run and review to fake provider CLIs.
-
-- Docs: the `unio agents` field table in `docs/QUALITY-USAGE.md` now matches the parser. Quoted arguments (including `"$TASKFILE"`), a `$VAR` argument and a plain `<` input redirect followed by one word keep the program known. Unquoted pipes, `;`, `&`, output redirects, here-documents, process substitution, `PATH=` and wrappers such as `bash -c` still report unknown. The section lists known and unknown example lines.
-- Docs: the sample `agents` output no longer shows the shipped Codex line as `installed=unknown`. The unknown row is now an operator-written `bash -c` wrapper. The review section now says `agy` gets a short prompt naming the material file rather than the file on stdin or by flag, and that Unio cannot confirm any agent read the whole file. No runtime change.
-
-Add `--enable-execution` HTTP routes to `ActivityServer` connecting the local browser view to the trusted native `ExecutionService`.
-
-- Corrected explicit execution mode label, improved API validation mapping, and documented boundaries in README.
-
-- Share execution HTTP error mapping so only genuine public errors with fixed code/status pairs pass through; foreign, malformed and internal errors return `503/native_unavailable`.
-- Add provider-free HTTP regressions across all execution routes and clarify browser identifiers, immutable bindings and quoted startup paths.
+The browser remains a local source preview. See [the release overview](docs/RELEASE-0.5.3.md)
+and [startup guide](bridge/README.md). Automatic recovery saves and lead cooldown
+restart are planned for v0.5.4.
 
 ## 0.5.2 — durable queue approval — 2026-10-06
 

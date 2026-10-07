@@ -34,9 +34,10 @@ Read [how Unio assigns model roles](docs/ai/MODEL-ROLES.md): main implementation
 agents build the features; verified-free workers handle routine support.
 
 **Available today:** a command-line tool for Linux, including Windows
-through WSL. A point-and-click app is [planned](docs/UX-DIRECTION.md).
+through WSL, plus a [local browser workspace](bridge/README.md) in the source
+archive. Use it to prepare and run tasks, follow worker output and inspect files.
 
-*The latest completed release is [Unio 0.5.2](https://github.com/danielmevit/unio/releases/tag/v0.5.2). Development source is at 0.5.3 while the browser milestone is being completed. See the [version plan](docs/VERSION-PLAN.md) for source and release status.*
+*Install the [latest published release](https://github.com/danielmevit/unio/releases/latest). This source tree is at 0.5.3. See the [version plan](docs/VERSION-PLAN.md) for milestone and publication status.*
 
 [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
 [FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·
