@@ -1,0 +1,1 @@
+- Add independently opted-in, session-protected bounded native Source progress/output GET APIs, strict owned receipt binding, generation cursors, literal filtered text and offline coverage; no UI, provider dispatch or process control. Version remains 0.5.3 pending native verification and lead acceptance.

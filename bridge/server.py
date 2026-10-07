@@ -65,15 +65,18 @@ class Observer:
 
 class ActivityServer(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, port, observer, plans=None, execution=None):
+    def __init__(self, port, observer, plans=None, execution=None, progress=None):
         super().__init__(('127.0.0.1',port), ActivityHandler)
         self.observer = observer
         self.plans = plans
         self.execution = execution
-        self.session_token = secrets.token_urlsafe(32) if (plans is not None or execution is not None) else None
+        self.progress = progress
+        self.session_token = secrets.token_urlsafe(32) if (plans is not None or execution is not None or progress is not None) else None
         self.origin = 'http://127.0.0.1:' + str(self.server_port)
 
     def server_close(self):
+        if self.progress is not None:
+            self.progress.close()
         if self.execution is not None:
             self.execution.close()
         super().server_close()
@@ -137,7 +140,36 @@ class ActivityHandler(BaseHTTPRequestHandler):
             return self.respond(200, json.dumps(dict(schema_version=1,
                 manual_drafts=self.server.plans is not None,
                 execution=self.server.execution is not None,
+                progress_output=self.server.progress is not None,
                 token=self.server.session_token)).encode())
+        if self.path.startswith('/api/progress'):
+            if self.server.progress is None:
+                return self.error_response(404, 'not_found')
+            if not self.token_allowed():
+                return
+            # Observation accepts no body/framing ambiguity, even an empty body.
+            if self.headers.get_all('Transfer-Encoding') or self.headers.get_all('Content-Length'):
+                return self.error_response(400, 'invalid_request')
+            match = re.fullmatch(r'/api/progress/workers/([0-9a-f]{64})(?:/runs/([0-9a-f]{64})(/output)?)?(?:\?cursor=([A-Za-z0-9_-]{1,512}))?', self.path)
+            try:
+                if self.path == '/api/progress/workers':
+                    value = self.server.progress.workers()
+                elif re.fullmatch(r'/api/progress/workers/[0-9a-f]{64}/runs', self.path):
+                    value = self.server.progress.runs(self.path.split('/')[4])
+                elif match:
+                    worker, run, output, cursor = match.groups()
+                    if cursor and not output:
+                        return self.error_response(400, 'invalid_request')
+                    value = self.server.progress.get(worker_id=worker, run_id=run, cursor=cursor, output=bool(output))
+                else:
+                    return self.error_response(400, 'invalid_request')
+                return self.respond(200, json.dumps(value, ensure_ascii=True).encode())
+            except Exception as error:
+                from progress import ProgressError, ERRORS
+                if issubclass(type(error), ProgressError) and ERRORS.get(error.code) == error.status:
+                    return self.error_response(error.status, error.code)
+                return self.error_response(503, 'progress_unavailable')
+
         if self.server.plans is not None and self.path.startswith('/api/plans/'):
             if not self.token_allowed():
                 return
@@ -188,6 +220,8 @@ class ActivityHandler(BaseHTTPRequestHandler):
         return self.error_response(404, 'not_found')
 
     def do_POST(self):
+        if self.path.startswith('/api/progress'):
+            return self.error_response(405, 'read_only')
         if self.server.plans is None and self.server.execution is None:
             return self.error_response(405, 'read_only')
         if not self.origin_allowed(write=True) or not self.token_allowed():
@@ -302,6 +336,8 @@ def serve_preview(server, open_browser=False):
     else:
         mode = 'manual draft preview' if getattr(server, 'plans', None) is not None else 'read-only Activity preview'
         print(server.origin + ' — ' + mode + '; no provider dispatch', flush=True)
+    if getattr(server, 'progress', None) is not None:
+        print('Protected Source output observation enabled for trusted startup bindings; observation never dispatches', flush=True)
     if open_browser:
         # A slow desktop opener must not delay the listening observation service.
         threading.Thread(target=open_preview, args=(server.origin,), daemon=True).start()
@@ -334,6 +370,8 @@ def main():
     parser.add_argument('--port',type=int,default=0,help='loopback port, 0 chooses an unused port')
     parser.add_argument('--open-browser',action='store_true',help='optionally open this loopback read-only preview in the default browser')
     parser.add_argument('--enable-plan-drafts',action='store_true',help='opt in to manual draft storage only; never starts workers')
+    parser.add_argument('--enable-progress-output',action='store_true',help='allow protected Source output observation only')
+    parser.add_argument('--progress-binding',action='append',default=[],help='trusted WORKER:TASK allowlist entry (at most 32)')
     parser.add_argument('--enable-execution',action='store_true',help='opt in to execution mode')
     parser.add_argument('--worker',type=str,help='worker label')
     parser.add_argument('--reviewer',type=str,help='reviewer label')
@@ -357,6 +395,9 @@ def main():
     if options.enable_execution and not all(opt is not None for opt in execution_opts):
         parser.error('--enable-execution requires all execution startup inputs')
 
+    if bool(options.progress_binding) != options.enable_progress_output:
+        parser.error('--enable-progress-output requires --progress-binding; bindings require explicit output mode')
+    progress = None
     plans = None
     execution = None
     try:
@@ -366,9 +407,20 @@ def main():
         if options.enable_execution:
             from execution_service import ExecutionService
             execution = ExecutionService(project, engine, options.worker, options.reviewer, options.config_dir, options.task_template, options.worker_company, options.reviewer_company)
-        server = ActivityServer(options.port, Observer(project, engine), plans=plans, execution=execution)
+        if options.enable_progress_output:
+            from progress import ProgressService
+            bindings = [entry.split(':') for entry in options.progress_binding]
+            if any(len(entry) != 2 for entry in bindings):
+                parser.error('invalid progress binding')
+            try:
+                progress = ProgressService(project, engine, bindings)
+            except (ValueError, OSError):
+                parser.error('invalid progress startup configuration')
+        server = ActivityServer(options.port, Observer(project, engine), plans=plans, execution=execution, progress=progress)
         serve_preview(server, options.open_browser)
     finally:
+        if progress is not None:
+            progress.close()
         if plans is not None:
             plans.close()
         if execution is not None:

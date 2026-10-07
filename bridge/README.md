@@ -559,3 +559,29 @@ those timeouts; correcting it does not establish their complete cause.
 Measured response times depend on filesystem/load and do not guarantee
 headroom under the unchanged deadlines. No caches, sleeps, retries, deadline
 expansion, extra AI invocations or live providers were used.
+
+## Protected Source output observation (BROWSER-PROGRESS-API-1)
+
+Output has separate trusted startup authority, independent of drafts and
+execution. Add `--enable-progress-output --progress-binding WORKER:TASK`
+for each explicitly owned native Source binding (at most 32 distinct tasks).
+This works without spending authority; execution mode alone does not enable
+output. `GET /api/session` adds `progress_output` and supplies a local session
+token for output-only mode. Every progress GET requires that current token
+and the existing exact Host/Origin checks. Default output capability is off.
+
+The [progress API contract](../docs/BROWSER-PROGRESS-API-CONTRACT.md) defines
+worker/run/output routes, exact schemas, limits, generation-bound cursors,
+literal text and deterministic sensitive-line exclusions. Only latest native
+attempts with owned receipts are available. Source logs remain Source output;
+foreground liveness and active verification/review phase can be unknown.
+Buffered verification does not imply completion, and browser acceptance stays
+in the separate job API. No UI, raw-log download, terminal control, files view,
+provider call or process action is added by observation. Redaction is limited;
+opt in only to Source output suitable for the local browser session.
+
+The Source checks run the complete new module/HTTP suites, existing server
+and execution HTTP suites, scoped docs lint and frozen-base whitespace. The
+lead controller runs all nine frozen Validate commands after Source and handles
+native verification, personal review and the full merged quality gate. Version
+remains 0.5.3; this source change does not establish release or acceptance.
