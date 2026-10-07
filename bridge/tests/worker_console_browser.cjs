@@ -144,6 +144,46 @@ os.utime(log, (time.time(), time.time()))
     assert.equal(await page.locator("#console-file-text b").count(), 0);
     await page.getByRole("button", { name: "src/hello.txt", exact: true }).click();
     await page.waitForFunction(() => document.getElementById("console-file-text").textContent === "hello source\n");
+    let fileMode = "full";
+    const fullText = "a".repeat(40000);
+    const cutText = "b".repeat(20000);
+    const previewRoute = /\/api\/worker-files\/workers\/[0-9a-f]{64}\/files\/[0-9a-f]{64}$/;
+    await page.route(previewRoute, (route) => {
+      const truncated = fileMode === "cut";
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          schema_version: 1,
+          worker_id: "ignored",
+          file_id: "ignored",
+          relative_path: "src/hello.txt",
+          observed_at: "2026-10-07T00:00:00+00:00",
+          text: truncated ? cutText : fullText,
+          truncated,
+        }),
+      });
+    });
+    await page.getByRole("button", { name: "src/hello.txt", exact: true }).click();
+    await page.waitForFunction((expected) => {
+      const text = document.getElementById("console-file-text").textContent;
+      const meta = document.getElementById("console-file-meta").textContent;
+      return text === expected && meta.includes("Full observed text is shown.") && !meta.includes("64 KiB");
+    }, fullText);
+    assert.equal(await page.locator("#console-file-text b").count(), 0);
+    fileMode = "cut";
+    await page.getByRole("button", { name: "src/hello.txt", exact: true }).click();
+    await page.waitForFunction((expected) => {
+      const text = document.getElementById("console-file-text").textContent;
+      const meta = document.getElementById("console-file-meta").textContent;
+      return text === expected && meta.includes("Preview truncated at 64 KiB.") && !meta.includes("Full observed text is shown.");
+    }, cutText);
+    await page.unroute(previewRoute);
+    await page.getByRole("tab", { name: "Output", exact: true }).click();
+    await page.waitForFunction(() => {
+      const node = document.getElementById("console-text");
+      return node && node.textContent.includes("line-one") && node.textContent.includes("line-two") && node.textContent.length <= 16384;
+    });
     const postsBefore = requests.filter((item) => item.method === "POST").length;
     await page.route(origin + "/api/progress/workers", (route) => route.fulfill({
       status: 403, contentType: "application/json", body: JSON.stringify({ schema_version: 1, error: "session_refused" }),

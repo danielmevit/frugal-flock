@@ -7,6 +7,7 @@ import hashlib
 import os
 from pathlib import Path
 import re
+import selectors
 import signal
 import stat
 import subprocess
@@ -22,6 +23,7 @@ MAX_FILES = 256
 PREVIEW_BYTES = 65536
 LIST_CAP = 1024 * 1024
 DEADLINE = 2.0
+REAP_GRACE = 0.25
 EXCLUDED_DIRS = {'.git', '.ssh', '.gnupg', '.aws', '.azure', '.kube', '.docker',
                  'auth', 'credential', 'credentials', 'secret', 'secrets'}
 EXCLUDED_FILES = {'agents.conf', '.env', '.netrc', '.npmrc', '.pypirc', '.htpasswd',
@@ -165,57 +167,128 @@ class WorkerFilesService:
             os.close(fd)
             raise
 
-    def _git_paths(self, entry):
-        # The worktree path is the startup grant, never request text.
-        directory = str(self.workspace / 'wt' / entry['worker'])
-        argv = ['git', '-C', directory, '-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false',
-                'ls-files', '-z', '--', '.']
-        env = {'PATH': os.environ.get('PATH', ''), 'LC_ALL': 'C', 'GIT_CONFIG_NOSYSTEM': '1',
-               'GIT_CONFIG_GLOBAL': os.devnull, 'GIT_CONFIG_SYSTEM': os.devnull, 'GIT_TERMINAL_PROMPT': '0'}
-        proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                                env=env, start_new_session=True, close_fds=True)
+    def _reap_group(self, proc):
+        """Kill and reap only the process group owned by this spawn."""
+        if proc.pid > 0 and proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
         try:
-            raw = proc.stdout.read(LIST_CAP + 1)
-            overflow = len(raw) > LIST_CAP
-            if overflow and proc.poll() is None:
+            proc.wait(timeout=REAP_GRACE)
+        except subprocess.TimeoutExpired:
+            if proc.pid > 0 and proc.poll() is None:
                 try:
                     os.killpg(proc.pid, signal.SIGKILL)
-                except ProcessLookupError:
+                except (ProcessLookupError, PermissionError):
                     pass
             try:
-                code = proc.wait(timeout=DEADLINE)
+                proc.wait(timeout=REAP_GRACE)
             except subprocess.TimeoutExpired:
+                return
+
+    def _git_paths(self, root_fd):
+        # Same confirmed worktree descriptor. Git must not look up the startup path again.
+        passed = None
+        proc = None
+        selector = None
+        try:
+            passed = os.dup(root_fd)
+            while passed < 3:
+                nxt = os.dup(passed)
+                os.close(passed)
+                passed = nxt
+            argv = ['git', '-C', '/proc/self/fd/%d' % passed, '-c', 'core.fsmonitor=false',
+                    '-c', 'core.untrackedCache=false', 'ls-files', '-z', '--', '.']
+            env = {'PATH': os.environ.get('PATH', ''), 'LC_ALL': 'C', 'GIT_CONFIG_NOSYSTEM': '1',
+                   'GIT_CONFIG_GLOBAL': os.devnull, 'GIT_CONFIG_SYSTEM': os.devnull, 'GIT_TERMINAL_PROMPT': '0'}
+            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                    env=env, start_new_session=True, close_fds=True, pass_fds=(passed,))
+            deadline = time.monotonic() + DEADLINE
+            pipe = proc.stdout.fileno()
+            os.set_blocking(pipe, False)
+            selector = selectors.DefaultSelector()
+            selector.register(pipe, selectors.EVENT_READ)
+            chunks = []
+            total = 0
+            limit = LIST_CAP + 1
+            eof = False
+            while total < limit:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    self._reap_group(proc)
+                    raise WorkerFilesError('files_unavailable')
+                if not selector.select(remaining):
+                    self._reap_group(proc)
+                    raise WorkerFilesError('files_unavailable')
                 try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                proc.wait(timeout=1)
-                raise WorkerFilesError('files_unavailable') from None
-        finally:
-            if proc.stdout is not None:
-                proc.stdout.close()
-        if code != 0 and not overflow:
-            raise WorkerFilesError('files_unavailable')
-        if overflow:
-            raw = raw[:LIST_CAP].rsplit(b'\0', 1)[0]
-        elif raw.endswith(b'\0'):
-            raw = raw[:-1]
-        paths = []
-        if raw:
-            for piece in raw.split(b'\0'):
-                try:
-                    relative = piece.decode('utf-8')
-                except UnicodeError:
+                    piece = os.read(pipe, limit - total)
+                except BlockingIOError:
                     continue
-                if allowed_path(relative):
-                    paths.append(relative)
-        paths.sort()
-        return paths, overflow
+                except OSError:
+                    self._reap_group(proc)
+                    raise
+                if not piece:
+                    eof = True
+                    break
+                chunks.append(piece)
+                total += len(piece)
+            raw = b''.join(chunks)
+            overflow = total > LIST_CAP
+            if overflow or not eof:
+                self._reap_group(proc)
+            if not eof and not overflow:
+                raise WorkerFilesError('files_unavailable')
+            if eof and not overflow:
+                try:
+                    code = proc.wait(timeout=REAP_GRACE)
+                except subprocess.TimeoutExpired:
+                    self._reap_group(proc)
+                    raise WorkerFilesError('files_unavailable') from None
+                if code != 0:
+                    raise WorkerFilesError('files_unavailable')
+            if overflow:
+                raw = raw[:LIST_CAP].rsplit(b'\0', 1)[0]
+            elif raw.endswith(b'\0'):
+                raw = raw[:-1]
+            paths = []
+            if raw:
+                for piece in raw.split(b'\0'):
+                    try:
+                        relative = piece.decode('utf-8')
+                    except UnicodeError:
+                        continue
+                    if allowed_path(relative):
+                        paths.append(relative)
+            paths.sort()
+            return paths, overflow
+        except WorkerFilesError:
+            raise
+        except Exception:
+            if proc is not None:
+                self._reap_group(proc)
+            raise
+        finally:
+            if selector is not None:
+                selector.close()
+            if proc is not None and proc.stdout is not None:
+                proc.stdout.close()
+            if passed is not None:
+                os.close(passed)
+
+    def _grant_still_pinned(self, entry, root):
+        info = os.fstat(root)
+        if (info.st_dev, info.st_ino) != (entry['dev'], entry['ino']) or not stat.S_ISDIR(info.st_mode):
+            raise WorkerFilesError('files_unavailable')
+        # A replaced path must not be observed even if the descriptor no longer pins it.
+        again = self._confirm(entry)
+        os.close(again)
 
     def _safe_files(self, entry, begin):
         root = self._confirm(entry)
         try:
-            paths, overflow = self._git_paths(entry)
+            paths, overflow = self._git_paths(root)
+            self._grant_still_pinned(entry, root)
             kept = []
             for relative in paths:
                 if time.monotonic() - begin > DEADLINE:

@@ -662,11 +662,16 @@ off. The routes are `GET /api/worker-files/workers`,
 `GET /api/worker-files/workers/W/files/F`. W and F are server-issued 64-hex
 ids. Responses use `relative_path` for the tracked path and `worktree_label`
 (`wt/WORKER`) rather than a host path. Listing comes from a fixed `git
-ls-files` of the startup worktree, at most 256 entries. Preview reads at most
-64 KiB plus one sentinel byte through no-follow descriptors. Symlinks, special
-files, hardlinks, Git and auth directories, and known secret filenames are
-excluded. Invalid UTF-8 is unavailable. The view cannot edit, execute, verify
-or review.
+ls-files -z` of the confirmed worktree directory descriptor
+(`/proc/self/fd/N`), not a second lookup of the startup path. Stdout is
+drained under a 2 second deadline measured from spawn, and at most 1 MiB plus
+one byte. Deadline, overflow and errors kill and reap that owned process
+group within a short grace, then release the service lock. A replaced
+worktree is unavailable instead of an unrelated index. At most 256 entries
+are returned. Preview reads at most 64 KiB plus one sentinel byte through
+no-follow descriptors. Symlinks, special files, hardlinks, Git and auth
+directories, and known secret filenames are excluded. Invalid UTF-8 is
+unavailable. The view cannot edit, execute, verify or review.
 
 The workspace page shows each granted worker's latest filtered excerpt,
 observation age and recorded source, verification, review, acceptance,
@@ -674,7 +679,10 @@ liveness and phase. Quiet, missing, unavailable and connection failures keep
 those names and do not become a summary or a completion claim. Choosing a
 worker opens a read-only Output panel; Files is a separate tab. Polling is
 GET-only, pauses while the tab is hidden, and backs off after a connection
-failure. Displayed text stays within one bounded page. A changed run or
+failure. Source text stays within one bounded page of 16,384 characters.
+File preview shows the returned API text literally, so a full observation
+under the 64 KiB bound is not shortened or labeled as complete by that page
+bound. Server file truncation is labeled at 64 KiB. A changed run or
 generation resets the page explicitly. A refused session refreshes the
 existing session and does not replay a launch, review or other action.
 

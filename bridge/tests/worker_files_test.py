@@ -6,16 +6,18 @@ import http.client
 import json
 import os
 from pathlib import Path
+import shlex
 import socket
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import server
-from worker_files import WorkerFilesError, WorkerFilesService, PREVIEW_BYTES
+from worker_files import WorkerFilesError, WorkerFilesService, LIST_CAP, PREVIEW_BYTES
 
 
 SCRATCH = Path(__file__).resolve().parents[2].parent.parent / 'tmp'
@@ -71,10 +73,16 @@ class WorkerFilesTests(unittest.TestCase):
         self.service = WorkerFilesService(self.root, [self.fixture.worker])
         self.addCleanup(self.service.close)
         self.calls = []
+        self.pins = []
         real = subprocess.Popen
         def spy(*args, **kwargs):
             argv = args[0] if args else kwargs.get('args')
+            idents = []
+            for fd in kwargs.get('pass_fds') or ():
+                info = os.fstat(fd)
+                idents.append((info.st_dev, info.st_ino))
             self.calls.append((list(argv), kwargs.get('env')))
+            self.pins.append(tuple(idents))
             return real(*args, **kwargs)
         self.effects = patch('worker_files.subprocess.Popen', side_effect=spy)
         self.effects.start()
@@ -90,10 +98,19 @@ class WorkerFilesTests(unittest.TestCase):
         self.assertNotIn('SECRET', json.dumps(body))
         self.assertTrue(self.calls)
         argv, env = self.calls[-1]
-        self.assertEqual(argv[:6], ['git', '-C', str(self.fixture.work), '-c', 'core.fsmonitor=false', '-c'])
-        self.assertIn('ls-files', argv)
+        self.assertEqual(argv[:2], ['git', '-C'])
+        self.assertRegex(argv[2], r'\A/proc/self/fd/[0-9]+\Z')
+        self.assertEqual(argv[3:6], ['-c', 'core.fsmonitor=false', '-c'])
+        self.assertEqual(argv[6:], ['core.untrackedCache=false', 'ls-files', '-z', '--', '.'])
+        self.assertNotIn(str(self.fixture.work), argv)
         self.assertNotIn('shell', argv)
         self.assertNotIn(self.fixture.identity, argv)
+        info = os.stat(self.fixture.work)
+        self.assertIn((info.st_dev, info.st_ino), self.pins[-1])
+        self.assertEqual(env.get('GIT_CONFIG_NOSYSTEM'), '1')
+        self.assertEqual(env.get('GIT_CONFIG_GLOBAL'), os.devnull)
+        self.assertEqual(env.get('GIT_CONFIG_SYSTEM'), os.devnull)
+        self.assertEqual(env.get('GIT_TERMINAL_PROMPT'), '0')
         self.assertNotIn('AWS_SECRET_ACCESS_KEY', env)
         self.assertNotIn('PRIVATE-ENV', json.dumps(env))
         preview = self.service.preview(self.fixture.identity, self.fixture.file_id('src/hello.txt'))
@@ -148,6 +165,198 @@ class WorkerFilesTests(unittest.TestCase):
             WorkerFilesService(self.root, ['bad/worker'])
         with self.assertRaises(ValueError):
             WorkerFilesService(self.root, ['w' + str(index) for index in range(33)])
+
+    def install_git(self, script):
+        directory = self.root / 'fake-bin'
+        directory.mkdir(exist_ok=True)
+        path = directory / 'git'
+        path.write_text(script, encoding='utf-8')
+        path.chmod(0o755)
+        return directory
+
+    def assert_reaped(self, pid):
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            if not os.path.exists('/proc/%d' % pid):
+                return
+            time.sleep(0.02)
+        self.fail('process %s was not reaped' % pid)
+
+    def read_pid(self, path):
+        self.assertTrue(path.is_file(), path)
+        return int(path.read_text(encoding='utf-8').strip())
+
+    def test_silent_git_hits_deadline_reaps_group_and_next_request_works(self):
+        leader = self.root / 'leader.pid'
+        child = self.root / 'child.pid'
+        self.install_git(
+            '#!/bin/sh\n'
+            'echo $$ > %s\n'
+            'sleep 30 &\n'
+            'echo $! > %s\n'
+            'wait\n' % (shlex.quote(str(leader)), shlex.quote(str(child))))
+        old = os.environ.get('PATH', '')
+        os.environ['PATH'] = str(self.root / 'fake-bin') + os.pathsep + old
+        try:
+            started = time.monotonic()
+            with self.assertRaises(WorkerFilesError) as error:
+                self.service.files(self.fixture.identity)
+            elapsed = time.monotonic() - started
+        finally:
+            os.environ['PATH'] = old
+        self.assertEqual(error.exception.code, 'files_unavailable')
+        self.assertGreater(elapsed, 1.5)
+        self.assertLess(elapsed, 3.0)
+        self.assert_reaped(self.read_pid(leader))
+        self.assert_reaped(self.read_pid(child))
+        restored = time.monotonic()
+        body = self.service.files(self.fixture.identity)
+        self.assertLess(time.monotonic() - restored, 3.0)
+        self.assertIn('src/hello.txt', [item['relative_path'] for item in body['files']])
+        self.assertNotIn('shell', self.calls[-1][0])
+
+    def test_partial_git_output_stall_is_unavailable_and_reaped(self):
+        leader = self.root / 'partial.pid'
+        self.install_git(
+            '#!/bin/sh\n'
+            'echo $$ > %s\n'
+            "printf 'src/hello.txt\\0'\n"
+            'sleep 30\n' % shlex.quote(str(leader)))
+        old = os.environ.get('PATH', '')
+        os.environ['PATH'] = str(self.root / 'fake-bin') + os.pathsep + old
+        try:
+            started = time.monotonic()
+            with self.assertRaises(WorkerFilesError) as error:
+                self.service.files(self.fixture.identity)
+            elapsed = time.monotonic() - started
+        finally:
+            os.environ['PATH'] = old
+        self.assertEqual(error.exception.code, 'files_unavailable')
+        self.assertGreater(elapsed, 1.5)
+        self.assertLess(elapsed, 3.0)
+        self.assert_reaped(self.read_pid(leader))
+        body = self.service.files(self.fixture.identity)
+        self.assertEqual(
+            [item['relative_path'] for item in body['files']],
+            ['odd<name>.txt', 'src/binary.bin', 'src/hello.txt'])
+
+    def test_chunked_git_output_is_assembled_before_the_deadline(self):
+        self.install_git(
+            '#!/bin/sh\n'
+            "printf 'src/hello.txt\\0'\n"
+            'sleep 0.3\n'
+            "printf 'odd<name>.txt\\0src/binary.bin\\0'\n")
+        old = os.environ.get('PATH', '')
+        os.environ['PATH'] = str(self.root / 'fake-bin') + os.pathsep + old
+        try:
+            started = time.monotonic()
+            body = self.service.files(self.fixture.identity)
+            elapsed = time.monotonic() - started
+        finally:
+            os.environ['PATH'] = old
+        self.assertLess(elapsed, 2.0)
+        self.assertGreater(elapsed, 0.2)
+        self.assertFalse(body['truncated'])
+        self.assertEqual(
+            [item['relative_path'] for item in body['files']],
+            ['odd<name>.txt', 'src/binary.bin', 'src/hello.txt'])
+
+    def test_git_stdout_overflow_stops_at_the_cap_and_reaps(self):
+        leader = self.root / 'overflow.pid'
+        script = (
+            '#!/usr/bin/env python3\n'
+            'import os, sys, time\n'
+            'open(%r, "w").write(str(os.getpid()))\n'
+            'sys.stdout.buffer.write(b"a" * %d + b"\\0zz-marker.txt\\0")\n'
+            'sys.stdout.buffer.flush()\n'
+            'time.sleep(30)\n' % (str(leader), LIST_CAP))
+        self.install_git(script)
+        old = os.environ.get('PATH', '')
+        os.environ['PATH'] = str(self.root / 'fake-bin') + os.pathsep + old
+        try:
+            started = time.monotonic()
+            body = self.service.files(self.fixture.identity)
+            elapsed = time.monotonic() - started
+        finally:
+            os.environ['PATH'] = old
+        self.assertLess(elapsed, 1.5)
+        self.assertTrue(body['truncated'])
+        self.assertEqual(body['files'], [])
+        self.assert_reaped(self.read_pid(leader))
+        restored = self.service.files(self.fixture.identity)
+        self.assertIn('src/hello.txt', [item['relative_path'] for item in restored['files']])
+
+    def replace_worktree(self, work):
+        os.rename(work, work.with_name('w1-granted'))
+        work.mkdir()
+        git(work, 'init', '-q', '-b', 'main')
+        git(work, 'config', 'user.email', 'files@invalid')
+        git(work, 'config', 'user.name', 'Files')
+        (work / 'sentinel-unrelated.txt').write_text('unrelated\n', encoding='utf-8')
+        git(work, 'add', '--', 'sentinel-unrelated.txt')
+        git(work, 'commit', '-qm', 'replacement')
+
+    def test_replaced_worktree_is_unavailable(self):
+        self.replace_worktree(self.fixture.work)
+        listed = subprocess.run(['git', '-C', str(self.fixture.work), 'ls-files'],
+                                check=True, capture_output=True, text=True)
+        self.assertIn('sentinel-unrelated.txt', listed.stdout)
+        before = len(self.calls)
+        with self.assertRaises(WorkerFilesError) as error:
+            self.service.files(self.fixture.identity)
+        self.assertEqual(error.exception.code, 'files_unavailable')
+        self.assertEqual(len(self.calls), before)
+
+    def test_path_replacement_during_discovery_does_not_return_unrelated_index(self):
+        real = self.service._git_paths
+        seen = {}
+
+        def swap(root_fd):
+            info = os.fstat(root_fd)
+            seen['inode'] = (info.st_dev, info.st_ino)
+            self.replace_worktree(self.fixture.work)
+            return real(root_fd)
+
+        self.service._git_paths = swap
+        with self.assertRaises(WorkerFilesError) as error:
+            body = self.service.files(self.fixture.identity)
+            self.fail('replacement returned %s' % json.dumps(body))
+        self.assertEqual(error.exception.code, 'files_unavailable')
+        granted = os.stat(self.fixture.work.with_name('w1-granted'))
+        self.assertEqual(seen['inode'], (granted.st_dev, granted.st_ino))
+        self.assertTrue(self.calls)
+        self.assertRegex(self.calls[-1][0][2], r'\A/proc/self/fd/[0-9]+\Z')
+        self.assertNotIn(str(self.fixture.work), self.calls[-1][0])
+
+    def test_linked_worktree_common_dir_uses_confirmed_descriptor(self):
+        root = self.root / 'linked'
+        repo = root / 'repo'
+        work = root / 'wt' / 'w1'
+        repo.mkdir(parents=True)
+        work.parent.mkdir()
+        git(repo, 'init', '-q', '-b', 'main')
+        git(repo, 'config', 'user.email', 'files@invalid')
+        git(repo, 'config', 'user.name', 'Files')
+        (repo / 'base.txt').write_text('base\n', encoding='utf-8')
+        git(repo, 'add', '--', 'base.txt')
+        git(repo, 'commit', '-qm', 'base')
+        git(repo, 'worktree', 'add', '-q', '-b', 'agent/w1', str(work))
+        (work / 'src').mkdir()
+        (work / 'src' / 'hello.txt').write_text('from-worktree\n', encoding='utf-8')
+        git(work, 'add', '--', 'src/hello.txt')
+        git(work, 'commit', '-qm', 'hello')
+        service = WorkerFilesService(root, ['w1'])
+        self.addCleanup(service.close)
+        identity = hashlib.sha256(b'w1').hexdigest()
+        body = service.files(identity)
+        paths = [item['relative_path'] for item in body['files']]
+        self.assertIn('src/hello.txt', paths)
+        self.assertIn('base.txt', paths)
+        self.assertNotIn('sentinel-unrelated.txt', paths)
+        argv = self.calls[-1][0]
+        self.assertRegex(argv[2], r'\A/proc/self/fd/[0-9]+\Z')
+        info = os.stat(work)
+        self.assertIn((info.st_dev, info.st_ino), self.pins[-1])
 
 
 class NoEffects:

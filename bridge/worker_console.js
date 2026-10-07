@@ -310,7 +310,7 @@
       throw error;
     }
     if (ticket !== epoch || typeof preview.text !== "string") return;
-    fileText.textContent = preview.text.length > TEXT_LIMIT ? preview.text.slice(0, TEXT_LIMIT) : preview.text;
+    fileText.textContent = preview.text;
     fileMeta.textContent += preview.truncated === true ? " Preview truncated at 64 KiB." : " Full observed text is shown.";
     if (preview.observed_at) fileMeta.textContent += " " + ageOf(preview.observed_at);
   }

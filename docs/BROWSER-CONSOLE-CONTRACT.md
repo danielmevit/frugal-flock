@@ -46,7 +46,10 @@ W/F are opaque64-lowercase-hex IDs supplied by discovery; they never accept a
 path, executable, ref, command or root. Trusted worker worktrees are fixed at
 startup. Files are selected only from tracked source text, maximum256 entries
 and64KiB preview bytes plus one sentinel byte. Use bounded fixed-argument Git
-listing with a short deadline; never interpolate HTTP text into a command.
+listing of the confirmed worktree directory descriptor. Drain its stdout under
+a 2 second deadline from spawn, at most 1 MiB plus one byte, and kill and reap
+that process group on deadline, overflow or error. A replaced worktree is
+unavailable. Never interpolate HTTP text into a command.
 Use no-follow descriptor traversal for content, reject unsafe components,
 symlinks, special files and hardlinks. Exclude Git/auth/credential paths and
 known secret filenames; binary/invalid UTF-8 content is unavailable. File
@@ -58,7 +61,10 @@ host_refused/origin_refused/session_refused403, files_not_found404,
 read_only405 and files_unavailable503. Capability off returns not_found404.
 No private exception, absolute path, command or credentials in errors.
 Listing/preview cannot write, invoke a provider, verify/review or control a
-process. Source filenames/content remain literal text in the browser.
+process. Source filenames/content remain literal text in the browser. File preview
+shows the returned text in full; the separate Source page bound must not
+shorten it or call that shortening a full observation. Server truncation stays
+labeled at 64 KiB.
 
 ## UI and delivery
 
