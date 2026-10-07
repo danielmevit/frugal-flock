@@ -22,8 +22,12 @@ Git bookkeeping rather than actual provider lifetime. Codex correction
 c595706 passed Source, all three native checks and the lead's personal review.
 It requires actual live child identity/session observation and bounded harness
 failure paths. Preserve earlier passed checks and rejected candidates;
-none is a published0.5.3. The final accepted source still needs its full gate and
-exact public assets before publication and installation. Read the [version plan](../VERSION-PLAN.md)
+none is a published0.5.3. FINAL-6 passed that32-check guard, then failed one of60 execution-service
+cases when its150ms deadline killed a Python mock before its entry log.
+Gemini correction7fed7cd passed Source, three native checks and personal review;
+it observes actual Popen attempts and preserves real Unknown/no-retry behavior.
+The revised accepted source still needs its full gate and exact public assets
+before publication and installation. Read the [version plan](../VERSION-PLAN.md)
 and current repository/release state before claiming delivery.
 
 Next is0.5.4: actual recovery saves first, then checkpoint continuation and

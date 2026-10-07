@@ -6,6 +6,9 @@ version is released.
 
 ## 0.5.3 — browser workspace and work policies
 
+- Observe actual native launch attempts across timeout/replay tests. Keep real
+  deadlines and Unknown/no-retry behavior when a Python mock is killed before
+  it can write its entry log. Production launch deadlines remain unchanged.
 - Measure provider timeout from the mock's own monotonic start; require live
   parent and child identity/session observations and bounded termination. Keep
   startup/final bookkeeping separate from the provider limit, bound the whole
