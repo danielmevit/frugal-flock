@@ -64,7 +64,7 @@ Manifest keys (all required; null permitted only where stated):
 | `fingerprint` | SHA256 of canonical state described below |
 | `git` | Exact Git object described below |
 | `entries` | Sorted complete supported path inventory described below |
-| `context` | Exactly task SHA256, byte count and `literal:true` |
+| `context` | Exactly `task_sha256`, `task_bytes`, `literal:true` |
 
 Git object keys: `object_format`, `base_commit`, `head_commit`, `head_tree`,
 `commit_ids`, `bundle_sha256`, `bundle_bytes`. Base is the actual frozen task
@@ -169,9 +169,20 @@ explicit reconciliation proves saved state or preimage. Never automatically retr
 restore into an unresolved destination. Extra Git objects after a proven rollback
 are unreferenced; report them honestly. Source HEAD/index/files remain unchanged.
 
-Claims are strict schema1 JSON with exact claim/save/worker/task IDs, source
-fingerprint, preimage fingerprint, timestamps, state and outcome; no arbitrary
-paths or shell. States reserved/mutating/restored/failed/unknown/calling/called.
+Claims are strict JSON with exactly `schema_version:1`, `claim_id`, `save_id`,
+`destination`, `new_task`, `task_sha256`, `source_fingerprint`,
+`preimage_fingerprint`, `created_at`, `updated_at`, `state`, `outcome`.
+new_task/task_sha256 are null for restore; otherwise valid native ID/SHA256.
+Fingerprints and IDs use manifest validation. Outcome is exactly `{exit_code,
+reason}`: null before a known result, actual integer exit and bounded fixed
+reason afterward. No arbitrary paths or shell. States are reserved/mutating/
+restored/failed/unknown/calling/called. Cap32claims; preserve previous evidence
+and refuse new claims at the cap. Attempt reason codes are unstable, excessive,
+secret_name, unsupported_type, unsupported_git, unsafe_name, incomplete,
+lock_busy, invalid_save, destination_rejected, io_error and unknown.
+Attempts contain exactly schema_version, worker, task, observed_at, reason,
+status (complete/refused/failed), save_id (null on failure), last_good_id and
+provider_exit (null except final outcomes); none contains body bytes.
 Create/restore failures do not rewrite Source exit/verification/review/readiness.
 
 ## Native supervision and continuation
