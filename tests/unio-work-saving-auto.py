@@ -283,6 +283,10 @@ raise SystemExit(0 if scenario == 'success' else 23)
         check('exactly one provider invocation per frozen task, no retries',
               calls.read_text().splitlines() == scenarios)
     finally:
+        if 'killer' in locals() and killer.poll() is None:
+            killer.communicate(timeout=90)
+        if (coord / 'reports' / 'kill.pid').exists():
+            unio('kill', 'kill', timeout=90)
         if 'proc' in locals() and proc.poll() is None:
             proc.terminate()
             proc.communicate(timeout=70)
