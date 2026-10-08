@@ -56,6 +56,13 @@ correction. Fit is an overview; use zoom, filters or List to read dense pages.
 No additional AI, dependency, backend capability or global install was added.
 See the [map controls](../../bridge/README.md#interactive-radial-viewport-browser-map-viewport-1).
 
+The actual local dashboard passed at desktop1440px and phone390px with new
+zoom controls, API200, full available width and no page errors. Its separate
+10-second observer cutoff was too short for a measured10.37-second native scan;
+the local read-only preview now uses a30-second Observer budget. No released
+CLI option or performance fix is claimed. The [observation finding](LIVE-WORKSPACE-VIEW.md#large-workspace-observation-follow-up)
+is tracked for the performance milestone; preserve original503 diagnostics.
+
 Next recovery slices: automatic baseline/periodic/final saves and authorized
 continuation under the frozen [work-saving contract](WORK-SAVING-CONTRACT.md),
 then [lead CLI cooldown restart](LEAD-COOLDOWN-RESTART.md). Existing worker limit

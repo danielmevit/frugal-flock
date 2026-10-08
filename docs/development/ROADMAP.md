@@ -116,7 +116,11 @@ delivery dates will be assigned to bounded milestones separately.
    ledger and score information to track requests, tokens, elapsed time and
    rework per accepted change, including review and recovery overhead. Choose
    agents using evidence for the kind of task and compare team workflows
-   against a single-agent baseline.
+   against a single-agent baseline. Also measure local activity observation:
+   a 2026-10-08 Windows-mounted workspace scan took 10.37 seconds and exceeded
+   the preview server's 10-second deadline. Add a bounded configurable browser
+   observation budget and reduce repeated scan work while preserving truthful
+   unavailable/stale states. See the [live-workspace finding](LIVE-WORKSPACE-VIEW.md#large-workspace-observation-follow-up).
 
 Task design and reasoning budgets deserve measurement before optimizing
 local script overhead. One recorded GLM review took 437 seconds at max and

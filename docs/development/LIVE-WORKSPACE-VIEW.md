@@ -116,3 +116,22 @@ console grants, failure/recovery and mobile overflow. Personal lead review
 and screenshot inspection completed before integration. The full repository
 gate remains required for the completed v0.5.4 release. Add richer delegation
 and dependency data separately when the engine records those relationships.
+
+
+## Large-workspace observation follow-up
+
+The 2026-10-08 live check found a separate observation-budget problem: a
+successful installed CLI scan on the Windows-mounted workspace took 10.37
+seconds, slightly beyond the browser server's default 10-second deadline.
+The browser correctly showed unavailable and removed its current-state claims;
+there were no JavaScript errors. The local read-only preview was restarted
+with the existing Observer constructor's timeout set to 30 seconds. Confirmed
+observations and new map controls then worked at 1440px and 390px with no
+page overflow. The installed release and worker configuration were unchanged.
+
+This is a local operational adjustment, not a new published CLI option or a
+completed performance improvement. Track a bounded, configurable observation
+budget in the normal browser launcher and measure/cache repeated workspace
+scans in the performance milestone. Keep failure clearing and observation
+freshness explicit; a larger budget must not turn stale data into current
+state. The full source release still requires its combined quality gate.
