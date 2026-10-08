@@ -348,7 +348,9 @@
       button.setAttribute("aria-controls", "console-panel");
       button.setAttribute("aria-expanded", selectedName === name && !panel.hidden ? "true" : "false");
       button.dataset.worker = name;
-      button.dataset.task = view && view.task ? view.task : "";
+      button.dataset.task = view && typeof view.task === "string" ? view.task : "";
+      button.dataset.output = outputOn && view ? "true" : "false";
+      button.dataset.files = filesOn && slot.files ? "true" : "false";
       const title = view && view.task ? name + " / " + view.task : name;
       const excerpt = view && view.output && typeof view.output.excerpt === "string" && view.output.excerpt
         ? view.output.excerpt : (view ? "No filtered excerpt in this observation." : "Source output is not enabled. No Source excerpt is claimed.");
@@ -519,16 +521,21 @@
     }
   });
 
+  // Local map requests carry only an exact worker and task identity. Anything
+  // else is ignored; no request opens a worker the console has not listed.
   document.addEventListener("unio-open-console", (event) => {
-    const { worker, task } = event.detail;
-    const buttons = workers.querySelectorAll("button.console-worker");
-    for (let b of buttons) {
-       if (b.dataset.worker === worker) {
-          b.click();
-          section.scrollIntoView({behavior: "smooth"});
-          break;
-       }
-    }
+    const detail = event.detail;
+    if (!detail || typeof detail !== "object" || Array.isArray(detail)) return;
+    const proto = Object.getPrototypeOf(detail);
+    if (proto !== Object.prototype && proto !== null) return;
+    const worker = detail.worker;
+    const task = detail.task;
+    if (typeof worker !== "string" || !worker || typeof task !== "string") return;
+    const match = Array.from(workers.querySelectorAll("button.console-worker"))
+      .find((b) => b.dataset.worker === worker && b.dataset.task === task);
+    if (!match) return;
+    match.click();
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    section.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
   });
-
 })();
