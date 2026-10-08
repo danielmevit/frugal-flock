@@ -36,6 +36,14 @@ revision has passed the full suite; it remains required at the combined release.
 The direct lead tasks have no delegated Source, and self-review is not an
 independent AI-lab verdict.
 
+Follow-up correction [ab8d2f1](https://github.com/danielmevit/unio/commit/ab8d2f1da3c494bd38f268f377efc633b177cc4a)
+fixes empty-index restore found by the combined installer smoke. Its native
+scope and five focused checks passed, followed by personal review. Standalone
+packaging, canonical guide/legal parity, custom instructions, save/inspect/restore
+and unchanged source/global executable passed. The real local dashboard also
+passed at five widths from 320px to 1920px, with API200, full available page
+width, correct footer and no page errors. Preserve the initial failed smoke.
+
 Next UI task: the owner's queued zoom/pan and centre-to-edge radial map layout.
 Next recovery slices: automatic baseline/periodic/final saves and authorized
 continuation under the frozen [work-saving contract](WORK-SAVING-CONTRACT.md),
