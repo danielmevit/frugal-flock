@@ -623,7 +623,7 @@
     }
     if (files) {
       return {
-        text: (output ? "Source output has no recorded task for this worker. " : "Source output is not enabled. ")
+        text: (output ? "Source output has no recorded task for this worker. " : "Source output is not available for this worker. ")
           + "Only tracked worktree files are available; they show the worker's current worktree, not this record.",
         action: { label: "Open worktree files for " + r.worker, event },
       };

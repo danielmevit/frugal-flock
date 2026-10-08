@@ -361,8 +361,10 @@
         text("span", excerpt, "console-excerpt"),
       );
       button.addEventListener("click", () => {
+        // A files-only worker has no Source view; open its Files tab.
+        const firstTab = outputOn && view ? "output" : "files";
         if (selectedName === name && !panel.hidden) {
-          chooseTab(outputOn ? "output" : "files");
+          chooseTab(firstTab);
           return;
         }
         selectedName = name;
@@ -372,7 +374,7 @@
         fileId = null;
         fileText.textContent = "";
         epoch += 1;
-        chooseTab(outputOn ? "output" : "files");
+        chooseTab(firstTab);
         wantSoon = true;
         if (!running) plan(200);
       });
