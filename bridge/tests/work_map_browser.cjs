@@ -235,6 +235,42 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.equal(await page.locator('#map-details [data-field="console-open"]').count(), 0);
     ok("default no grants keeps console unavailable without an action");
 
+    // A selected task opens beside the map, leaving three quarters for the
+    // canvas. Real bounding boxes verify the visible split, not CSS strings.
+    const sidebarLayout = () => page.evaluate(() => {
+      const map = document.querySelector(".map-canvas-column").getBoundingClientRect();
+      const details = document.getElementById("map-details").getBoundingClientRect();
+      return { map: { x: map.x, y: map.y, right: map.right, bottom: map.bottom, width: map.width },
+        details: { x: details.x, y: details.y, right: details.right, width: details.width },
+        fraction: details.width / (map.width + details.width),
+        hidden: document.getElementById("map-details").hidden };
+    });
+    await page.waitForFunction(() => {
+      const map = document.querySelector(".map-canvas-column").getBoundingClientRect();
+      return document.getElementById("map-details").getBoundingClientRect().left >= map.right;
+    });
+    let split = await sidebarLayout();
+    assert.ok(Math.abs(split.fraction - 0.25) < 0.01, JSON.stringify(split));
+    assert.ok(Math.abs(split.map.y - split.details.y) < 1);
+    assert.equal(await page.getAttribute("#map-details", "aria-label"), "Task details");
+    await page.click("#map-clear-sel");
+    assert.equal(await page.isVisible("#map-details"), false);
+    await page.waitForFunction(() => {
+      const map = document.querySelector(".map-canvas-column").getBoundingClientRect();
+      return Math.abs(map.width - document.querySelector(".map-workspace").clientWidth) < 1;
+    });
+    await t10.evaluate(g => g.focus());
+    await page.keyboard.press("Enter");
+    assert.equal(await field(page, "title"), "worker-1 / TASK-10");
+    await page.waitForFunction(() => {
+      const map = document.querySelector(".map-canvas-column").getBoundingClientRect();
+      return document.getElementById("map-details").getBoundingClientRect().left >= map.right;
+    });
+    split = await sidebarLayout();
+    assert.ok(Math.abs(split.fraction - 0.25) < 0.01);
+    ok("task selection opens right-hand quarter; Clear selection restores full-width map; task can reopen");
+
+
     // Root's reproduction: focus TAG, insert AAA before it, focus must stay.
     const tag = await node(page, "worker", TAG);
     await tag.evaluate((g) => g.focus());
@@ -510,6 +546,10 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     await page.waitForFunction(() => document.querySelectorAll("#work-map [data-node-key]").length > 0);
     assert.equal(await page.inputValue("#theme-selector"), "dark");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal overflow at 390px");
+    await page.locator('#work-map [data-kind="task"]').first().click();
+    const narrowSplit = await sidebarLayout();
+    assert.ok(narrowSplit.details.y >= narrowSplit.map.bottom);
+    assert.ok(Math.abs(narrowSplit.details.width - narrowSplit.map.width) < 1);
     await page.screenshot({ path: path.join(shots, "work-map-mobile-390-dark.png"), fullPage: true });
     await page.selectOption("#theme-selector", "light");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
@@ -529,6 +569,16 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no overflow at ' + width);
       assert.ok(await page.evaluate(() => document.querySelector('main').getBoundingClientRect().width >= innerWidth - 1), 'workspace uses screen width at ' + width);
       assert.equal(await page.locator('#work-map [aria-pressed="true"]').getAttribute('data-node-key'), selectedKey);
+      const layout = await sidebarLayout();
+      assert.equal(layout.hidden, false);
+      if (width >= 1100) {
+        assert.ok(layout.details.x >= layout.map.right - 1, 'details at right on ' + width);
+        assert.ok(Math.abs(layout.fraction - 0.25) < 0.01, 'quarter-width details on ' + width);
+      } else {
+        assert.ok(layout.details.y >= layout.map.bottom, 'details stack below map on ' + width);
+        assert.ok(Math.abs(layout.details.width - layout.map.width) < 1, 'full-width narrow details on ' + width);
+      }
+
       assert.ok(await page.evaluate(() => [...document.querySelectorAll('.map-controls > *, .map-details-header > *')].every(e => {
         const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth;
       })), 'controls remain within screen at ' + width);

@@ -79,7 +79,11 @@ data is unavailable; add lead and dependency connections when supported.
 - Keep the list view available, including on small screens and for keyboard
   navigation. Nodes need readable labels, not just provider logos.
 
-Selecting a node opens its task, latest recorded update and evidence. Link
+Selecting a task opens its evidence in the right-hand quarter of the map area
+on screens at least 1100px wide. The map keeps the other three-quarters; without
+a selected task it fills the available width. Smaller screens stack details below
+the map. Desktop details scroll within a bounded panel, and Clear selection
+closes it. Selection, focus and camera behavior still follow the map contract. Link
 to protected Source output and tracked files when those capabilities and
 worker grants are enabled. Display missing capabilities plainly. Selecting
 a node observes work; starting, stopping or accepting work remains an

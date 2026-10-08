@@ -206,15 +206,19 @@
             <span id="map-counts" class="map-counts"></span>
           </div>
           <p id="map-help" class="small map-help">Drag to pan. Use + / − to zoom, arrow keys to pan, 0 to fit, or Home to reset. Ctrl / ⌘ + scroll zooms at the pointer. Tab to a node, then Enter or Space to select.</p>
-          <div class="map-scroll-area">
-            <svg id="work-map" tabindex="0" role="group" aria-label="Work map" aria-describedby="map-help"></svg>
+          <div class="map-workspace">
+            <div class="map-canvas-column">
+              <div class="map-scroll-area">
+                <svg id="work-map" tabindex="0" role="group" aria-label="Work map" aria-describedby="map-help"></svg>
+              </div>
+              <div id="map-pagination" class="map-pagination" hidden>
+                <button id="map-prev-page" type="button" disabled>Earlier</button>
+                <span id="map-page-info"></span>
+                <button id="map-next-page" type="button" disabled>Later</button>
+              </div>
+            </div>
+            <aside id="map-details" class="map-details" aria-label="Task details" hidden></aside>
           </div>
-          <div id="map-pagination" class="map-pagination" hidden>
-            <button id="map-prev-page" type="button" disabled>Earlier</button>
-            <span id="map-page-info"></span>
-            <button id="map-next-page" type="button" disabled>Later</button>
-          </div>
-          <div id="map-details" class="map-details" hidden></div>
         </div>
 
         <div id="tasks"></div>

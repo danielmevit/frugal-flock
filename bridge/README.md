@@ -712,7 +712,10 @@ deterministic layout, search, task/worker bounds, counts, and pagination (capped
 at 24 task nodes per page). This uses the existing `/api/activity` feed without
 backend, dependency, or route changes.
 
-Selecting a task on the map opens its details. If the selected worker is also
+Selecting a task opens its details in the right-hand quarter of the map area
+on screens at least 1100px wide, leaving three-quarters for the map. On smaller
+screens the details stack below it. Clear selection closes the panel and restores
+the full map width. Long details scroll inside the desktop panel. If the selected worker is also
 granted in the local session for Source console tracking (`--progress-binding`
 or `--progress-worker`), the console can be opened directly from the map
 details. The detail view accurately labels if the granted protected output
