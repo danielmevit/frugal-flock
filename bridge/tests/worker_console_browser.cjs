@@ -291,8 +291,8 @@ git("-c", "user.email=mock@invalid", "-c", "user.name=Mock", "commit", "-qm", "w
         return {
           text: document.querySelector('#map-details [data-field="console"]').textContent,
           label: open ? open.textContent : null,
-          worker: open ? open.dataset.worker : null,
-          task: open ? open.dataset.task : null,
+          worker: open ? open.dataset.worker ?? null : null,
+          task: open ? open.dataset.task ?? null : null,
         };
       });
     }
@@ -362,9 +362,25 @@ git("-c", "user.email=mock@invalid", "-c", "user.name=Mock", "commit", "-qm", "w
     await selectMapTask("w3", "NONE-1");
     assert.deepEqual(await mapConsole(), {
       text: "Protected output and worktree files are unavailable for this worker in the current session.",
-      label: null, worker: null, task: null,
+      label: "Open output or files", worker: null, task: null,
     });
+    assert.ok(await page.locator('#map-details [data-field="console-open"]').isDisabled());
     console.log("PASS both-grants, files-only (opens Files tab) and no-grant wording are exact");
+
+    // Worker summaries use the same exact granted current-session route.
+    for (const worker of ["w10", "w2"]) {
+      const handle = await page.evaluateHandle(w => [...document.querySelectorAll('#work-map [data-kind="worker"]')]
+        .find(g => g.dataset.worker === w), worker);
+      await handle.evaluate(g => g.focus()); await page.keyboard.press("Enter");
+      assert.equal(await page.locator('#map-details [data-field="title"]').textContent(), worker);
+      assert.equal((await mapConsole()).worker, worker);
+      assert.ok(await page.locator('#map-details [data-field="console-open"]').isEnabled());
+      await openFromMap(worker);
+      if (worker === "w2") assert.equal(await page.getAttribute("#console-tab-files", "aria-selected"), "true");
+    }
+    await page.locator('#work-map [data-kind="hub"]').focus(); await page.keyboard.press("Enter");
+    assert.ok(await page.locator('#map-details [data-field="console-open"]').isDisabled());
+    console.log("PASS worker details route exact output-only/files-only grants; hub explains unavailable console");
 
     await selectMapTask("w10", "SOURCE-1");
     await page.screenshot({ path: path.join(shots, "console-map-desktop-light.png"), fullPage: true });

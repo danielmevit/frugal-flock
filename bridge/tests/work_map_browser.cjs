@@ -211,7 +211,7 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
 
     // Accessible node buttons and exact prefix-collision identities.
     const t1 = await node(page, "worker-1", "TASK-1");
-    const t10 = await node(page, "worker-1", "TASK-10");
+    let t10 = await node(page, "worker-1", "TASK-10");
     assert.notEqual(await t1.evaluate((g) => g.dataset.nodeKey), await t10.evaluate((g) => g.dataset.nodeKey));
     assert.equal(await t1.evaluate((g) => g.getAttribute("role")), "button");
     assert.equal(await t1.evaluate((g) => g.getAttribute("aria-pressed")), "false");
@@ -230,10 +230,45 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.equal(await field(page, "status"), "Active · process running");
     ok("Enter opens worker-1/TASK-1, Space opens worker-1/TASK-10; aria-pressed follows exact key");
 
-    // No grants: console stays unavailable and offers no action.
+    // No grants: explain why and retain a visibly disabled control.
     assert.ok((await field(page, "console")).includes("unavailable"));
-    assert.equal(await page.locator('#map-details [data-field="console-open"]').count(), 0);
-    ok("default no grants keeps console unavailable without an action");
+    assert.ok(await page.locator('#map-details [data-field="console-open"]').isDisabled());
+    assert.equal(await page.locator('#map-details [data-field="console-open"]').getAttribute("aria-describedby"), "map-console-reason");
+    await page.evaluate(() => {
+      window.__mapOpenEvents = 0;
+      document.addEventListener("unio-open-console", () => window.__mapOpenEvents++);
+      document.querySelector('#map-details [data-field="console-open"]').dispatchEvent(new MouseEvent("click"));
+    });
+    assert.equal(await page.evaluate(() => window.__mapOpenEvents), 0);
+    ok("no grants keeps explained disabled output/files control; synthetic click cannot dispatch");
+
+    const hub = page.locator('#work-map [data-kind="hub"]');
+    await hub.focus(); await page.keyboard.press("Enter");
+    assert.equal(await field(page, "title"), "Project hub");
+    assert.equal(await page.getAttribute("#map-details", "aria-label"), "Project details");
+    assert.ok((await field(page, "summary")).includes(results.length + " observed tasks"));
+    assert.ok((await field(page, "console")).includes("has no output or worktree files of its own"));
+    assert.ok(await page.locator('#map-details [data-field="console-open"]').isDisabled());
+    const workerNode = page.locator('#work-map [data-kind="worker"][data-worker="worker-1"]');
+    await workerNode.focus(); await page.keyboard.press(" ");
+    assert.equal(await field(page, "title"), "worker-1");
+    assert.equal(await page.getAttribute("#map-details", "aria-label"), "Worker details");
+    assert.equal(await field(page, "summary"), "2 observed tasks · 1 active · 1 need attention · 0 finished.");
+    const workerClear = await page.$("#map-clear-sel");
+    await workerClear.focus(); await poll(page);
+    assert.ok(await workerClear.evaluate(b => b.isConnected && b === document.activeElement));
+    assert.ok(await page.locator('#map-details [data-field="console-open"]').isDisabled());
+    // Retain the selected worker when its evidence disappears, with a reason.
+    const observedResults = results;
+    results = []; await poll(page);
+    assert.ok((await field(page, "summary")).includes("No task evidence for this worker"));
+    await hub.focus(); await page.keyboard.press("Enter");
+    assert.ok((await field(page, "summary")).includes("No structured task evidence"));
+    assert.ok(await page.locator('#map-details [data-field="console-open"]').isDisabled());
+    results = observedResults; await poll(page);
+    t10 = await node(page, "worker-1", "TASK-10");
+    await t10.evaluate(g => g.focus()); await page.keyboard.press("Enter");
+    ok("hub and worker always open truthful details, including empty observations; worker focus survives polling");
 
     // A selected task opens beside the map, leaving three quarters for the
     // canvas. Real bounding boxes verify the visible split, not CSS strings.
@@ -325,6 +360,8 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.equal((await taskTuples(page)).length, 0);
     // The selected TAG is now filtered: persistent explicit clear action.
     assert.ok((await field(page, "missing")).includes("is off-page or filtered out"));
+    assert.ok(await page.locator('#map-details [data-field="console-open"]').isDisabled());
+    assert.ok((await field(page, "console")).includes("until this task is visible"));
     const missingClear = await page.$("#map-clear-sel");
     await poll(page);
     assert.ok(await missingClear.evaluate((b) => b.isConnected), "off-page clear action persists across polls");

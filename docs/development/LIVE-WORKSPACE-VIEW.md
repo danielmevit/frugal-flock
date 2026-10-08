@@ -79,13 +79,17 @@ data is unavailable; add lead and dependency connections when supported.
 - Keep the list view available, including on small screens and for keyboard
   navigation. Nodes need readable labels, not just provider logos.
 
-Selecting a task opens its evidence in the right-hand quarter of the map area
+Selecting any node opens details in the right-hand quarter of the map area
 on screens at least 1100px wide. The map keeps the other three-quarters; without
-a selected task it fills the available width. Smaller screens stack details below
+a selected node it fills the available width. Smaller screens stack details below
 the map. Desktop details scroll within a bounded panel, and Clear selection
 closes it. Selection, focus and camera behavior still follow the map contract. Link
 to protected Source output and tracked files when those capabilities and
-worker grants are enabled. Display missing capabilities plainly. Selecting
+worker grants are enabled. Worker and hub nodes show actual observed task totals,
+including history, with visible-page counts labelled separately. Worker nodes can
+open their granted current session; the hub has no session of its own. Missing
+task evidence and unavailable capabilities get explicit explanations and disabled
+gray output/files controls, rather than a blank panel or a disappearing action. Selecting
 a node observes work; starting, stopping or accepting work remains an
 explicit action in the existing workflow.
 
