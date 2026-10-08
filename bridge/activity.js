@@ -52,7 +52,12 @@
   let mapWorkerFilter = "";
   let mapStateFilter = "";
   let mapCurrentPage = 0;
-  let mapFitView = false;
+  let mapFitView = true;
+  const mapCamera = { x: 0, y: 0, scale: 1 };
+  let mapBounds = { x: 120, y: 80 };
+  let mapDrag = null;
+  let suppressMapClick = false;
+  const MIN_MAP_SCALE = 0.05, MAX_MAP_SCALE = 3;
   const MAP_PAGE_SIZE = 24;
   let lastData = null;
   // Selection is an exact node key plus its tuple; never a display label.
@@ -80,17 +85,13 @@
     document.getElementById("map-prev-page").addEventListener("click", () => { mapCurrentPage = Math.max(0, mapCurrentPage - 1); if (lastData) render(lastData); });
     document.getElementById("map-next-page").addEventListener("click", () => { mapCurrentPage++; if (lastData) render(lastData); });
     document.getElementById("map-fit").addEventListener("click", () => { mapFitView = true; applyMapPresentation(); });
-    document.getElementById("map-reset").addEventListener("click", () => { mapFitView = false; applyMapPresentation(); });
+    document.getElementById("map-reset").addEventListener("click", resetMapCamera);
+    document.getElementById("map-zoom-in").addEventListener("click", () => zoomMap(1.25));
+    document.getElementById("map-zoom-out").addEventListener("click", () => zoomMap(1 / 1.25));
+    setupMapGestures();
     updateViewSwitch();
     applyMapPresentation();
-    let observedWidth = 0;
-    new ResizeObserver(([entry]) => {
-      const width = entry.contentRect.width;
-      if (width > 0 && width !== observedWidth) {
-        observedWidth = width;
-        applyMapPresentation();
-      }
-    }).observe(document.getElementById("work-map").parentElement);
+    new ResizeObserver(applyMapPresentation).observe(document.getElementById("work-map").parentElement);
   }
 
   function text(tag, value, className = "") {
@@ -292,20 +293,125 @@
 
   function applyMapPresentation() {
     const svg = document.getElementById("work-map");
-    const fit = document.getElementById("map-fit");
     if (!svg) return;
-    const height = Number(svg.dataset.contentHeight) || 200;
-    const available = (svg.parentElement && svg.parentElement.clientWidth) || 800;
-    const scaledHeight = Math.ceil(height * available / 800);
-    svg.setAttribute("viewBox", "0 0 800 " + height);
-    svg.style.width = "100%";
+    const { width, height } = svg.getBoundingClientRect();
+    // Hidden List view must not replace the last usable camera dimensions.
+    if (!width || !height) return;
     if (mapFitView) {
-      svg.style.height = Math.max(120, Math.min(480, scaledHeight)) + "px";
-    } else {
-      svg.style.height = Math.max(120, scaledHeight) + "px";
+      mapCamera.x = 0;
+      mapCamera.y = 0;
+      mapCamera.scale = Math.max(MIN_MAP_SCALE, Math.min(1, width / (2 * mapBounds.x), height / (2 * mapBounds.y)));
     }
+    const w = width / mapCamera.scale, h = height / mapCamera.scale;
+    svg.setAttribute("viewBox", [mapCamera.x - w / 2, mapCamera.y - h / 2, w, h].join(" "));
     svg.dataset.view = mapFitView ? "fit" : "actual";
-    if (fit) fit.setAttribute("aria-pressed", mapFitView ? "true" : "false");
+    svg.dataset.cameraX = String(mapCamera.x);
+    svg.dataset.cameraY = String(mapCamera.y);
+    svg.dataset.scale = String(mapCamera.scale);
+    document.getElementById("map-fit").setAttribute("aria-pressed", String(mapFitView));
+    setText(document.getElementById("map-zoom-level"), Math.round(mapCamera.scale * 100) + "%");
+    document.getElementById("map-zoom-in").disabled = mapCamera.scale >= MAX_MAP_SCALE;
+    document.getElementById("map-zoom-out").disabled = mapCamera.scale <= MIN_MAP_SCALE;
+  }
+
+  function resetMapCamera() {
+    mapFitView = false;
+    Object.assign(mapCamera, { x: 0, y: 0, scale: 1 });
+    applyMapPresentation();
+  }
+
+  function zoomMap(factor, pointer) {
+    const rect = document.getElementById("work-map").getBoundingClientRect();
+    const scale = Math.max(MIN_MAP_SCALE, Math.min(MAX_MAP_SCALE, mapCamera.scale * factor));
+    if (pointer && rect.width && rect.height) {
+      // Keep the world point under the pointer in the same screen position.
+      const dx = pointer.clientX - rect.left - rect.width / 2;
+      const dy = pointer.clientY - rect.top - rect.height / 2;
+      mapCamera.x += dx / mapCamera.scale - dx / scale;
+      mapCamera.y += dy / mapCamera.scale - dy / scale;
+    }
+    mapCamera.scale = scale;
+    mapFitView = false;
+    applyMapPresentation();
+  }
+
+  function setupMapGestures() {
+    const svg = document.getElementById("work-map");
+    svg.addEventListener("wheel", (event) => {
+      // Unmodified wheel scrolls the page, including when the map fills it.
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      if (event.deltaY) zoomMap(event.deltaY < 0 ? 1.25 : 1 / 1.25, event);
+    }, { passive: false });
+    svg.addEventListener("keydown", (event) => {
+      const step = 80 / mapCamera.scale;
+      if (event.key === "+" || event.key === "=") zoomMap(1.25);
+      else if (event.key === "-") zoomMap(1 / 1.25);
+      else if (event.key === "0") { mapFitView = true; applyMapPresentation(); }
+      else if (event.key === "Home") resetMapCamera();
+      else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        if (event.key === "ArrowLeft") mapCamera.x -= step;
+        if (event.key === "ArrowRight") mapCamera.x += step;
+        if (event.key === "ArrowUp") mapCamera.y -= step;
+        if (event.key === "ArrowDown") mapCamera.y += step;
+        mapFitView = false;
+        applyMapPresentation();
+      } else return;
+      event.preventDefault();
+    });
+    svg.addEventListener("pointerdown", (event) => {
+      if (!event.isPrimary || event.button !== 0 || mapDrag) return;
+      suppressMapClick = false;
+      mapDrag = { id: event.pointerId, clientX: event.clientX, clientY: event.clientY,
+        x: mapCamera.x, y: mapCamera.y, scale: mapCamera.scale, moved: false };
+    });
+    svg.addEventListener("pointermove", (event) => {
+      if (!mapDrag || event.pointerId !== mapDrag.id) return;
+      const dx = event.clientX - mapDrag.clientX, dy = event.clientY - mapDrag.clientY;
+      if (!mapDrag.moved && Math.hypot(dx, dy) < 4) return;
+      if (!mapDrag.moved) {
+        mapDrag.moved = true;
+        svg.setPointerCapture(event.pointerId);
+        svg.classList.add("is-panning");
+      }
+      mapFitView = false;
+      mapCamera.x = mapDrag.x - dx / mapDrag.scale;
+      mapCamera.y = mapDrag.y - dy / mapDrag.scale;
+      suppressMapClick = true;
+      applyMapPresentation();
+    });
+    const endDrag = (event) => {
+      if (!mapDrag || event.pointerId !== mapDrag.id) return;
+      mapDrag = null;
+      svg.classList.remove("is-panning");
+      if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
+    };
+    svg.addEventListener("pointerup", endDrag);
+    svg.addEventListener("pointercancel", endDrag);
+    svg.addEventListener("lostpointercapture", endDrag);
+    svg.addEventListener("pointerleave", (event) => {
+      if (mapDrag && !mapDrag.moved) endDrag(event);
+    });
+    svg.addEventListener("click", (event) => {
+      if (!suppressMapClick) return;
+      suppressMapClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+  }
+
+  function revealMapNode(g) {
+    const svg = document.getElementById("work-map");
+    const view = svg.viewBox.baseVal;
+    const { e: x, f: y } = g.transform.baseVal.getItem(0).matrix;
+    // Keyboard focus can reach a node beyond the current camera. Reveal its
+    // centre without zooming or changing the selected task.
+    if (x >= view.x + 85 && x <= view.x + view.width - 85 &&
+        y >= view.y + 30 && y <= view.y + view.height - 30) return;
+    mapFitView = false;
+    mapCamera.x = x;
+    mapCamera.y = y;
+    applyMapPresentation();
   }
 
   function syncWorkerOptions(names) {
@@ -337,20 +443,20 @@
     const textState = document.createElementNS(SVG_NS, "text");
     textLabel.setAttribute("class", "node-label");
     textState.setAttribute("class", "node-state");
-    rect.setAttribute("x", -60);
-    rect.setAttribute("y", -18);
-    rect.setAttribute("width", 120);
-    rect.setAttribute("height", 36);
+    rect.setAttribute("x", -80);
+    rect.setAttribute("y", -26);
+    rect.setAttribute("width", 160);
+    rect.setAttribute("height", 52);
     rect.setAttribute("rx", 5);
     rect.setAttribute("fill", "var(--paper)");
     for (const node of [textLabel, textState]) {
       node.setAttribute("text-anchor", "middle");
       node.style.pointerEvents = "none";
     }
-    textLabel.setAttribute("y", "-2");
+    textLabel.setAttribute("y", "-3");
     textLabel.setAttribute("fill", "var(--text-main)");
     textLabel.setAttribute("font-size", "12px");
-    textState.setAttribute("y", "10");
+    textState.setAttribute("y", "14");
     textState.setAttribute("fill", "var(--muted)");
     textState.setAttribute("font-size", "10px");
     g.append(rect, title, textLabel, textState);
@@ -359,6 +465,7 @@
     g.style.cursor = "pointer";
     // Handlers read the group's current dataset, never a captured record.
     g.addEventListener("click", () => selectNode(g));
+    g.addEventListener("focus", () => revealMapNode(g));
     g.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
@@ -462,41 +569,52 @@
     }
 
     const workers = Array.from(new Set(pageTasks.map((r) => r.worker))).sort();
-    const workerX = 250, taskX = 550;
-    let currentY = 50;
-    let wY = 50;
     const nodes = [];
     const links = [];
-    const hub = { key: HUB_KEY, kind: "hub", label: "Project Hub", x: 50, y: 50 };
+    const hub = { key: HUB_KEY, kind: "hub", label: "Project hub", x: 0, y: 0 };
     nodes.push(hub);
-    for (const w of workers) {
-      const y = Math.max(wY, currentY);
+    const workerRadius = Math.max(200, workers.length * 190 / (2 * Math.PI));
+    workers.forEach((w, workerIndex) => {
+      const angle = -Math.PI / 2 + workerIndex * 2 * Math.PI / workers.length;
+      const ux = Math.cos(angle), uy = Math.sin(angle);
       const own = pageTasks.filter((r) => r.worker === w);
-      const workerNode = { key: workerKey(w), kind: "worker", label: w, worker: w, x: workerX, y: y, count: own.length };
+      const workerNode = { key: workerKey(w), kind: "worker", label: w, worker: w,
+        x: ux * workerRadius, y: uy * workerRadius, count: own.length };
       nodes.push(workerNode);
       links.push([hub, workerNode]);
+      // Keep each ownership branch inside its sector. Additional rows grow
+      // outward, with a bounded grid for a worker that owns most of the page.
+      const halfSector = Math.min(Math.PI / 3, Math.PI / workers.length) * 0.7;
+      const sectorColumns = Math.max(1, Math.floor(2 * (workerRadius + 260) * Math.tan(halfSector) / 190) + 1);
+      const columns = Math.min(5, Math.ceil(Math.sqrt(own.length)), sectorColumns);
       own.forEach((r, index) => {
-        const taskNode = { key: taskKey(r.worker, r.task), kind: "task", label: r.task, worker: r.worker, task: r.task, x: taskX, y: y + index * 40, data: r, verdict: categories.get(r) };
+        const row = Math.floor(index / columns);
+        const rowCount = Math.min(columns, own.length - row * columns);
+        const tangent = (index % columns - (rowCount - 1) / 2) * 190;
+        const radius = workerRadius + 260 + row * 190;
+        const taskNode = { key: taskKey(r.worker, r.task), kind: "task", label: r.task,
+          worker: r.worker, task: r.task, x: ux * radius - uy * tangent,
+          y: uy * radius + ux * tangent, data: r, verdict: categories.get(r) };
         nodes.push(taskNode);
         links.push([workerNode, taskNode]);
       });
-      currentY = y + own.length * 40 + 20;
-      wY += 60;
-    }
+    });
 
-    svg.dataset.contentHeight = String(Math.max(200, currentY));
+    mapBounds = { x: Math.max(...nodes.map((n) => Math.abs(n.x))) + 110,
+      y: Math.max(...nodes.map((n) => Math.abs(n.y))) + 56 };
     applyMapPresentation();
 
     const linkLayer = mapLayer(svg, "links");
     const nodeLayer = mapLayer(svg, "nodes");
     linkLayer.replaceChildren(...links.map(([src, tgt]) => {
       const line = document.createElementNS(SVG_NS, "line");
-      line.setAttribute("x1", src.x + 60);
+      line.setAttribute("x1", src.x);
       line.setAttribute("y1", src.y);
-      line.setAttribute("x2", tgt.x - 60);
+      line.setAttribute("x2", tgt.x);
       line.setAttribute("y2", tgt.y);
-      line.setAttribute("stroke", "var(--line)");
+      line.setAttribute("stroke", "var(--line-alt)");
       line.setAttribute("stroke-width", "2");
+      line.setAttribute("vector-effect", "non-scaling-stroke");
       return line;
     }));
 
@@ -523,6 +641,7 @@
       let aria = "Project hub";
       if (n.kind === "worker") {
         aria = "Worker " + n.worker + ", " + n.count + (n.count === 1 ? " task" : " tasks") + " shown";
+        stateText = n.count + (n.count === 1 ? " task shown" : " tasks shown");
       } else if (n.kind === "task") {
         const r = n.data;
         const facts = "process " + label(sectionState(r, "process")) + ", validation " + label(sectionState(r, "validation")) + ", review " + label(sectionState(r, "review"));
@@ -707,7 +826,8 @@
   function clearMapAfterFailure() {
     const svg = document.getElementById("work-map");
     svg.replaceChildren();
-    svg.dataset.contentHeight = "200";
+    if (mapDrag) svg.dispatchEvent(new PointerEvent("pointercancel", { pointerId: mapDrag.id }));
+    mapBounds = { x: 120, y: 80 };
     applyMapPresentation();
     clearDetails();
     setText(document.getElementById("map-counts"), "");

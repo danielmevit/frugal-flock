@@ -313,23 +313,143 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.ok((await field(page, "status")).includes("review unknown"));
     ok("literal <script>/<img> labels create no elements");
 
-    // Fit/Reset survive polling.
+    // True camera controls: fit contains every rectangle; manual camera stays
+    // unchanged across status polls, view toggles and responsive resizing.
+    async function camera() {
+      return page.evaluate(() => {
+        const s = document.getElementById("work-map");
+        return { view: s.dataset.view, x: +s.dataset.cameraX, y: +s.dataset.cameraY,
+          scale: +s.dataset.scale, box: s.getAttribute("viewBox") };
+      });
+    }
     await page.click("#map-fit");
     await poll(page);
-    let view = await page.evaluate(() => { const s = document.getElementById("work-map"); return { view: s.dataset.view, w: s.style.width, h: s.style.height, content: s.dataset.contentHeight, pressed: document.getElementById("map-fit").getAttribute("aria-pressed") }; });
-    assert.equal(view.view, "fit");
-    assert.equal(view.w, "100%");
-    assert.ok(parseInt(view.h, 10) <= 480, view.h);
-    assert.equal(view.pressed, "true");
+    assert.equal((await camera()).view, "fit");
+    assert.equal(await page.getAttribute("#map-fit", "aria-pressed"), "true");
+    assert.ok(await page.evaluate(() => {
+      const s = document.getElementById("work-map"), v = s.viewBox.baseVal;
+      return [...s.querySelectorAll('[data-node-key]')].every(g => {
+        const m = g.transform.baseVal.getItem(0).matrix;
+        return m.e - 80 >= v.x && m.e + 80 <= v.x + v.width &&
+          m.f - 26 >= v.y && m.f + 26 <= v.y + v.height;
+      });
+    }), "Fit contains all node rectangles");
+    const fitScale = (await camera()).scale;
+    await page.click("#map-zoom-in");
+    assert.ok(Math.abs((await camera()).scale - fitScale * 1.25) < 1e-9);
+    await page.click("#map-zoom-out");
+    assert.ok(Math.abs((await camera()).scale - fitScale) < 1e-9);
     await page.click("#map-reset");
-    view = await page.evaluate(() => { const s = document.getElementById("work-map"); return { view: s.dataset.view, w: s.style.width, h: s.style.height, content: s.dataset.contentHeight }; });
-    assert.deepEqual([view.view, view.w], ["actual", "100%"]);
-    assert.ok(parseInt(view.h, 10) > 0);
+    assert.deepEqual(await camera(), { view: "actual", x: 0, y: 0, scale: 1, box: (await camera()).box });
+    assert.equal(await page.textContent("#map-zoom-level"), "100%");
+    await page.focus("#work-map");
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowDown");
+    const chosen = await camera();
+    assert.deepEqual([chosen.x, chosen.y], [80, 80]);
     await poll(page);
-    view = await page.evaluate(() => { const s = document.getElementById("work-map"); return { view: s.dataset.view, w: s.style.width, h: s.style.height, content: s.dataset.contentHeight }; });
-    assert.deepEqual([view.view, view.w], ["actual", "100%"]);
-    assert.ok(parseInt(view.h, 10) > 0);
-    ok("Fit and Reset preserve responsive width and survive polling");
+    assert.deepEqual(await camera(), chosen);
+    await page.click("#view-list");
+    await page.click("#view-map");
+    assert.deepEqual(await camera(), chosen);
+    await page.setViewportSize({ width: 768, height: 720 });
+    await page.waitForFunction(() => document.getElementById("work-map").clientWidth < 768);
+    const resized = await camera();
+    assert.deepEqual([resized.x, resized.y, resized.scale], [80, 80, 1]);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    ok("Fit contains nodes; zoom, reset, keyboard pan and manual camera survive polls, view toggles and resizing");
+
+    await page.focus("#work-map");
+    for (let i = 0; i < 12; i++) await page.keyboard.press("+");
+    assert.equal((await camera()).scale, 3);
+    assert.equal(await page.isDisabled("#map-zoom-in"), true);
+    for (let i = 0; i < 24; i++) await page.keyboard.press("-");
+    assert.equal((await camera()).scale, 0.05);
+    assert.equal(await page.isDisabled("#map-zoom-out"), true);
+    await page.keyboard.press("Home");
+    assert.deepEqual([(await camera()).x, (await camera()).y, (await camera()).scale], [0, 0, 1]);
+    await page.keyboard.press("0");
+    assert.equal((await camera()).view, "fit");
+    ok("zoom clamps to 5–300%; Home resets and 0 fits");
+
+    // Real pointer drag must pan without accidentally selecting its start node.
+    await page.click("#map-fit");
+    const dragNode = page.locator('#work-map [data-kind="task"]').first();
+    const dragBox = await dragNode.boundingBox();
+    const beforeDrag = await camera();
+    const selectionBeforeDrag = await page.locator('#work-map [aria-pressed="true"]').getAttribute("data-node-key");
+    await page.mouse.move(dragBox.x + dragBox.width / 2, dragBox.y + dragBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(dragBox.x + dragBox.width / 2 + 60, dragBox.y + dragBox.height / 2 + 40, { steps: 8 });
+    await page.mouse.up();
+    const afterDrag = await camera();
+    assert.ok(Math.abs(afterDrag.x - (beforeDrag.x - 60 / beforeDrag.scale)) < 0.01);
+    assert.ok(Math.abs(afterDrag.y - (beforeDrag.y - 40 / beforeDrag.scale)) < 0.01);
+    assert.equal(await page.locator('#work-map [aria-pressed="true"]').getAttribute("data-node-key"), selectionBeforeDrag);
+    await page.click("#map-fit");
+    await dragNode.click();
+    assert.equal(await dragNode.getAttribute("aria-pressed"), "true", "a normal click after dragging selects normally");
+    ok("real pointer dragging pans without selecting; subsequent click selects the exact task");
+
+    // Modified wheel zoom anchors a world point; ordinary wheel does not zoom.
+    await page.click("#map-reset");
+    await page.locator("#work-map").scrollIntoViewIfNeeded();
+    const viewport = await page.locator("#work-map").boundingBox();
+    const px = viewport.x + viewport.width / 2 + 30, py = viewport.y + viewport.height / 2 + 20;
+    await page.evaluate(() => {
+      const svg = document.getElementById("work-map");
+      svg.addEventListener("wheel", event => {
+        const before = new DOMPoint(event.clientX, event.clientY).matrixTransform(svg.getScreenCTM().inverse());
+        window.mapWheelProbe = { clientX: event.clientX, clientY: event.clientY, x: before.x, y: before.y };
+      }, { capture: true, once: true });
+    });
+    await page.mouse.move(px, py);
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, -100);
+    await page.keyboard.up("Control");
+    await page.waitForFunction(() => +document.getElementById("work-map").dataset.scale === 1.25);
+    const wheelCamera = await camera();
+    const wheelAnchor = await page.evaluate(() => {
+      const before = window.mapWheelProbe;
+      const after = new DOMPoint(before.clientX, before.clientY).matrixTransform(document.getElementById("work-map").getScreenCTM().inverse());
+      return { before, after: { x: after.x, y: after.y } };
+    });
+    assert.ok(Math.abs(wheelAnchor.before.x - wheelAnchor.after.x) < 0.01, JSON.stringify(wheelAnchor));
+    assert.ok(Math.abs(wheelAnchor.before.y - wheelAnchor.after.y) < 0.01, JSON.stringify(wheelAnchor));
+    fs.writeFileSync(path.join(shots, "wheel-anchor.json"), JSON.stringify({ requested: { x: px, y: py }, ...wheelAnchor }, null, 2));
+    console.log("Wheel anchor evidence " + JSON.stringify({ requested: { x: px, y: py }, ...wheelAnchor }));
+    await page.mouse.wheel(0, 100);
+    assert.deepEqual(await camera(), wheelCamera);
+    await page.click("#map-fit");
+    ok("Ctrl+wheel zoom anchors pointer; ordinary wheel preserves map camera");
+
+    assert.ok(await page.evaluate(() => {
+      const groups = [...document.querySelectorAll('#work-map [data-node-key]')];
+      const point = g => { const m = g.transform.baseVal.getItem(0).matrix; return { x: m.e, y: m.f }; };
+      const hub = point(groups.find(g => g.dataset.kind === "hub"));
+      if (hub.x !== 0 || hub.y !== 0) return false;
+      const workers = new Map(groups.filter(g => g.dataset.kind === "worker").map(g => [g.dataset.worker, point(g)]));
+      return groups.filter(g => g.dataset.kind === "task").every(g => {
+        const t = point(g), w = workers.get(g.dataset.worker);
+        return Math.hypot(t.x, t.y) > Math.hypot(w.x, w.y) && t.x * w.x + t.y * w.y > w.x * w.x + w.y * w.y;
+      }) && groups.every((g, i) => groups.slice(i + 1).every(h => {
+        const a = point(g), b = point(h);
+        return Math.abs(a.x - b.x) >= 160 || Math.abs(a.y - b.y) >= 52;
+      }));
+    }), "ownership branches grow outward from hub with no overlapping node rectangles");
+    ok("radial hub/worker/task ownership geometry grows outward without node overlap");
+
+    for (const theme of ["light", "dark"]) {
+      await page.selectOption("#theme-selector", theme);
+      assert.ok(await page.evaluate(() => {
+        const style = getComputedStyle(document.documentElement);
+        return [...style].filter(k => k.startsWith("--")).every(k => {
+          const value = style.getPropertyValue(k).trim();
+          return !/^#[0-9a-f]{6}$/i.test(value) || value.slice(1, 3) === value.slice(3, 5) && value.slice(3, 5) === value.slice(5, 7);
+        });
+      }), theme + " theme uses neutral grayscale tokens");
+    }
+    ok("Light and Dark semantic palette tokens are monochrome");
 
     // Desktop screenshots in Light and Dark with details open.
     await page.selectOption("#theme-selector", "light");
@@ -370,6 +490,8 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     await page.evaluate(() => { document.getElementById("map-next-page").click(); document.getElementById("map-prev-page").click(); }); await dead("paging");
     await page.click("#map-fit"); await dead("fit");
     await page.click("#map-reset"); await dead("reset");
+    await page.click("#map-zoom-in"); await dead("zoom in");
+    await page.click("#map-zoom-out"); await dead("zoom out");
     await page.uncheck("#map-history-toggle"); await dead("history off");
     ok("failure clears map/details/counts/pagination/list; list/map/history/search/filters/paging/fit/reset do not resurrect");
 
@@ -416,8 +538,34 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.equal(await page.locator('footer a').nth(1).getAttribute('href'), 'https://github.com/danielmevit/unio/blob/main/LICENSE');
     ok('same page adapts from 320 to 1920px, preserves selection and displays repository/license footer');
 
+    const touchContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    const touchPage = await touchContext.newPage();
+    watch(touchPage);
+    await touchPage.goto(origin);
+    await touchPage.click("#view-map");
+    await touchPage.waitForSelector('#work-map [data-kind="task"]');
+    await touchPage.locator("#work-map").scrollIntoViewIfNeeded();
+    const touchBox = await touchPage.locator("#work-map").boundingBox();
+    const touchCamera = () => touchPage.evaluate(() => {
+      const s = document.getElementById("work-map");
+      return [+s.dataset.cameraX, +s.dataset.cameraY, +s.dataset.scale];
+    });
+    const touchBefore = await touchCamera();
+    const cdp = await touchContext.newCDPSession(touchPage);
+    const tx = touchBox.x + touchBox.width / 2, ty = touchBox.y + touchBox.height / 2;
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: tx, y: ty }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: tx + 40, y: ty + 30 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    const touchAfter = await touchCamera();
+    assert.ok(Math.abs(touchAfter[0] - (touchBefore[0] - 40 / touchBefore[2])) < 0.01);
+    assert.ok(Math.abs(touchAfter[1] - (touchBefore[1] - 30 / touchBefore[2])) < 0.01);
+    assert.equal(await touchPage.locator('#work-map [aria-pressed="true"]').count(), 0);
+    await touchContext.close();
+    ok("one-finger touch input pans the map without selecting a node");
+
     assert.deepEqual(problems, [], "No page errors, console errors, external requests or mutation calls");
     ok("no page errors, console errors, external or mutation requests");
+    fs.writeFileSync(path.join(shots, "browser-checks.json"), JSON.stringify({ passed, problems }, null, 2));
     await context.close();
     console.log("Work map browser: " + passed.length + " assertion groups passed. Screenshots: " + shots);
   } finally {
