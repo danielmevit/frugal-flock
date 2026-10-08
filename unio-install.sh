@@ -2765,7 +2765,7 @@ def worker_busy(root, worker):
         return False
     try:
         try:
-            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return True
         fcntl.flock(fd, fcntl.LOCK_UN)
