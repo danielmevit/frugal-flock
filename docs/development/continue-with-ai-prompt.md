@@ -72,11 +72,35 @@ including29 browser assertion groups, followed by four screenshot inspections
 and personal lead approval. Source JS/backend/grants and installed0.5.3 are
 unchanged. These remain unreleased0.5.4 source additions.
 
+Every-node details [eb70a63](https://github.com/danielmevit/unio/commit/eb70a63cf4dd53c9e46e1c5cef93138005d6de57)
+are accepted and pushed: task, worker and Project hub selections all open the
+panel. Worker/hub summaries use actual observed records; empty/missing evidence
+is explained. Output/files controls stay visible, gray and disabled when no route
+is available. Native scope7 and seven checks passed, including30 Work map groups
+and the protected-console browser journey, followed by personal lead review.
+Actual desktop/mobile preview confirmed all node kinds, quarter width, stacking,
+clear action and no errors. No grant/backend/dependency change or extra AI call.
+
+Status strips and mouse navigation [4bc2ea9](https://github.com/danielmevit/unio/commit/4bc2ea9cbb52fa30df0960607482fe066172ef7e)
+are accepted and pushed: thin right-edge green marks require passed checks and
+approved review; explicit failures are red, other attention yellow, active or
+missing evidence gray. Worker/hub marks explicitly summarize all observed tasks,
+including history. The owner's color exception is limited to these small semantic
+marks and their text legend; surfaces and selection remain neutral. Colors are
+terminal-style; the host's exact terminal palette is not read. Ordinary wheel
+zooms at the pointer over the map; hold the middle mouse button and drag to pan.
+Left/touch drag and keyboard controls remain; wheel outside scrolls the page.
+Native scope8 and five checks passed, including32 Chromium groups and four
+inspected desktop/mobile Light/Dark screenshots, followed by personal review.
+Both direct-lead tasks retain Source not_run; no independent lab verdict or
+standard combined readiness is claimed. Published/installed0.5.3 is unchanged.
+
 Next recovery slices: automatic baseline/periodic/final saves and authorized
 continuation under the frozen [work-saving contract](WORK-SAVING-CONTRACT.md),
 then [lead CLI cooldown restart](LEAD-COOLDOWN-RESTART.md). Existing worker limit
 handling stays unchanged. Future Marathon-inspired UI uses UX/layout/control
-shapes in black, white, charcoal and neutral gray, with no vivid or pastel accents;
+shapes in black, white, charcoal and neutral gray, with the small semantic status
+marks as the owner-approved color exception;
 Settings remains a proposal. Opus stays reserved until the owner reintroduces it.
 Read the [version plan](../VERSION-PLAN.md) and actual latest state before dispatch.
 
