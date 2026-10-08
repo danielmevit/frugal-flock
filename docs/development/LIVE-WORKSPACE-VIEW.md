@@ -7,20 +7,27 @@ contains the earlier browser. See the [browser guide](../../bridge/README.md).
 Recoverable continuation is the next delivery task. The design below also
 records later ideas; lead identity and dependency edges remain future work.
 
-## Next map improvement — interactive viewport
+## Interactive viewport
 
-Requested on 2026-10-08, after the current manual work-saving task: let people
-zoom in and out and pan across the map. Arrange the observed Project hub,
-workers and their tasks radially, branching from the centre toward the edges.
-These controls and the radial layout are planned, not yet implemented.
+Implemented in source after the 2026-10-08 manual work-saving task: a bounded
+responsive SVG canvas, visible zoom buttons and percentage, Fit view and
+Reset 100%. Recorded workers branch radially from the centred Project hub;
+their owned tasks grow outward within each branch. Connections still represent
+recorded ownership, without inventing delegation or dependencies.
 
-Provide visible zoom, Fit view and Reset controls, pointer dragging and usable
-touch and keyboard alternatives. Keep the chosen viewport, selected task and
-keyboard focus stable as observations refresh. Preserve readable labels,
-bounded pagination and the list view for larger projects. Connections still
-represent recorded ownership; positioning must not imply invented delegation
-or dependencies. This is a presentation change with no additional AI calls
-or backend permissions.
+Drag with a mouse or one finger to pan. Ctrl/Command plus wheel zooms around
+the pointer; ordinary wheel keeps page scrolling. Keyboard controls are
+arrow keys to pan, +/− to zoom, 0 to fit and Home to reset. Tab reaches nodes,
+revealing an offscreen node; Enter/Space selects its exact task. The camera
+supports 5–300% scale. Fit follows the visible page and window dimensions;
+a manually chosen camera stays fixed across polls, view switches and resizing.
+Pinch zoom remains future work.
+
+The SVG retains exact-key groups and focus while observations refresh, with
+deterministic positions for unchanged topology. Up to 24 tasks per page,
+filters, search and List view keep large projects navigable. These presentation
+changes add no AI calls or backend permissions. They are source for the next
+v0.5.4 release; the published release remains v0.5.3.
 
 ## Dark theme
 
@@ -28,9 +35,8 @@ Provide Light, Dark and System choices in the workspace header or settings.
 Follow the operating system initially and remember an explicit choice in the
 browser. Apply it across the workspace, forms, output, files and work map.
 
-Use dark neutral surfaces, readable text and restrained state colors. Keep
-focus outlines clear, and distinguish states with words and icons as well
-as color. Preserve the existing layout and behavior when changing themes.
+Use black, white, charcoal and neutral gray surfaces and readable text. Keep
+focus outlines clear and distinguish states with explicit words and borders. Preserve the existing layout and behavior when changing themes.
 Theme selection is local presentation and needs no AI call.
 
 ## A map of the work

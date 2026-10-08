@@ -709,7 +709,7 @@ displaying a visual Project hub connected to recorded workers and their
 owned tasks. The map prioritizes active, uncertain, and attention-requiring
 work. A history toggle optionally reveals finished history. The view includes
 deterministic layout, search, task/worker bounds, counts, and pagination (capped
-at 24 expanded nodes). This uses the existing `/api/activity` feed without
+at 24 task nodes per page). This uses the existing `/api/activity` feed without
 backend, dependency, or route changes.
 
 Selecting a task on the map opens its details. If the selected worker is also
@@ -746,8 +746,9 @@ selected task is off-page, filtered out or no longer observed, the panel keeps
 an explicit **Clear selection** action. An observation failure clears the map,
 details, counts and pagination and drops the cached data; no view, filter,
 search, history, paging, Fit or Reset control can bring the old state back.
-**Fit view** and **Reset** are stored and reapplied after every poll; Reset
-restores width and height. Worker filter options follow the observed workers.
+The camera is retained across polls and List/Work map switches. **Fit view**
+centres the Project hub and fits the visible page; **Reset 100%** centres the
+hub at natural scale. Worker filter options follow the observed workers.
 A selected worker that disappears stays selected and is labelled
 "(not in current observation)".
 
@@ -775,3 +776,31 @@ Checks: `bridge/tests/work_map_browser.cjs`, the extended
 `--files-worker` grants under the server's unchanged CSP) and
 `bridge/tests/browser.cjs`. No backend, API, grant or dependency changed. The
 published official version remains 0.5.3.
+
+
+### Interactive radial viewport (BROWSER-MAP-VIEWPORT-1)
+
+The responsive map has a bounded canvas. Workers branch outward from the
+Project hub, with their recorded tasks further out on each ownership branch.
+Connections represent ownership only; no lead, delegation or dependency is
+inferred. At most 24 tasks appear per page. Search, state/worker filters,
+finished history and List view remain available for larger projects.
+
+Use the **−** / **+** buttons to zoom from 5% to 300%. The percentage shows
+the current scale. **Fit view** fits all nodes on the visible page and follows
+window resizing; **Reset 100%** returns to the hub at natural scale. Drag with
+a mouse or one finger to pan. Ctrl/Command plus wheel zooms around the pointer;
+unmodified wheel scrolls the page. Pinch zoom is not implemented.
+
+With the map or a node focused, use arrow keys to pan, **+** / **−** to zoom,
+**0** to fit and **Home** to reset. Tab reaches nodes; focus reveals an
+offscreen node, and Enter/Space selects it. Manually chosen camera position
+and scale survive polling, view switches and window resizing. Positions are
+deterministic when the visible topology is unchanged. Selecting a task still
+uses its exact worker/task identity and existing protected output/file grants.
+
+Light and Dark use neutral grayscale surfaces, text and focus outlines.
+Statuses remain explicit words. No external assets, UI package, provider call
+or backend permission was added. The Chromium suite covers camera controls,
+real pointer/touch input, ownership geometry, failure recovery and resizing.
+This is source for the next v0.5.4 release; published v0.5.3 is unchanged.

@@ -187,8 +187,13 @@
 
         <div id="tasks-map-container" class="map-container">
           <div class="map-controls">
-            <button id="map-fit" type="button" aria-pressed="false">Fit view</button>
-            <button id="map-reset" type="button">Reset</button>
+            <div class="map-camera-controls" role="group" aria-label="Map viewport">
+              <button id="map-zoom-out" type="button" aria-label="Zoom out">−</button>
+              <output id="map-zoom-level" aria-label="Map zoom">100%</output>
+              <button id="map-zoom-in" type="button" aria-label="Zoom in">+</button>
+              <button id="map-fit" type="button" aria-pressed="true">Fit view</button>
+              <button id="map-reset" type="button">Reset 100%</button>
+            </div>
             <label class="history-toggle"><input type="checkbox" id="map-history-toggle"> Show finished history</label>
             <select id="map-worker-filter" aria-label="Filter by worker"><option value="">All Workers</option></select>
             <select id="map-state-filter" aria-label="Filter by state">
@@ -200,8 +205,9 @@
             <input type="search" id="map-search" placeholder="Filter tasks..." aria-label="Filter tasks">
             <span id="map-counts" class="map-counts"></span>
           </div>
+          <p id="map-help" class="small map-help">Drag to pan. Use + / − to zoom, arrow keys to pan, 0 to fit, or Home to reset. Ctrl / ⌘ + scroll zooms at the pointer. Tab to a node, then Enter or Space to select.</p>
           <div class="map-scroll-area">
-            <svg id="work-map" tabindex="0" role="group" aria-label="Work map"></svg>
+            <svg id="work-map" tabindex="0" role="group" aria-label="Work map" aria-describedby="map-help"></svg>
           </div>
           <div id="map-pagination" class="map-pagination" hidden>
             <button id="map-prev-page" type="button" disabled>Earlier</button>
