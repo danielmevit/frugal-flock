@@ -1,0 +1,1 @@
+- **Browser:** Work map keeps the same focused node and selection across polls (exact worker/task keys), updates details in place, persists Fit/Reset, tracks worker filters, collapses only passed-and-approved records, and routes map console actions by exact identity with truthful output/files and latest-task wording.
