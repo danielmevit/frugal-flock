@@ -7,6 +7,21 @@ contains the earlier browser. See the [browser guide](../../bridge/README.md).
 Recoverable continuation is the next delivery task. The design below also
 records later ideas; lead identity and dependency edges remain future work.
 
+## Next map improvement — interactive viewport
+
+Requested on 2026-10-08, after the current manual work-saving task: let people
+zoom in and out and pan across the map. Arrange the observed Project hub,
+workers and their tasks radially, branching from the centre toward the edges.
+These controls and the radial layout are planned, not yet implemented.
+
+Provide visible zoom, Fit view and Reset controls, pointer dragging and usable
+touch and keyboard alternatives. Keep the chosen viewport, selected task and
+keyboard focus stable as observations refresh. Preserve readable labels,
+bounded pagination and the list view for larger projects. Connections still
+represent recorded ownership; positioning must not imply invented delegation
+or dependencies. This is a presentation change with no additional AI calls
+or backend permissions.
+
 ## Dark theme
 
 Provide Light, Dark and System choices in the workspace header or settings.
