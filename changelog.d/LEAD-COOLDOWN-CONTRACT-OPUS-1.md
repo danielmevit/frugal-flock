@@ -1,0 +1,1 @@
+Design only: freeze the lead cooldown supervisor contract for a Codex CLI 0.161.0 `codex exec` lead with a no-model app-server quota probe, durable single-owner state, wait rules and a mock-clock acceptance matrix. No runtime, command or release is implemented.
