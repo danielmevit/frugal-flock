@@ -9,6 +9,15 @@ worker branches before changing anything. Preserve prior work and failures.
 
 ## Current delivery checkpoint — 2026-10-08
 
+Owner requested a functionality-first milestone review after the completed map
+polish. Read the [audit and delivery plan](FUNCTIONALITY-FIRST-PLAN.md) and the
+front of the [roadmap](ROADMAP.md) before planning. The next implementation is
+automatic baseline/periodic/final saving, followed by authorized continuation,
+one supported lead cooldown adapter and the v0.5.4 release gate. Further visual
+expansion is deferred. Keep the approved v0.5.4 scope; later priorities are
+recommendations with no new release numbers assigned. Recheck default browser
+observation before release: the private30-second preview override is not a fix.
+
 [Unio 0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3) is published and installed from exact source
 `ae61bf3d11ffc0701d32c1efcf90bccd18b267a6`. It delivers the real browser-to-worker workflow,
 protected output and tracked files, work modes and native shared-budget

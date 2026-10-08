@@ -3,6 +3,11 @@
 Owner direction, 2026-10-05: close the rename at 0.5.0, then keep the next
 changes in separate versions with their implementation and changelog entries.
 
+The [2026-10-08 milestone review](development/FUNCTIONALITY-FIRST-PLAN.md)
+separates shipped features from source additions and recommends a functional
+delivery order. The approved v0.5.4 recovery scope stays intact; later release
+numbers remain unassigned. Finish recovery before further visual expansion.
+
 | Version | Included work | State |
 | --- | --- | --- |
 | 0.5.0 | Completed A/B/C/D rename; installer, commands, config, docs and prototypes | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.0); source aebe23c; installed with owner approval |

@@ -1,5 +1,12 @@
 # Unio: approved next milestones
 
+Current status, 2026-10-08: steps1–3 below shipped through v0.5.3. Step4 is
+partial in main and remains the core v0.5.4 task; shipping checks repeat at that
+release boundary. Read the [milestone review](development/FUNCTIONALITY-FIRST-PLAN.md)
+and [current roadmap](development/ROADMAP.md) first. The original sequence and
+dated contracts below remain history; newer work/review and publication policy
+in the [version plan](VERSION-PLAN.md) supersedes older session defaults.
+
 The owner approved these five steps on 2026-10-05 after the rename landed at
 be9e257. The owner then approved installed migration before these milestones.
 Unio 0.5.0 is installed as of 2026-10-05; the lead delegates through `unio`,
