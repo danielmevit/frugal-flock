@@ -1,7 +1,8 @@
 # Lead cooldown supervisor contract
 
-**Specification only.** No supervisor, command, adapter or release exists yet.
-Runtime implementation, offline acceptance and one live restart are pending.
+**Frozen specification.** A first runtime and offline acceptance now exist in
+unreleased source; see the [usage guide](../LEAD-COOLDOWN.md). One real
+subscription-limit restart and the completed release gate remain pending.
 This freezes the first slice of the [cooldown milestone](LEAD-COOLDOWN-RESTART.md),
 which stays the plan of record. It builds on
 [work saving](WORK-SAVING-CONTRACT.md) and the [work modes](../WORK-MODES.md).
@@ -91,6 +92,13 @@ route is supported: custom providers, endpoint/auth overrides, fallback and
 paid/API routes refuse rather than being silently retained. Recheck these inputs
 and ChatGPT account type before every launch. Changing `unio lead` while the enablement is active
 or paused refuses (small hook in the policy setter).
+
+Implementation refinement: the frozen argv includes `--skip-git-repo-check`,
+so an explicitly selected enclosing project directory can contain `coord/`
+and `wt/` alongside `repo/`. It adds no filesystem permission. Supported
+configuration includes the user file and ancestor project files; managed
+configuration/plans refuse pending a verified adapter. In-flight metadata
+probes may finish after pause/STOP; their results cannot authorize a launch.
 
 ## Durable state
 
@@ -202,6 +210,10 @@ launch. Exhausted windows are those with `usedPercent` of 100 or more; the
 longest `windowDurationMins` names the kind. 300 is `five_hour`, at least 10080
 is `weekly_or_longer`, and other or null values are `unknown_longer`. With
 `D` = detection time and `R` = the latest `resetsAt` among exhausted windows:
+
+An exhausted unknown-length window prevents guessing a shorter kind. Every
+exhausted longer window needs a usable reset; a shorter known reset cannot
+hide an unknown weekly reset. An attempt's outcome is null while running.
 
 1. No exhausted window: `unknown_longer`, handled as rule 4.
 2. `R` is a valid supported future Unix timestamp: wake at R+60 (`reset`).
