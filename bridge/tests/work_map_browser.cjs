@@ -194,6 +194,18 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.ok(counts.includes("40 total tasks (37 need attention, 1 active, 2 finished)"), counts);
     assert.equal(await page.evaluate(() => [...document.querySelectorAll("#work-map [data-category]")].filter((g) => g.dataset.task === "FAILED")[0].dataset.category), "attention");
     ok("failed/unknown/changes-requested/incomplete/completion-unknown/not-run tasks visible; only 2 passed+approved collapsed");
+    for (const [worker, name, signal] of [["worker-1", "TASK-1", "failed"], ["worker", "FAILED", "failed"], ["worker-1", "TASK-10", "active"], ["worker", SCRIPT, "attention"], ["worker-2", "CHANGES", "attention"], ["worker-2", "UNRUN", "attention"]]) {
+      const g = await node(page, worker, name);
+      assert.equal(await g.evaluate(n => n.dataset.signal), signal);
+      assert.ok(await g.evaluate(n => {
+        const line = n.querySelector('.node-status');
+        return line.getAttribute('x1') === '78' && line.getAttribute('x2') === '78'
+          && getComputedStyle(line).strokeWidth === '3px' && line.getAttribute('vector-effect') === 'non-scaling-stroke';
+      }));
+    }
+    assert.equal(await page.locator('#work-map [data-kind="hub"]').getAttribute('data-signal'), 'failed');
+    assert.ok((await page.locator('#work-map [data-kind="hub"]').getAttribute('aria-label')).includes('Observed task summary: Recorded failure'));
+    ok("thin right-edge strips distinguish explicit failure, attention and active records; hub aggregate labelled truthfully");
     await page.click("#map-next-page");
     assert.equal((await taskTuples(page)).length, 14, "second page holds the rest of 38 visible");
     await page.click("#map-prev-page");
@@ -203,6 +215,7 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.equal(await page.isChecked("#map-history-toggle"), false);
     await page.selectOption("#map-state-filter", "finished");
     assert.deepEqual((await taskTuples(page)).sort(), [["worker-10", "TASK-1"], ["worker-2", "DONE-OK"]]);
+    assert.equal(await page.locator('#work-map [data-kind="task"][data-signal="passed"]').count(), 2);
     await page.selectOption("#map-state-filter", "attention");
     tuples = await taskTuples(page);
     assert.ok(!tuples.some(([, t]) => t === "TASK-10" || t === "DONE-OK"), "attention excludes active and finished");
@@ -264,6 +277,7 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.ok((await field(page, "summary")).includes("No task evidence for this worker"));
     await hub.focus(); await page.keyboard.press("Enter");
     assert.ok((await field(page, "summary")).includes("No structured task evidence"));
+    assert.equal(await hub.getAttribute('data-signal'), 'none');
     assert.ok(await page.locator('#map-details [data-field="console-open"]').isDisabled());
     results = observedResults; await poll(page);
     t10 = await node(page, "worker-1", "TASK-10");
@@ -464,7 +478,33 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.equal(await dragNode.getAttribute("aria-pressed"), "true", "a normal click after dragging selects normally");
     ok("real pointer dragging pans without selecting; subsequent click selects the exact task");
 
-    // Modified wheel zoom anchors a world point; ordinary wheel does not zoom.
+    // Real middle-button drag pans in both axes without changing selection or
+    // allowing the browser's middle-click autoscroll/default action.
+    const middleBox = await dragNode.boundingBox();
+    const middleBefore = await camera();
+    const selectedBeforeMiddle = await dragNode.getAttribute('data-node-key');
+    await page.evaluate(() => {
+      const svg = document.getElementById('work-map');
+      window.middleDefaults = {};
+      for (const type of ['pointerdown', 'auxclick']) svg.addEventListener(type, e => {
+        if (e.button === 1) window.middleDefaults[type] = e.defaultPrevented;
+      });
+    });
+    await page.mouse.move(middleBox.x + middleBox.width / 2, middleBox.y + middleBox.height / 2);
+    await page.mouse.down({ button: 'middle' });
+    await page.mouse.move(middleBox.x + middleBox.width / 2 - 60, middleBox.y + middleBox.height / 2 + 40, { steps: 8 });
+    await page.mouse.up({ button: 'middle' });
+    const middleAfter = await camera();
+    assert.ok(Math.abs(middleAfter.x - (middleBefore.x + 60 / middleBefore.scale)) < 0.01);
+    assert.ok(Math.abs(middleAfter.y - (middleBefore.y - 40 / middleBefore.scale)) < 0.01);
+    assert.equal(await page.locator('#work-map [aria-pressed="true"]').getAttribute('data-node-key'), selectedBeforeMiddle);
+    assert.deepEqual(await page.evaluate(() => window.middleDefaults), { pointerdown: true, auxclick: true });
+    await page.click('#map-fit');
+    await dragNode.click();
+    assert.equal(await dragNode.getAttribute('aria-pressed'), 'true');
+    ok("middle-button drag pans horizontally/vertically, prevents browser defaults and preserves selection; normal click remains usable");
+
+    // Both modified and ordinary wheel zoom at the actual delivered pointer.
     await page.click("#map-reset");
     await page.locator("#work-map").scrollIntoViewIfNeeded();
     const viewport = await page.locator("#work-map").boundingBox();
@@ -492,9 +532,16 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     fs.writeFileSync(path.join(shots, "wheel-anchor.json"), JSON.stringify({ requested: { x: px, y: py }, ...wheelAnchor }, null, 2));
     console.log("Wheel anchor evidence " + JSON.stringify({ requested: { x: px, y: py }, ...wheelAnchor }));
     await page.mouse.wheel(0, 100);
+    await page.waitForFunction(() => +document.getElementById('work-map').dataset.scale === 1);
+    assert.equal((await camera()).scale, wheelCamera.scale / 1.25);
+    await page.mouse.wheel(0, -100);
+    await page.waitForFunction(() => +document.getElementById('work-map').dataset.scale === 1.25);
     assert.deepEqual(await camera(), wheelCamera);
+    const outsideWheel = await camera();
+    await page.mouse.move(5, 5); await page.mouse.wheel(0, 100);
+    assert.deepEqual(await camera(), outsideWheel, 'wheel outside map does not alter camera');
     await page.click("#map-fit");
-    ok("Ctrl+wheel zoom anchors pointer; ordinary wheel preserves map camera");
+    ok("Ctrl/ordinary wheel zoom anchor pointer; ordinary wheel zooms both ways; outside wheel preserves camera");
 
     assert.ok(await page.evaluate(() => {
       const groups = [...document.querySelectorAll('#work-map [data-node-key]')];
@@ -516,13 +563,25 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
       await page.selectOption("#theme-selector", theme);
       assert.ok(await page.evaluate(() => {
         const style = getComputedStyle(document.documentElement);
-        return [...style].filter(k => k.startsWith("--")).every(k => {
+        return [...style].filter(k => k.startsWith("--") && !['--map-passed', '--map-failed', '--map-attention'].includes(k)).every(k => {
           const value = style.getPropertyValue(k).trim();
           return !/^#[0-9a-f]{6}$/i.test(value) || value.slice(1, 3) === value.slice(3, 5) && value.slice(3, 5) === value.slice(5, 7);
         });
       }), theme + " theme uses neutral grayscale tokens");
+      const strokes = await page.evaluate(() => {
+        const s = getComputedStyle(document.documentElement);
+        return ['--map-passed','--map-failed','--map-attention'].map(k => s.getPropertyValue(k).trim());
+      });
+      assert.deepEqual(strokes, theme === 'light' ? ['#1a7f37','#cf222e','#9a6700'] : ['#3fb950','#f85149','#d29922']);
+      assert.ok(await page.evaluate(() => [...document.querySelectorAll('#work-map [data-kind="task"]')].every(g => {
+        const root = getComputedStyle(document.documentElement), signal = g.dataset.signal;
+        const token = signal === 'active' || signal === 'none' ? '--muted' : '--map-' + signal;
+        const probe = document.createElement('span'); probe.style.color = root.getPropertyValue(token);
+        document.body.appendChild(probe); const color = getComputedStyle(probe).color; probe.remove();
+        return getComputedStyle(g.querySelector('.node-status')).stroke === color;
+      })));
     }
-    ok("Light and Dark semantic palette tokens are monochrome");
+    ok("Light/Dark retain neutral surfaces and use only the three approved status colors on node strips");
 
     // Desktop screenshots in Light and Dark with details open.
     await page.selectOption("#theme-selector", "light");

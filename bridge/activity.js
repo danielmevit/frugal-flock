@@ -280,6 +280,19 @@
     finished: "Finished (checks passed and review approved; not your acceptance)",
   };
 
+  function taskSignal(r, verdict) {
+    if (["process", "validation", "review"].some(name => sectionState(r, name) === "failed")) return "failed";
+    return verdict.category === "finished" ? "passed" : verdict.category === "active" ? "active" : "attention";
+  }
+  function summarySignal(records, categories) {
+    const signals = records.map(r => taskSignal(r, categories.get(r)));
+    return ["failed", "attention", "active", "passed"].find(signal => signals.includes(signal)) || "none";
+  }
+  const SIGNAL_TEXT = {
+    failed: "Recorded failure", attention: "Needs attention", active: "Active",
+    passed: "Checks passed and review approved", none: "No task evidence",
+  };
+
   function mapLayer(svg, name) {
     let layer = svg.querySelector(':scope > g[data-layer="' + name + '"]');
     if (!layer) {
@@ -338,10 +351,9 @@
   function setupMapGestures() {
     const svg = document.getElementById("work-map");
     svg.addEventListener("wheel", (event) => {
-      // Unmodified wheel scrolls the page, including when the map fills it.
-      if (!event.ctrlKey && !event.metaKey) return;
+      // Wheel zoom belongs only to the map; the rest of the page scrolls normally.
       event.preventDefault();
-      if (event.deltaY) zoomMap(event.deltaY < 0 ? 1.25 : 1 / 1.25, event);
+      if (!mapDrag && event.deltaY) zoomMap(event.deltaY < 0 ? 1.25 : 1 / 1.25, event);
     }, { passive: false });
     svg.addEventListener("keydown", (event) => {
       const step = 80 / mapCamera.scale;
@@ -360,9 +372,10 @@
       event.preventDefault();
     });
     svg.addEventListener("pointerdown", (event) => {
-      if (!event.isPrimary || event.button !== 0 || mapDrag) return;
+      if (!event.isPrimary || ![0, 1].includes(event.button) || mapDrag) return;
+      if (event.button === 1) event.preventDefault(); // Suppress browser autoscroll.
       suppressMapClick = false;
-      mapDrag = { id: event.pointerId, clientX: event.clientX, clientY: event.clientY,
+      mapDrag = { id: event.pointerId, button: event.button, clientX: event.clientX, clientY: event.clientY,
         x: mapCamera.x, y: mapCamera.y, scale: mapCamera.scale, moved: false };
     });
     svg.addEventListener("pointermove", (event) => {
@@ -377,7 +390,7 @@
       mapFitView = false;
       mapCamera.x = mapDrag.x - dx / mapDrag.scale;
       mapCamera.y = mapDrag.y - dy / mapDrag.scale;
-      suppressMapClick = true;
+      suppressMapClick = mapDrag.button === 0;
       applyMapPresentation();
     });
     const endDrag = (event) => {
@@ -389,6 +402,9 @@
     svg.addEventListener("pointerup", endDrag);
     svg.addEventListener("pointercancel", endDrag);
     svg.addEventListener("lostpointercapture", endDrag);
+    svg.addEventListener("auxclick", event => {
+      if (event.button === 1) event.preventDefault();
+    });
     svg.addEventListener("pointerleave", (event) => {
       if (mapDrag && !mapDrag.moved) endDrag(event);
     });
@@ -438,6 +454,14 @@
   function createNodeGroup() {
     const g = document.createElementNS(SVG_NS, "g");
     const rect = document.createElementNS(SVG_NS, "rect");
+    const signal = document.createElementNS(SVG_NS, "line");
+    signal.setAttribute("class", "node-status");
+    signal.setAttribute("x1", "78");
+    signal.setAttribute("x2", "78");
+    signal.setAttribute("y1", "-20");
+    signal.setAttribute("y2", "20");
+    signal.setAttribute("vector-effect", "non-scaling-stroke");
+    signal.setAttribute("aria-hidden", "true");
     const title = document.createElementNS(SVG_NS, "title");
     const textLabel = document.createElementNS(SVG_NS, "text");
     const textState = document.createElementNS(SVG_NS, "text");
@@ -459,7 +483,7 @@
     textState.setAttribute("y", "14");
     textState.setAttribute("fill", "var(--muted)");
     textState.setAttribute("font-size", "10px");
-    g.append(rect, title, textLabel, textState);
+    g.append(rect, signal, title, textLabel, textState);
     g.setAttribute("role", "button");
     g.setAttribute("tabindex", "0");
     g.style.cursor = "pointer";
@@ -651,6 +675,14 @@
         g.dataset.category = n.verdict.category;
       }
       if (n.kind !== "task") delete g.dataset.category;
+      const signal = n.kind === "task" ? taskSignal(n.data, n.verdict)
+        : summarySignal(n.kind === "worker" ? data.results.filter(r => r.worker === n.worker) : data.results, categories);
+      g.dataset.signal = signal;
+      if (n.kind !== "task") {
+        const summary = "Observed task summary: " + SIGNAL_TEXT[signal] + ".";
+        aria += ". " + summary;
+        description += "\n" + summary;
+      }
       if (g.getAttribute("aria-label") !== aria) g.setAttribute("aria-label", aria);
       const rect = g.querySelector("rect");
       rect.setAttribute("stroke", isSelected ? "var(--focus-ring)" : "var(--btn-border)");

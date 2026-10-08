@@ -205,7 +205,13 @@
             <input type="search" id="map-search" placeholder="Filter tasks..." aria-label="Filter tasks">
             <span id="map-counts" class="map-counts"></span>
           </div>
-          <p id="map-help" class="small map-help">Drag to pan. Use + / − to zoom, arrow keys to pan, 0 to fit, or Home to reset. Ctrl / ⌘ + scroll zooms at the pointer. Tab to a node, then Enter or Space to select.</p>
+          <p id="map-help" class="small map-help">Scroll over the map to zoom at the pointer. Hold the middle mouse button and drag to pan, or drag with the left button or touch. Use + / − to zoom, arrow keys to pan, 0 to fit, or Home to reset. Tab to a node, then Enter or Space to select.</p>
+          <p class="small map-legend" aria-label="Node status legend">
+            <span><i class="signal-passed" aria-hidden="true"></i>Finished: checks passed, review approved</span>
+            <span><i class="signal-failed" aria-hidden="true"></i>Recorded failure</span>
+            <span><i class="signal-attention" aria-hidden="true"></i>Needs attention</span>
+            <span><i aria-hidden="true"></i>Active / no evidence</span>
+          </p>
           <div class="map-workspace">
             <div class="map-canvas-column">
               <div class="map-scroll-area">

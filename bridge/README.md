@@ -801,8 +801,10 @@ Use the **−** / **+** buttons to zoom from 5% to 300%. The percentage shows
 the current scale. Fit is a compact overview; zoom, filter or use List to read
 individual labels on dense pages and small screens. **Fit view** fits all nodes
 on the visible page and follows window resizing; **Reset 100%** returns to the hub at natural scale. Drag with
-a mouse or one finger to pan. Ctrl/Command plus wheel zooms around the pointer;
-unmodified wheel scrolls the page. Pinch zoom is not implemented.
+a mouse or one finger to pan. Hold the middle mouse button and drag to pan in
+either direction. Scrolling over the map zooms around the pointer; Ctrl/Command
+plus wheel also works. Scrolling outside the map scrolls the page normally.
+Pinch zoom is not implemented.
 
 With the map or a node focused, use arrow keys to pan, **+** / **−** to zoom,
 **0** to fit and **Home** to reset. Tab reaches nodes; focus reveals an
@@ -812,7 +814,16 @@ deterministic when the visible topology is unchanged. Selecting a task still
 uses its exact worker/task identity and existing protected output/file grants.
 
 Light and Dark use neutral grayscale surfaces, text and focus outlines.
-Statuses remain explicit words. No external assets, UI package, provider call
+Small right-edge status strips use terminal-style colors: green for process
+success with checks passed and review approved, red for a recorded process,
+validation or review failure, and yellow for other attention states (including
+requested changes, unknown or stale evidence). Active and no-evidence states
+use gray. Text labels and a legend accompany the colors; green is recorded
+evidence, not human acceptance. Worker and hub strips summarize all their
+observed tasks, including history: failure takes precedence, then attention,
+active and finished. Their accessible labels identify this as an observed summary.
+Exact terminal theme colors are not read from the host.
+No external assets, UI package, provider call
 or backend permission was added. The Chromium suite covers camera controls,
 real pointer/touch input, ownership geometry, failure recovery and resizing.
 This is source for the next v0.5.4 release; published v0.5.3 is unchanged.
