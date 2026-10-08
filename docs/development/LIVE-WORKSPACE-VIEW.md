@@ -1,9 +1,11 @@
 # Dark theme and live work map
 
-Owner request recorded on 2026-10-08. Dark mode is a requested UI addition;
-the connected work map below is the proposed design for the requested live
-overview. Both remain planned. The existing browser ships in v0.5.3;
-recoverable continuation remains the next delivery priority.
+Implemented in main on 2026-10-08: Light, Dark and System themes, plus a
+read-only work map with exact task selection, filters, history and bounded
+pagination. These additions are source changes for v0.5.4; published v0.5.3
+contains the earlier browser. See the [browser guide](../../bridge/README.md).
+Recoverable continuation is the next delivery task. The design below also
+records later ideas; lead identity and dependency edges remain future work.
 
 ## Dark theme
 
@@ -81,12 +83,15 @@ protected output excerpts can provide short updates where enabled.
 
 ## Delivery
 
-Implement the theme as a small UI slice, then a read-only work map using
-existing observed ownership and states. Add richer delegation/dependency
-data separately when the engine records it. Assign a release number when
-the UI scope is frozen; these additions are not included in published v0.5.3.
+The accepted implementation uses existing observed ownership and states;
+no backend endpoint or AI call was added. It shows at most 24 task nodes per
+page and keeps tasks needing attention visible. Finished means process
+success, passed validation and approved review; this is recorded evidence,
+not a substitute for a fresh native readiness check.
 
-Check theme persistence and contrast, accurate states, failed observations,
-stable selection and layout, grouped history, keyboard access and a real
-browser journey. A larger fixture should exercise the collapsed view.
-Follow the selected work mode and use the full required gate at release.
+Focused server and Chromium checks passed, including theme persistence,
+exact identity and focus during polling, grouped history, keyboard access,
+console grants, failure/recovery and mobile overflow. Personal lead review
+and screenshot inspection completed before integration. The full repository
+gate remains required for the completed v0.5.4 release. Add richer delegation
+and dependency data separately when the engine records those relationships.

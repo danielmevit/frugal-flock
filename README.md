@@ -367,14 +367,14 @@ needed to rebuild the Word manuals with `tools/make-docx.sh`.
 
 ## What's next
 
-- **Done, v0.4.0:** a reliable core. Strict checks, evidence tied to the
-  exact version of the work, gated reviews, and a handoff file for the next
-  AI. See the [release notes](CHANGELOG.md).
-- **Now:** a stability phase with real AI providers, so that Unio
-  can safely help build its own app.
-- **Then:** a simple app to describe work, approve a plan, follow progress,
-  and review results, followed by guided "continue with another AI" when
-  one reaches its limit.
+- **Available, v0.5.3:** the browser workflow, worker output and files,
+  work modes and shared subscription-budget controls. See the
+  [release notes](CHANGELOG.md) and [browser guide](bridge/README.md).
+- **Next, v0.5.4:** save unfinished work, restore it for continuation and
+  restart an owner-enabled lead after its cooldown. Dark themes and the
+  live work map are accepted in main for this release; recovery is being built.
+- **Later:** remaining-allowance monitoring, more reliable connections and
+  smarter delegation, guided by actual project outcomes.
 
 The [UX proposal](docs/UX-DIRECTION.md) and [next steps](docs/development/ROADMAP.md) explain the
 scope and order; the [brand notes](docs/BRAND.md) explain the name.

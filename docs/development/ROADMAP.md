@@ -4,23 +4,24 @@ Give your AI subscriptions a group project.
 
 ## Browser appearance and live work overview
 
-Requested on 2026-10-08: a dark theme and an optional live map of connected
-agents and tasks. The [UI direction](LIVE-WORKSPACE-VIEW.md) proposes an
-active-work view with grouped history, stable node positions and details on
-selection so large projects remain readable. Use recorded relationships and
-actual observations; the existing activity feed refreshes every two seconds.
-These UI additions are planned, with a release number to be assigned when
-their scope is frozen. Recoverable continuation remains the next priority.
+Implemented in main on 2026-10-08 for v0.5.4: Light, Dark and System themes,
+and an optional live map of workers and tasks. The [UI direction](LIVE-WORKSPACE-VIEW.md)
+and [browser guide](../../bridge/README.md) describe grouped history, filters,
+24-task pagination, stable exact selection and observation-backed details.
+The map uses the existing two-second activity feed and worker/task ownership;
+lead/dependency edges need future engine evidence. Focused browser checks and
+personal lead review passed. These additions are not in published v0.5.3.
+Recoverable continuation is the next task; finish and integrate one task
+before starting another under the owner's current session direction.
 
 ## Work modes and lead budget
 
 On 2026-10-07 the owner approved [YOLO, medium and safe work modes](../WORK-MODES.md)
 and separate low, medium and high subscription-budget tiers as core Unio
-controls. Implement persistent CLI switches, visible policy and worker
-instructions next, using YOLO + low tier for this project. This avoids
-repeated broad test cycles and reserves the lead for coordination. The
-browser milestone remains active; its saved work is preserved. Browser
-selectors and account-specific scheduling can follow the core controls.
+controls. Persistent CLI switches, visible policy and native shared-budget
+workflow admission shipped in v0.5.3. Use YOLO + low tier for this project:
+focused checks and personal lead review, with the full gate at release.
+Browser selectors and automatic scheduling remain later improvements.
 
 ## Learn from actual project work
 
@@ -37,13 +38,14 @@ profiles and automatic suggestions are planned, not implemented.
 
 Owner-approved on 2026-10-06. The goal is more verified work from existing
 subscriptions, with fewer interruptions and less rework. Finish the current
-browser milestone; its UI work continues. Then deliver recoverable
-continuation before expanding the coordination engine.
+browser milestone, delivered in v0.5.3. Deliver recoverable continuation
+before expanding the coordination engine; the subsequent theme/map additions
+are accepted in source for v0.5.4.
 
 | Order | Milestone | Intended result | Status |
 | --- | --- | --- | --- |
 | First | v0.5.3: browser-to-worker workflow | Prepare and approve a task, start a worker once, inspect results and reviews, and accept the exact verified changes. Add actual worker output and console access as described in the [worker progress contract](../WORKER-PROGRESS.md). | [Delivered in v0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3), including UI, output/files, the real worker journey and release checks. |
-| Next | v0.5.4: recoverable continuation | Save recoverable work during runs and on failure, then let an owner-enabled supervisor restart the lead CLI after its allowance cooldown using the saved handoff. | Approved; work-saving and lead-restart contracts must be frozen before dispatch. |
+| Next | v0.5.4: recoverable continuation | Save recoverable work during runs and on failure, then let an owner-enabled supervisor restart the lead CLI after its allowance cooldown using the saved handoff. | Approved; work-saving contract frozen; manual capture/inspect/restore is the next implementation slice. Dark theme/work map accepted in source for this release. |
 
 The v0.5.4 scope now includes [automatic work saving](../WORK-SAVING.md),
 requested after a real worker reached its quota before committing. This is
