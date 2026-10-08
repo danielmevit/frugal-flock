@@ -2420,7 +2420,7 @@ class Budget:
 
 def fault(name):
     # Test-only failure injection: it can only make an operation fail or pause.
-    if os.environ.get('UNIO_SAVE_TEST_FAULT') != name:
+    if name not in os.environ.get('UNIO_SAVE_TEST_FAULT', '').split(','):
         return
     if name == 'between-passes':
         os.kill(os.getpid(), signal.SIGSTOP)
