@@ -6,20 +6,19 @@ This freezes the first slice of the [cooldown milestone](LEAD-COOLDOWN-RESTART.m
 which stays the plan of record. It builds on
 [work saving](WORK-SAVING-CONTRACT.md) and the [work modes](../WORK-MODES.md).
 
-The supervisor is one Python standard-library helper embedded in the standalone
-installer, like the save helper. No service, package, daemon manager, UI or
-OS startup integration. Linux with `/proc` only; other platforms refuse `start`.
+One Python standard-library helper embedded in the standalone installer, like
+the save helper. No service, package, daemon manager, UI or OS startup
+integration. Linux with `/proc` only; other platforms refuse `start`.
 
 ## Adapter evidence (Codex CLI 0.161.0, recorded 2026-10-08)
 
-Local, no model call: `codex --version` printed `codex-cli 0.161.0`; binary is the
-standalone `0.161.0-x86_64-unknown-linux-musl` release. `codex exec --help` and
-`codex app-server --help` were read. `codex app-server generate-json-schema
---out` (stable surface, no `--experimental`) produced the v2 bundle; SHA256
-prefixes: `GetAccountRateLimitsResponse.json` cb9655e68130,
+Local, no model call: `codex --version` = `codex-cli 0.161.0` (standalone
+x86_64 musl release); `exec --help` and `app-server --help` read;
+`codex app-server generate-json-schema --out DIR` (stable, no `--experimental`)
+gave SHA256 prefixes `GetAccountRateLimitsResponse.json` cb9655e68130,
 `ErrorNotification.json` eb702b074f6f, `ClientRequest.json` 1535135c00a6.
 
-Official pages read (the developers.openai.com paths redirect to learn.chatgpt.com):
+Official pages (developers.openai.com/codex paths redirect to learn.chatgpt.com):
 
 - https://learn.chatgpt.com/docs/non-interactive-mode — `codex exec --json` emits
   JSONL `thread.started`, `turn.started`, `turn.completed`, `turn.failed`,
@@ -28,20 +27,17 @@ Official pages read (the developers.openai.com paths redirect to learn.chatgpt.c
   `codexErrorInfo` (including `UsageLimitExceeded`); `account/rateLimits/read`
   returns windows with `usedPercent`, `windowDurationMins`, `resetsAt` (Unix
   seconds) and `rateLimitReachedType`. The page calls app-server experimental.
-- https://learn.chatgpt.com/docs/developer-commands — `codex exec` Stable,
-  `codex app-server` Experimental.
-- https://learn.chatgpt.com/docs/config-file/config-reference —
-  `model_reasoning_effort`, `approval_policy` (`never` for non-interactive).
+- https://learn.chatgpt.com/docs/developer-commands — `exec` Stable, `app-server` Experimental.
+- https://learn.chatgpt.com/docs/config-file/config-reference — `model_reasoning_effort`,
+  `approval_policy` (`never` for non-interactive runs).
 - https://learn.chatgpt.com/docs/pricing — five-hour windows apply to Plus and
   Business; "Pro plans currently have no five-hour limit"; weekly limits may
   apply; after a limit, users may buy credits or use an API key.
 
-Generated schema facts: `GetAccountRateLimitsResponse` has `ordinaryUsageAllowed`
-(null = unavailable; "clients must not infer recovery from percentages or reset
-times"), `rateLimits` and `rateLimitsByLimitId`. Params include
-`supportsLunaReserve` ("automatic Luna Reserve fallback") and
-`excludeResetCreditDetails`. `account/rateLimitResetCredit/consume`,
-`account/login/*`, `account/logout` and `account/sendAddCreditsNudgeEmail` mutate.
+Schema: `GetAccountRateLimitsResponse` has `ordinaryUsageAllowed` (null means
+unavailable; "clients must not infer recovery from percentages or reset times"),
+`rateLimits`, `rateLimitsByLimitId`. Params offer `supportsLunaReserve` ("automatic
+Luna Reserve fallback"). Reset-credit consume, login, logout and nudge mutate.
 
 **Chosen adapter `codex-exec-0.161.0`.** The lead runs under stable
 `codex exec --json`. Its stream is only a *trigger*. Quota is confirmed solely by
@@ -51,10 +47,9 @@ make the supervisor answer approval requests, a larger privileged surface.
 The probe is the only structured quota source; it is experimental, so a protocol
 or version change disables classification (refusal or halt), never a guess.
 
-Unverified live behavior: what 0.161.0 `exec --json` prints on a real limit;
-whether `ordinaryUsageAllowed`/`rateLimitReachedType` are populated for the
-owner's plan; whether `rateLimits/read` refreshes OAuth tokens. The first live
-restart records these. Until then a limit without probe evidence halts.
+Unverified live: the real-limit `exec --json` stream; whether the owner's plan
+populates `ordinaryUsageAllowed`/`rateLimitReachedType`; whether
+`rateLimits/read` refreshes OAuth. A limit without probe evidence halts.
 
 ## Commands
 
@@ -67,8 +62,8 @@ restart records these. Until then a limit without probe evidence halts.
 | `unio lead-cooldown stop [--force-corrupt]` | Persist stopped; drop wait; terminal for this enablement |
 | `unio lead-cooldown complete` | Persist completed goal; terminal for this enablement |
 
-Exits: 0 success; 1 refusal (wrong mode, STOP, unsupported adapter); 2 bad
-arguments, busy lock or unknown partial mutation. JSON is one bounded object.
+Exits: 0 success; 1 refusal (wrong mode, failed validation, unsupported
+adapter); 2 bad arguments, busy lock or unknown partial mutation. JSON is one bounded object.
 `start`/`resume` refuse when `UNIO_LEAD_SUPERVISED` is set (a supervised lead
 cannot re-enable itself); `pause`/`stop`/`complete` only reduce calls and are
 accepted from anyone. That variable is a guard, not a security boundary.
@@ -87,7 +82,7 @@ Frozen argv, built once and stored verbatim; prompt arrives on stdin:
 `CODEX exec --json --strict-config -m M -c model_reasoning_effort="E"
 -c approval_policy="never" -s S -C DIR -` (CODEX is the absolute resolved
 path). User config is loaded, so its route applies: the SHA256 of
-`$CODEX_HOME/config.toml` (default `~/.codex`) is frozen. A changed binary path,
+`$CODEX_HOME/config.toml` (default `~/.codex`; null if absent) is frozen. A changed binary path,
 version or config hash halts with `launch_changed`; Unio never edits Codex config,
 auth, credits or sandbox. Changing `unio lead` while the enablement is active
 or paused refuses (small hook in the policy setter).
@@ -96,8 +91,10 @@ or paused refuses (small hook in the policy setter).
 
 `coord/lead-cooldown/` is 0700; files 0600, owner-only, no symlinks. Files:
 `state.json`, `supervisor.lock`, `goal.md` (frozen copy), `attempts/ID/` with
-`prompt.md`, capped `stderr.log` and `exec-events.json`. Writes go to a temp
-file in the same directory, then fsync, `os.replace` and parent fsync. Readers
+`prompt.md`, capped `stderr.log` and `exec-events.json`. Each state update, by a
+command or the supervisor, briefly holds `state.lock` (never across sleep, probe
+or spawn) and checks `revision`. Writes go to a temp file in the same directory,
+then fsync, `os.replace` and parent fsync. Readers
 reject duplicate/unknown keys, wrong types and unknown schema versions. A
 corrupt or unreadable state refuses every command except `status`, which
 reports `corrupt`; never reset silently. Only `stop --force-corrupt` may move
@@ -127,14 +124,15 @@ Attempt record: `attempt_id`, `seq`, `launched_at`, `ended_at`, `exit_code`,
 unresolved), `source` (`reset`, `fallback_18060`, `unresolved`), `reset_at`,
 `limit_id`, `window_mins`, `probe_at`, `evidence_sha256`. Halt codes:
 `turn_ended`, `failed`, `interrupted`, `outcome_unknown`, `probe_unavailable`,
-`limit_loop`, `launch_changed`, `stray_processes`, `history_full`.
-The archive cap is 8MiB; reaching it halts with `history_full`. Nothing is evicted.
+`limit_loop`, `launch_changed`, `stray_processes`, `history_full` (8MiB archive
+cap reached; nothing is evicted).
 
 ## Ownership, processes and signals
 
 One supervisor per project: `fcntl.flock(LOCK_EX|LOCK_NB)` on
 `supervisor.lock` (no-follow, regular, owned), held for its whole life. The
-kernel releases it on crash. A second launcher exits 2. The supervisor runs
+kernel releases it on crash. A second supervisor exits 2; `resume`/`pause`
+against a live one only update state. The supervisor runs
 detached (`start_new_session`), stdio to `/dev/null` plus its own capped log.
 
 One live lead: spawned with `start_new_session=True`, `close_fds=True`, no
@@ -163,12 +161,11 @@ remaining lead process group, waits 10s, then SIGKILL. Remaining
 token-and-session matches give `halted:stray_processes`. SIGTERM, SIGINT or
 SIGHUP to the supervisor forwards SIGTERM to the lead group, waits 30s, then
 SIGKILL. It reaps, records `interrupted`, halts with mode unchanged, and exits.
-Losing the supervisor also closes the lead's stdout pipe; that lead
-then likely exits and is reconciled as `unknown`.
+Losing the supervisor closes the lead's stdout pipe; that lead likely exits
+and is reconciled as `unknown`.
 
-STOP coexists unchanged: it blocks launches and probes; waits keep counting.
-At wake with STOP present, the phase stays put until STOP is cleared. STOP never
-kills a running lead. `pause`/`stop`/`complete` likewise never signal a live
+STOP coexists unchanged: it blocks launches and probes while waits keep
+counting, and never kills a running lead. `pause`/`stop`/`complete` likewise never signal a live
 lead: they prevent the next launch, record the reaped exit, then the supervisor
 exits. The registered lead reservation is the lead's only slot in the codex
 group. The supervisor never runs a worker, so no second Codex workflow starts.
@@ -186,7 +183,7 @@ JSON SHA256, never the email. Missing or invalid responses mean `unavailable`.
 Confirmed limit: `ordinaryUsageAllowed` is false, or the bucket's
 `rateLimitReachedType` is non-null. Exec text, worker/repository/tool output,
 lead messages or any agent-written file never classify quota. The probe runs
-after any lead exit except `turn_completed` with exit 0, and before every
+after any lead exit except `turn_completed` or `interrupted`, and before every
 launch. Exhausted windows are those with `usedPercent` of 100 or more; the
 longest `windowDurationMins` names the kind. 300 is `five_hour`, at least 10080
 is `weekly_or_longer`, and other or null values are `unknown_longer`. With
@@ -201,9 +198,10 @@ is `weekly_or_longer`, and other or null values are `unknown_longer`. With
 Every wake, including a stale or repeated reset, is a fresh wait from new
 evidence and at least D+300. A confirmed pre-launch limit also starts a new
 wait. Each limit increments `consecutive_limits`; a `turn.completed` resets it.
-The seventh consecutive limit halts with `limit_loop`. The supervisor sleeps in
-wall-clock steps of at most 300s. Each step re-reads state, STOP, mode and
-`time.time()`, so suspend and clock jumps are reconciled, not counted.
+The seventh consecutive limit halts with `limit_loop`. The supervisor waits in
+local steps of at most 5s, also while reading lead stdout. Each step re-reads
+state, STOP, mode and `time.time()`; suspend and clock jumps are reconciled
+against absolute wall times. Steps make no network call.
 
 Non-limit outcomes never enter cooldown or relaunch: a crash, nonzero exit,
 auth or network error, or timeout halts `failed`. An unavailable probe halts
@@ -234,9 +232,8 @@ existing account settings; Unio never buys, consumes reset credits or opts in.
 
 ## Mock-clock acceptance matrix
 
-Inject `now()`, `sleep()`, spawn, probe and `/proc` readers. Mock CLIs are
-short scripts and no real AI or network is used. Each row asserts launches and
-probes made, final state and file modes.
+Inject `now()`, `sleep()`, spawn, probe and `/proc` readers; mock CLIs are short
+scripts, with no real AI or network. Rows assert launches, probes, state, modes.
 
 | # | Plan category / scenario | Expected |
 | --- | --- | --- |
@@ -246,7 +243,7 @@ probes made, final state and file modes.
 | 3a | Stale reset D-10, five-hour | Fresh D+18060; no rapid relaunch |
 | 3b | Seven consecutive limits | `halted:limit_loop` at the seventh; no further probe or launch |
 | 4a | Stop, pause, complete, then restart supervisor | Persist; 0 launches |
-| 4b | Second `start` or `resume` with live lock | Exit 2; 1 supervisor |
+| 4b | Competing `start`/supervisor spawn; `pause` racing a wake | Exit 2; 1 supervisor; no lost update |
 | 4c | Crash in `launching`, token lead alive | `orphan_wait`; 0 new launches until gone |
 | 4d | Crash in `running`, lead gone, no probe limit | `halted:outcome_unknown` |
 | 4e | Clock jumps 6h (sleep) and STOP at wake | No launch until STOP cleared |
