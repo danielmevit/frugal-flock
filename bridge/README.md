@@ -787,8 +787,9 @@ inferred. At most 24 tasks appear per page. Search, state/worker filters,
 finished history and List view remain available for larger projects.
 
 Use the **−** / **+** buttons to zoom from 5% to 300%. The percentage shows
-the current scale. **Fit view** fits all nodes on the visible page and follows
-window resizing; **Reset 100%** returns to the hub at natural scale. Drag with
+the current scale. Fit is a compact overview; zoom, filter or use List to read
+individual labels on dense pages and small screens. **Fit view** fits all nodes
+on the visible page and follows window resizing; **Reset 100%** returns to the hub at natural scale. Drag with
 a mouse or one finger to pan. Ctrl/Command plus wheel zooms around the pointer;
 unmodified wheel scrolls the page. Pinch zoom is not implemented.
 

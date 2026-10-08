@@ -44,7 +44,18 @@ and unchanged source/global executable passed. The real local dashboard also
 passed at five widths from 320px to 1920px, with API200, full available page
 width, correct footer and no page errors. Preserve the initial failed smoke.
 
-Next UI task: the owner's queued zoom/pan and centre-to-edge radial map layout.
+Interactive radial map [4a0da73](https://github.com/danielmevit/unio/commit/4a0da73171b7c4c19b6ea73c90d11ab4c962930b)
+is now accepted and pushed in main: bounded viewport, 5–300% zoom, Fit/Reset,
+mouse/touch panning, keyboard controls and pointer-centred wheel zoom. Manual
+camera and exact selection survive polling, view switches and resizing. Light
+and Dark use the approved neutral grayscale palette. Native scope and all five
+checks passed; 28 Chromium assertion groups and four desktop/mobile screenshots
+were inspected, followed by personal lead review. Preserve the initial long
+Chromium socket-path failure and the test's fractional pointer-coordinate
+correction. Fit is an overview; use zoom, filters or List to read dense pages.
+No additional AI, dependency, backend capability or global install was added.
+See the [map controls](../../bridge/README.md#interactive-radial-viewport-browser-map-viewport-1).
+
 Next recovery slices: automatic baseline/periodic/final saves and authorized
 continuation under the frozen [work-saving contract](WORK-SAVING-CONTRACT.md),
 then [lead CLI cooldown restart](LEAD-COOLDOWN-RESTART.md). Existing worker limit

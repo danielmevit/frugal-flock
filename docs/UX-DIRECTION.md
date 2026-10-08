@@ -4,8 +4,10 @@ Your AIs, in sync.
 
 The [dark theme and live work map](development/LIVE-WORKSPACE-VIEW.md)
 records the owner's 2026-10-08 request and the proposed connected overview.
-Dark theme and the work map are accepted in source for v0.5.4. Interactive
-zoom, pan and the outward-branching map remain the next UI enhancement.
+Dark theme and the work map are accepted in source for v0.5.4, including
+interactive zoom, mouse/touch panning and radial ownership branches. Both
+themes use black, white, charcoal and neutral gray. These additions are not
+in the published v0.5.3 release.
 The sections below preserve the earlier UX proposal and prototype context.
 
 ## Future visual milestone: Marathon direction
