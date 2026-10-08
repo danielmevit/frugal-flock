@@ -6,8 +6,10 @@ import copy
 import http.client
 import importlib.util
 import json
+import io
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -27,6 +29,30 @@ def sample():
 class ObserverTests(unittest.TestCase):
     def observer(self):
         return server.Observer(Path('/fixed/workspace'), Path('/fixed/engine'), timeout=3)
+
+    def test_default_budget_allows_a_slow_valid_workspace_scan(self):
+        def scan(*args, **kwargs):
+            if kwargs['timeout'] < 15:
+                raise subprocess.TimeoutExpired('/fixed/engine', kwargs['timeout'])
+            return subprocess.CompletedProcess([], 0, json.dumps(sample()).encode())
+        with patch.object(server.subprocess, 'run', side_effect=scan):
+            default = server.Observer(Path('/fixed/workspace'), Path('/fixed/engine'))
+            self.assertIsNotNone(default.read())
+            self.assertIsNone(self.observer().read())
+
+    def test_invalid_budget_rejects_before_any_observation_or_server(self):
+        for value in (0, -1, 121, True, None, 'bad', float('nan'), float('inf')):
+            with self.subTest(value=value), patch.object(server.subprocess, 'run') as invoke:
+                with self.assertRaises(server.argparse.ArgumentTypeError):
+                    server.Observer(Path('/fixed/workspace'), Path('/fixed/engine'), timeout=value)
+                invoke.assert_not_called()
+        for value in ('0', '-1', '121', 'nan', 'inf', 'bad'):
+            with self.subTest(cli=value), patch.object(sys, 'argv', ['server.py', '--project', '/missing', '--observer-timeout', value]), \
+                 patch.object(sys, 'stderr', io.StringIO()), patch.object(server, 'ActivityServer') as build:
+                with self.assertRaises(SystemExit) as failure:
+                    server.main()
+                self.assertEqual(failure.exception.code, 2)
+                build.assert_not_called()
 
     def test_fixed_read_only_command_and_cache(self):
         observer = self.observer()

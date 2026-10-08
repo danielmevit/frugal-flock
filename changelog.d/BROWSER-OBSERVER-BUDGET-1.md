@@ -1,0 +1,1 @@
+Prevent valid larger-workspace browser observations from hitting the old ten-second cutoff: use a bounded 30-second default and an explicit `--observer-timeout` option from 1 through 120 seconds. Preserve fixed read-only commands, cache behavior, unavailable responses and execution authority. Unreleased for v0.5.4.

@@ -21,6 +21,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ASSETS = Path(__file__).resolve().parent
 TOP_FIELDS = {'schema_version','observed_at','stopped','agents','results','retries','recent_events','warnings','evidence'}
+DEFAULT_OBSERVER_TIMEOUT = 30
+
+
+def observer_timeout(value):
+    try:
+        seconds = float(value)
+    except (ValueError, TypeError):
+        raise argparse.ArgumentTypeError('observer timeout must be 1 through 120 seconds') from None
+    if isinstance(value, bool) or not 1 <= seconds <= 120:
+        raise argparse.ArgumentTypeError('observer timeout must be 1 through 120 seconds')
+    return seconds
 
 
 def unique_object(pairs):
@@ -33,8 +44,8 @@ def unique_object(pairs):
 
 
 class Observer:
-    def __init__(self, project, engine, timeout=10):
-        self.project, self.engine, self.timeout = project, engine, timeout
+    def __init__(self, project, engine, timeout=DEFAULT_OBSERVER_TIMEOUT):
+        self.project, self.engine, self.timeout = project, engine, observer_timeout(timeout)
         self.lock = threading.Lock()
         self.cached = None
         self.expires = 0
@@ -426,6 +437,8 @@ def main():
     parser = argparse.ArgumentParser(description='Unio read-only local Activity preview')
     parser.add_argument('--project',type=Path,required=True,help='enclosing workspace with repo/, coord/, wt/')
     parser.add_argument('--engine',type=Path,help='CLI executable supporting watch --once --json (default: unio on PATH)')
+    parser.add_argument('--observer-timeout',type=observer_timeout,default=DEFAULT_OBSERVER_TIMEOUT,
+                        help='native observation deadline in seconds, 1 through 120 (default: 30)')
     parser.add_argument('--port',type=int,default=0,help='loopback port, 0 chooses an unused port')
     parser.add_argument('--open-browser',action='store_true',help='optionally open this loopback read-only preview in the default browser')
     parser.add_argument('--enable-plan-drafts',action='store_true',help='opt in to manual draft storage only; never starts workers')
@@ -488,7 +501,7 @@ def main():
                 files = WorkerFilesService(project, options.files_worker)
             except (ValueError, OSError):
                 parser.error('invalid worker files startup configuration')
-        server = ActivityServer(options.port, Observer(project, engine), plans=plans, execution=execution, progress=progress, files=files)
+        server = ActivityServer(options.port, Observer(project, engine, timeout=options.observer_timeout), plans=plans, execution=execution, progress=progress, files=files)
         serve_preview(server, options.open_browser)
     finally:
         if files is not None:
