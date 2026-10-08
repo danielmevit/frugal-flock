@@ -83,8 +83,13 @@ Frozen argv, built once and stored verbatim; prompt arrives on stdin:
 -c approval_policy="never" -s S -C DIR -` (CODEX is the absolute resolved
 path). User config is loaded, so its route applies: the SHA256 of
 `$CODEX_HOME/config.toml` (default `~/.codex`; null if absent) is frozen. A changed binary path,
-version or config hash halts with `launch_changed`; Unio never edits Codex config,
-auth, credits or sandbox. Changing `unio lead` while the enablement is active
+version, binary SHA256 or configuration digest halts with `launch_changed`; Unio never edits Codex config,
+auth, credits or sandbox. Freeze the effective CODEX_HOME path, relevant environment,
+and all supported user/project/managed configuration layers (including absent
+files); reject unenumerated layers. Only the default first-party OpenAI ChatGPT
+route is supported: custom providers, endpoint/auth overrides, fallback and
+paid/API routes refuse rather than being silently retained. Recheck these inputs
+and ChatGPT account type before every launch. Changing `unio lead` while the enablement is active
 or paused refuses (small hook in the policy setter).
 
 ## Durable state
@@ -93,7 +98,7 @@ or paused refuses (small hook in the policy setter).
 `state.json`, `supervisor.lock`, `goal.md` (frozen copy), `attempts/ID/` with
 `prompt.md`, capped `stderr.log` and `exec-events.json`. Each state update, by a
 command or the supervisor, briefly holds `state.lock` (never across sleep, probe
-or spawn) and checks `revision`. Writes go to a temp file in the same directory,
+or provider execution) and checks `revision`. Writes go to a temp file in the same directory,
 then fsync, `os.replace` and parent fsync. Readers
 reject duplicate/unknown keys, wrong types and unknown schema versions. A
 corrupt or unreadable state refuses every command except `status`, which
@@ -109,7 +114,7 @@ it aside to `state.corrupt-TIMESTAMP` and write `stopped`.
 | `mode` | `active`, `paused`, `stopped`, `completed` |
 | `phase` | `idle`, `launching`, `running`, `orphan_wait`, `cooldown`, `unresolved`, `halted` |
 | `halt_reason` | null or a fixed code below |
-| `frozen` | adapter, codex path/version, model, effort, sandbox, cwd, config and goal SHA256, argv |
+| `frozen` | adapter, codex path/version, model, effort, sandbox, cwd, config/environment and goal SHA256, binary SHA256, argv |
 | `lead` | null or attempt ID, pid, start ticks, session ID, boot ID, launch time |
 | `cooldown` | null or the wait object below |
 | `consecutive_limits`, `attempts_total` | Integers |
@@ -145,10 +150,14 @@ which are session leaders) and whose bounded 64KiB environ holds the exact
 token. Background `unio run` uses `setsid`, so its workers are in other sessions
 and are never counted or signalled.
 
-Launch order: confirm the active mode, absent STOP, unchanged frozen launch and
-a passing pre-launch probe. Durably write `launching` with a new attempt ID and
-null pid, then spawn. Write the prompt, close stdin and durably record
-`running` with identity. On restart, `launching`/`running` never launch.
+Launch order: obtain a fresh passing probe outside `state.lock`, then hold the
+lock briefly while rechecking revision, active mode, absent STOP and the frozen
+launch. Durably write `launching` with a new attempt ID and null pid, spawn
+locally and record `running` with identity before releasing the lock. Deliver
+the bounded prompt afterward. Pause/stop/completion take the same lock: if
+they commit first there is no spawn; if launch commits first they report the
+already admitted attempt and prevent any later one. No request, wait or AI
+execution holds this lock. On restart, `launching`/`running` never launch.
 Discovery finds the lead (`orphan_wait`, poll 5s) or finds nothing. Since the
 exit code of a non-child is unknowable, the outcome is `unknown`; a probe then
 decides cooldown or `halted:outcome_unknown`. No duplicate launch is possible
@@ -156,7 +165,9 @@ from either window.
 
 The supervisor reads stdout as bounded JSONL: lines over 1MiB are dropped and
 counted. It records only event types and the presence of `turn.failed`/
-`turn.completed`, never agent text. After `waitpid`, it sends SIGTERM to the
+`turn.completed`, never agent text. Success means exit 0, at least one `turn.completed`, and no `turn.failed`/error
+event; an earlier completed event cannot hide a subsequent failure.
+After `waitpid`, it sends SIGTERM to the
 remaining lead process group, waits 10s, then SIGKILL. Remaining
 token-and-session matches give `halted:stray_processes`. SIGTERM, SIGINT or
 SIGHUP to the supervisor forwards SIGTERM to the lead group, waits 30s, then
@@ -180,17 +191,21 @@ and `account/rateLimits/read {excludeResetCreditDetails:true}`. It never sends
 Bucket: `rateLimitsByLimitId.codex`, else `rateLimits`. Store its canonical
 JSON SHA256, never the email. Missing or invalid responses mean `unavailable`.
 
+A passing probe requires current `ordinaryUsageAllowed` **true**, ChatGPT
+account type and no conflicting block. Null/missing permission is unavailable;
+percentages/reset timestamps never establish recovery or authorize a launch.
 Confirmed limit: `ordinaryUsageAllowed` is false, or the bucket's
 `rateLimitReachedType` is non-null. Exec text, worker/repository/tool output,
 lead messages or any agent-written file never classify quota. The probe runs
-after any lead exit except `turn_completed` or `interrupted`, and before every
+after any lead exit except a successful turn end or `interrupted`, and before every
 launch. Exhausted windows are those with `usedPercent` of 100 or more; the
 longest `windowDurationMins` names the kind. 300 is `five_hour`, at least 10080
 is `weekly_or_longer`, and other or null values are `unknown_longer`. With
 `D` = detection time and `R` = the latest `resetsAt` among exhausted windows:
 
 1. No exhausted window: `unknown_longer`, handled as rule 4.
-2. `R` known and within (D+60, D+691200]: wake at R+60 (`reset`).
+2. `R` is a valid supported future Unix timestamp: wake at R+60 (`reset`).
+   Known longer resets remain valid even beyond eight days.
 3. Else `five_hour`: wake at D+18060 (`fallback_18060`).
 4. Else `unresolved`: no `wake_at`. Probe at most hourly; leave when
    `ordinaryUsageAllowed` is true. Never use the five-hour fallback.
@@ -239,7 +254,8 @@ scripts, with no real AI or network. Rows assert launches, probes, state, modes.
 | --- | --- | --- |
 | 1 | Five-hour confirmed, `resetsAt` null | Wake D+18060; 0 launches before; 1 after |
 | 2a | Reset D+7200 | Wake D+7260 |
-| 2b | Weekly exhausted, reset null | `unresolved`; no 18060 wake; launch only after allowed=true |
+| 2b | Longer reset D+14days | Wake at R+60, no five-hour fallback |
+| 2c | Weekly exhausted, reset null | `unresolved`; no 18060 wake; launch only after allowed=true |
 | 3a | Stale reset D-10, five-hour | Fresh D+18060; no rapid relaunch |
 | 3b | Seven consecutive limits | `halted:limit_loop` at the seventh; no further probe or launch |
 | 4a | Stop, pause, complete, then restart supervisor | Persist; 0 launches |
@@ -252,7 +268,8 @@ scripts, with no real AI or network. Rows assert launches, probes, state, modes.
 | 6b | Auth, network, timeout or crash exit | Halt, no cooldown; worker limits untouched |
 | 7 | Argv, config hash, version, API-key env, probe messages | Exact argv; change halts; key refuses start; exactly four probe messages, no fallback/consume |
 | 8 | Corrupt, unknown-key or symlinked state | Refuse; `status` reports corrupt |
-| 9 | Probe timeout, bad JSON or oversized output | `probe_unavailable`; never cooldown |
+| 9 | Probe timeout, bad JSON, oversized output or null permission | `probe_unavailable`; never launch |
+| 10 | Completed event then failed/error event | Not successful; probe or halt according to actual evidence |
 
 Then one owner-enabled live restart records the real limit stream, probe
 evidence and timing. Run focused checks per slice and the full gate at release.
