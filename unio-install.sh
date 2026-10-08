@@ -2717,11 +2717,18 @@ def saves_lock(root):
 
 
 def worker_busy(root, worker):
+    locks = under(root, 'coord', '.locks')
+    path = os.path.join(locks, worker + '.lock')
     try:
-        fd = os.open(under(root, 'coord', '.locks', worker + '.lock'), os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
     except FileNotFoundError:
         return False
+    except OSError:
+        return 'unknown'
     try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or (st.st_mode & 0o022):
+            return 'unknown'
         try:
             fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -3087,7 +3094,7 @@ def observe(root, worker, budget, task_bytes, base=None, task=None):
         check_secret(p, 'the index')
     for p in head_map:
         check_secret(p, 'HEAD')
-    files = walk_worktree(wt, budget, set(index_map))
+    files = walk_worktree(wt, budget, set(index_map) | set(head_map))
     paths = sorted(set(head_map) | set(index_map) | set(files))
     if len(paths) > MAX_ENTRIES:
         raise Refuse('excessive', 'more than %d paths' % MAX_ENTRIES)
@@ -3569,8 +3576,34 @@ def attempt_doc(doc, worker):
 
 
 def require_lock(root, worker):
-    if not worker_busy(root, worker):
-        raise Refuse('lock_busy', 'the native worker lock for %s is not held (use the unio save command)' % worker)
+    coord = under(root, 'coord')
+    locks = under(root, 'coord', '.locks')
+    path = os.path.join(locks, worker + '.lock')
+    for d in (coord, locks):
+        try:
+            st = os.lstat(d)
+        except FileNotFoundError:
+            continue
+        if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or (st.st_mode & 0o022):
+            raise Refuse('lock_busy', 'unsafe lock parent: ' + d)
+    try:
+        os.makedirs(locks, exist_ok=True)
+    except OSError:
+        pass
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600)
+    except OSError:
+        raise Refuse('lock_busy', 'the native worker lock for %s is busy or unsafe' % worker)
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_uid != os.getuid() or (st.st_mode & 0o022):
+        os.close(fd)
+        raise Refuse('lock_busy', 'unsafe worker lock: ' + path)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        raise Refuse('lock_busy', 'the native worker lock for %s is busy' % worker)
+    return fd
 
 
 def cmd_create(root, worker, task):
@@ -5604,11 +5637,7 @@ cmd_save() { # manual capture, inspection and exact restore; zero provider calls
         save_name_ok "$2" || { save_usage; return 2; }
       fi
       [ -d "$root/wt/$worker" ] || { echo "unio: no worktree for '$worker'" >&2; return 1; }
-      mkdir -p "$root/coord/.locks"
-      exec 9>>"$root/coord/.locks/$worker.lock"
-      flock -n 9 || { echo "unio: worker '$worker' is busy (its lock is held)" >&2; return 2; }
       saves "$root" "$sub" "$@" || rc=$?
-      exec 9>&-
       return "$rc";;
     inspect)
       saves "$root" inspect "$@" || rc=$?

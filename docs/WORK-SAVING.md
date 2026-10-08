@@ -32,14 +32,7 @@ These commands make no provider call and work while STOP is set. Exit 0
 means success, 1 a known refusal or failure, 2 bad arguments, a busy lock
 or an Unknown restore outcome.
 
-`create` holds the source worker's native lock and observes the worktree
-twice. It saves only when both observations match: committed history after
-the base (as a verified Git bundle carrying HEAD over the base), the full
-index and the working files, each with its own bytes and modes. Staged,
-unstaged, untracked, deleted, binary, empty and executable content is kept
-exactly. Ignored caches and the native ignored role cards are omitted before
-any of their bytes are read. The base is the frozen task base that `unio run`
-recorded, otherwise the commit named by `coord/base`.
+`create` acquires the source worker's native lock exactly once (a validated, regular, owned file in a safe parent directory, without following symlinks or blocking) and observes the worktree twice. It saves only when both observations match: committed history after the base (as a verified Git bundle carrying HEAD over the base), the full index and the working files, each with its own bytes and modes. Staged, unstaged, untracked, deleted, binary, empty, executable and retained deleted-from-index content is kept exactly. Ignored caches and the native ignored role cards are omitted before any of their bytes are read; however, required paths like HEAD-tracked files inside ignored directories are still saved. The base is the frozen task base that `unio run` recorded, otherwise the commit named by `coord/base`.
 
 A save is refused, not partially written, for changing bytes, secret-looking
 names (including ignored `.env` files and secrets in carried commits, even

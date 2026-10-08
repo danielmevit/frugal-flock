@@ -119,8 +119,12 @@ with tempfile.TemporaryDirectory(prefix='work-saving-') as directory:
     def view(path):
         """Restorable state: HEAD, full index, nonignored bytes/modes, status."""
         listed = git(path, 'ls-files', '-z', '-c', '-o', '--exclude-standard').split(b'\0')
+        try:
+            head_listed = git(path, 'ls-tree', '-r', '-z', '--name-only', 'HEAD').split(b'\0')
+        except subprocess.CalledProcessError:
+            head_listed = []
         files = {}
-        for name in sorted(set(n for n in listed if n)):
+        for name in sorted(set(n for n in listed + head_listed if n)):
             p = os.path.join(path, os.fsdecode(name))
             if os.path.lexists(p):
                 files[name] = (stat.S_IMODE(os.lstat(p).st_mode), Path(p).read_bytes())
@@ -584,6 +588,69 @@ with tempfile.TemporaryDirectory(prefix='work-saving-') as directory:
     for fake in fakes:
         shutil.rmtree(fake, ignore_errors=True)
     check('create works again once evidence is cleared', unio('save', 'create', 'mock-e', 'T1').returncode == 0)
+
+    # ---- finding 1: deleted ignored file ----------------------------------
+    git(a, 'checkout', 'HEAD', '--', '.')
+    Path(a, '.gitignore').write_text('*.log\n/ign/\n')
+    Path(a, 'tracked.log').write_bytes(b'tracked-log')
+    Path(a, 'ign').mkdir(exist_ok=True)
+    Path(a, 'ign/req.txt').write_bytes(b'req-txt')
+    git(a, 'add', '-f', '.gitignore', 'tracked.log', 'ign/req.txt')
+    git(a, 'commit', '-m', 'add ignored but tracked files')
+    git(a, 'rm', '--cached', 'tracked.log', 'ign/req.txt')
+    before_a = snap(a)
+    r = unio('save', 'create', 'mock-a', 'T1')
+    check('create saves ignored tracked files deleted from index', r.returncode == 0)
+    save_id = saved_id(r)
+    unio('init', 'mock-z')
+    z = wt / 'mock-z'
+    check('restore deleted ignored files', unio('save', 'restore', save_id, 'mock-z').returncode == 0)
+    b_after = snap(z)
+
+    check('restored bytes of ignored tracked files match',
+          b_after['files'].get('tracked.log') == (420, b'tracked-log') and
+          b_after['files'].get('ign/req.txt') == (420, b'req-txt'))
+
+    # ---- finding 2: worker lock validation --------------------------------
+    lock_file = coord / '.locks' / 'mock-a.lock'
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    lock_file.unlink(missing_ok=True)
+    os.symlink('missing', lock_file)
+    r = unio('save', 'create', 'mock-a', 'T1')
+    check('create refuses symlink lock absent target', r.returncode == 2 and 'unsafe' in r.stderr)
+    check('symlink absent target not created', not (coord / '.locks' / 'missing').exists())
+    lock_file.unlink()
+
+    Path(coord / '.locks' / 'existing').write_bytes(b'')
+    os.symlink('existing', lock_file)
+    check('create refuses symlink lock existing target', unio('save', 'create', 'mock-a', 'T1').returncode == 2)
+    lock_file.unlink()
+    (coord / '.locks' / 'existing').unlink()
+
+    (coord / '.locks' / 'real.lock').write_bytes(b'')
+    os.link(coord / '.locks' / 'real.lock', lock_file)
+    check('create refuses hardlink lock', unio('save', 'create', 'mock-a', 'T1').returncode == 2)
+    lock_file.unlink()
+    (coord / '.locks' / 'real.lock').unlink()
+
+    os.mkfifo(lock_file)
+    check('create refuses FIFO lock without hang', unio('save', 'create', 'mock-a', 'T1').returncode == 2)
+    lock_file.unlink()
+
+    # unsafe parent
+    os.chmod(coord / '.locks', 0o777)
+    check('create refuses unsafe parent dir', unio('save', 'create', 'mock-a', 'T1').returncode == 2)
+    os.chmod(coord / '.locks', 0o755)
+
+    # legacy lock and busy
+    lock_file.write_bytes(b'')
+    os.chmod(lock_file, 0o644)
+    fd = os.open(lock_file, os.O_RDONLY)
+    fcntl.flock(fd, fcntl.LOCK_SH)
+    check('create busy legacy exit 2', unio('save', 'create', 'mock-a', 'T1').returncode == 2)
+    fcntl.flock(fd, fcntl.LOCK_UN)
+    os.close(fd)
+    check('create admits valid legacy0644', unio('save', 'create', 'mock-a', 'T1').returncode == 0)
 
     # ---- help, completion and zero provider calls -------------------------
     help_text = unio('help').stdout
