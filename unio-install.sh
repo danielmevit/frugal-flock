@@ -6032,6 +6032,10 @@ cmd_kill() {
   [ -f "$pf" ] || die "no background run recorded for '$task' (foreground runs: Ctrl-C)"
   local pid; pid=$(cat "$pf" 2>/dev/null || true)
   if [ -z "$pid" ]; then rm -f "$pf"; die "empty pidfile removed — nothing to kill"; fi
+  # A negative value means a process group (or every permitted process for -1)
+  # to Bash kill. Invalid evidence must never reach even its signal-zero probe.
+  [[ "$pid" =~ ^[1-9][0-9]{0,8}$ ]] && [ "$pid" -gt 1 ] \
+    || die "invalid background pid — refusing to signal it (pidfile retained)"
   # Background runs are session leaders. Signal the identified parent so its
   # supervisor can reap the provider, save final state and finish receipts.
   # A recorded pid is not proof of identity: after a SIGKILLed run the OS can

@@ -35,6 +35,7 @@ python3 -B tests/unio-work-policy.py
 python3 -B tests/unio-work-policy-guard.py
 python3 -B tests/unio-work-saving.py
 python3 -B tests/unio-work-saving-auto.py
+python3 -B tests/unio-kill-pid.py
 python3 -B bridge/tests/plan_store_test.py
 python3 -B bridge/tests/plan_api_test.py
 python3 -B bridge/tests/job_store_test.py
