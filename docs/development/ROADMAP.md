@@ -2,6 +2,35 @@
 
 Your AIs, in sync.
 
+## Current focus: finish the functional core
+
+The owner requested a milestone review on 2026-10-08. The
+[functionality-first plan](FUNCTIONALITY-FIRST-PLAN.md) compares the original
+five steps with actual releases and source, explains the scope drift and sets
+out the recommended order below. This front section is the current planning
+entry point; dated history and the earlier priority list remain below.
+
+Limit hardening, the queue and the real browser workflow have shipped through
+v0.5.3. Recovery remains partial: manual saves are in main; automatic saves,
+authorized continuation and lead cooldown restart are not implemented. The
+recent map/UI requests are complete in main and should not keep expanding the
+recovery milestone. Published/installed v0.5.3 is unchanged.
+
+| Priority | Functional milestone | Current state |
+| --- | --- | --- |
+| 1 | Close v0.5.4 recovery, release and install | Next slice: automatic baseline/periodic/final saves; then authorized continuation, one supported lead cooldown adapter and the full release gate. |
+| 2 | Simple daily launch and responsive observation | Existing browser works; packaged launch/setup and large-workspace observation need improvement. Recheck the known default observer timeout before v0.5.4 publication. |
+| 3 | Shared-account allowance and worker readiness | Native account slots exist; live fleet quota/readiness integration does not. Start with manual readings and one supported read-only adapter. |
+| 4 | Ready-task dispatch and dependency handling | Queue/reservation exists; automated ready/dependency/scope scheduling remains planned. |
+| 5 | Native independent review pipeline | Single reviews exist; built-in separate parallel review views and finding aggregation remain planned and mode-aware. |
+| 6 | Evidence-based routing and context efficiency | Ledger/score and curated guides exist; exact model/task profiles and automatic suggestions remain planned. |
+
+Only v0.5.4 has an assigned release scope here. Later ordering is a recommendation
+from this audit; version numbers and task contracts follow bounded planning.
+Defer additional visual redesign, a broad Settings page, desktop/cloud expansion
+and model benchmark campaigns. See the plan for concrete finish conditions and
+the [handoff](continue-with-ai-prompt.md) for the one next implementation task.
+
 ## Browser appearance and live work overview
 
 Implemented in main on 2026-10-08 for v0.5.4: Light, Dark and System themes,
@@ -41,7 +70,7 @@ lead guidance now. The standing
 one worker and one suitable replacement: the existing lead then implements
 the correction. Neither guide triggers extra model calls or automatic rerouting.
 
-## Approved delivery priorities
+## Earlier approved delivery priorities and scope additions
 
 Owner-approved on 2026-10-06. The goal is more verified work from existing
 subscriptions, with fewer interruptions and less rework. Finish the current
@@ -70,13 +99,15 @@ each restarted session can reconcile the current work without duplicating it.
 Future visual milestone, owner-selected on 2026-10-08:
 [Marathon-inspired UI direction](../UX-DIRECTION.md#future-visual-milestone-marathon-direction),
 using its layout, shapes and UX structure with black/white/charcoal surfaces,
-aligned control rows and a compact Settings entry. No vivid accent colors. Build original components, preserve responsive and
+aligned control rows and a compact Settings entry. Neutral surfaces remain;
+small semantic status strips are the owner's later color exception. Build original components, preserve responsive and
 accessible behavior, and keep task controls functional. Schedule it separately
 after current functional work; it does not replace recovery priorities.
 
-After these two milestones, build the following in this order. They are
-approved planning priorities; implementation boundaries, release numbers and
-delivery dates will be assigned to bounded milestones separately.
+The following records the earlier approved order after these two milestones.
+The current functionality-first recommendation at the top makes daily launch
+and observed runtime reliability more prominent. Implementation boundaries,
+release numbers and delivery dates still require bounded planning.
 
 1. **Remaining allowance monitoring.** Show five-hour, weekly and monthly
    windows, reset times and the age of each reading. Use supported automatic
@@ -129,8 +160,9 @@ not a universal model benchmark. See the
 [recorded findings](../FINDINGS-2026-10-05.md#glm-53-speed-setup-versus-model).
 
 The sections below preserve milestone history and detailed design context.
-Use this approved order and the [version plan](../VERSION-PLAN.md) for current
-sequencing; dated checkpoints describe what was known at their timestamps.
+Use the current focus at the top, the [functionality-first plan](FUNCTIONALITY-FIRST-PLAN.md)
+and the [version plan](../VERSION-PLAN.md) for sequencing. Dated checkpoints
+describe what was known at their timestamps.
 
 Checkpoint rule: one bounded correction at a time; test, commit, then
 update [the continuation prompt](continue-with-ai-prompt.md) with the exact
