@@ -1,6 +1,6 @@
 # Unio roadmap and development priorities
 
-Give your AI subscriptions a group project.
+Your AIs, in sync.
 
 ## Browser appearance and live work overview
 

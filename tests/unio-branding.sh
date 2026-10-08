@@ -30,7 +30,7 @@ legacy_completion_override=AGENTTEAM_COMPLETION_DIR
 
 install() {
   (cd "$BRAND_SANDBOX" && bash "$REPO_DIR/unio-install.sh") > "$BRAND_SANDBOX/install.log"
-  grep -Fq 'Unio installed. Give your AI subscriptions a group project.' "$BRAND_SANDBOX/install.log"
+  grep -Fq 'Unio installed. Your AIs, in sync.' "$BRAND_SANDBOX/install.log"
 }
 only_unio() {
   local dir entry
@@ -183,7 +183,7 @@ only_unio
 cat "$REPO_DIR/NOTICE" "$REPO_DIR/LICENSE" > "$BRAND_SANDBOX/expected-license"
 export PATH="$UNIO_BIN_DIR:$PATH"
 unio help > "$BRAND_SANDBOX/help"
-grep -Fq 'Unio — Give your AI subscriptions a group project.' "$BRAND_SANDBOX/help"
+grep -Fq 'Unio — Your AIs, in sync.' "$BRAND_SANDBOX/help"
 for phrase in 'unio result <w> <task>' 'unio handoff <w> <task>' \
     'unio agents [--json]' '2 INCOMPLETE' 'VERDICT: REQUEST-CHANGES' \
     'NOT a backup' 'Python 3 (standard library only)' 'trusted_host' 'skip-worktree' \
@@ -194,7 +194,7 @@ unio license > "$BRAND_SANDBOX/entry-license"
 cmp "$BRAND_SANDBOX/expected-license" "$BRAND_SANDBOX/entry-license"
 unio version > "$BRAND_SANDBOX/version"
 grep -q '^Unio 0\.5\.3 ' "$BRAND_SANDBOX/version"
-grep -Fxq 'Give your AI subscriptions a group project.' "$BRAND_SANDBOX/version"
+grep -Fxq 'Your AIs, in sync.' "$BRAND_SANDBOX/version"
 grep -Fxq "config: $UNIO_CONF_DIR/agents.conf" "$BRAND_SANDBOX/version"
 rc=0
 unio invalid-branding-command > "$BRAND_SANDBOX/error" 2>&1 || rc=$?

@@ -11,7 +11,7 @@ separate reusable documents. They are now linked below.
 |---|---|---|
 | F1 — The category | Human-supervised teams of coding agents from different providers already exist. Observed overlap, not a uniqueness claim. | [Competitive review C1–C2](../research/COMPETITIVE-REVIEW.md) |
 | F2 — Why keep building? | Simple supervision for people using modest plans is a useful hypothesis, not proven savings or superiority. | [Positioning and validation C3–C5](../research/COMPETITIVE-REVIEW.md) |
-| F3 — Product identity | Unio; Small plans. Big ideas.; only `unio` is supported by the owner-approved rename contract. | [Brand contract](BRAND.md) |
+| F3 — Product identity | Unio; Your AIs, in sync.; only `unio` is supported by the owner-approved rename contract. | [Brand contract](BRAND.md) |
 | F4 — UX barrier | Exposing tasks, branches, and commands first makes onboarding difficult. Recommended response: one project conversation with plan, activity, and review cards. Needs user testing. | [UX direction](UX-DIRECTION.md) |
 | F5 — Trustworthy results | Process exit, checks, reviewer decision, human acceptance, and integration are different outcomes. M1 resolved the E1–E3 receipt and outcome defects; preserve the earlier findings as historical evidence. | [Engine findings E1–E3](ENGINE-FINDINGS.md) |
 | F6 — Safety | Git worktrees and scope checks are not OS isolation; broad-permission defaults need explicit boundaries. | [Engine finding E4](ENGINE-FINDINGS.md) |

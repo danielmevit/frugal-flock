@@ -83,6 +83,14 @@
     document.getElementById("map-reset").addEventListener("click", () => { mapFitView = false; applyMapPresentation(); });
     updateViewSwitch();
     applyMapPresentation();
+    let observedWidth = 0;
+    new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width;
+      if (width > 0 && width !== observedWidth) {
+        observedWidth = width;
+        applyMapPresentation();
+      }
+    }).observe(document.getElementById("work-map").parentElement);
   }
 
   function text(tag, value, className = "") {
@@ -287,14 +295,14 @@
     const fit = document.getElementById("map-fit");
     if (!svg) return;
     const height = Number(svg.dataset.contentHeight) || 200;
+    const available = (svg.parentElement && svg.parentElement.clientWidth) || 800;
+    const scaledHeight = Math.ceil(height * available / 800);
     svg.setAttribute("viewBox", "0 0 800 " + height);
+    svg.style.width = "100%";
     if (mapFitView) {
-      const available = (svg.parentElement && svg.parentElement.clientWidth) || 800;
-      svg.style.width = "100%";
-      svg.style.height = Math.max(120, Math.min(480, Math.ceil(height * available / 800))) + "px";
+      svg.style.height = Math.max(120, Math.min(480, scaledHeight)) + "px";
     } else {
-      svg.style.width = "800px";
-      svg.style.height = height + "px";
+      svg.style.height = Math.max(120, scaledHeight) + "px";
     }
     svg.dataset.view = mapFitView ? "fit" : "actual";
     if (fit) fit.setAttribute("aria-pressed", mapFitView ? "true" : "false");

@@ -215,7 +215,7 @@ From your clone of [Unio](https://github.com/danielmevit/unio)
 $ bash unio-install.sh
 $ unio version
 Unio 0.5.0 (/home/you/.local/bin/unio)
-Small plans. Big ideas.
+Your AIs, in sync.
 config: /home/you/.config/unio/agents.conf
 ```
 

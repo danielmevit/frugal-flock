@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
-# Unio installer — Give your AI subscriptions a group project.
+# Unio installer — Your AIs, in sync.
 # One-master / many-CLI-workers orchestration for a
 # single Ubuntu VM. No API keys, no browser automation: every agent runs its
 # own official CLI headless under its own subscription login.
@@ -722,7 +722,7 @@ For more information on this, and how to apply and follow the GNU AGPL, see
 <https://www.gnu.org/licenses/>.
 UNIO_LICENSE_EOF
 cat > "$CONF_DIR/legal/NOTICE" <<'UNIO_NOTICE_EOF'
-Unio — Give your AI subscriptions a group project.
+Unio — Your AIs, in sync.
 Copyright (C) 2026 Daniel Mitev
 Public attribution: Daniel Mevit (@danielmevit)
 Original project: https://github.com/danielmevit/unio
@@ -775,7 +775,7 @@ cat > "$BIN_DIR/unio" <<'UNIO_BIN_EOF'
 # SPDX-License-Identifier: AGPL-3.0-only
 # Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
 # See LICENSE and NOTICE; distributed without warranty.
-# Unio — Give your AI subscriptions a group project.
+# Unio — Your AIs, in sync.
 # Delegate tasks from a master CLI session to worker CLI agents.
 # Layout (created by `unio init` next to your repo clone):
 #   PROJECT/<clone>/  your repo on the base branch (dev) -> master runs here
@@ -3987,7 +3987,7 @@ cmd_report() { # read a task's report without typing coord/reports paths
 
 cmd_version() {
   echo "Unio $UNIO_VERSION ($0)"
-  echo "Give your AI subscriptions a group project."
+  echo "Your AIs, in sync."
   echo "config: $CONF_FILE"
 }
 
@@ -4551,7 +4551,7 @@ cmd_policy() {
 
 cmd_help() {
   cat <<'HELP'
-Unio — Give your AI subscriptions a group project.
+Unio — Your AIs, in sync.
 One master CLI session delegating to worker CLI agents.
 Command: unio.
 
@@ -5610,7 +5610,7 @@ complete -F _unio unio
 COMPLETION_EOF
 
 echo
-echo "Unio installed. Give your AI subscriptions a group project."
+echo "Unio installed. Your AIs, in sync."
 echo "  command   : $BIN_DIR/unio   (ensure that dir is on PATH)"
 echo "  overrides : UNIO_* environment variables"
 echo "  config    : $CONF_DIR/agents.conf   <- EDIT: enable/tune your agents"

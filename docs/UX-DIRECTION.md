@@ -1,6 +1,6 @@
 # Unio — UX direction
 
-Give your AI subscriptions a group project.
+Your AIs, in sync.
 
 The [dark theme and live work map](development/LIVE-WORKSPACE-VIEW.md)
 records the owner's 2026-10-08 request and the proposed connected overview.
@@ -104,7 +104,7 @@ decision. It is not primarily a terminal viewer or a wall of usage charts.
 
 ```text
 Unio                         My flock     Settings
-Small plans. Big ideas.
+Your AIs, in sync.
 
 Project: Garden journal
 What would you like to build?
