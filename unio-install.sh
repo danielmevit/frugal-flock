@@ -2652,13 +2652,16 @@ def write_private(path, data):
 
 
 def atomic_private(path, data):
-    directory = os.path.dirname(path)
+    # Only this target's own abandoned temporaries: callers hold the lock
+    # that serializes writers of this exact file (worker or saves lock).
+    directory, target = os.path.split(path)
+    own = re.compile(re.escape(target) + r'\.tmp-[0-9a-f]{16}')
     for name in os.listdir(directory):
-        if name.startswith('.tmp-'):
+        if own.fullmatch(name):
             stale = os.path.join(directory, name)
             if stat.S_ISREG(os.lstat(stale).st_mode):
                 os.unlink(stale)
-    temp = os.path.join(directory, '.tmp-' + os.urandom(8).hex())
+    temp = os.path.join(directory, target + '.tmp-' + os.urandom(8).hex())
     write_private(temp, data)
     try:
         os.replace(temp, path)
@@ -3361,7 +3364,7 @@ def load_claims(store):
     claims, corrupt = [], 0
     directory = os.path.join(store, 'claims')
     for name in sorted(os.listdir(directory)):
-        if name.startswith('.tmp-'):
+        if re.fullmatch(r'[0-9a-f]{32}\.json\.tmp-[0-9a-f]{16}', name):
             continue
         try:
             if not (name.endswith('.json') and HEX32.fullmatch(name[:-5])):
@@ -3839,6 +3842,9 @@ def verify_carried(save, dst, budget, scratch):
     if git(q, budget, 'cat-file', '-e', g['base_commit'] + '^{commit}', codes=(0, 1, 128))[0]:
         raise Refuse('destination_rejected', 'the saved base commit is not in the destination repository')
     git(q, budget, 'bundle', 'verify', '-q', bundle, what='git bundle verify')
+    for p in bundle_header(save['bundle'], g['object_format'])[0]:
+        if git(q, budget, 'merge-base', '--is-ancestor', p, g['base_commit'], codes=(0, 1, 128))[0]:
+            raise Refuse('invalid_save', 'bundle needs history outside the saved base')
     git(q, budget, 'fetch', '-q', '--no-tags', '--no-write-fetch-head', bundle, 'HEAD:refs/unio/restore', what='git fetch (quarantine)')
     if resolve_commit(q, budget, 'refs/unio/restore', g['object_format']) != g['head_commit']:
         raise Refuse('invalid_save', 'bundle HEAD differs from the manifest')
@@ -3953,8 +3959,12 @@ def restore(root, save_id, dest):
             write_claim(store, claim)
         finally:
             os.close(lock)
-        if (resolve_commit(dst['wt'], budget, 'HEAD', fmt) != g['base_commit']
-                or read_path(os.path.join(dst['gitdir'], 'index'), MAX_OBSERVED)[1] != pre['index_raw']):
+        try:
+            unchanged = (resolve_commit(dst['wt'], budget, 'HEAD', fmt) == g['base_commit']
+                         and read_path(os.path.join(dst['gitdir'], 'index'), MAX_OBSERVED)[1] == pre['index_raw'])
+        except (Refuse, OSError):
+            unchanged = False
+        if not unchanged:
             settle(root, store, claim, 'failed', 1, 'destination_rejected')
             raise Refuse('destination_rejected', 'destination changed during preflight; nothing was modified')
         settle(root, store, claim, 'mutating', None, None)
