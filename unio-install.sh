@@ -3804,6 +3804,7 @@ def supervise_run(root, worker, task, timeout, command, claim_id=''):
         if not rc:
             if claim_id:
                 continuation = continue_context(root, worker, task, claim_id, 'reserved', True)[1]
+                validate_continue_prompt(root, task, continuation)
                 if interrupted[0]:
                     raise Refuse('unknown', 'continuation interrupted before provider startup')
                 transition_continue(root, continuation, 'reserved', 'calling', None, None)
@@ -4283,11 +4284,26 @@ def continue_context(root, dest, task, claim_id=None, expected='reserved', live=
             raise Refuse('destination_rejected', 'the frozen continuation task changed')
         save = load_save(os.path.join(store, claim['save_id']), claim['save_id'], True)
         m = save['manifest']
-        if task == m['task'] or dest == m['worker']:
+        if (task == m['task'] or dest == m['worker'] or claim['source_fingerprint'] != m['fingerprint']
+                or claim['preimage_fingerprint'] != m['fingerprint']):
             raise Refuse('destination_rejected', 'continuation needs a separate task and worker')
         if live:
             validate_continue_destination(root, dest, save)
     return store, claim
+
+
+def validate_continue_prompt(root, task, claim):
+    """Bind the actual native effective prompt, as well as its original task."""
+    original = under(root, 'coord', 'tasks', task + '.md')
+    effective = under(root, 'coord', 'reports', task + '.prompt.md')
+    if (os.environ.get('UNIO_ORIGINAL_TASKFILE') != original or os.environ.get('TASKFILE') != effective):
+        raise Refuse('destination_rejected', 'continuation prompt authority is not native')
+    body = read_path(original, MAX_TASK)[1]
+    prompt = read_path(effective, MAX_TASK + 16384)[1]
+    expected = body if body.endswith(b'\n') else body + b'\n'
+    if (sha(body) != claim['task_sha256']
+            or prompt.partition(b'--- original run material follows ---\n')[2] != expected):
+        raise Refuse('destination_rejected', 'effective continuation orders changed; no provider started')
 
 
 def validate_continue_destination(root, dest, save):

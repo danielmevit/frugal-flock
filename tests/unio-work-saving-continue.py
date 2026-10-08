@@ -75,7 +75,7 @@ with tempfile.TemporaryDirectory(prefix='saving-continue-') as directory:
     git(repo, 'commit', '-qm', 'base')
     workers = ['mock-' + name for name in
                ('source', 'dest', 'other', 'unknown', 'budget', 'changed', 'fault',
-                'signal', 'success', 'clean', 'clean-dest')]
+                'signal', 'success', 'prompt', 'clean', 'clean-dest')]
     good(unio('init', *workers))
     coord, wt = root / 'coord', root / 'wt'
     tasks = coord / 'tasks'
@@ -120,7 +120,7 @@ raise SystemExit(0 if case in ('success', 'clean') else 23)
               '$ test "$(cat tracked)" = unstaged\n')
     (tasks / 'NEW.md').write_text(orders)
     (tasks / 'OTHER.md').write_text(orders.replace('# NEW', '# OTHER'))
-    for name in ('UNKNOWN', 'BUDGET', 'CHANGED', 'FAULT', 'SIGNAL', 'SUCCESS'):
+    for name in ('UNKNOWN', 'BUDGET', 'CHANGED', 'FAULT', 'SIGNAL', 'SUCCESS', 'PROMPT'):
         (tasks / (name + '.md')).write_text(orders.replace('# NEW', '# ' + name))
     source = wt / 'mock-source'
     (source / 'committed').write_text('carried commit\n')
@@ -309,6 +309,23 @@ raise SystemExit(0 if case in ('success', 'clean') else 23)
               and not result['ready_for_human_review'])
         released('mock-success', 'success')
 
+        prompt = save()
+        restore(prompt, 'mock-prompt')
+        wrapper_dir = base / 'python-wrapper'
+        wrapper_dir.mkdir()
+        wrapper = wrapper_dir / 'python3'
+        real_python = subprocess.check_output(['which', 'python3'], env=env, text=True).strip()
+        wrapper.write_text('#!/bin/bash\n'
+                           'if [ "${3:-}" = _supervise ] && [ -n "${9:-}" ]; then\n'
+                           '  printf "\\nunapproved prompt text\\n" >> "$MODIFY_PROMPT"\nfi\n'
+                           'exec ' + shlex.quote(real_python) + ' "$@"\n')
+        wrapper.chmod(0o755)
+        refused('effective native prompt changed after task authorization', prompt, worker='mock-prompt',
+                task='PROMPT', PATH=str(wrapper_dir) + os.pathsep + env['PATH'],
+                MODIFY_PROMPT=str(coord / 'reports' / 'PROMPT.prompt.md'))
+        check('prompt refusal settles a failed claim without changed recovery bytes',
+              claim(prompt)[0]['state'] == 'failed' and view(wt / 'mock-prompt') == original)
+
         # A clean recovered commit would ordinarily auto-merge the newer base.
         clean = wt / 'mock-clean'
         (clean / 'feature').write_text('recovered committed work\n')
@@ -336,7 +353,7 @@ raise SystemExit(0 if case in ('success', 'clean') else 23)
               all(current_json[k] == original_json[k] for k in ('process', 'validation', 'review')))
         check('claimed saves stay pinned and valid',
               all(good(unio('save', 'inspect', s, '--json')).returncode == 0
-                  for s in (sid, unknown, budget, changed, fault, interrupted, success, clean_sid)))
+                  for s in (sid, unknown, budget, changed, fault, interrupted, success, prompt, clean_sid)))
         check('all native account slots are released',
               not json.loads(good(unio('policy', '--json')).stdout)['active_native_workflows'])
     finally:
