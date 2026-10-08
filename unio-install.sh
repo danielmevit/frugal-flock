@@ -3647,6 +3647,7 @@ def create_locked(root, worker, task, reason='manual', run_id=None, provider_exi
             previous = last_good(store, worker, True)
             if (previous and previous['manifest']['run_id'] == run_id
                     and previous['manifest']['fingerprint'] == second['fingerprint']):
+                print('unio: periodic state unchanged; keeping save ' + previous['id'])
                 return 0  # No new bytes: retain the existing good checkpoint.
         scan_history(second['repo']['wt'], budget, second['git']['commit_ids'])
         save_id, evicted = publish(root, store, worker, task, second, task_bytes, observed_at, budget,
@@ -3701,6 +3702,7 @@ def signal_group(pid, sig):
 
 def capture_child(root, worker, task, reason, run_id, provider_exit, interrupted, provider=None):
     """Isolate a capture, enforce its wall deadline, and reap it before returning."""
+    fault('capture-launch')
     sys.stdout.flush()
     sys.stderr.flush()
     pid = os.fork()
@@ -3754,6 +3756,19 @@ def capture_child(root, worker, task, reason, run_id, provider_exit, interrupted
                 print('unio: could not record automatic save failure: %s' % e, file=sys.stderr)
 
 
+def automatic_capture(root, worker, task, reason, run_id, provider_exit, interrupted, provider=None):
+    try:
+        capture_child(root, worker, task, reason, run_id, provider_exit, interrupted, provider)
+    except (Refuse, OSError) as e:
+        print('unio: automatic %s save could not start: %s; provider exit is independent'
+              % (reason, e), file=sys.stderr)
+        try:
+            store = open_store(root, True)
+            write_attempt(store, worker, task, stamp(), 'io_error', 'failed', None, provider_exit)
+        except (Refuse, OSError):
+            pass  # Unsafe/unavailable storage is never repaired by a failed save.
+
+
 def supervise_run(root, worker, task, timeout, command):
     interrupted, provider = [0], None
 
@@ -3776,7 +3791,7 @@ def supervise_run(root, worker, task, timeout, command):
         except OSError:
             pass
     if run_id:
-        capture_child(root, worker, task, 'baseline', run_id, None, interrupted)
+        automatic_capture(root, worker, task, 'baseline', run_id, None, interrupted)
     rc = interrupted[0]
     try:
         if not rc:
@@ -3785,7 +3800,7 @@ def supervise_run(root, worker, task, timeout, command):
                 provider = subprocess.Popen(['timeout', '--kill-after=5s', timeout, 'bash', '-c', command],
                                             cwd=under(root, 'wt', worker), stdin=subprocess.DEVNULL,
                                             stdout=output, stderr=subprocess.STDOUT,
-                                            close_fds=True, start_new_session=True)
+                                            close_fds=True, preexec_fn=os.setpgrp)
             next_capture, stopping = time.monotonic() + 60, None
             while provider.poll() is None:
                 now = time.monotonic()
@@ -3796,7 +3811,7 @@ def supervise_run(root, worker, task, timeout, command):
                     elif now - stopping >= 5:
                         signal_group(provider.pid, signal.SIGKILL)
                 elif run_id and now >= next_capture:
-                    capture_child(root, worker, task, 'periodic', run_id, None, interrupted, provider)
+                    automatic_capture(root, worker, task, 'periodic', run_id, None, interrupted, provider)
                     next_capture = time.monotonic() + 60
                 time.sleep(0.05)
             rc = provider.wait()
@@ -3812,7 +3827,7 @@ def supervise_run(root, worker, task, timeout, command):
             signal_group(provider.pid, signal.SIGKILL)
             provider.wait()
     if run_id:
-        capture_child(root, worker, task, 'final' if rc == 0 else 'final-failure', run_id, rc, interrupted)
+        automatic_capture(root, worker, task, 'final' if rc == 0 else 'final-failure', run_id, rc, interrupted)
     return rc
 
 
@@ -6017,8 +6032,8 @@ cmd_kill() {
   [ -f "$pf" ] || die "no background run recorded for '$task' (foreground runs: Ctrl-C)"
   local pid; pid=$(cat "$pf" 2>/dev/null || true)
   if [ -z "$pid" ]; then rm -f "$pf"; die "empty pidfile removed — nothing to kill"; fi
-  # background runs are session leaders (setsid); kill the SESSION — a plain
-  # group-kill misses the agent because `timeout` runs it in its own group
+  # Background runs are session leaders. Signal the identified parent so its
+  # supervisor can reap the provider, save final state and finish receipts.
   # A recorded pid is not proof of identity: after a SIGKILLed run the OS can
   # reuse it, and `kill` would then take out an innocent process. Confirm the
   # session really is a Unio run before signalling it.
@@ -6036,18 +6051,21 @@ cmd_kill() {
       die "pid $pid is not a Unio run (stale pidfile removed) — refusing to signal it"
     fi
   fi
-  if pgrep -s "$pid" >/dev/null 2>&1; then
-    pkill -TERM -s "$pid" 2>/dev/null || true
-    sleep 1
-    if pgrep -s "$pid" >/dev/null 2>&1; then pkill -KILL -s "$pid" 2>/dev/null || true; fi
-    echo "killed '$task' (session $pid) — partial work may sit uncommitted in the worktree"
-  elif kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; then
-    kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-    sleep 1
-    if kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; then
-      kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+  if kill -0 -- "$pid" 2>/dev/null; then
+    kill -TERM -- "$pid" 2>/dev/null || true
+    local n=0 state=""
+    while [ "$n" -lt 600 ] && kill -0 -- "$pid" 2>/dev/null; do
+      state=$(awk '{print $3}' "/proc/$pid/stat" 2>/dev/null || true)
+      [ "$state" != Z ] || break
+      n=$((n + 1))
+      sleep 0.1
+    done
+    if [ "$n" -ge 600 ]; then
+      policy_signal_descendants "$pid" KILL
+      echo "force-killed '$task' (pid $pid) after cleanup deadline — inspect the last good save and partial work"
+    else
+      echo "killed '$task' (session $pid) — final capture attempted; inspect: unio save inspect --worker <worker>"
     fi
-    echo "killed '$task' (pid $pid) — partial work may sit uncommitted in the worktree"
   else
     echo "'$task' already finished — cleaning up its pidfile"
   fi

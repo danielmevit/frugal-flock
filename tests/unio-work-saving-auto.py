@@ -47,7 +47,7 @@ def until(predicate, seconds=40):
 with tempfile.TemporaryDirectory(prefix='auto-saving-') as directory:
     base = Path(directory)
     env = dict(os.environ, UNIO_BIN_DIR=str(base / 'bin'), UNIO_CONF_DIR=str(base / 'conf'),
-               UNIO_COMPLETION_DIR=str(base / 'completion'), UNIO_TIMEOUT='180',
+               UNIO_COMPLETION_DIR=str(base / 'completion'), UNIO_TIMEOUT='240',
                UNIO_AUTO_VERIFY='0', UNIO_AUTO_OFF='0', UNIO_AUTO_SYNC='0', GIT_OPTIONAL_LOCKS='0',
                GIT_AUTHOR_NAME='mock', GIT_COMMITTER_NAME='mock',
                GIT_AUTHOR_EMAIL='mock@example.invalid', GIT_COMMITTER_EMAIL='mock@example.invalid')
@@ -74,7 +74,7 @@ with tempfile.TemporaryDirectory(prefix='auto-saving-') as directory:
     (repo / 'deleted').write_text('will disappear\n')
     git(repo, 'add', '.')
     git(repo, 'commit', '-qm', 'base')
-    scenarios = ['mixed', 'success', 'timeout', 'term', 'refuse', 'crash', 'periodic']
+    scenarios = ['mixed', 'success', 'timeout', 'term', 'refuse', 'crash', 'kill', 'launch', 'periodic']
     workers = ['mock-' + s for s in scenarios] + ['mock-restore', 'mock-periodic-restore']
     check('initialize real native worktrees', unio('init', *workers).returncode == 0)
     coord, wt = root / 'coord', root / 'wt'
@@ -92,6 +92,11 @@ for f in Path('/proc/self/fd').iterdir():
     try: fds.append(os.readlink(f))
     except OSError: pass
 (root / (scenario + '-fds.json')).write_text(json.dumps(fds))
+lineage, pid = [], os.getpid()
+for _ in range(4):
+    lineage.append(pid)
+    pid = int(Path('/proc/%d/status' % pid).read_text().split('PPid:\t')[1].splitlines()[0])
+(root / (scenario + '-pids.json')).write_text(json.dumps(lineage))
 Path('tracked').write_text('staged\n')
 subprocess.run(['git', 'add', 'tracked'], check=True)
 Path('tracked').write_text('unstaged\n')
@@ -103,15 +108,9 @@ Path('executable').chmod(0o755)
 (root / (scenario + '-started')).touch()
 if scenario == 'refuse': Path('.env').write_text('secret fixture\n')
 if scenario == 'periodic':
-    # Baseline has no edits; the first periodic stores the edits above.
-    time.sleep(64)
-    (root / 'periodic-stable').touch()
-    # The second observation must not create another identical periodic save.
-    time.sleep(61)
-    (root / 'periodic-deduplicated').touch()
-    # Keep the provider alive until the test has inspected that evidence.
+    # Wait for the test to inspect a real changed and unchanged periodic check.
     while not (root / 'periodic-finish').exists(): time.sleep(0.1)
-if scenario in ('timeout', 'term'):
+if scenario in ('timeout', 'term', 'kill'):
     while True: time.sleep(1)
 raise SystemExit(0 if scenario == 'success' else 23)
 ''')
@@ -152,6 +151,14 @@ raise SystemExit(0 if scenario == 'success' else 23)
         fds = json.loads((base / (scenario + '-fds.json')).read_text())
         check(scenario + ' provider inherits no worker or control descriptors',
               not any('/coord/.locks/' in p for p in fds))
+        def live(pid):
+            try:
+                return Path('/proc/%d/stat' % pid).read_text().rsplit(')', 1)[1].split()[0] != 'Z'
+            except FileNotFoundError:
+                return False
+        pids = json.loads((base / (scenario + '-pids.json')).read_text())
+        check(scenario + ' owned provider, timeout, supervisor and run processes are reaped',
+              all(not live(pid) for pid in pids))
 
     check('resume before native runs', unio('resume').returncode == 0)
     try:
@@ -213,13 +220,55 @@ raise SystemExit(0 if scenario == 'success' else 23)
               and attempt['last_good_id'] == good)
         released('mock-crash', 'crash')
 
+        started = unio('run', '-b', 'mock-kill', 'kill', extra=dict(AUTO_CASE='kill'))
+        check('start a real native background run', started.returncode == 0)
+        until(lambda: (base / 'kill-started').exists())
+        with (coord / '.locks' / 'saves.lock').open('r+') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            killer = subprocess.Popen([at, 'kill', 'kill'], cwd=repo, env=env,
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            time.sleep(2)
+            check('public kill allows final-save contention beyond the old one-second cutoff', killer.poll() is None)
+            fcntl.flock(lock, fcntl.LOCK_UN)
+        stdout, stderr = killer.communicate(timeout=90)
+        docs = saves('mock-kill')
+        check('public background kill preserves final save and structured exit143',
+              killer.returncode == 0 and docs[-1]['reason'] == 'final-failure'
+              and docs[-1]['provider_exit'] == 143
+              and result('mock-kill', 'kill')['process']['exit_code'] == 143
+              and not (coord / 'reports' / 'kill.pid').exists())
+        released('mock-kill', 'kill')
+
+        check('prepare prior good save for capture-start failure',
+              unio('save', 'create', 'mock-launch', 'launch').returncode == 0)
+        good = saves('mock-launch')[0]['save_id']
+        run = unio('run', 'mock-launch', 'launch',
+                   extra=dict(AUTO_CASE='launch', UNIO_SAVE_TEST_FAULT='capture-launch'))
+        attempt = json.loads((coord / 'saves' / 'attempts' / 'mock-launch.json').read_text())
+        check('capture-start exception does not prevent dispatch or erase prior good evidence',
+              run.returncode == 23 and [d['save_id'] for d in saves('mock-launch')] == [good]
+              and attempt['status'] == 'failed' and attempt['provider_exit'] == 23
+              and attempt['last_good_id'] == good)
+        released('mock-launch', 'launch')
+
         proc = launch('mock-periodic', 'periodic', dict(AUTO_CASE='periodic'))
-        until(lambda: (base / 'periodic-stable').exists(), 85)
+        until(lambda: any(d['reason'] == 'periodic' for d in saves('mock-periodic')), 120)
         docs = saves('mock-periodic')
         check('real sixty-second timer saves changed work before provider exits',
               proc.poll() is None and [d['reason'] for d in docs] == ['baseline', 'periodic'])
         periodic_id = docs[-1]['save_id']
-        until(lambda: (base / 'periodic-deduplicated').exists(), 80)
+        os.set_blocking(proc.stdout.fileno(), False)
+        observed = bytearray()
+
+        def unchanged():
+            try:
+                observed.extend(os.read(proc.stdout.fileno(), 65536))
+            except BlockingIOError:
+                pass
+            return b'periodic state unchanged; keeping save ' in observed
+
+        until(unchanged, 110)
+        os.set_blocking(proc.stdout.fileno(), True)
         check('unchanged next periodic check creates no duplicate save',
               [d['save_id'] for d in saves('mock-periodic')] == [d['save_id'] for d in docs])
         (base / 'periodic-finish').touch()

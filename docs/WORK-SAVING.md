@@ -87,6 +87,9 @@ the previous good save visible through `unio save inspect --worker WORKER`.
 No allowance telemetry is required, and no worker is benched or restarted by a
 save failure. Forced process termination (SIGKILL), host loss or disk failure
 can prevent the final save; already published checkpoints remain available.
+`unio kill TASK` requests orderly shutdown and allows up to sixty seconds for
+provider cleanup, final capture and receipts before forcing owned processes to
+stop. It retains process identity checks and makes no new provider call.
 
 Workers receive guidance to commit coherent, scoped changes regularly. A
 finish reserve leaves time to validate and commit before the run deadline
