@@ -18,12 +18,15 @@ import shlex
 import signal
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parent.parent
 passed = 0
+if sys.argv[1:] not in ([], ['--prompt-only']):
+    raise SystemExit('usage: unio-work-saving-continue.py [--prompt-only]')
 
 
 def check(label, condition):
@@ -186,6 +189,63 @@ raise SystemExit(0 if case in ('success', 'clean') else 23)
         check(case + ' provider, timeout, supervisor, native run and frontend are reaped',
               all(not live(pid) for pid in info['pids']))
 
+    def exercise_prompt(prompt):
+        restore(prompt, 'mock-prompt')
+        wrapper_dir = base / 'python-wrapper'
+        wrapper_dir.mkdir()
+        wrapper = wrapper_dir / 'python3'
+        real_python = subprocess.check_output(['which', 'python3'], env=env, text=True).strip()
+        wrapper.write_text('#!/bin/bash\n'
+                           'if [ "${3:-}" = _supervise ] && [ -n "${8:-}" ]; then\n'
+                           '  printf "\\nunapproved prompt text\\n" >> "$MODIFY_PROMPT"\nfi\n'
+                           'exec ' + shlex.quote(real_python) + ' "$@"\n')
+        wrapper.chmod(0o755)
+        run = refused('effective native prompt changed after task authorization', prompt, worker='mock-prompt',
+                task='PROMPT', PATH=str(wrapper_dir) + os.pathsep + env['PATH'],
+                MODIFY_PROMPT=str(coord / 'reports' / 'PROMPT.prompt.md'))
+        check('fault changes effective prompt only and native authority check refuses it',
+              'unapproved prompt text' in (coord / 'reports' / 'PROMPT.prompt.md').read_text()
+              and 'effective continuation orders changed' in run.stderr
+              and (tasks / 'PROMPT.md').read_text() == orders.replace('# NEW', '# PROMPT'))
+        check('prompt refusal settles a failed claim without changed recovery bytes',
+              claim(prompt)[0]['state'] == 'failed' and view(wt / 'mock-prompt') == original)
+
+
+    def exercise_clean():
+        # A clean recovered commit would ordinarily auto-merge the newer base.
+        clean = wt / 'mock-clean'
+        (clean / 'feature').write_text('recovered committed work\n')
+        git(clean, 'add', 'feature')
+        git(clean, 'commit', '-qm', 'clean recovered checkpoint')
+        good(unio('save', 'create', 'mock-clean', 'OLD'))
+        clean_sid = json.loads(good(unio('save', 'inspect', '--worker', 'mock-clean', '--json')).stdout)['last_good']['save_id']
+        clean_before = view(clean)
+        good(unio('save', 'restore', clean_sid, 'mock-clean-dest'))
+        (repo / 'new-base').write_text('main advanced while source was offline\n')
+        git(repo, 'add', 'new-base')
+        git(repo, 'commit', '-qm', 'advance main')
+        (tasks / 'CLEAN.md').write_text('# CLEAN\n## Allowed scope\n- *\n## Validate\n$ test -f feature\n')
+        before = count()
+        run = continuing(clean_sid, 'mock-clean-dest', task='CLEAN', CONTINUE_CASE='clean', UNIO_AUTO_SYNC='1')
+        check('auto-sync enabled preserves clean restored commits with a newer main',
+              run.returncode == 0 and count() == before + 1 and view(wt / 'mock-clean-dest') == clean_before
+              and 'continuation skips auto-sync' in run.stdout and not (wt / 'mock-clean-dest' / 'new-base').exists())
+        return clean_sid
+
+    def finish(save_ids):
+        check('original mixed source and raw index remain byte-for-byte unchanged',
+              view(source) == original and source_index.read_bytes() == raw_index)
+        # Main advancement makes freshness stale; the stored original evidence must stay identical.
+        original_json = json.loads(original_result)
+        current_json = json.loads(good(unio('result', 'mock-source', 'OLD')).stdout)
+        check('original failed source process, checks and review evidence remain intact',
+              all(current_json[k] == original_json[k] for k in ('process', 'validation', 'review')))
+        check('claimed saves stay pinned and valid',
+              all(good(unio('save', 'inspect', s, '--json')).returncode == 0
+                  for s in save_ids))
+        check('all native account slots are released',
+              not json.loads(good(unio('policy', '--json')).stdout)['active_native_workflows'])
+
     good(unio('resume'))
     try:
         failed = unio('run', 'mock-source', 'OLD', extra=dict(UNIO_SAVE_TEST_FAULT='capture-launch'))
@@ -195,6 +255,12 @@ raise SystemExit(0 if case in ('success', 'clean') else 23)
         source_index = Path(git(source, 'rev-parse', '--path-format=absolute', '--git-path', 'index').decode().strip())
         raw_index = source_index.read_bytes()
         sid = save()
+        if sys.argv[1:]:
+            exercise_prompt(sid)
+            clean_sid = exercise_clean()
+            finish((sid, clean_sid))
+            print('unio-work-saving-continue prompt/recovery: %d assertions passed' % passed)
+            raise SystemExit(0)
         good(unio('stop'))
         refused('STOP', sid)
         good(unio('resume'))
@@ -310,52 +376,10 @@ raise SystemExit(0 if case in ('success', 'clean') else 23)
         released('mock-success', 'success')
 
         prompt = save()
-        restore(prompt, 'mock-prompt')
-        wrapper_dir = base / 'python-wrapper'
-        wrapper_dir.mkdir()
-        wrapper = wrapper_dir / 'python3'
-        real_python = subprocess.check_output(['which', 'python3'], env=env, text=True).strip()
-        wrapper.write_text('#!/bin/bash\n'
-                           'if [ "${3:-}" = _supervise ] && [ -n "${9:-}" ]; then\n'
-                           '  printf "\\nunapproved prompt text\\n" >> "$MODIFY_PROMPT"\nfi\n'
-                           'exec ' + shlex.quote(real_python) + ' "$@"\n')
-        wrapper.chmod(0o755)
-        refused('effective native prompt changed after task authorization', prompt, worker='mock-prompt',
-                task='PROMPT', PATH=str(wrapper_dir) + os.pathsep + env['PATH'],
-                MODIFY_PROMPT=str(coord / 'reports' / 'PROMPT.prompt.md'))
-        check('prompt refusal settles a failed claim without changed recovery bytes',
-              claim(prompt)[0]['state'] == 'failed' and view(wt / 'mock-prompt') == original)
+        exercise_prompt(prompt)
 
-        # A clean recovered commit would ordinarily auto-merge the newer base.
-        clean = wt / 'mock-clean'
-        (clean / 'feature').write_text('recovered committed work\n')
-        git(clean, 'add', 'feature')
-        git(clean, 'commit', '-qm', 'clean recovered checkpoint')
-        good(unio('save', 'create', 'mock-clean', 'OLD'))
-        clean_sid = json.loads(good(unio('save', 'inspect', '--worker', 'mock-clean', '--json')).stdout)['last_good']['save_id']
-        clean_before = view(clean)
-        good(unio('save', 'restore', clean_sid, 'mock-clean-dest'))
-        (repo / 'new-base').write_text('main advanced while source was offline\n')
-        git(repo, 'add', 'new-base')
-        git(repo, 'commit', '-qm', 'advance main')
-        (tasks / 'CLEAN.md').write_text('# CLEAN\n## Allowed scope\n- *\n## Validate\n$ test -f feature\n')
-        before = count()
-        run = continuing(clean_sid, 'mock-clean-dest', task='CLEAN', CONTINUE_CASE='clean', UNIO_AUTO_SYNC='1')
-        check('auto-sync enabled preserves clean restored commits with a newer main',
-              run.returncode == 0 and count() == before + 1 and view(wt / 'mock-clean-dest') == clean_before
-              and 'continuation skips auto-sync' in run.stdout and not (wt / 'mock-clean-dest' / 'new-base').exists())
-        check('original mixed source and raw index remain byte-for-byte unchanged',
-              view(source) == original and source_index.read_bytes() == raw_index)
-        # Main advancement makes freshness stale; the stored original evidence must stay identical.
-        original_json = json.loads(original_result)
-        current_json = json.loads(good(unio('result', 'mock-source', 'OLD')).stdout)
-        check('original failed source process, checks and review evidence remain intact',
-              all(current_json[k] == original_json[k] for k in ('process', 'validation', 'review')))
-        check('claimed saves stay pinned and valid',
-              all(good(unio('save', 'inspect', s, '--json')).returncode == 0
-                  for s in (sid, unknown, budget, changed, fault, interrupted, success, prompt, clean_sid)))
-        check('all native account slots are released',
-              not json.loads(good(unio('policy', '--json')).stdout)['active_native_workflows'])
+        clean_sid = exercise_clean()
+        finish((sid, unknown, budget, changed, fault, interrupted, success, prompt, clean_sid))
     finally:
         unio('stop')
 
