@@ -70,7 +70,10 @@ lead guidance now. The standing
 one worker and one suitable replacement: the existing lead then implements
 the correction. Neither guide triggers extra model calls or automatic rerouting.
 
-## Earlier approved delivery priorities and scope additions
+## Approved delivery priorities
+
+This section preserves the earlier approved sequence and later scope additions.
+Use the current focus at the top for the functionality-first recommendation.
 
 Owner-approved on 2026-10-06. The goal is more verified work from existing
 subscriptions, with fewer interruptions and less rework. Finish the current
