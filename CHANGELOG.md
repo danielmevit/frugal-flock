@@ -30,7 +30,8 @@ becomes an official release. Published v0.5.3 remains the stable version.
   from 1 through 120 seconds. This fixes scan availability, not scan speed.
 - Keep installed model guidance synchronized with checked task outcomes and
   document worker escalation, effort defaults and truthful agent attribution.
-- Correct completion expectations and continuation test deadlines. Preserve
+- Correct completion expectations, continuation test deadlines and interruption
+  fixture startup budgets. Preserve
   all default release assertions and clearly label partial diagnostic modes.
 
 ## 0.5.3 — browser workspace and work policies — 2026-10-08

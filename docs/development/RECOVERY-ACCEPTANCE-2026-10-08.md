@@ -35,6 +35,18 @@ No additional implementation/reviewer AI sessions were started for these checks;
 no fresh independent AI-lab approval is claimed. Worker failures and prior
 independent reviews retain their original attribution.
 
+The first versioned v0.5.4 candidate gate completed in 1,922.265 seconds and
+failed in the interruption fixture: it allowed only eight seconds for mock
+startup, while native baseline recovery capture runs before provider launch
+and has its own 30-second budget. The bounded test-only correction keeps all
+22 loop-brake assertions and allows 60 seconds to observe startup. Only its
+holding mock receives a longer provider timeout; ordinary runs and production
+runtime limits are unchanged. All 22 checks and both native validation checks
+passed. Five measured startups took 9.766–13.182 seconds, beyond the old limit.
+The original gate remains failed; its guarded packaging job correctly stopped
+without generating artifacts. The corrected candidate still needs its complete
+release gate and genuine cooldown acceptance.
+
 The continuation harness now allows its outer call to outlive the native
 provider deadline and preserves timeout output. The longer run progressed
 through durable Unknown, shared-account refusal and changed-task rejection
@@ -46,8 +58,9 @@ Every original assertion remains in the default release invocation.
 
 ## Remaining release work
 
-Prepare the version/changelog and run the required full gate on the exact
-v0.5.4 release candidate, including default full continuation. Exercise a genuine
+The version/changelog are prepared on the unpublished release branch. Run the
+required full gate on the corrected exact v0.5.4 candidate, including default
+full continuation. Exercise a genuine
 supported subscription limit and restart before publication. Check artifacts and upgrade
 preservation before publication and verified installation. Offline clocks and
 a successful ordinary launch do not establish genuine quota recovery.
