@@ -11,10 +11,11 @@ worker branches before changing anything. Preserve prior work and failures.
 
 Owner requested a functionality-first milestone review after the completed map
 polish. Read the [audit and delivery plan](FUNCTIONALITY-FIRST-PLAN.md) and the
-front of the [roadmap](ROADMAP.md) before planning. The next implementation is
-automatic baseline/periodic/final saving, followed by authorized continuation,
-one supported lead cooldown adapter and the v0.5.4 release gate. Further visual
-expansion is deferred. Keep the approved v0.5.4 scope; later priorities are
+front of the [roadmap](ROADMAP.md) before planning. Automatic baseline/periodic/
+final saving is now accepted in main. The next implementation is authorized
+continuation, followed by one supported lead cooldown adapter and the v0.5.4
+release gate. Further UI work and optimization are deferred until recovery is
+complete. Keep the approved v0.5.4 scope; later priorities are
 recommendations with no new release numbers assigned. Recheck default browser
 observation before release: the private30-second preview override is not a fix.
 
@@ -37,6 +38,22 @@ scoreboard. Manual save creation, inspection and exact restore are also integrat
 from [PR4](https://github.com/danielmevit/unio/pull/4), including the existing
 lead's retained-file and lock-safety corrections. These additions are not in
 the published or installed 0.5.3 release.
+
+Automatic native-run saving is integrated at
+[01be5a5](https://github.com/danielmevit/unio/commit/01be5a5eb5ef8e314060b7362423d0c47138a6a0).
+Baseline precedes provider startup; changed periodic captures occur no more
+often than every sixty seconds; final capture follows success, failure, timeout
+or graceful interruption. Actual attempt IDs/exits, previous good evidence and
+worker/account ownership are preserved. Public cancellation permits final-save
+cleanup and rejects malformed PID evidence before any signal probe. The offline
+saving suite passed 61 assertions; the final PID correction passed 12 isolated
+safety cases and all five native checks, followed by personal material-bound
+lead review. Reused unchanged timer evidence was not replayed for the PID guard.
+Preserve the initial periodic/session failures and refused local adapter alias
+transport. Direct Source remains not run; this was existing-lead implementation
+under the owner's self-review exception, with no independent AI-lab verdict.
+Manual full-suite and combined release checks remain required; continuation and
+lead cooldown are not implemented yet.
 
 Preserve the saving review history: original and replacement findings, the
 lead's full-suite shared-lock observation failure, and the final focused

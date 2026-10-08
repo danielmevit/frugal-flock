@@ -270,9 +270,11 @@ was done, what passed and what is left. The lead then gives the work to
 another AI with that note. The note is context only: unfinished, uncommitted
 changes stay in Codex's copy. [Handoff packets](docs/QUALITY-USAGE.md#handoff-packets)
 explain the details. Unio does not get around limits or share plans;
-each tool keeps its own. [Automatic recovery saves](docs/WORK-SAVING.md) and
-supervised checkpoint continuation are planned for v0.5.4; they are not
-provided by the current handoff command.
+each tool keeps its own. The upcoming v0.5.4 source now includes
+[automatic recovery saves](docs/WORK-SAVING.md) before, during and after native
+worker runs, plus manual restore. These preserve unfinished files without a
+final AI answer. Authorized continuation and lead cooldown restart are still
+pending. Published v0.5.3 handoffs provide context, without recovery snapshots.
 
 </details>
 
