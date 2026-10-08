@@ -285,6 +285,8 @@ footer a { display: inline-flex; align-items: center; min-height: 44px; color: v
 .map-camera-controls button { min-width: 44px; }
 #map-zoom-level { min-width: 4ch; text-align: center; font-size: 12px; color: var(--muted); }
 .map-help { margin: 0 0 12px; max-width: 100ch; }
+.map-workspace { display: grid; grid-template-columns: minmax(0, 1fr); }
+.map-canvas-column, .map-details { min-width: 0; }
 .map-scroll-area {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -324,6 +326,24 @@ footer a { display: inline-flex; align-items: center; min-height: 44px; color: v
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 12px;
+}
+.map-details-header h3 { overflow-wrap: anywhere; }
+@media (min-width: 1100px) {
+  .map-workspace:has(> .map-details:not([hidden])) {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+    gap: 20px;
+  }
+  .map-details {
+    margin-top: 0;
+    padding: 0 0 0 20px;
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    height: clamp(320px, 55vh, 560px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+  .map-details .evidence-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 720px) {
   .map-controls select, .map-controls input[type="search"] { flex-basis: 100%; }
