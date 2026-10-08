@@ -16,6 +16,7 @@ for dependency in python3 shellcheck node; do
   command -v "$dependency" >/dev/null || { echo "missing dependency: $dependency" >&2; exit 1; }
 done
 bash -n unio-install.sh
+python3 -B tools/embed-lead-cooldown.py --check
 UNIO_BIN_DIR="$QUALITY_CHECK_DIR/bin" UNIO_CONF_DIR="$QUALITY_CHECK_DIR/conf" \
   UNIO_COMPLETION_DIR="$QUALITY_CHECK_DIR/completion" bash unio-install.sh > "$QUALITY_CHECK_DIR/install.log"
 shellcheck -S warning "$QUALITY_CHECK_DIR/bin/unio"
@@ -37,6 +38,7 @@ python3 -B tests/unio-work-saving.py
 python3 -B tests/unio-work-saving-auto.py
 python3 -B tests/unio-work-saving-continue.py
 python3 -B tests/unio-kill-pid.py
+python3 -B tests/unio-lead-cooldown.py
 python3 -B bridge/tests/plan_store_test.py
 python3 -B bridge/tests/plan_api_test.py
 python3 -B bridge/tests/job_store_test.py
