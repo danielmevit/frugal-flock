@@ -790,6 +790,7 @@ TPL_DIR="$CONF_DIR/templates"
 OFF_DIR="$CONF_DIR/off"
 TIMEOUT="${UNIO_TIMEOUT:-3600}"
 CG_INDEX_TIMEOUT="${UNIO_CG_INDEX_TIMEOUT:-600}"
+RUN_CONTINUATION_CLAIM="" # Only the validated private entry point sets this.
 LIMIT_RE='rate.?limit|usage limit|limit (reached|exceeded)|quota (exceeded|exhausted)|exceeded your quota|too many requests|resets (at|in)'
 
 die() { echo "unio: $*" >&2; exit 1; }
@@ -3667,7 +3668,7 @@ def create_locked(root, worker, task, reason='manual', run_id=None, provider_exi
 
 
 # ---------------------------------------------------- native supervision
-def inherited_run(root, worker, task):
+def inherited_worker(root, worker):
     """Validate the shell's existing ownership; never acquire another flock."""
     fd = worker_lock_fd(root, worker, False)
     try:
@@ -3685,6 +3686,10 @@ def inherited_run(root, worker, task):
     finally:
         if fd is not None:
             os.close(fd)
+
+
+def inherited_run(root, worker, task):
+    inherited_worker(root, worker)
     doc = strict_json(read_path(under(root, 'coord', 'retries', task, 'state.json'), MIB)[1], MIB, 'native attempt')
     attempt = doc.get('latest', {}).get(worker) if isinstance(doc, dict) else None
     if (not isinstance(attempt, dict) or not isinstance(attempt.get('id'), str)
@@ -3769,8 +3774,8 @@ def automatic_capture(root, worker, task, reason, run_id, provider_exit, interru
             pass  # Unsafe/unavailable storage is never repaired by a failed save.
 
 
-def supervise_run(root, worker, task, timeout, command):
-    interrupted, provider = [0], None
+def supervise_run(root, worker, task, timeout, command, claim_id=''):
+    interrupted, provider, continuation = [0], None, None
 
     def stop(signum, frame):
         interrupted[0] = 128 + signum
@@ -3784,6 +3789,8 @@ def supervise_run(root, worker, task, timeout, command):
         run_id = inherited_run(root, worker, task)
     except (Refuse, OSError, ValueError) as e:
         print('unio: automatic saving unavailable: %s; provider execution remains independent' % e, file=sys.stderr)
+        if claim_id:
+            return 2  # Continuation ownership/attempt admission must fail closed.
     finally:
         # The shell alone holds ownership. No provider or capture inherits it.
         try:
@@ -3795,6 +3802,12 @@ def supervise_run(root, worker, task, timeout, command):
     rc = interrupted[0]
     try:
         if not rc:
+            if claim_id:
+                continuation = continue_context(root, worker, task, claim_id, 'reserved', True)[1]
+                if interrupted[0]:
+                    raise Refuse('unknown', 'continuation interrupted before provider startup')
+                transition_continue(root, continuation, 'reserved', 'calling', None, None)
+                fault('continue-after-calling')
             log = under(root, 'coord', 'reports', task + '.log')
             with open(log, 'wb') as output:
                 provider = subprocess.Popen(['timeout', '--kill-after=5s', timeout, 'bash', '-c', command],
@@ -3818,6 +3831,9 @@ def supervise_run(root, worker, task, timeout, command):
             rc = 128 - rc if rc < 0 else rc
             if interrupted[0]:
                 rc = interrupted[0]
+    except Refuse as e:
+        print('unio: continuation refused: %s' % e.message, file=sys.stderr)
+        rc = e.exit_code
     except OSError as e:
         print('unio: provider launch failed: %s' % e, file=sys.stderr)
         rc = 127
@@ -3826,6 +3842,11 @@ def supervise_run(root, worker, task, timeout, command):
             # timeout's group is ours, including descendants left at shell exit.
             signal_group(provider.pid, signal.SIGKILL)
             provider.wait()
+    if continuation is not None and provider is not None:
+        try:
+            transition_continue(root, continuation, 'calling', 'called', rc, 'called')
+        except (Refuse, OSError) as e:
+            print('unio: continuation completion Unknown: %s; no replay is permitted' % e, file=sys.stderr)
     if run_id:
         automatic_capture(root, worker, task, 'final' if rc == 0 else 'final-failure', run_id, rc, interrupted)
     return rc
@@ -4243,6 +4264,149 @@ def settle(root, store, claim, state, exit_code, reason):
         os.close(lock)
 
 
+def continue_context(root, dest, task, claim_id=None, expected='reserved', live=True):
+    if os.path.lexists(under(root, 'coord', 'STOP')):
+        raise Refuse('destination_rejected', 'STOP is active; continuation is not dispatched')
+    store = open_store(root, False)
+    if store is None:
+        raise Refuse('invalid_save', 'no saves in this project')
+    claims, corrupt = load_claims(store)
+    if corrupt:
+        raise Refuse('invalid_save', 'unreadable claim evidence must be resolved first')
+    claim = next((c for c in claims if c['claim_id'] == claim_id), None) if claim_id else None
+    if claim_id and (claim is None or claim['destination'] != dest or claim['new_task'] != task
+                     or claim['state'] != expected):
+        raise Refuse('destination_rejected', 'continuation claim is missing, consumed or bound elsewhere')
+    if claim is not None:
+        body = read_path(under(root, 'coord', 'tasks', task + '.md'), MAX_TASK)[1]
+        if sha(body) != claim['task_sha256']:
+            raise Refuse('destination_rejected', 'the frozen continuation task changed')
+        save = load_save(os.path.join(store, claim['save_id']), claim['save_id'], True)
+        m = save['manifest']
+        if task == m['task'] or dest == m['worker']:
+            raise Refuse('destination_rejected', 'continuation needs a separate task and worker')
+        if live:
+            validate_continue_destination(root, dest, save)
+    return store, claim
+
+
+def validate_continue_destination(root, dest, save):
+    m = save['manifest']
+    if dest == m['worker']:
+        raise Refuse('destination_rejected', 'destination must differ from saved worker')
+    budget = Budget(CAPTURE_SECONDS)
+    dst = worker_repo(root, dest, budget)
+    src = under(root, 'wt', m['worker'])
+    common = git_out(src, budget, 'rev-parse', '--path-format=absolute', '--git-common-dir').decode().strip()
+    if dst['common'] != os.path.realpath(common) or dst['fmt'] != m['git']['object_format']:
+        raise Refuse('destination_rejected', 'destination is not in the saved repository')
+    _, current = snapshot_fingerprint(root, dest, save, m['git']['base_commit'])
+    if current != m['fingerprint']:
+        raise Refuse('destination_rejected', 'destination does not match save; restore it explicitly first')
+
+
+def transition_continue(root, claim, expected, state, code, reason):
+    store = open_store(root, False)
+    if store is None:
+        raise Refuse('unknown', 'continuation store is missing')
+    lock = saves_lock(root)
+    try:
+        claims, corrupt = load_claims(store)
+        current = next((c for c in claims if c['claim_id'] == claim['claim_id']), None)
+        stable = CLAIM_KEYS - {'state', 'updated_at', 'outcome'}
+        if (corrupt or current is None or current['state'] != expected
+                or any(current[k] != claim[k] for k in stable)):
+            raise Refuse('unknown', 'continuation claim changed; no replay is permitted')
+        current.update(state=state, updated_at=stamp(),
+                       outcome=None if code is None else dict(exit_code=code, reason=reason))
+        write_claim(store, current)
+        claim.update(current)
+    finally:
+        os.close(lock)
+
+
+def cmd_continue(root, save_id, dest, task, task_hash, engine):
+    with os.fdopen(require_lock(root, dest), 'rb') as ownership:
+        store, _ = continue_context(root, dest, task, live=False)
+        body = read_path(under(root, 'coord', 'tasks', task + '.md'), MAX_TASK)[1]
+        if sha(body) != task_hash:
+            raise Refuse('destination_rejected', 'the authorized continuation task changed during preflight')
+        save = load_save(os.path.join(store, save_id), save_id, True)
+        if task == save['manifest']['task']:
+            raise Refuse('destination_rejected', 'write a separate new task before continuing')
+        validate_continue_destination(root, dest, save)
+        fp = save['manifest']['fingerprint']
+        claim = dict(schema_version=1, claim_id=os.urandom(16).hex(), save_id=save_id, destination=dest,
+                     new_task=task, task_sha256=task_hash, source_fingerprint=fp, preimage_fingerprint=fp,
+                     created_at=stamp(), updated_at=stamp(), state='reserved', outcome=None)
+        lock = saves_lock(root)
+        try:
+            claims, corrupt = load_claims(store)
+            if (corrupt or len(claims) >= CAP_CLAIMS
+                    or any(c['save_id'] == save_id and c['new_task'] is not None for c in claims)
+                    or any(c['destination'] == dest and c['state'] in UNRESOLVED for c in claims)):
+                raise Refuse('destination_rejected', 'continuation already claimed, unresolved or at capacity; no replay')
+            load_save(os.path.join(store, save_id), save_id, True)
+            write_claim(store, claim)
+        finally:
+            os.close(lock)
+        print('continuing save %s into %s as task %s (claim %s)' % (save_id, dest, task, claim['claim_id']), flush=True)
+        child, interrupted = None, [0]
+
+        def stop(signum, frame):
+            interrupted[0] = 128 + signum
+            if child is not None:
+                try:
+                    child.send_signal(signum)
+                except ProcessLookupError:
+                    pass
+
+        old = {s: signal.signal(s, stop) for s in (signal.SIGTERM, signal.SIGINT)}
+        rc, duplicated = 2, False
+        try:
+            # A duplicate descriptor refers to the SAME admitted open-file
+            # description. No second flock; the native body owns fd9 as usual.
+            os.dup2(ownership.fileno(), 9, inheritable=True)
+            duplicated = True
+            os.set_inheritable(9, True)
+            fault('continue-before-native')
+            if not interrupted[0]:
+                child = subprocess.Popen([os.path.abspath(engine), '_continue-run', dest, task, claim['claim_id']],
+                                         pass_fds=(9,), start_new_session=True,
+                                         env=dict(os.environ, UNIO_BG='0'))
+                if interrupted[0]:
+                    child.send_signal(interrupted[0] - 128)
+                rc = child.wait()
+                rc = 128 - rc if rc < 0 else rc
+            else:
+                rc = interrupted[0]
+        except (Refuse, OSError) as e:
+            print('unio: continuation launch refused: %s' % e, file=sys.stderr)
+        finally:
+            for s, handler in old.items():
+                signal.signal(s, handler)
+            if duplicated and ownership.fileno() != 9:
+                os.close(9)
+        # A lost native completion never authorizes another provider launch.
+        try:
+            claims, corrupt = load_claims(store)
+            current = next((c for c in claims if c['claim_id'] == claim['claim_id']), None)
+            if corrupt or current is None:
+                raise Refuse('unknown', 'continuation outcome evidence is unreadable')
+            if current['state'] == 'reserved':
+                transition_continue(root, claim, 'reserved', 'failed', rc or 2, 'destination_rejected')
+                if rc == 0:
+                    rc = 2
+            elif current['state'] == 'calling':
+                transition_continue(root, claim, 'calling', 'unknown', 2, 'unknown')
+                print('unio: continuation outcome Unknown; original process exit=%s; no replay' % rc, file=sys.stderr)
+            elif current['state'] != 'called':
+                raise Refuse('unknown', 'continuation outcome is not proven')
+        except (Refuse, OSError) as e:
+            print('unio: continuation outcome Unknown: %s; no replay' % e, file=sys.stderr)
+        return rc
+
+
 def mutate(dst, dest, save, pre, budget, bundle, new_index, writes, deletes, journal, scratch):
     m = save['manifest']
     g, wt = m['git'], dst['wt']
@@ -4332,7 +4496,8 @@ def rollback(dst, dest, pre, budget, journal, g):
 USAGE = ('usage: unio save create <worker> <task>\n'
          '       unio save inspect <save-id> [--json]\n'
          '       unio save inspect --worker <worker> [--json]\n'
-         '       unio save restore <save-id> <destination>')
+         '       unio save restore <save-id> <destination>\n'
+         '       unio save continue <save-id> <destination> <new-task>')
 
 
 def main(argv):
@@ -4343,8 +4508,17 @@ def main(argv):
     as_json = '--json' in args
     plain = [a for a in args if a != '--json']
     try:
-        if command == '_supervise' and len(args) == 4 and ident(args[0]) and ident(args[1]):
+        if (command == '_supervise' and len(args) in (4, 5) and ident(args[0]) and ident(args[1])
+                and (len(args) == 4 or not args[4] or HEX32.fullmatch(args[4]))):
             return supervise_run(root, *args)
+        if (command == '_continue-check' and len(args) == 3 and ident(args[0])
+                and ident(args[1]) and HEX32.fullmatch(args[2])):
+            inherited_worker(root, args[0])
+            continue_context(root, *args)
+            return 0
+        if (command == 'continue' and len(args) == 5 and HEX32.fullmatch(args[0])
+                and ident(args[1]) and ident(args[2]) and HEX64.fullmatch(args[3])):
+            return cmd_continue(root, *args)
         if command == 'create' and len(args) == 2 and ident(args[0]) and ident(args[1]):
             return cmd_create(root, args[0], args[1])
         if command == 'inspect' and args.count('--json') <= 1:
@@ -5237,8 +5411,10 @@ cmd_run() {
   fi
 
   # one run per worker: hold the lock for the whole run (freed on exit)
-  exec 9>>"$root/coord/.locks/$worker.lock"
-  flock -n 9 || die "worker '$worker' is already running a task (unio status)"
+  if [ -z "$RUN_CONTINUATION_CLAIM" ]; then
+    exec 9>>"$root/coord/.locks/$worker.lock"
+    flock -n 9 || die "worker '$worker' is already running a task (unio status)"
+  fi
 
   local pidfile=""
   if [ "${UNIO_BG:-0}" = "1" ]; then
@@ -5273,7 +5449,9 @@ cmd_run() {
   # code and usually wastes the whole run. Warn, or auto-sync if asked.
   local behind
   behind=$(git -C "$wt" rev-list --count "HEAD..$base" 2>/dev/null || echo 0)
-  if [ "${behind:-0}" -gt 0 ]; then
+  if [ -n "$RUN_CONTINUATION_CLAIM" ]; then
+    echo "note: preserving restored state; continuation skips auto-sync"
+  elif [ "${behind:-0}" -gt 0 ]; then
     if [ "${UNIO_AUTO_SYNC:-0}" = "1" ] && [ -z "$(git -C "$wt" status --porcelain=v1 2>/dev/null)" ]; then
       if git -C "$wt" merge --no-edit "$base" >/dev/null 2>&1; then
         echo "note: '$worker' was $behind commit(s) behind $base — auto-synced before running"
@@ -5322,7 +5500,7 @@ cmd_run() {
   local run_signal=0
   trap 'run_signal=143; [ -z "$POLICY_PROVIDER_PID" ] || kill -TERM -- "$POLICY_PROVIDER_PID" 2>/dev/null || true' TERM
   trap 'run_signal=130; [ -z "$POLICY_PROVIDER_PID" ] || kill -INT -- "$POLICY_PROVIDER_PID" 2>/dev/null || true' INT
-  saves __exec "$root" _supervise "$worker" "$task" "$TIMEOUT" "$cmdline" \
+  saves __exec "$root" _supervise "$worker" "$task" "$TIMEOUT" "$cmdline" "$RUN_CONTINUATION_CLAIM" \
     {POLICY_IN}>&- {POLICY_RD}>&- {POLICY_WR}>&- &
   POLICY_PROVIDER_PID=$!
   # An interrupted wait is not proof that the child finished. Reap it before
@@ -5859,7 +6037,8 @@ save_usage() {
   echo "usage: unio save create <worker> <task>
        unio save inspect <save-id> [--json]
        unio save inspect --worker <worker> [--json]
-       unio save restore <save-id> <destination>" >&2
+       unio save restore <save-id> <destination>
+       unio save continue <save-id> <destination> <new-task>" >&2
   return 2
 }
 
@@ -5867,11 +6046,47 @@ save_name_ok() { # same rules as check_id, but a refusal here is exit 2
   case "$1" in ''|.|..|*/*|*\\*|-*|*..*|*[[:cntrl:][:space:]]*) return 1;; esac
 }
 
-cmd_save() { # manual capture, inspection and exact restore; zero provider calls
+continuation_orders() { # Use the native verifier's exact section/line rules.
+  local tf="$1" line scope=0 validate=0
+  [ -f "$tf" ] && [ ! -L "$tf" ] || { echo "unio: new task must exist separately" >&2; return 1; }
+  while IFS= read -r line; do
+    case "$line" in '- '*) [ -z "${line#- }" ] || scope=1;; esac
+  done < <(task_section "$tf" "Allowed scope")
+  while IFS= read -r line; do
+    case "$line" in '$ '*) [ -z "${line#\$ }" ] || validate=1;; esac
+  done < <(task_section "$tf" "Validate")
+  [ "$scope" = 1 ] && [ "$validate" = 1 ] || {
+    echo "unio: continuation needs actual '- path' scope and '\$ command' Validate orders" >&2; return 1;
+  }
+}
+
+cmd_continue_run() { # Private entry: adopt validated ownership, never re-flock.
+  [ $# -eq 3 ] || return 2
+  local root; root=$(find_root) || return 2
+  save_name_ok "$1" && save_name_ok "$2" || return 2
+  saves "$root" _continue-check "$@" || return $?
+  continuation_orders "$root/coord/tasks/$2.md" || return $?
+  RUN_CONTINUATION_CLAIM="$3"
+  cmd_run "$1" "$2"
+}
+
+cmd_save() { # Inspection/restore call no provider; continue authorizes one run.
   local sub="${1:-}" root rc=0
   [ $# -eq 0 ] || shift
   root=$(find_root) || { echo "unio: not inside a Unio project" >&2; return 2; }
   case "$sub" in
+    continue)
+      [ $# -eq 3 ] || { save_usage; return 2; }
+      local task="${3%.md}" tf task_hash
+      save_name_ok "$2" && save_name_ok "$task" || { save_usage; return 2; }
+      tf="$root/coord/tasks/$task.md"
+      [ ! -e "$root/coord/STOP" ] && [ ! -L "$root/coord/STOP" ] || {
+        echo "unio: STOP is active; continuation is not dispatched" >&2; return 1;
+      }
+      task_hash=$(sha256sum -- "$tf" 2>/dev/null | cut -d ' ' -f 1)
+      continuation_orders "$tf" || return $?
+      # Replace this shell so TERM/INT reaches the ownership frontend directly.
+      saves __exec "$root" continue "$1" "$2" "$task" "$task_hash" "$0";;
     create|restore)
       [ $# -eq 2 ] || { save_usage; return 2; }
       local worker="$1"
@@ -6722,7 +6937,7 @@ work
   unio sync [w]                 after merges: bring base into worker
                                      branches (ff/merge; skips dirty/running)
 
-work saving (manual; private local snapshots under coord/saves, unverified)
+work saving (private local snapshots under coord/saves, unverified)
   unio save create <w> <task>   save w's actual committed, staged, unstaged,
                                      untracked and deleted work, or refuse
                                      (exit 1): unstable bytes, secret names,
@@ -6736,7 +6951,12 @@ work saving (manual; private local snapshots under coord/saves, unverified)
                                      restore exactly into another clean, idle
                                      worker at the saved base; on failure roll
                                      back (exit 1) or report Unknown (exit 2)
-      Saving makes no provider call and works while STOP is set. A save is
+  unio save continue <save-id> <dest> <new-task>
+                                     start one separately authorized task from
+                                     already restored state; respects STOP and
+                                     account limits, refuses claim replay
+      Create/inspect/restore make no provider call and work while STOP is set.
+      Runs save baseline, changed periodic and final state automatically. A save is
       not a commit, acceptance or retry; it is not an off-device backup.
 
 fleet plays
@@ -6847,6 +7067,7 @@ case "${1:-help}" in
   resume)   shift; cmd_resume "$@";;
   allow-retry) shift; cmd_allow_retry "$@";;
   save)     shift; cmd_save "$@";;
+  _continue-run) shift; cmd_continue_run "$@";;
   help|-h|--help) cmd_help;;
   *) die "unknown command '${1}' (unio help)";;
 esac
@@ -7907,16 +8128,17 @@ _unio() {
       local saves=""
       [ -n "$root" ] && saves=$(ls "$root/coord/saves" 2>/dev/null | grep -E '^[0-9a-f]{32}$')
       case "$COMP_CWORD:${COMP_WORDS[2]}" in
-        2:*) COMPREPLY=( $(compgen -W "create inspect restore" -- "$cur") );;
+        2:*) COMPREPLY=( $(compgen -W "create inspect restore continue" -- "$cur") );;
         3:create) COMPREPLY=( $(compgen -W "$workers" -- "$cur") );;
         3:inspect) COMPREPLY=( $(compgen -W "--worker $saves" -- "$cur") );;
-        3:restore) COMPREPLY=( $(compgen -W "$saves" -- "$cur") );;
+        3:restore|3:continue) COMPREPLY=( $(compgen -W "$saves" -- "$cur") );;
         4:create) COMPREPLY=( $(compgen -W "$tasks" -- "$cur") );;
-        4:restore) COMPREPLY=( $(compgen -W "$workers" -- "$cur") );;
+        4:restore|4:continue) COMPREPLY=( $(compgen -W "$workers" -- "$cur") );;
         4:inspect)
           if [ "${COMP_WORDS[3]}" = --worker ]; then COMPREPLY=( $(compgen -W "$workers" -- "$cur") )
           else COMPREPLY=( $(compgen -W "--json" -- "$cur") ); fi;;
         5:inspect) COMPREPLY=( $(compgen -W "--json" -- "$cur") );;
+        5:continue) COMPREPLY=( $(compgen -W "$tasks" -- "$cur") );;
       esac;;
   esac
 }
