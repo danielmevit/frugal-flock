@@ -13,6 +13,7 @@ from pathlib import Path
 import shlex
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -120,13 +121,18 @@ raise SystemExit(7 if mode=='fail' else 0)
 
     def interrupt(worker, name, during=None):
         if info.exists(): info.unlink()
+        started=time.monotonic()
         proc=subprocess.Popen([at,'run',worker,name],cwd=repo,
-                              env=dict(env,BRAKE_MOCK_MODE='hold'),stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+                              env=dict(env,BRAKE_MOCK_MODE='hold',UNIO_TIMEOUT='120'),stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
         worker_group=None
+        output=errors=b''
         try:
-            deadline=time.monotonic()+8
+            # Native startup includes a baseline save with its own 30s budget.
+            # Allow preparation time without changing any interruption assertion.
+            deadline=started+60
             while not info.exists() and time.monotonic()<deadline and proc.poll() is None: time.sleep(.05)
-            assert info.exists(),'mock did not start'
+            assert info.exists(),f'mock did not start after {time.monotonic()-started:.3f}s; runner exit={proc.poll()}'
+            print(f'  brake startup: {worker}/{name} ready in {time.monotonic()-started:.3f}s',flush=True)
             worker_group=json.loads(info.read_text())['pgid']
             assert worker_group!=os.getpgrp()
             if during: during()
@@ -134,13 +140,22 @@ raise SystemExit(7 if mode=='fail' else 0)
             if worker_group!=proc.pid:
                 try: os.killpg(worker_group,signal.SIGKILL)
                 except ProcessLookupError: pass
-            proc.communicate(timeout=5)
+            output,errors=proc.communicate(timeout=5)
         finally:
             if proc.poll() is None:
-                os.killpg(proc.pid,signal.SIGKILL); proc.communicate(timeout=5)
+                os.killpg(proc.pid,signal.SIGKILL); output,errors=proc.communicate(timeout=5)
+            elif sys.exc_info()[0] is not None:
+                output,errors=proc.communicate(timeout=5)
             if worker_group is not None:
                 try: os.killpg(worker_group,signal.SIGKILL)
                 except ProcessLookupError: pass
+            if sys.exc_info()[0] is not None:
+                print(f'  brake startup failure: {worker}/{name}; runner exit={proc.returncode}',file=sys.stderr,flush=True)
+                for label,data in [('runner stdout',output),('runner stderr',errors)]:
+                    print(label+':\n'+data.decode(errors='replace'),file=sys.stderr,flush=True)
+                log=root/'coord/reports'/f'{name}.log'
+                if log.exists():
+                    print('native mock log:\n'+log.read_text(errors='replace'),file=sys.stderr,flush=True)
     task('interrupted')
     for _ in range(2): interrupt('mock','interrupted')
     refuse('interrupted')
