@@ -1,9 +1,9 @@
 # Unio: approved next milestones
 
 Current status, 2026-10-08: steps1–3 below shipped through v0.5.3. Step4 is
-partial in main: manual/automatic saving and authorized continuation exist;
-lead cooldown remains. This is the core v0.5.4 task; shipping checks repeat at that
-release boundary. Read the [milestone review](development/FUNCTIONALITY-FIRST-PLAN.md)
+implemented in main: manual/automatic saving, authorized continuation and the
+first supported [lead cooldown runtime](LEAD-COOLDOWN.md). Real subscription-limit
+restart acceptance and combined shipping checks remain before v0.5.4 publication. Read the [milestone review](development/FUNCTIONALITY-FIRST-PLAN.md)
 and [current roadmap](development/ROADMAP.md) first. The original sequence and
 dated contracts below remain history; newer work/review and publication policy
 in the [version plan](VERSION-PLAN.md) supersedes older session defaults.

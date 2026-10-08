@@ -11,20 +11,22 @@ out the recommended order below. This front section is the current planning
 entry point; dated history and the earlier priority list remain below.
 
 Limit hardening, the queue and the real browser workflow have shipped through
-v0.5.3. Recovery remains partial: manual and automatic native-run saves are in
-main alongside one authorized continuation; lead cooldown restart is next. The
+v0.5.3. Recovery is implemented in source: manual and automatic native-run saves,
+one authorized continuation and the first supported lead cooldown runtime. The
 recent map/UI requests are complete in main and should not keep expanding the
 recovery milestone. Published/installed v0.5.3 is unchanged.
 
 The [first lead cooldown contract](LEAD-COOLDOWN-CONTRACT.md) is frozen:
 Codex exec with a separate structured quota probe, durable ownership and
-explicit launch controls. Runtime implementation and live restart acceptance
-are next; the contract itself does not restart a lead.
+explicit launch controls. The [source runtime](../LEAD-COOLDOWN.md) now passes
+offline acceptance and actual read-only quota/configuration checks. Real
+subscription-limit restart acceptance and combined release checks remain; no
+second Codex workflow is started alongside this active low-tier lead.
 
 | Priority | Functional milestone | Current state |
 | --- | --- | --- |
-| 1 | Close v0.5.4 recovery, release and install | Automatic baseline/periodic/final saves and one authorized continuation accepted in main. Next: one supported lead cooldown adapter and the full release gate. |
-| 2 | Simple daily launch and responsive observation | Existing browser works; packaged launch/setup and large-workspace observation need improvement. Recheck the known default observer timeout before v0.5.4 publication. |
+| 1 | Close v0.5.4 recovery, release and install | Saving, authorized continuation and the first lead cooldown runtime accepted in main. Next: combined source gate, real subscription-limit restart acceptance and final shipping checks. |
+| 2 | Simple daily launch and responsive observation | Default observer budget corrected in source and real HTTP200 confirmed. Packaged launch/setup and measured scan optimization remain; a larger budget is not a speed improvement. |
 | 3 | Shared-account allowance and worker readiness | Native account slots exist; live fleet quota/readiness integration does not. Start with manual readings and one supported read-only adapter. |
 | 4 | Ready-task dispatch and dependency handling | Queue/reservation exists; automated ready/dependency/scope scheduling remains planned. |
 | 5 | Native independent review pipeline | Single reviews exist; built-in separate parallel review views and finding aggregation remain planned and mode-aware. |
@@ -47,8 +49,8 @@ lead/dependency edges need future engine evidence. Focused browser checks and
 personal lead review passed. The fluid layout now follows screen width, with
 repository/license footer links and the approved “Your AIs, in sync.” tagline.
 These additions are not in published v0.5.3.
-Recoverable continuation is the next task; finish and integrate one task
-before starting another under the owner's current session direction.
+Recovery runtime is now in main; finish combined acceptance and shipping before
+adding further UI scope under the owner's current session direction.
 
 ## Work modes and lead budget
 
@@ -89,12 +91,12 @@ are accepted in source for v0.5.4.
 | Order | Milestone | Intended result | Status |
 | --- | --- | --- | --- |
 | First | v0.5.3: browser-to-worker workflow | Prepare and approve a task, start a worker once, inspect results and reviews, and accept the exact verified changes. Add actual worker output and console access as described in the [worker progress contract](../WORKER-PROGRESS.md). | [Delivered in v0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3), including UI, output/files, the real worker journey and release checks. |
-| Next | v0.5.4: recoverable continuation | Save recoverable work during runs and on failure, then let an owner-enabled supervisor restart the lead CLI after its allowance cooldown using the saved handoff. | Manual capture/inspect/restore, automatic native-run saves and one authorized continuation accepted in source; lead cooldown remains pending. Dark theme/responsive work map accepted in source. Full combined release gate still required. |
+| Next | v0.5.4: recoverable continuation | Save recoverable work during runs and on failure, then let an owner-enabled supervisor restart the lead CLI after its allowance cooldown using the saved handoff. | Saving, one authorized continuation and the first supported lead cooldown runtime accepted in source. Dark theme/responsive work map and observer budget correction are also in source. Real subscription-limit restart acceptance and combined release checks remain. |
 
 The v0.5.4 scope now includes [automatic work saving](../WORK-SAVING.md),
 requested after a real worker reached its quota before committing. This is
 partly implemented: manual/automatic native-run saves and one authorized
-continuation are in main; lead cooldown remains planned. Context handoffs alone are not
+continuation and the first lead cooldown runtime are in main; real restart acceptance and shipping remain. Context handoffs alone are not
 recovery backups. Automatic saving passed its focused offline acceptance,
 including real periodic capture, interruption and exact restore; the combined
 release gate remains required. Further UI work and optimization wait until

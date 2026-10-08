@@ -11,22 +11,33 @@ worker branches before changing anything. Preserve prior work and failures.
 
 Owner requested a functionality-first milestone review after the completed map
 polish. Read the [audit and delivery plan](FUNCTIONALITY-FIRST-PLAN.md) and the
-front of the [roadmap](ROADMAP.md) before planning. Automatic baseline/periodic/
-final saving and one authorized continuation are accepted in main. The next
-implementation is one supported lead cooldown adapter, followed by the v0.5.4
-release gate. Further UI work and optimization are deferred until recovery is
-complete. Keep the approved v0.5.4 scope; later priorities are
-recommendations with no new release numbers assigned. Recheck default browser
-observation before release: the private30-second preview override is not a fix.
+front of the [roadmap](ROADMAP.md). Automatic baseline/periodic/final saving,
+one authorized continuation and the first [lead cooldown runtime](../LEAD-COOLDOWN.md)
+are accepted and pushed in main. The combined source gate is next. Real
+subscription-limit restart acceptance, final release packaging and upgrade
+checks remain before v0.5.4 publication and installation. Further UI work and
+scan optimization are deferred until recovery is complete; later releases have
+no newly assigned numbers.
 
-The [lead cooldown implementation contract](LEAD-COOLDOWN-CONTRACT.md) is now
-frozen in main. The owner's one fresh Opus 5.5 high attempt succeeded after
-the Claude CLI update; its original OAuth failure is retained. Personal lead
-review tightened allowance permission, launch inputs, pause races and longer
-resets before integration. Implement the contract next: this documentation
-does not add a supervisor or authorize a second concurrent Codex lead. Runtime,
-offline acceptance and an owner-enabled live restart remain pending. Opus is
-reserved again; no further attempt is authorized by that one-task exception.
+Cooldown runtime merged at
+[df716a5](https://github.com/danielmevit/unio/commit/df716a56231d73a8af35be2c615c8e136056f525).
+Its original native five checks and bounded daemon correction passed; personal
+material-bound review approved. One actual read-only account/rate-limit probe
+and current Codex CLI/configuration compatibility check passed without a model
+call. This is not evidence of a real limit-to-restart cycle. The current lead
+must end before enabling another Codex workflow under low tier. Source is
+`not_run` for this existing-lead implementation; no independent lab approval
+is claimed. The one fresh Opus contract attempt succeeded after the CLI update;
+its original OAuth failure is retained and Opus is reserved again.
+
+Browser observation correction merged at
+[bea0759](https://github.com/danielmevit/unio/commit/bea075920eee58cb7230add2e05dbccd9fc96c97).
+The source defaults to 30 seconds and offers `--observer-timeout` (1–120).
+Stable native acceptance passed three checks and personal review; the original
+revision-changing verification remains INCOMPLETE in private receipts. One real
+default HTTP observation returned 200/schema1 in 9.754 seconds. This confirms
+availability without a private override, not faster scans. Published/installed
+v0.5.3 remains unchanged; keep original 503 diagnostics.
 
 [Unio 0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3) is published and installed from exact source
 `ae61bf3d11ffc0701d32c1efcf90bccd18b267a6`. It delivers the real browser-to-worker workflow,
@@ -61,8 +72,8 @@ lead review. Reused unchanged timer evidence was not replayed for the PID guard.
 Preserve the initial periodic/session failures and refused local adapter alias
 transport. Direct Source remains not run; this was existing-lead implementation
 under the owner's self-review exception, with no independent AI-lab verdict.
-Manual full-suite and combined release checks remain required; lead cooldown
-is not implemented yet.
+Manual full-suite and combined release checks remain required; the lead
+cooldown runtime is now implemented in source, with real restart acceptance pending.
 
 Authorized continuation is integrated at
 [940d0dd](https://github.com/danielmevit/unio/commit/940d0dd35dd377c4c7423c88906ea0ae600d899c).
@@ -106,8 +117,8 @@ See the [map controls](../../bridge/README.md#interactive-radial-viewport-browse
 The actual local dashboard passed at desktop1440px and phone390px with new
 zoom controls, API200, full available width and no page errors. Its separate
 10-second observer cutoff was too short for a measured10.37-second native scan;
-the local read-only preview now uses a30-second Observer budget. No released
-CLI option or performance fix is claimed. The [observation finding](LIVE-WORKSPACE-VIEW.md#large-workspace-observation-follow-up)
+the local read-only preview now uses a30-second Observer budget. The source observation budget correction above supersedes the private override;
+no released CLI option or scan-speed improvement is claimed. The [observation finding](LIVE-WORKSPACE-VIEW.md#large-workspace-observation-follow-up)
 is tracked for the performance milestone; preserve original503 diagnostics.
 
 Selected-task sidebar [a05e39a](https://github.com/danielmevit/unio/commit/a05e39a296758932b41f9a49bd490a14fd3060f0)
@@ -142,9 +153,10 @@ inspected desktop/mobile Light/Dark screenshots, followed by personal review.
 Both direct-lead tasks retain Source not_run; no independent lab verdict or
 standard combined readiness is claimed. Published/installed0.5.3 is unchanged.
 
-Next recovery slices: automatic baseline/periodic/final saves and authorized
-continuation under the frozen [work-saving contract](WORK-SAVING-CONTRACT.md),
-then [lead CLI cooldown restart](LEAD-COOLDOWN-RESTART.md). Existing worker limit
+Recovery runtime slices are implemented under the frozen
+[work-saving contract](WORK-SAVING-CONTRACT.md) and
+[lead cooldown contract](LEAD-COOLDOWN-CONTRACT.md). Next: combined source gate,
+real subscription-limit restart acceptance and final shipping checks. Existing worker limit
 handling stays unchanged. Future Marathon-inspired UI uses UX/layout/control
 shapes in black, white, charcoal and neutral gray, with the small semantic status
 marks as the owner-approved color exception;

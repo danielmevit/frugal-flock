@@ -274,8 +274,11 @@ each tool keeps its own. The upcoming v0.5.4 source now includes
 [automatic recovery saves](docs/WORK-SAVING.md) before, during and after native
 worker runs, plus manual restore. These preserve unfinished files without a
 final AI answer. Source also supports one separately authorized task from an
-exact restored save, with account limits and replay protection. Lead cooldown
-restart remains next. Published v0.5.3 handoffs provide context, without recovery snapshots.
+exact restored save, with account limits and replay protection. An owner-enabled
+[lead cooldown supervisor](docs/LEAD-COOLDOWN.md) is also implemented in source
+for the supported Codex CLI. Real subscription-limit restart acceptance and
+release checks remain pending. Published v0.5.3 handoffs provide context, without
+recovery snapshots.
 
 </details>
 

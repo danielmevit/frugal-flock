@@ -13,7 +13,7 @@ limit with useful edits but no final commit. See the
 | Manual `unio save create`, `inspect` and `restore` | Implemented in source (slice 1); not in any public release yet |
 | Automatic baseline, periodic and final saves during runs | Implemented in source (automatic part of slice 2); unreleased |
 | One authorized continuation from a save (`unio save continue`) | Implemented in source (slice 2); unreleased |
-| Lead cooldown supervisor | Later slice under its own contract |
+| [Lead cooldown supervisor](LEAD-COOLDOWN.md) | Supported Codex adapter implemented in source; real subscription-limit restart acceptance and release checks pending |
 
 The current public release is v0.5.3. It contains none of these commands.
 The source version stays at 0.5.3 until the combined v0.5.4 delivery has

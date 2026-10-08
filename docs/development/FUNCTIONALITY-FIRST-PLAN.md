@@ -11,7 +11,11 @@ and deferred UI work and optimization. Automatic native-run saving is now
 with baseline, changed periodic and final captures, exact recovery and bounded
 cancellation cleanup. [One authorized continuation](https://github.com/danielmevit/unio/commit/940d0dd35dd377c4c7423c88906ea0ae600d899c)
 is now accepted too: explicit restore, separate new-task authority and durable
-replay protection. Lead cooldown is next, then the combined v0.5.4 release gate. Published/installed v0.5.3 remains unchanged.
+replay protection. The first [lead cooldown runtime](../LEAD-COOLDOWN.md) is now
+accepted in source, with offline lifecycle checks, an actual read-only quota
+probe and local CLI/configuration compatibility. Real subscription-limit restart
+acceptance and the combined v0.5.4 release checks remain. Published/installed
+v0.5.3 is unchanged.
 The audit counts below describe the earlier baseline, before this delivery.
 
 ## Where the original plan stands
@@ -24,7 +28,7 @@ followed the completed Unio rename:
 | Limit-policy hardening | Shipped in v0.5.1 | New capacity monitoring is separate; heuristic limit text is still not a trusted account reading. |
 | Queue approval, reservation and recovery | Shipped in v0.5.2 | Automated selection of ready dependent tasks is additional product work. |
 | Real browser-to-worker workflow | Shipped in v0.5.3 | A simpler packaged launch/setup path and faster observation would improve daily use. |
-| Checkpoint-based continuation | Partial in main, unreleased | Manual capture/inspect/restore, automatic native-run saving and one authorized continuation exist; lead cooldown restart remains. |
+| Checkpoint-based continuation | Implemented in main, unreleased | Saving, one authorized continuation and the first supported lead cooldown runtime exist; real subscription-limit restart acceptance and combined shipping checks remain. |
 | Shipping preparation | Completed for v0.5.0–v0.5.3 | Required again on the completed v0.5.4 tree, then publication and installation. |
 
 Work modes, shared-account tiers and native workflow admission also shipped in
@@ -34,7 +38,7 @@ live fleet allowance monitoring or model-specific routing recommendations.
 
 Themes, responsive layout, the radial map, every-node details, status strips and
 mouse navigation are accepted in main for v0.5.4. Manual and automatic native-run
-saving and one authorized continuation are also in main.
+saving, one authorized continuation and the first lead cooldown runtime are also in main.
 Neither a source merge nor a local preview makes these part of installed v0.5.3.
 See the [version plan](../VERSION-PLAN.md) and [current handoff](continue-with-ai-prompt.md).
 
@@ -95,19 +99,19 @@ scope is frozen, rather than promising a release number for every idea.
 
 The [saving contract](WORK-SAVING-CONTRACT.md) defines the first two slices.
 The [lead cooldown plan](LEAD-COOLDOWN-RESTART.md) now has a frozen
-[adapter/state/ownership contract](LEAD-COOLDOWN-CONTRACT.md); its runtime and
-live restart acceptance remain pending. Manual save corrections
-passed focused checks; their corrected revision still needs the combined full
-release gate. Automatic saving and one authorized continuation now exist in
-source; lead restart is still pending.
+[adapter/state/ownership contract](LEAD-COOLDOWN-CONTRACT.md). Its runtime and
+offline acceptance are now in main; real subscription-limit restart remains
+unrun while this low-tier lead session is active. Manual save corrections,
+automatic saving and continuation passed focused checks; the combined full
+source gate is next, followed by remaining live and release acceptance.
 
 One existing functional issue belongs at release readiness: the real workspace
 observation took 10.37 seconds against the default 10-second cutoff. A private
-30-second preview override keeps the current dashboard usable; it is not a
-product fix. Reproduce default launch before tagging. If it still fails on this
-workspace, fix the bounded observation budget in the release rather than ship a
-new UI that depends on a private wrapper. Wider incremental-scan optimization
-belongs to priority2. See the [preserved finding](LIVE-WORKSPACE-VIEW.md#large-workspace-observation-follow-up).
+30-second preview override was initially needed. The source now defaults to
+30 seconds and exposes a bounded `--observer-timeout` option (1–120 seconds).
+Default HTTP observation on the actual workspace returned 200 in 9.754 seconds
+after the correction; this proves availability, not a speed improvement. Wider
+incremental-scan optimization belongs to priority2. See the [preserved finding](LIVE-WORKSPACE-VIEW.md#large-workspace-observation-follow-up).
 
 ### Then: usable coordination, with fewer wasted calls
 

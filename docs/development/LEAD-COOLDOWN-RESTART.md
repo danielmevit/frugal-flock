@@ -1,8 +1,12 @@
 # Restart the lead CLI after its cooldown
 
 Owner requested on 2026-10-07. Planned as a bounded continuation slice after
-automatic work saving in v0.5.4. This records the milestone; the feature is
-not implemented or installed yet.
+automatic work saving in v0.5.4. The first supported Codex supervisor is now
+implemented in source; see the [usage guide](../LEAD-COOLDOWN.md) and
+[frozen contract](LEAD-COOLDOWN-CONTRACT.md). Offline acceptance and an actual
+read-only allowance probe passed. A real subscription-limit restart and combined
+release checks remain pending; published/installed v0.5.3 is unchanged.
+The original milestone and acceptance goals below remain the delivery reference.
 
 ## Intended behavior
 
