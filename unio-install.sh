@@ -4519,6 +4519,9 @@ def main(argv):
         if (command == 'continue' and len(args) == 5 and HEX32.fullmatch(args[0])
                 and ident(args[1]) and ident(args[2]) and HEX64.fullmatch(args[3])):
             return cmd_continue(root, *args)
+        if command == '_task-hash' and len(args) == 1 and ident(args[0]):
+            print(sha(read_path(under(root, 'coord', 'tasks', args[0] + '.md'), MAX_TASK)[1]))
+            return 0
         if command == 'create' and len(args) == 2 and ident(args[0]) and ident(args[1]):
             return cmd_create(root, args[0], args[1])
         if command == 'inspect' and args.count('--json') <= 1:
@@ -6050,10 +6053,10 @@ continuation_orders() { # Use the native verifier's exact section/line rules.
   local tf="$1" line scope=0 validate=0
   [ -f "$tf" ] && [ ! -L "$tf" ] || { echo "unio: new task must exist separately" >&2; return 1; }
   while IFS= read -r line; do
-    case "$line" in '- '*) [ -z "${line#- }" ] || scope=1;; esac
+    case "$line" in '- '*) [[ "${line#- }" =~ [^[:space:]] ]] && scope=1;; esac
   done < <(task_section "$tf" "Allowed scope")
   while IFS= read -r line; do
-    case "$line" in '$ '*) [ -z "${line#\$ }" ] || validate=1;; esac
+    case "$line" in '$ '*) [[ "${line#\$ }" =~ [^[:space:]] ]] && validate=1;; esac
   done < <(task_section "$tf" "Validate")
   [ "$scope" = 1 ] && [ "$validate" = 1 ] || {
     echo "unio: continuation needs actual '- path' scope and '\$ command' Validate orders" >&2; return 1;
@@ -6083,7 +6086,7 @@ cmd_save() { # Inspection/restore call no provider; continue authorizes one run.
       [ ! -e "$root/coord/STOP" ] && [ ! -L "$root/coord/STOP" ] || {
         echo "unio: STOP is active; continuation is not dispatched" >&2; return 1;
       }
-      task_hash=$(sha256sum -- "$tf" 2>/dev/null | cut -d ' ' -f 1)
+      task_hash=$(saves "$root" _task-hash "$task") || return $?
       continuation_orders "$tf" || return $?
       # Replace this shell so TERM/INT reaches the ownership frontend directly.
       saves __exec "$root" continue "$1" "$2" "$task" "$task_hash" "$0";;

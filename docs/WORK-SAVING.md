@@ -1,4 +1,4 @@
-# Work saving — manual and automatic saves in source for v0.5.4
+# Work saving — saves and authorized continuation in source for v0.5.4
 
 Owner requirement recorded 2026-10-06 after a worker reached its allowance
 limit with useful edits but no final commit. See the
@@ -12,7 +12,7 @@ limit with useful edits but no final commit. See the
 | --- | --- |
 | Manual `unio save create`, `inspect` and `restore` | Implemented in source (slice 1); not in any public release yet |
 | Automatic baseline, periodic and final saves during runs | Implemented in source (automatic part of slice 2); unreleased |
-| One authorized continuation from a save (`unio save continue`) | Planned for v0.5.4 (slice 2); not available |
+| One authorized continuation from a save (`unio save continue`) | Implemented in source (slice 2); unreleased |
 | Lead cooldown supervisor | Later slice under its own contract |
 
 The current public release is v0.5.3. It contains none of these commands.
@@ -102,12 +102,51 @@ Use `inspect` for the last successful save, observation time, latest attempt
 and live saved/changed/Unknown state. Concurrent edits can prevent an exact
 latest capture; those changing bytes are never reported as successfully saved.
 
-## Recovery and acceptance
+## Continue restored work (in source, unreleased)
 
-A continuation (planned) restores a save into a separate idle worker and
-starts one separately authorized new task with exclusive ownership, followed
-by fresh checks and independent reviews. It does not inherit earlier
-readiness. Keep the original branch, files and failed run intact.
+First inspect a save and restore it into a different, idle worker at the saved
+base. Write a separate new task under `coord/tasks/` with explicit `Allowed
+scope` paths and `Validate` commands, then authorize its one run:
+
+```text
+unio save inspect SAVE_ID
+unio save restore SAVE_ID DESTINATION
+unio resume
+unio save continue SAVE_ID DESTINATION NEW_TASK
+unio stop
+```
+
+`continue` requires the destination's HEAD, full index and working bytes/modes
+to match the save exactly. It never silently restores or overwrites changed
+work. The saved task is literal context; its instructions and checks cannot
+authorize this run. The new task must exist separately, differ from the saved
+task and retain its complete SHA-256 through dispatch. The original worker,
+branch and failed result stay intact.
+
+Unio reserves one durable continuation claim per save, bound to the destination,
+new task and saved fingerprint. It holds validated worker ownership once and
+enters the native run body, retaining current account/tier admission, STOP,
+retry limits, process receipts, automatic saving and optional automatic
+verification. Auto-sync is skipped for this continuation so a newer main
+cannot replace recovered commits or edits. Ordinary runs retain auto-sync.
+
+The claim becomes `calling` immediately before provider startup, then `called`
+with the actual exit after known completion. A launch refusal records `failed`;
+uncertain launch or lost completion remains `unknown` (or unresolved `calling`
+after a crash). **Every continuation claim blocks replay**, including failed,
+calling and Unknown claims, even with another task or destination. Releasing an
+account slot or editing a task does not grant a retry. Claimed saves stay pinned.
+There is no automatic queue, restart or extra provider invocation.
+
+The command returns the native run's exit: a failed provider keeps its real
+exit; when the provider succeeds, optional verification can still return a
+failure. TERM/INT is forwarded through the frontend and native supervisor,
+which reap owned processes, attempt a final save and release worker/account
+ownership. Forced termination or host loss can leave an unresolved claim; it
+is evidence to inspect, never permission to replay.
+
+Recovery grants no earlier checks, review or readiness. Run fresh checks and
+the selected review policy for the continued candidate before acceptance.
 
 Saving never commits arbitrary dirty files or accepts code. A coherent
 source commit is still subject to checks and reviews. A recovery save is
@@ -127,6 +166,11 @@ retention, pinning, caps, destination refusals, rollback and Unknown.
 `tests/unio-work-saving-auto.py` uses offline native providers to exercise failed
 exits without a final answer, exact restore, timeout, termination, periodic
 change capture and deduplication, capture failure, last-good retention and
-released worker/account ownership without allowance telemetry. Authorized
-continuation still needs its own implementation and acceptance; automatic
-saving grants no additional provider invocation or inherited verification.
+released worker/account ownership without allowance telemetry.
+
+`tests/unio-work-saving-continue.py` drives real offline native runs: exact
+restored state and separately authorized task text, real exits, replay and
+Unknown refusal, STOP and occupied accounts, changed/incomplete orders,
+single ownership through auto-verification, signal cleanup, pinned evidence,
+source immutability and preserved commits with auto-sync enabled and newer main.
+These focused checks make no AI request; the full gate runs before release.
