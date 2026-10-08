@@ -273,8 +273,9 @@ explain the details. Unio does not get around limits or share plans;
 each tool keeps its own. The upcoming v0.5.4 source now includes
 [automatic recovery saves](docs/WORK-SAVING.md) before, during and after native
 worker runs, plus manual restore. These preserve unfinished files without a
-final AI answer. Authorized continuation and lead cooldown restart are still
-pending. Published v0.5.3 handoffs provide context, without recovery snapshots.
+final AI answer. Source also supports one separately authorized task from an
+exact restored save, with account limits and replay protection. Lead cooldown
+restart remains next. Published v0.5.3 handoffs provide context, without recovery snapshots.
 
 </details>
 

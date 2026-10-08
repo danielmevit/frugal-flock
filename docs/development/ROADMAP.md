@@ -12,13 +12,13 @@ entry point; dated history and the earlier priority list remain below.
 
 Limit hardening, the queue and the real browser workflow have shipped through
 v0.5.3. Recovery remains partial: manual and automatic native-run saves are in
-main; authorized continuation and lead cooldown restart are not implemented. The
+main alongside one authorized continuation; lead cooldown restart is next. The
 recent map/UI requests are complete in main and should not keep expanding the
 recovery milestone. Published/installed v0.5.3 is unchanged.
 
 | Priority | Functional milestone | Current state |
 | --- | --- | --- |
-| 1 | Close v0.5.4 recovery, release and install | Automatic baseline/periodic/final saves accepted in main. Next: authorized continuation, one supported lead cooldown adapter and the full release gate. |
+| 1 | Close v0.5.4 recovery, release and install | Automatic baseline/periodic/final saves and one authorized continuation accepted in main. Next: one supported lead cooldown adapter and the full release gate. |
 | 2 | Simple daily launch and responsive observation | Existing browser works; packaged launch/setup and large-workspace observation need improvement. Recheck the known default observer timeout before v0.5.4 publication. |
 | 3 | Shared-account allowance and worker readiness | Native account slots exist; live fleet quota/readiness integration does not. Start with manual readings and one supported read-only adapter. |
 | 4 | Ready-task dispatch and dependency handling | Queue/reservation exists; automated ready/dependency/scope scheduling remains planned. |
@@ -84,12 +84,12 @@ are accepted in source for v0.5.4.
 | Order | Milestone | Intended result | Status |
 | --- | --- | --- | --- |
 | First | v0.5.3: browser-to-worker workflow | Prepare and approve a task, start a worker once, inspect results and reviews, and accept the exact verified changes. Add actual worker output and console access as described in the [worker progress contract](../WORKER-PROGRESS.md). | [Delivered in v0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3), including UI, output/files, the real worker journey and release checks. |
-| Next | v0.5.4: recoverable continuation | Save recoverable work during runs and on failure, then let an owner-enabled supervisor restart the lead CLI after its allowance cooldown using the saved handoff. | Manual capture/inspect/restore and automatic native-run saves accepted in source; authorized continuation and lead cooldown remain pending. Dark theme/responsive work map accepted in source. Full combined release gate still required. |
+| Next | v0.5.4: recoverable continuation | Save recoverable work during runs and on failure, then let an owner-enabled supervisor restart the lead CLI after its allowance cooldown using the saved handoff. | Manual capture/inspect/restore, automatic native-run saves and one authorized continuation accepted in source; lead cooldown remains pending. Dark theme/responsive work map accepted in source. Full combined release gate still required. |
 
 The v0.5.4 scope now includes [automatic work saving](../WORK-SAVING.md),
 requested after a real worker reached its quota before committing. This is
-partly implemented: manual and automatic native-run saves are in main;
-authorized continuation remains planned. Context handoffs alone are not
+partly implemented: manual/automatic native-run saves and one authorized
+continuation are in main; lead cooldown remains planned. Context handoffs alone are not
 recovery backups. Automatic saving passed its focused offline acceptance,
 including real periodic capture, interruption and exact restore; the combined
 release gate remains required. Further UI work and optimization wait until

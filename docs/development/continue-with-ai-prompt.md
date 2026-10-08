@@ -12,8 +12,8 @@ worker branches before changing anything. Preserve prior work and failures.
 Owner requested a functionality-first milestone review after the completed map
 polish. Read the [audit and delivery plan](FUNCTIONALITY-FIRST-PLAN.md) and the
 front of the [roadmap](ROADMAP.md) before planning. Automatic baseline/periodic/
-final saving is now accepted in main. The next implementation is authorized
-continuation, followed by one supported lead cooldown adapter and the v0.5.4
+final saving and one authorized continuation are accepted in main. The next
+implementation is one supported lead cooldown adapter, followed by the v0.5.4
 release gate. Further UI work and optimization are deferred until recovery is
 complete. Keep the approved v0.5.4 scope; later priorities are
 recommendations with no new release numbers assigned. Recheck default browser
@@ -52,8 +52,20 @@ lead review. Reused unchanged timer evidence was not replayed for the PID guard.
 Preserve the initial periodic/session failures and refused local adapter alias
 transport. Direct Source remains not run; this was existing-lead implementation
 under the owner's self-review exception, with no independent AI-lab verdict.
-Manual full-suite and combined release checks remain required; continuation and
-lead cooldown are not implemented yet.
+Manual full-suite and combined release checks remain required; lead cooldown
+is not implemented yet.
+
+Authorized continuation is integrated at
+[940d0dd](https://github.com/danielmevit/unio/commit/940d0dd35dd377c4c7423c88906ea0ae600d899c).
+`unio save continue SAVE_ID DESTINATION NEW_TASK` requires exact previously
+restored state and a separately frozen task with actual scope/checks. It binds
+full task SHA256 and effective prompt authority, preserves native account
+admission/retry/STOP/actual exits and skips auto-sync only for continuation.
+One durable claim prevents replay after completion, refusal or Unknown. Original
+source state/result stay intact; checks and review are fresh. Initial fixture
+failures remain preserved; corrected focused checks and personal material-bound
+lead review passed. No extra AI reviewer or delegated Source is claimed.
+These commands remain unreleased until the completed v0.5.4 gate.
 
 Preserve the saving review history: original and replacement findings, the
 lead's full-suite shared-lock observation failure, and the final focused

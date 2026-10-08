@@ -9,8 +9,9 @@ Progress after this audit, 2026-10-08: the owner approved functionality first
 and deferred UI work and optimization. Automatic native-run saving is now
 [accepted in main](https://github.com/danielmevit/unio/commit/01be5a5eb5ef8e314060b7362423d0c47138a6a0),
 with baseline, changed periodic and final captures, exact recovery and bounded
-cancellation cleanup. Authorized continuation is next, then lead cooldown and
-the combined v0.5.4 release gate. Published/installed v0.5.3 remains unchanged.
+cancellation cleanup. [One authorized continuation](https://github.com/danielmevit/unio/commit/940d0dd35dd377c4c7423c88906ea0ae600d899c)
+is now accepted too: explicit restore, separate new-task authority and durable
+replay protection. Lead cooldown is next, then the combined v0.5.4 release gate. Published/installed v0.5.3 remains unchanged.
 The audit counts below describe the earlier baseline, before this delivery.
 
 ## Where the original plan stands
@@ -23,7 +24,7 @@ followed the completed Unio rename:
 | Limit-policy hardening | Shipped in v0.5.1 | New capacity monitoring is separate; heuristic limit text is still not a trusted account reading. |
 | Queue approval, reservation and recovery | Shipped in v0.5.2 | Automated selection of ready dependent tasks is additional product work. |
 | Real browser-to-worker workflow | Shipped in v0.5.3 | A simpler packaged launch/setup path and faster observation would improve daily use. |
-| Checkpoint-based continuation | Partial in main, unreleased | Manual capture/inspect/restore and automatic native-run saving exist; authorized continuation and lead cooldown restart do not. |
+| Checkpoint-based continuation | Partial in main, unreleased | Manual capture/inspect/restore, automatic native-run saving and one authorized continuation exist; lead cooldown restart remains. |
 | Shipping preparation | Completed for v0.5.0–v0.5.3 | Required again on the completed v0.5.4 tree, then publication and installation. |
 
 Work modes, shared-account tiers and native workflow admission also shipped in
@@ -33,7 +34,7 @@ live fleet allowance monitoring or model-specific routing recommendations.
 
 Themes, responsive layout, the radial map, every-node details, status strips and
 mouse navigation are accepted in main for v0.5.4. Manual and automatic native-run
-saving are also in main.
+saving and one authorized continuation are also in main.
 Neither a source merge nor a local preview makes these part of installed v0.5.3.
 See the [version plan](../VERSION-PLAN.md) and [current handoff](continue-with-ai-prompt.md).
 
@@ -96,8 +97,8 @@ The [saving contract](WORK-SAVING-CONTRACT.md) defines the first two slices.
 The [lead cooldown plan](LEAD-COOLDOWN-RESTART.md) still requires its concrete
 adapter/state/ownership contract before implementation. Manual save corrections
 passed focused checks; their corrected revision still needs the combined full
-release gate. Automatic saving now exists in source; automatic continuation and
-lead restart are still pending.
+release gate. Automatic saving and one authorized continuation now exist in
+source; lead restart is still pending.
 
 One existing functional issue belongs at release readiness: the real workspace
 observation took 10.37 seconds against the default 10-second cutoff. A private
