@@ -712,10 +712,16 @@ deterministic layout, search, task/worker bounds, counts, and pagination (capped
 at 24 task nodes per page). This uses the existing `/api/activity` feed without
 backend, dependency, or route changes.
 
-Selecting a task opens its details in the right-hand quarter of the map area
+Selecting any node opens its details in the right-hand quarter of the map area
 on screens at least 1100px wide, leaving three-quarters for the map. On smaller
 screens the details stack below it. Clear selection closes the panel and restores
-the full map width. Long details scroll inside the desktop panel. If the selected worker is also
+the full map width. Long details scroll inside the desktop panel. Task nodes show
+their recorded evidence; worker nodes show observed task totals and current-session
+access; the Project hub shows an observed project summary. These summaries include
+all observed tasks, with the count on the current filtered page labelled separately.
+Nodes without evidence still explain what is missing. Output/files controls stay
+visible and gray when unavailable, with a reason beside them; the Project hub has
+no worker session of its own. If the selected worker is also
 granted in the local session for Source console tracking (`--progress-binding`
 or `--progress-worker`), the console can be opened directly from the map
 details. The detail view accurately labels if the granted protected output
@@ -763,8 +769,10 @@ incomplete, not run, changes requested, completion unknown or stale evidence.
 The **Finished** state filter shows finished records without the history
 toggle.
 
-A map console action is offered only when the page's console lists that exact
-worker. The wording reflects that worker's actual grants: Source output and
+A map console control is enabled only when the page's console lists that exact
+worker with available output or files. Otherwise it stays disabled with an
+explanation. Worker nodes open the granted current worker session; task nodes
+retain exact task routing. The wording reflects that worker's actual grants: Source output and
 files, output only, or files only. If the console's latest task differs from
 the selected record, the action and its event name that actual latest task as
 a different/latest task. The console accepts only a plain `{worker, task}`

@@ -680,8 +680,12 @@
   }
 
   function renderDetails(data, pageTasks, categories) {
-    if (!selected || selected.kind !== "task") {
+    if (!selected) {
       clearDetails();
+      return;
+    }
+    if (selected.kind !== "task") {
+      showOverview(data, pageTasks, categories);
       return;
     }
     const r = data.results.find((t) => t.worker === selected.worker && t.task === selected.task);
@@ -694,6 +698,8 @@
   function detailsFor(mode, build) {
     const details = document.getElementById("map-details");
     details.hidden = false;
+    details.setAttribute("aria-label", selected.kind === "task" ? "Task details"
+      : selected.kind === "worker" ? "Worker details" : "Project details");
     if (details.dataset.key !== selected.key || details.dataset.mode !== mode) {
       details.replaceChildren();
       details.dataset.key = selected.key;
@@ -713,17 +719,58 @@
 
   function showMissing(reason) {
     const details = detailsFor("missing", (root) => {
+      appendDetailsHeader(root);
       const p = document.createElement("p");
       p.className = "warnings";
-      const message = document.createElement("span");
-      message.dataset.field = "missing";
-      p.append(message, " ", clearButton());
+      p.dataset.field = "missing";
       root.appendChild(p);
     });
     const name = selected.worker + " / " + selected.task;
+    setText(details.querySelector('[data-field="title"]'), name);
     setText(details.querySelector('[data-field="missing"]'), reason === "filtered"
       ? "Selected task " + name + " is off-page or filtered out."
       : "Selected task " + name + " is not in the current observation.");
+    updateConsoleControl(details, { text: "Output and files are unavailable here until this task is visible in the current observation.", action: null });
+  }
+
+  function appendDetailsHeader(root) {
+    const header = document.createElement("div");
+    header.className = "map-details-header";
+    const h3 = document.createElement("h3");
+    h3.dataset.field = "title";
+    header.append(h3, clearButton());
+    root.appendChild(header);
+  }
+
+  function showOverview(data, pageTasks, categories) {
+    const isWorker = selected.kind === "worker";
+    const records = isWorker ? data.results.filter(r => r.worker === selected.worker) : data.results;
+    const visible = isWorker ? pageTasks.filter(r => r.worker === selected.worker) : pageTasks;
+    const details = detailsFor(selected.kind, root => {
+      appendDetailsHeader(root);
+      for (const name of ["observed", "summary", "scope"]) {
+        const p = text("p", "", "small");
+        p.dataset.field = name;
+        root.appendChild(p);
+      }
+    });
+    const field = name => details.querySelector('[data-field="' + name + '"]');
+    setText(field("title"), isWorker ? selected.worker : "Project hub");
+    setText(field("observed"), "Current observation " + (data.observed_at || "unknown"));
+    const tally = { active: 0, attention: 0, finished: 0 };
+    for (const r of records) tally[categories.get(r).category]++;
+    setText(field("summary"), records.length
+      ? records.length + " observed tasks · " + tally.active + " active · " + tally.attention + " need attention · " + tally.finished + " finished."
+      : isWorker ? "No task evidence for this worker in the current observation."
+        : "No structured task evidence in the current observation.");
+    setText(field("scope"), visible.length + " tasks on this map page. "
+      + (isWorker ? "Select a task node for its process, validation and review details."
+        : "The hub groups workers and tasks; it has no task process or worker session of its own."));
+    const button = isWorker && Array.from(document.querySelectorAll("#console-workers button.console-worker"))
+      .find(b => b.dataset.worker === selected.worker);
+    updateConsoleControl(details, isWorker
+      ? consoleRoute({ worker: selected.worker, task: button ? button.dataset.task || "" : "" })
+      : { text: "The project hub has no output or worktree files of its own. Select a worker or task to inspect available output and files.", action: null });
   }
 
   function consoleRoute(r) {
@@ -760,12 +807,7 @@
 
   function showDetails(r, data, verdict) {
     const details = detailsFor("task", (root) => {
-      const header = document.createElement("div");
-      header.className = "map-details-header";
-      const h3 = document.createElement("h3");
-      h3.dataset.field = "title";
-      header.append(h3, clearButton());
-      root.appendChild(header);
+      appendDetailsHeader(root);
       const grid = document.createElement("dl");
       grid.className = "evidence-grid";
       grid.style.margin = "16px 0";
@@ -779,13 +821,6 @@
         grid.appendChild(row);
       }
       root.appendChild(grid);
-      const consoleDiv = document.createElement("div");
-      consoleDiv.className = "map-details-console";
-      const p = document.createElement("p");
-      p.className = "small";
-      p.dataset.field = "console";
-      consoleDiv.appendChild(p);
-      root.appendChild(consoleDiv);
     });
     const field = (name) => details.querySelector('[data-field="' + name + '"]');
     setText(field("title"), r.worker + " / " + r.task);
@@ -797,26 +832,41 @@
     setText(field("validation"), label(sectionState(r, "validation")) + " · " + (r.validation ? r.validation.checks_run : "unknown") + " checks / " + (r.validation ? r.validation.checks_failed : "unknown") + " failed");
     setText(field("review"), label(sectionState(r, "review")) + " · reviewer " + ((r.review && r.review.reviewer) || "not recorded"));
 
-    const route = consoleRoute(r);
-    const consoleText = field("console");
+    updateConsoleControl(details, consoleRoute(r));
+  }
+
+  function updateConsoleControl(details, route) {
+    let consoleText = details.querySelector('[data-field="console"]');
+    if (!consoleText) {
+      const consoleDiv = text("div", "", "map-details-console");
+      consoleText = text("p", "", "small");
+      consoleText.dataset.field = "console";
+      consoleText.id = "map-console-reason";
+      consoleDiv.appendChild(consoleText);
+      details.appendChild(consoleDiv);
+    }
     setText(consoleText, route.text);
     let open = details.querySelector('[data-field="console-open"]');
-    if (!route.action) {
-      if (open) open.remove();
-      return;
-    }
     if (!open) {
       open = document.createElement("button");
       open.type = "button";
-      open.className = "primary";
       open.dataset.field = "console-open";
+      open.setAttribute("aria-describedby", "map-console-reason");
       open.addEventListener("click", () => {
-        if (!lastData || open.dataset.worker === undefined) return;
+        if (open.disabled || !lastData || open.dataset.worker === undefined) return;
         document.dispatchEvent(new CustomEvent("unio-open-console", {
           detail: { worker: open.dataset.worker, task: open.dataset.task },
         }));
       });
       consoleText.parentElement.appendChild(open);
+    }
+    open.disabled = !route.action;
+    open.className = route.action ? "primary" : "";
+    if (!route.action) {
+      delete open.dataset.worker;
+      delete open.dataset.task;
+      setText(open, "Open output or files");
+      return;
     }
     open.dataset.worker = route.action.event.worker;
     open.dataset.task = route.action.event.task;
