@@ -25,6 +25,8 @@ spec = importlib.util.spec_from_file_location('cooldown', ROOT / 'tools/runtime/
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 passed = 0
+if sys.argv[1:] not in ([], ['--daemon-only']):
+    raise SystemExit('usage: unio-lead-cooldown.py [--daemon-only]')
 
 
 def check(name, condition):
@@ -55,6 +57,44 @@ def quota(allowed=False, duration=300, reset=None, secondary=None):
 
 def proof(response, now=D):
     return m.classify(ACCOUNT, response, now)
+
+
+def daemon_admission_checks():
+    # Exercise the actual process-admission path against an isolated proc tree,
+    # not the machine's running Codex or any real model executable.
+    with tempfile.TemporaryDirectory(prefix='cooldown-proc-') as directory:
+        root = Path(directory); entry = root/'1234';entry.mkdir()
+        binary = root/'codex';binary.write_text('not an executable')
+        (entry/'exe').symlink_to(binary)
+        (entry/'environ').write_bytes(b'')
+        old_iterdir = Path.iterdir
+        words, parents = {}, {}
+        def entries(path):return iter([entry]) if str(path)=='/proc' else old_iterdir(path)
+        with patch.object(m.Path,'iterdir',entries),patch.object(m,'process_identity',return_value={'pid':1234}),\
+             patch.object(m,'process_words',side_effect=lambda pid:words.get(pid,[])),\
+             patch.object(m,'parent_pid',side_effect=lambda pid:parents.get(pid,0)):
+            f={'codex':str(binary)}
+            for args, label in [([b'codex'],'interactive lead'),([b'codex',b'exec'],'exec lead'),
+                                ([b'codex',b'resume'],'resumed lead'),([b'codex',b'app-server',b'--listen'],'standalone app-server')]:
+                words[1234]=args;parents.clear()
+                check(label+' blocks a competing workflow',m.external_codex(f))
+            words[1234]=[b'codex',b'app-server',b'daemon',b'run']
+            check('persistent daemon manager is infrastructure',not m.external_codex(f))
+            words[1234]=[b'codex',b'app-server',b'--listen'];parents[1234]=1200
+            words[1200]=[b'codex',b'app-server',b'daemon',b'run']
+            check('backend with exact daemon ancestry is infrastructure',not m.external_codex(f))
+            words[1200]=[b'bash',b'-c',b'codex app-server daemon run']
+            check('daemon words in another command do not bypass admission',m.external_codex(f))
+            words[1234]=[]
+            check('unknown process role blocks conservatively',m.external_codex(f))
+            words[1234]=[b'codex',b'exec'];(entry/'environ').write_bytes(b'UNIO_LEAD_ATTEMPT=token\0')
+            check('only the already owned attempt is exempt',not m.external_codex(f,'token') and m.external_codex(f,'other'))
+
+
+daemon_admission_checks()
+if sys.argv[1:] == ['--daemon-only']:
+    print('lead cooldown daemon admission: %d assertions passed; model calls=0' % passed)
+    raise SystemExit(0)
 
 
 q = proof(quota())

@@ -106,7 +106,12 @@ process separately. Never delete evidence to make a restart appear clean.
 
 These are trusted-host controls, not an OS security boundary: another process
 running as the same user can edit state or launch an unmanaged CLI. Detection
-is conservative and may also refuse while Codex is active on another project.
+distinguishes a persistent Codex daemon and its backend from an actual CLI
+workflow. It conservatively refuses other active CLI/standalone app-server
+processes, including another project. Daemon-only IDE sessions cannot be
+reliably counted by this process check: the owner must end existing workflows
+before enablement. Native Unio account slots and the supervised-session guard
+remain in force; these limits do not become account-wide discovery.
 The metadata protocol is experimental; changed/unsupported evidence halts.
 
 See the [implementation contract](development/LEAD-COOLDOWN-CONTRACT.md),

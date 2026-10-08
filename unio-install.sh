@@ -7543,6 +7543,43 @@ def members(token, identity=None):
     return found
 
 
+def process_words(pid):
+    try:
+        with Path('/proc/%d/cmdline' % pid).open('rb') as stream:
+            raw = stream.read(65537)
+        require(len(raw) <= 65536, 'process arguments exceed limit')
+        return raw.rstrip(b'\0').split(b'\0')
+    except (OSError, Refusal):
+        return []
+
+
+def parent_pid(pid):
+    try:
+        raw = Path('/proc/%d/stat' % pid).read_text()
+        return int(raw[raw.rfind(')') + 2:].split()[1])
+    except (OSError, ValueError, IndexError):
+        return 0
+
+
+def daemon_infrastructure(pid):
+    words = process_words(pid)
+    if words[1:3] == [b'app-server', b'daemon']:
+        return True
+    if words[1:2] != [b'app-server']:
+        return False
+    # Only the app-server backend descended from an actual daemon manager is
+    # infrastructure. A standalone app-server may host another live lead.
+    seen = set()
+    for _ in range(8):
+        pid = parent_pid(pid)
+        if pid <= 1 or pid in seen:
+            return False
+        seen.add(pid)
+        if process_words(pid)[1:3] == [b'app-server', b'daemon']:
+            return True
+    return False
+
+
 def external_codex(frozen, token=None):
     for path in Path('/proc').iterdir():
         if not path.name.isdecimal():
@@ -7552,6 +7589,8 @@ def external_codex(frozen, token=None):
                 continue
             target = os.readlink(path / 'exe')
             if target != frozen['codex'] and Path(target).name != 'codex':
+                continue
+            if daemon_infrastructure(int(path.name)):
                 continue
             with (path / 'environ').open('rb') as stream:
                 env = stream.read(65537).split(b'\0')
