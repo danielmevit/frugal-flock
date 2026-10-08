@@ -2355,8 +2355,8 @@ POLICY_PY
 
 # Manual work saving: one embedded standard-library helper, separate from the
 # quality/policy schemas. Create/inspect/restore never call a provider and
-# work while STOP is set. The shell holds the native worker lock (source for
-# create, destination for restore); only the helper takes coord/.locks/saves.lock.
+# work while STOP is set. The helper safely holds the native worker lock once
+# (source for create, destination for restore), then takes the store lock as needed.
 saves() {
   command -v python3 >/dev/null || { echo "unio: Python 3 is required before save" >&2; return 2; }
   python3 - "$@" <<'SAVES_PY'
@@ -2716,25 +2716,62 @@ def saves_lock(root):
             time.sleep(0.05)
 
 
-def worker_busy(root, worker):
-    locks = under(root, 'coord', '.locks')
-    path = os.path.join(locks, worker + '.lock')
+def worker_lock_fd(root, worker, create):
+    """Open only through validated, pinned parent directories; never repair."""
+    coord_fd = locks_fd = fd = None
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
-    except FileNotFoundError:
-        return False
-    except OSError:
-        return 'unknown'
-    try:
+        coord_fd = os.open(os.path.join(root, 'coord'), directory_flags)
+        st = os.fstat(coord_fd)
+        if st.st_uid != os.getuid() or st.st_mode & 0o022:
+            raise Refuse('io_error', 'unsafe worker lock parent: coord')
+        if create:
+            try:
+                os.mkdir('.locks', 0o755, dir_fd=coord_fd)
+            except FileExistsError:
+                pass
+        locks_fd = os.open('.locks', directory_flags, dir_fd=coord_fd)
+        st = os.fstat(locks_fd)
+        if st.st_uid != os.getuid() or st.st_mode & 0o022:
+            raise Refuse('io_error', 'unsafe worker lock parent: .locks')
+        flags = os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+        flags |= (os.O_RDWR | os.O_CREAT) if create else os.O_RDONLY
+        try:
+            fd = os.open(worker + '.lock', flags, 0o600, dir_fd=locks_fd)
+        except FileNotFoundError:
+            if create:
+                raise
+            return None
         st = os.fstat(fd)
-        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or (st.st_mode & 0o022):
-            return 'unknown'
+        if (not stat.S_ISREG(st.st_mode) or st.st_nlink != 1
+                or st.st_uid != os.getuid() or st.st_mode & 0o022):
+            raise Refuse('io_error', 'unsafe native worker lock for ' + worker)
+        admitted, fd = fd, None
+        return admitted
+    except OSError:
+        raise Refuse('io_error', 'unsafe or inaccessible native worker lock for ' + worker)
+    finally:
+        for opened in (fd, locks_fd, coord_fd):
+            if opened is not None:
+                os.close(opened)
+
+
+def worker_busy(root, worker):
+    try:
+        fd = worker_lock_fd(root, worker, False)
+    except Refuse:
+        return 'unknown'
+    if fd is None:
+        return False
+    try:
         try:
             fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
         except BlockingIOError:
             return True
         fcntl.flock(fd, fcntl.LOCK_UN)
         return False
+    except OSError:
+        return 'unknown'
     finally:
         os.close(fd)
 
@@ -3576,41 +3613,27 @@ def attempt_doc(doc, worker):
 
 
 def require_lock(root, worker):
-    coord = under(root, 'coord')
-    locks = under(root, 'coord', '.locks')
-    path = os.path.join(locks, worker + '.lock')
-    for d in (coord, locks):
-        try:
-            st = os.lstat(d)
-        except FileNotFoundError:
-            continue
-        if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or (st.st_mode & 0o022):
-            raise Refuse('lock_busy', 'unsafe lock parent: ' + d)
-    try:
-        os.makedirs(locks, exist_ok=True)
-    except OSError:
-        pass
-    try:
-        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600)
-    except OSError:
-        raise Refuse('lock_busy', 'the native worker lock for %s is busy or unsafe' % worker)
-    st = os.fstat(fd)
-    if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_uid != os.getuid() or (st.st_mode & 0o022):
-        os.close(fd)
-        raise Refuse('lock_busy', 'unsafe worker lock: ' + path)
+    fd = worker_lock_fd(root, worker, True)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         os.close(fd)
         raise Refuse('lock_busy', 'the native worker lock for %s is busy' % worker)
+    except OSError:
+        os.close(fd)
+        raise Refuse('io_error', 'cannot acquire native worker lock for ' + worker)
     return fd
 
 
 def cmd_create(root, worker, task):
+    with os.fdopen(require_lock(root, worker), 'rb'):
+        return create_locked(root, worker, task)
+
+
+def create_locked(root, worker, task):
     store = open_store(root, True)
     observed_at = stamp()
     try:
-        require_lock(root, worker)
         budget = Budget(CAPTURE_SECONDS)
         first, task_bytes = capture(root, worker, task, budget)
         fault('between-passes')
@@ -3906,14 +3929,14 @@ def reject(fn, *args):
 
 def cmd_restore(root, save_id, dest):
     try:
-        return restore(root, save_id, dest)
+        with os.fdopen(require_lock(root, dest), 'rb'):
+            return restore(root, save_id, dest)
     except Refuse as r:
         print('unio: restore %s (%s): %s' % ('outcome Unknown' if r.code == 'unknown' else 'refused', r.code, r.message), file=sys.stderr)
         return r.exit_code
 
 
 def restore(root, save_id, dest):
-    require_lock(root, dest)
     store = open_store(root, False)
     if store is None:
         raise Refuse('invalid_save', 'no saves in this project')
