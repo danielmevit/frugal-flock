@@ -2,6 +2,10 @@
 
 Your AIs, in sync.
 
+Validation update, 2026-10-08: see [completed checks, preserved failures and
+remaining release work](RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
+not replace the final versioned release gate.
+
 ## Current focus: finish the functional core
 
 The owner requested a milestone review on 2026-10-08. The
@@ -25,7 +29,7 @@ second Codex workflow is started alongside this active low-tier lead.
 
 | Priority | Functional milestone | Current state |
 | --- | --- | --- |
-| 1 | Close v0.5.4 recovery, release and install | Saving, authorized continuation and the first lead cooldown runtime accepted in main. Next: combined source gate, real subscription-limit restart acceptance and final shipping checks. |
+| 1 | Close v0.5.4 recovery, release and install | Saving, authorized continuation and the first lead cooldown runtime accepted in main. Source validation exposed bounded fixture/packaging corrections. Next: finish continuation acceptance, genuine subscription-limit restart and final shipping checks. |
 | 2 | Simple daily launch and responsive observation | Default observer budget corrected in source and real HTTP200 confirmed. Packaged launch/setup and measured scan optimization remain; a larger budget is not a speed improvement. |
 | 3 | Shared-account allowance and worker readiness | Native account slots exist; live fleet quota/readiness integration does not. Start with manual readings and one supported read-only adapter. |
 | 4 | Ready-task dispatch and dependency handling | Queue/reservation exists; automated ready/dependency/scope scheduling remains planned. |

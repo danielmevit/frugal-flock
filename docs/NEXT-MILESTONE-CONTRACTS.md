@@ -16,6 +16,10 @@ then the lead's full review. Source merges receive the full quality gate and
 are pushed only on PASS. Release publication and billing changes need separate
 approval. See [version plan](VERSION-PLAN.md) for the owner-approved sequence.
 
+Validation update, 2026-10-08: see [completed checks, preserved failures and
+remaining release work](development/RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
+not replace the final versioned release gate.
+
 ## Final review policy
 
 Owner direction on 2026-10-05: each final candidate from this point receives

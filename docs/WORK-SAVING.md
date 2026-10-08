@@ -6,6 +6,10 @@ limit with useful edits but no final commit. See the
 [implementation contract](development/WORK-SAVING-CONTRACT.md) and the
 [roadmap](development/ROADMAP.md#approved-delivery-priorities).
 
+Validation update, 2026-10-08: see [completed checks, preserved failures and
+remaining release work](development/RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
+not replace the final versioned release gate.
+
 ## Status
 
 | Part | State |

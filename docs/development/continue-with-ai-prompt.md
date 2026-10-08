@@ -7,13 +7,21 @@ Read [the development index](README.md), [lead routing](LEAD-ROUTING.md),
 In an existing team workspace, read the newest coordination log and actual
 worker branches before changing anything. Preserve prior work and failures.
 
+Validation update, 2026-10-08: see [completed checks, preserved failures and
+remaining release work](RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
+not replace the final versioned release gate.
+
 ## Current delivery checkpoint — 2026-10-08
 
 Owner requested a functionality-first milestone review after the completed map
 polish. Read the [audit and delivery plan](FUNCTIONALITY-FIRST-PLAN.md) and the
 front of the [roadmap](ROADMAP.md). Automatic baseline/periodic/final saving,
 one authorized continuation and the first [lead cooldown runtime](../LEAD-COOLDOWN.md)
-are accepted and pushed in main. The combined source gate is next. Real
+are accepted and pushed in main. The original combined gate failed a stale
+completion expectation; the corrected manual suite passed 186 checks. Automatic
+saving passed 61 checks and cooldown passed 106 offline assertions. Full
+continuation release acceptance is pending; its remaining focused phase passed
+31 assertions. Real
 subscription-limit restart acceptance, final release packaging and upgrade
 checks remain before v0.5.4 publication and installation. Further UI work and
 scan optimization are deferred until recovery is complete; later releases have
@@ -72,7 +80,8 @@ lead review. Reused unchanged timer evidence was not replayed for the PID guard.
 Preserve the initial periodic/session failures and refused local adapter alias
 transport. Direct Source remains not run; this was existing-lead implementation
 under the owner's self-review exception, with no independent AI-lab verdict.
-Manual full-suite and combined release checks remain required; the lead
+The corrected full manual suite passed 186 checks; final versioned release
+checks remain required. The lead
 cooldown runtime is now implemented in source, with real restart acceptance pending.
 
 Authorized continuation is integrated at
@@ -89,8 +98,9 @@ These commands remain unreleased until the completed v0.5.4 gate.
 
 Preserve the saving review history: original and replacement findings, the
 lead's full-suite shared-lock observation failure, and the final focused
-correction's scope/checks PASS and personal approval. Do not claim the corrected
-revision has passed the full suite; it remains required at the combined release.
+correction's scope/checks PASS and personal approval. A later stale completion
+assertion was corrected at main `43a45b1`; the full manual suite then passed 186 checks.
+The original failing gates stay preserved; final versioned release checks remain.
 The direct lead tasks have no delegated Source, and self-review is not an
 independent AI-lab verdict.
 
@@ -155,7 +165,8 @@ standard combined readiness is claimed. Published/installed0.5.3 is unchanged.
 
 Recovery runtime slices are implemented under the frozen
 [work-saving contract](WORK-SAVING-CONTRACT.md) and
-[lead cooldown contract](LEAD-COOLDOWN-CONTRACT.md). Next: combined source gate,
+[lead cooldown contract](LEAD-COOLDOWN-CONTRACT.md). Next: finish continuation
+acceptance, then the final versioned gate,
 real subscription-limit restart acceptance and final shipping checks. Existing worker limit
 handling stays unchanged. Future Marathon-inspired UI uses UX/layout/control
 shapes in black, white, charcoal and neutral gray, with the small semantic status
@@ -206,3 +217,8 @@ handoff is in wt/codex-lead/docs/development/continue-with-ai-prompt.md. Never
 merge that generic lead branch. No private logs, credentials or snapshots belong
 in public release assets. Without the workspace, use the official Git history
 and release metadata and prepare new bounded tasks from the current source.
+
+For new commits, preserve the human author and record actual agent assistance
+consistently in commit messages and receipts. Do not invent a GitHub-linked
+agent email or rewrite published history to add AI credit. See
+[the attribution finding](RECOVERY-ACCEPTANCE-2026-10-08.md#agent-credit).
