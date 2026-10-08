@@ -416,6 +416,7 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     });
     assert.ok(Math.abs(wheelAnchor.before.x - wheelAnchor.after.x) < 0.01, JSON.stringify(wheelAnchor));
     assert.ok(Math.abs(wheelAnchor.before.y - wheelAnchor.after.y) < 0.01, JSON.stringify(wheelAnchor));
+    fs.writeFileSync(path.join(shots, "wheel-anchor.json"), JSON.stringify({ requested: { x: px, y: py }, ...wheelAnchor }, null, 2));
     console.log("Wheel anchor evidence " + JSON.stringify({ requested: { x: px, y: py }, ...wheelAnchor }));
     await page.mouse.wheel(0, 100);
     assert.deepEqual(await camera(), wheelCamera);
@@ -564,6 +565,7 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
 
     assert.deepEqual(problems, [], "No page errors, console errors, external requests or mutation calls");
     ok("no page errors, console errors, external or mutation requests");
+    fs.writeFileSync(path.join(shots, "browser-checks.json"), JSON.stringify({ passed, problems }, null, 2));
     await context.close();
     console.log("Work map browser: " + passed.length + " assertion groups passed. Screenshots: " + shots);
   } finally {
