@@ -1,0 +1,1 @@
+- Restore valid empty Git indexes, including saves from empty repositories or with every tracked file staged for removal, by initializing the private index before rebuilding it.

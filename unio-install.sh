@@ -3997,6 +3997,7 @@ def restore(root, save_id, dest):
     try:
         bundle = verify_carried(save, dst, budget, scratch) if g['commit_ids'] else None
         index_file = os.path.join(scratch, 'index')
+        git(dst['wt'], budget, 'read-tree', '--empty', env=git_env(index_file), what='git read-tree (private empty index)')
         lines = b''.join(b'%s %s\t%s\0' % (e['index']['mode'].encode(), e['index']['oid'].encode(), e['path'].encode('utf-8'))
                          for e in m['entries'] if e['index'] is not None)
         git(dst['wt'], budget, 'update-index', '-z', '--index-info', data=lines, env=git_env(index_file), what='git update-index (private)')

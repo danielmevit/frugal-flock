@@ -713,6 +713,23 @@ with tempfile.TemporaryDirectory(prefix='work-saving-') as directory:
     check('legacy restore still matches retained state exactly', view(x) == retained_view)
     check('retained source remains byte-for-byte unchanged after lock tests', snap(y) == retained_before)
 
+    # Removing every tracked path from the index is supported, even while
+    # retained HEAD files remain on disk. Git must publish an actual empty index.
+    check('empty-index regression workers initialize', unio('init', 'mock-u', 'mock-v').returncode == 0)
+    u, v = wt / 'mock-u', wt / 'mock-v'
+    git(u, 'rm', '--cached', '-r', '.')
+    empty_before, empty_view = snap(u), view(u)
+    check('source has an empty index with retained HEAD files', git(u, 'ls-files', '-s', '-z') == b'')
+    r = unio('save', 'create', 'mock-u', 'T1')
+    empty_id = saved_id(r)
+    check('create captures an empty index', r.returncode == 0 and empty_id)
+    check('manifest preserves absent index entries',
+          all(e['index'] is None for e in manifest(empty_id)['entries']))
+    check('restore materializes a valid empty index', unio('save', 'restore', empty_id, 'mock-v').returncode == 0)
+    check('empty-index restore matches HEAD, files, modes and staged removal',
+          git(v, 'ls-files', '-s', '-z') == b'' and view(v) == empty_view)
+    check('empty-index capture and restore leave source raw state unchanged', snap(u) == empty_before)
+
     # ---- help, completion and zero provider calls -------------------------
     help_text = unio('help').stdout
     check('help documents the save commands',
