@@ -1,4 +1,4 @@
-# Work saving — manual commands in source, automatic saving planned for v0.5.4
+# Work saving — manual and automatic saves in source for v0.5.4
 
 Owner requirement recorded 2026-10-06 after a worker reached its allowance
 limit with useful edits but no final commit. See the
@@ -11,7 +11,7 @@ limit with useful edits but no final commit. See the
 | Part | State |
 | --- | --- |
 | Manual `unio save create`, `inspect` and `restore` | Implemented in source (slice 1); not in any public release yet |
-| Automatic baseline, periodic and final saves during runs | Planned for v0.5.4 (slice 2) |
+| Automatic baseline, periodic and final saves during runs | Implemented in source (automatic part of slice 2); unreleased |
 | One authorized continuation from a save (`unio save continue`) | Planned for v0.5.4 (slice 2); not available |
 | Lead cooldown supervisor | Later slice under its own contract |
 
@@ -68,13 +68,25 @@ destination's exact earlier state, or records the outcome as Unknown and
 never restores into that destination again automatically. It never commits,
 resets the source, cleans ignored files or moves another branch.
 
-## Automatic saving (planned for v0.5.4)
+## Automatic saving (in source, unreleased)
 
-Unio should save recoverable checkpoints throughout a run, preserving
-unfinished work when an AI stops unexpectedly. The native supervisor saves
-local file state at the start, periodically when edits change, and after a
-provider failure or timeout. Saving needs no AI request. Each save records
-its worker, task, run, revisions, file hashes and actual observation time.
+Native `unio run` saves local file state before starting its provider, checks
+for changed state every sixty seconds, and captures final state after success,
+failure, timeout or graceful TERM/INT interruption. Unchanged periodic state
+creates no duplicate save. Saving needs no AI request or final answer. Each
+save records its worker, task, native attempt ID, revisions, file hashes and
+observation time; final saves also record the actual process exit.
+
+The same validated, bounded format and retention rules apply as for manual
+saves. The native shell keeps its existing worker and shared-account ownership;
+providers and capture children inherit neither lock nor account-control pipes.
+Capture children have a thirty-second deadline and are stopped and reaped.
+Provider execution continues if saving fails. Its real exit and native quality
+receipts remain separate from saving; a refused or failed final capture keeps
+the previous good save visible through `unio save inspect --worker WORKER`.
+No allowance telemetry is required, and no worker is benched or restarted by a
+save failure. Forced process termination (SIGKILL), host loss or disk failure
+can prevent the final save; already published checkpoints remain available.
 
 Workers receive guidance to commit coherent, scoped changes regularly. A
 finish reserve leaves time to validate and commit before the run deadline
@@ -83,10 +95,9 @@ input where available; missing quota information remains Unknown. This
 cannot predict every provider cutoff, so saving works independently of the
 AI answering a final request.
 
-Show the last successful save and its age, plus unsaved, stale, refused or
-failed capture states. A failed final save must leave the previous valid
-save available. Concurrent edits can prevent an exact latest capture; never
-claim those changing bytes were saved successfully.
+Use `inspect` for the last successful save, observation time, latest attempt
+and live saved/changed/Unknown state. Concurrent edits can prevent an exact
+latest capture; those changing bytes are never reported as successfully saved.
 
 ## Recovery and acceptance
 
@@ -110,7 +121,9 @@ full index and bytes/modes, source immutability, zero provider calls,
 corruption, unsupported states, concurrent edits, interrupted publication,
 retention, pinning, caps, destination refusals, rollback and Unknown.
 
-Slice 2 still needs offline providers to prove abrupt quota failure,
-timeout, termination, missing allowance telemetry and low reported
-allowance, preserving the original failed exit, and that a continuation
-neither authorizes a second paid attempt nor bypasses current verification.
+`tests/unio-work-saving-auto.py` uses offline native providers to exercise failed
+exits without a final answer, exact restore, timeout, termination, periodic
+change capture and deduplication, capture failure, last-good retention and
+released worker/account ownership without allowance telemetry. Authorized
+continuation still needs its own implementation and acceptance; automatic
+saving grants no additional provider invocation or inherited verification.
