@@ -726,15 +726,22 @@ Run it after every merge session; it prevents next week's conflicts.
 
 ### 7.9 Rejecting work
 
-Rejection is one command plus one instruction:
+Inspect the actual result and preserve the branch and unfinished work:
 
 ```text
-$ git -C ../wt/codex reset --hard dev        # wipe the branch
+$ unio result codex T7-codex
+$ unio diff codex
 ```
 
-Then tell the foreman: "T7 rejected because `<reason>`. Write a sharper
-T7b." Sharper task file — never "hope it does better this time". Two
-failed attempts on the same task = the foreman must escalate to you.
+Record the demonstrated defect and write a concrete correction for one
+other capable available model. If that replacement also cannot finish,
+the lead implements the remaining correction directly in its existing
+session. Do not wipe the original branch, retry blindly or start a ladder
+of weaker workers. Low tier still permits only one workflow per shared
+account; direct takeover adds no separate lead-provider session. Follow
+[bounded escalation](ai/LEAD-ESCALATION.md) and the
+[model scoreboard](development/MODEL-SCOREBOARD.md). Owner authority,
+spending limits and required checks continue to apply.
 
 ### 7.10 `result` and `handoff` — the evidence, and the next-AI packet
 
@@ -1246,9 +1253,10 @@ project's `coord/docs/`); these are the twelve invariants translated:
    allowed scope.
 2. Needs something outside its scope? It must NOT touch it — finish what
    it can and flag the need in its report. Flagging beats fixing.
-3. Only you merge. The foreman recommends; it never merges.
-4. The foreman never writes feature code — contracts, fixtures, docs,
-   and the board only.
+3. You control integration. The lead merges only with your authorization.
+4. The lead normally delegates feature code. If a worker and one suitable
+   replacement cannot finish, it directly corrects the remaining problem
+   in its existing session, preserving the work and checks.
 5. Workers never switch branches, never push, never touch dev or main
    (the hooks enforce this physically).
 6. Hitting the same obstacle twice means stop and write a blocker note —

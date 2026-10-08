@@ -352,8 +352,11 @@ when assigning tasks.
 - I2  Out-of-scope need ⇒ do NOT touch it: finish what is in scope, state
       the need in NEEDS-REVIEW (and blockers.md if blocking). Flagging
       beats fixing — recorded precedent.
-- I3  Only OWNER merges to base or main. LEAD recommends; never merges.
-- I4  LEAD never writes feature code. Contracts, fixtures, docs, board: yes.
+- I3  OWNER controls integration. LEAD merges only with owner authorization.
+- I4  LEAD normally delegates feature code. After one worker and one suitable
+      replacement cannot finish, LEAD directly corrects the remaining problem
+      in its existing session; preserve work, checks and integration authority.
+      Read LEAD-ESCALATION.md and MODEL-SCOREBOARD.md in coord/docs/.
 - I5  Workers never switch branches, never push, never touch base/main.
       (Enforced by guard hooks; the rule stands even where hooks are absent.)
 - I6  Same obstacle twice ⇒ stop, write blockers.md; do not improvise

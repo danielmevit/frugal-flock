@@ -4,7 +4,11 @@ Owner-approved feature direction, 2026-10-07. Status: planned; the existing
 `unio score` command already summarizes per-worker ledger results. It does
 not yet provide model-specific task profiles, automatic routing, review
 accuracy or causal comparisons. Extend that evidence rather than adding a
-separate synthetic benchmark program.
+separate synthetic benchmark program. The
+[curated model scoreboard and task-fit guide](MODEL-SCOREBOARD.md) is available
+now as lead guidance; model-specific automatic aggregation remains planned.
+[Bounded escalation](../ai/LEAD-ESCALATION.md) records when the lead takes over
+a struggling correction instead of spending another worker session.
 
 ## Product behavior
 

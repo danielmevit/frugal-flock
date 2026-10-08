@@ -2,6 +2,7 @@
 
 Read [the development index](README.md), [lead routing](LEAD-ROUTING.md),
 [work modes and tiers](../WORK-MODES.md), [model effort](MODEL-EFFORT.md),
+[bounded escalation](../ai/LEAD-ESCALATION.md), [model scoreboard](MODEL-SCOREBOARD.md),
 [model roles](../ai/MODEL-ROLES.md) and [workspace rules](WORKSPACE-RULES.md).
 In an existing team workspace, read the newest coordination log and actual
 worker branches before changing anything. Preserve prior work and failures.

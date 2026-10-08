@@ -8,6 +8,8 @@ AI calls outside that task.
 ## Leads: read these before planning or delegation
 
 Read [lead routing and spending](../development/LEAD-ROUTING.md),
+[bounded escalation](LEAD-ESCALATION.md),
+[model scoreboard and task fit](../development/MODEL-SCOREBOARD.md),
 [model effort](../development/MODEL-EFFORT.md),
 [standing model roles](MODEL-ROLES.md),
 [work modes and subscription tiers](../WORK-MODES.md), and
@@ -23,8 +25,9 @@ public repository entry point instead of relying on unpublished role cards.
 
 Main implementation belongs to available Grok, Antigravity/Gemini, Claude
 Code or Codex workers. Keep the designated lead on planning, coordination
-and final assessment. Low tier must not create another independent session
-on the lead's shared allowance.
+and final assessment by default. If a worker and one suitable replacement
+struggle, the lead directly completes the correction in its existing session.
+Low tier must not create another independent session on the lead's allowance.
 
 Use the [verified free OpenCode pool](../FREE-MODELS.md) only for routine
 support such as docs, formatting, inventories, boilerplate and predefined

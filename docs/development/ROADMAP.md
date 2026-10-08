@@ -32,7 +32,12 @@ and time spent, grouped by model/route/effort and task type. Use official model
 claims only to propose first trials; recommendations need Unio's own checked
 project evidence. The [free model inventory](../FREE-MODELS.md) records the
 eleven approved candidates and initial dated observations. The richer runtime
-profiles and automatic suggestions are planned, not implemented.
+profiles and automatic suggestions are planned, not implemented. The
+[curated scoreboard and task-fit guide](MODEL-SCOREBOARD.md) supplies practical
+lead guidance now. The standing
+[escalation rule](../ai/LEAD-ESCALATION.md) ends unsuccessful delegation after
+one worker and one suitable replacement: the existing lead then implements
+the correction. Neither guide triggers extra model calls or automatic rerouting.
 
 ## Approved delivery priorities
 

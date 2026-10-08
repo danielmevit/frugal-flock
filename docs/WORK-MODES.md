@@ -39,9 +39,12 @@ plans, prices, model quality levels, reasoning levels or measured quota.
 
 | Tier | Independent workflows per shared provider/account budget | Instructions for the lead |
 | --- | --- | --- |
-| `low` | 1, including the lead | Delegate implementation to other available providers. Keep the lead on planning, concise review, integration and handoffs. Do not start another independent feature, test job or worker on the lead's provider. |
+| `low` | 1, including the lead | Delegate implementation to other available providers. Normally keep the lead on planning, concise review, integration and handoffs. Direct takeover after worker escalation uses the existing lead session. Do not start another independent feature, test job or worker on the lead's provider. |
 | `medium` | 2, including the lead | Allow a second independent workflow on a provider when its capacity justifies it. Prefer useful work on other funded providers before consuming the lead's reserve. |
 | `high` | 4, including the lead | Allow more independent workflows when useful and capacity permits. Do not create busywork or run every assignment at maximum effort. |
+
+See [bounded escalation](ai/LEAD-ESCALATION.md) for direct lead takeover after
+unsuccessful delegation; it does not add a workflow or relax these limits.
 
 `low` is the default. This is a limit per shared budget group, not a limit
 on the whole team: Codex can lead while Claude and GLM work on separate
