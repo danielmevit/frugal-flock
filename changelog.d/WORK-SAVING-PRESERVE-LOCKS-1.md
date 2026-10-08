@@ -1,0 +1,1 @@
+- Correct manual saving to traverse required paths inside ignored directories, preserve files deleted from the index but retained in the worktree, and securely validate native worker lock descriptors and their parent directories without following symlinks.

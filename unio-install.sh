@@ -2353,6 +2353,1843 @@ main(sys.argv)
 POLICY_PY
 }
 
+# Manual work saving: one embedded standard-library helper, separate from the
+# quality/policy schemas. Create/inspect/restore never call a provider and
+# work while STOP is set. The helper safely holds the native worker lock once
+# (source for create, destination for restore), then takes the store lock as needed.
+saves() {
+  command -v python3 >/dev/null || { echo "unio: Python 3 is required before save" >&2; return 2; }
+  python3 - "$@" <<'SAVES_PY'
+import datetime, fcntl, hashlib, json, os, re, selectors, shutil, signal, stat, struct, subprocess, sys, tempfile, time
+
+# Manual work saving (contract: docs/development/WORK-SAVING-CONTRACT.md,
+# slice 1). Stored data is only ever compared, hashed and copied; it never
+# becomes a shell command, a policy or a provider prompt. No provider call.
+MIB = 1024 * 1024
+MAX_ENTRIES, MAX_COMMITS = 4000, 100
+MAX_BODY, MAX_STORED, MAX_TASK, MAX_MANIFEST = 4 * MIB, 32 * MIB, MIB, MIB
+MAX_OBSERVED, CAPTURE_SECONDS, RESTORE_SECONDS = 64 * MIB, 30.0, 120.0
+KEEP_UNPINNED, CAP_WORKER, CAP_PROJECT, CAP_CLAIMS = 5, 8, 32, 32
+LOCK_WAIT = 10.0
+SAVE_REASONS = ('manual', 'baseline', 'periodic', 'final', 'final-failure')
+CODES = ('unstable', 'excessive', 'secret_name', 'unsupported_type', 'unsupported_git', 'unsafe_name',
+         'incomplete', 'lock_busy', 'invalid_save', 'destination_rejected', 'io_error', 'unknown')
+CLAIM_STATES = ('reserved', 'mutating', 'restored', 'failed', 'unknown', 'calling', 'called')
+UNRESOLVED = ('reserved', 'mutating', 'unknown', 'calling')
+MANIFEST_KEYS = {'schema_version', 'status', 'content_complete', 'save_id', 'worker', 'task', 'run_id', 'reason',
+                 'provider_exit', 'observed_at', 'published_at', 'fingerprint', 'git', 'entries', 'context'}
+GIT_KEYS = {'object_format', 'base_commit', 'head_commit', 'head_tree', 'commit_ids', 'bundle_sha256', 'bundle_bytes'}
+ATTEMPT_KEYS = {'schema_version', 'worker', 'task', 'observed_at', 'reason', 'status', 'save_id', 'last_good_id', 'provider_exit'}
+CLAIM_KEYS = {'schema_version', 'claim_id', 'save_id', 'destination', 'new_task', 'task_sha256', 'source_fingerprint',
+              'preimage_fingerprint', 'created_at', 'updated_at', 'state', 'outcome'}
+HEX32, HEX64 = re.compile('[0-9a-f]{32}'), re.compile('[0-9a-f]{64}')
+WORK_MODE = re.compile('0[0-7]{3}')
+INDEX_MODES = {0o100644: '100644', 0o100755: '100755'}
+IN_PROGRESS = ('MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'BISECT_LOG', 'rebase-merge', 'rebase-apply', 'sequencer')
+# The native `unio init` secret pattern, applied case-insensitively.
+SECRET = re.compile(r'(^|/)\.env(\.|$)|(^|/)id_(rsa|ed25519|ecdsa)($|\.)|\.(pem|p12|pfx)$'
+                    r'|(^|/)(credentials|secrets?)\.(json|ya?ml|toml|txt)$', re.I)
+GIT_OPTS = ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false',
+            '-c', 'credential.helper=', '-c', 'protocol.allow=never', '-c', 'protocol.file.allow=always',
+            '-c', 'gc.auto=0', '-c', 'maintenance.auto=false', '-c', 'fetch.writeCommitGraph=false',
+            '-c', 'transfer.fsckObjects=true', '-c', 'core.quotePath=false']
+
+
+class Refuse(Exception):
+    def __init__(self, code, message, exit_code=None):
+        super().__init__(message)
+        self.code, self.message = code, message
+        self.exit_code = exit_code if exit_code is not None else (2 if code in ('lock_busy', 'unknown') else 1)
+
+
+class Budget:
+    def __init__(self, seconds, reads=MAX_OBSERVED):
+        self.seconds, self.deadline, self.left = seconds, time.monotonic() + seconds, reads
+
+    def remaining(self):
+        left = self.deadline - time.monotonic()
+        if left <= 0:
+            raise Refuse('excessive', 'operation exceeded its %d second bound' % self.seconds)
+        return left
+
+    def charge(self, n):
+        self.left -= n
+        if self.left < 0:
+            raise Refuse('excessive', 'observation reads exceeded 64 MiB')
+
+
+def fault(name):
+    # Test-only failure injection: it can only make an operation fail or pause.
+    if name not in os.environ.get('UNIO_SAVE_TEST_FAULT', '').split(','):
+        return
+    if name == 'between-passes':
+        os.kill(os.getpid(), signal.SIGSTOP)
+    elif name.startswith('publish-'):
+        os._exit(75)
+    else:
+        raise Refuse('io_error', 'injected fault: ' + name)
+
+
+def stamp():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='microseconds')
+
+
+def when(value):
+    if not isinstance(value, str) or len(value) > 64:
+        return None
+    try:
+        t = datetime.datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return t if t.tzinfo is not None else None
+
+
+def ident(value):
+    return (isinstance(value, str) and 0 < len(value) <= 200 and value not in ('.', '..') and '..' not in value
+            and not value.startswith('-') and not any(c.isspace() or ord(c) < 32 or ord(c) == 127 or c in '/\\' for c in value))
+
+
+def is_int(v):
+    return type(v) is int
+
+
+def canon(obj):
+    return json.dumps(obj, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def git_oid(fmt, body):
+    h = hashlib.new(fmt)
+    h.update(b'blob %d\0' % len(body))
+    h.update(body)
+    return h.hexdigest()
+
+
+def oid_ok(value, fmt):
+    return isinstance(value, str) and len(value) == (40 if fmt == 'sha1' else 64) and all(c in '0123456789abcdef' for c in value)
+
+
+def strict_json(data, limit, what):
+    if len(data) > limit:
+        raise Refuse('invalid_save', what + ' exceeds its size bound')
+    try:
+        text = data.decode('utf-8')
+    except UnicodeDecodeError:
+        raise Refuse('invalid_save', what + ' is not UTF-8')
+
+    def pairs(items):
+        d = {}
+        for k, v in items:
+            if k in d:
+                raise Refuse('invalid_save', what + ' has a duplicate key: ' + k[:64])
+            d[k] = v
+        return d
+
+    def constant(name):
+        raise Refuse('invalid_save', what + ' has a non-finite number')
+    try:
+        return json.loads(text, object_pairs_hook=pairs, parse_constant=constant)
+    except ValueError:
+        raise Refuse('invalid_save', what + ' is not valid JSON')
+
+
+# ---------------------------------------------------------------- processes
+def git_env(index_file=None):
+    env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_') and k != 'SSH_ASKPASS'}
+    env.update(GIT_OPTIONAL_LOCKS='0', GIT_TERMINAL_PROMPT='0', GIT_NO_REPLACE_OBJECTS='1',
+               GIT_PROTOCOL_FROM_USER='0', LC_ALL='C')
+    if index_file:
+        env['GIT_INDEX_FILE'] = index_file
+    return env
+
+
+def run(argv, budget, data=b'', limit=MAX_OBSERVED, codes=(0,), env=None, charge=False, what='command'):
+    budget.remaining()
+    try:
+        p = subprocess.Popen(argv, stdin=subprocess.PIPE if data else subprocess.DEVNULL, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, env=env if env is not None else git_env(),
+                             close_fds=True, start_new_session=True)
+    except OSError as e:
+        raise Refuse('io_error', '%s could not start: %s' % (what, e.strerror))
+    out, err, view, pos = bytearray(), bytearray(), memoryview(data), 0
+    sel = selectors.DefaultSelector()
+    try:
+        sel.register(p.stdout, selectors.EVENT_READ, 'out')
+        sel.register(p.stderr, selectors.EVENT_READ, 'err')
+        if data:
+            os.set_blocking(p.stdin.fileno(), False)
+            sel.register(p.stdin, selectors.EVENT_WRITE, 'in')
+        while sel.get_map():
+            for key, _ in sel.select(min(budget.remaining(), 1.0)):
+                if key.data == 'in':
+                    try:
+                        pos += os.write(key.fd, view[pos:pos + 65536])
+                    except BlockingIOError:
+                        continue
+                    except BrokenPipeError:
+                        pos = len(view)
+                    if pos >= len(view):
+                        sel.unregister(key.fileobj)
+                        key.fileobj.close()
+                    continue
+                chunk = os.read(key.fd, 65536)
+                if not chunk:
+                    sel.unregister(key.fileobj)
+                elif key.data == 'out':
+                    out += chunk
+                    if charge:
+                        budget.charge(len(chunk))
+                    if len(out) > limit:
+                        raise Refuse('excessive', what + ' output exceeded its bound')
+                elif len(err) < 65536:
+                    err += chunk
+        try:
+            p.wait(timeout=budget.remaining())
+        except subprocess.TimeoutExpired:
+            raise Refuse('excessive', what + ' exceeded its deadline')
+    finally:
+        sel.close()
+        if p.returncode is None:
+            # Only this helper's own process group: started with a new session.
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            p.wait()
+        for f in (p.stdin, p.stdout, p.stderr):
+            if f is not None and not f.closed:
+                f.close()
+    if p.returncode not in codes:
+        lines = err.decode('utf-8', 'replace').strip().splitlines()
+        raise Refuse('io_error', '%s failed (exit %d)%s' % (what, p.returncode, ': ' + lines[-1][:200] if lines else ''))
+    return p.returncode, bytes(out)
+
+
+def git(cwd, budget, *args, **kw):
+    kw.setdefault('what', 'git ' + args[0])
+    return run(['git', *GIT_OPTS, '-C', cwd, *args], budget, **kw)
+
+
+def git_out(cwd, budget, *args, **kw):
+    return git(cwd, budget, *args, **kw)[1]
+
+
+# ------------------------------------------------------------- filesystem
+def under(root, *parts):
+    p = root
+    for part in parts:
+        for c in part.split('/'):
+            if c in ('', '.', '..'):
+                raise Refuse('io_error', 'invalid coordination path')
+            p = os.path.join(p, c)
+            if os.path.islink(p):
+                raise Refuse('io_error', 'symlink refused: ' + p)
+    return p
+
+
+def read_fd(fd, limit, budget, what):
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode):
+        raise Refuse('unsupported_type', 'not a regular file: ' + what)
+    if st.st_size > limit:
+        raise Refuse('excessive', what + ' exceeds its size bound')
+    chunks, total = [], 0
+    while True:
+        chunk = os.read(fd, min(MIB, limit + 1 - total))
+        if not chunk:
+            break
+        total += len(chunk)
+        if budget is not None:
+            budget.charge(len(chunk))
+        if total > limit:
+            raise Refuse('excessive', what + ' exceeds its size bound')
+        chunks.append(chunk)
+    return st, b''.join(chunks)
+
+
+def read_at(dfd, name, limit, budget=None, what=None):
+    try:
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=dfd)
+    except OSError as e:
+        if e.errno == 40:  # ELOOP: a symlink where a regular file belongs
+            raise Refuse('unsupported_type', 'symbolic link refused: ' + (what or name))
+        raise
+    try:
+        return read_fd(fd, limit, budget, what or name)
+    finally:
+        os.close(fd)
+
+
+def read_path(path, limit, budget=None):
+    return read_at(None, path, limit, budget, path)
+
+
+def open_dir(name, dfd=None):
+    return os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=dfd)
+
+
+def fsync_dir(path):
+    fd = open_dir(path)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def write_private(path, data):
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+        view = memoryview(data)
+        while view:
+            view = view[os.write(fd, view):]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def atomic_private(path, data):
+    # Only this target's own abandoned temporaries: callers hold the lock
+    # that serializes writers of this exact file (worker or saves lock).
+    directory, target = os.path.split(path)
+    own = re.compile(re.escape(target) + r'\.tmp-[0-9a-f]{16}')
+    for name in os.listdir(directory):
+        if own.fullmatch(name):
+            stale = os.path.join(directory, name)
+            if stat.S_ISREG(os.lstat(stale).st_mode):
+                os.unlink(stale)
+    temp = os.path.join(directory, target + '.tmp-' + os.urandom(8).hex())
+    write_private(temp, data)
+    try:
+        os.replace(temp, path)
+    finally:
+        if os.path.lexists(temp):
+            os.unlink(temp)
+    fsync_dir(directory)
+
+
+def private_dir(path, create):
+    if create:
+        try:
+            os.mkdir(path, 0o700)
+        except FileExistsError:
+            pass
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        return False
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o700:
+        raise Refuse('io_error', 'unsafe save store (needs a 0700 directory you own, not a link): ' + path)
+    return True
+
+
+def open_store(root, create):
+    store = under(root, 'coord', 'saves')
+    if not private_dir(store, create):
+        return None
+    for sub in ('attempts', 'claims'):
+        private_dir(os.path.join(store, sub), create)
+    return store
+
+
+def saves_lock(root):
+    locks = under(root, 'coord', '.locks')
+    os.makedirs(locks, exist_ok=True)
+    path = under(root, 'coord', '.locks', 'saves.lock')
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or st.st_mode & 0o077:
+        os.close(fd)
+        raise Refuse('io_error', 'unsafe saves lock (needs a private regular file you own): ' + path)
+    end = time.monotonic() + LOCK_WAIT
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return fd
+        except BlockingIOError:
+            if time.monotonic() >= end:
+                os.close(fd)
+                raise Refuse('lock_busy', 'the saves lock is busy')
+            time.sleep(0.05)
+
+
+def worker_lock_fd(root, worker, create):
+    """Open only through validated, pinned parent directories; never repair."""
+    coord_fd = locks_fd = fd = None
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    try:
+        coord_fd = os.open(os.path.join(root, 'coord'), directory_flags)
+        st = os.fstat(coord_fd)
+        if st.st_uid != os.getuid() or st.st_mode & 0o022:
+            raise Refuse('io_error', 'unsafe worker lock parent: coord')
+        if create:
+            try:
+                os.mkdir('.locks', 0o755, dir_fd=coord_fd)
+            except FileExistsError:
+                pass
+        locks_fd = os.open('.locks', directory_flags, dir_fd=coord_fd)
+        st = os.fstat(locks_fd)
+        if st.st_uid != os.getuid() or st.st_mode & 0o022:
+            raise Refuse('io_error', 'unsafe worker lock parent: .locks')
+        flags = os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+        flags |= (os.O_RDWR | os.O_CREAT) if create else os.O_RDONLY
+        try:
+            fd = os.open(worker + '.lock', flags, 0o600, dir_fd=locks_fd)
+        except FileNotFoundError:
+            if create:
+                raise
+            return None
+        st = os.fstat(fd)
+        if (not stat.S_ISREG(st.st_mode) or st.st_nlink != 1
+                or st.st_uid != os.getuid() or st.st_mode & 0o022):
+            raise Refuse('io_error', 'unsafe native worker lock for ' + worker)
+        admitted, fd = fd, None
+        return admitted
+    except OSError:
+        raise Refuse('io_error', 'unsafe or inaccessible native worker lock for ' + worker)
+    finally:
+        for opened in (fd, locks_fd, coord_fd):
+            if opened is not None:
+                os.close(opened)
+
+
+def worker_busy(root, worker):
+    try:
+        fd = worker_lock_fd(root, worker, False)
+    except Refuse:
+        return 'unknown'
+    if fd is None:
+        return False
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return False
+    except OSError:
+        return 'unknown'
+    finally:
+        os.close(fd)
+
+
+# ----------------------------------------------------------------- paths
+def path_text(raw):
+    try:
+        p = raw.decode('utf-8') if isinstance(raw, bytes) else os.fsencode(raw).decode('utf-8')
+    except UnicodeError:
+        raise Refuse('unsafe_name', 'path is not UTF-8: %r' % (raw,))
+    check_path(p)
+    return p
+
+
+def path_ok(p):
+    if not isinstance(p, str) or not p:
+        return False
+    try:
+        b = p.encode('utf-8')
+    except UnicodeError:
+        return False
+    if len(b) > 1024 or any(ord(c) < 32 or 127 <= ord(c) <= 159 or c == '\\' for c in p):
+        return False
+    for c in p.split('/'):
+        if c in ('', '.', '..') or c.lower() == '.git' or c.startswith('-') or len(c.encode('utf-8')) > 255:
+            return False
+    return True
+
+
+def check_path(p):
+    if not path_ok(p):
+        raise Refuse('unsafe_name', 'unsafe path name: %r' % (p,))
+    return p
+
+
+def check_secret(p, where):
+    if SECRET.search(p):
+        raise Refuse('secret_name', 'secret-looking path in %s: %s' % (where, p))
+
+
+def no_case_collisions(paths):
+    seen = {}
+    for p in paths:
+        k = p.encode('utf-8').lower()
+        if k in seen:
+            raise Refuse('unsafe_name', 'paths differ only by ASCII case: %s / %s' % (seen[k], p))
+        seen[k] = p
+
+
+# ------------------------------------------------------------ Git reading
+def worker_repo(root, worker, budget):
+    wt = under(root, 'wt', worker)
+    try:
+        st = os.lstat(wt)
+    except FileNotFoundError:
+        raise Refuse('unsupported_git', 'no worktree for worker ' + worker)
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+        raise Refuse('unsupported_git', 'not a worker worktree you own: ' + wt)
+    try:
+        marker = read_path(os.path.join(wt, '.unio-worker'), 4096)[1]
+    except (OSError, Refuse):
+        raise Refuse('unsupported_git', 'missing native worker marker in ' + wt)
+    if marker.decode('utf-8', 'replace').strip() != worker:
+        raise Refuse('unsupported_git', 'worker marker does not name ' + worker)
+    lines = git_out(wt, budget, 'rev-parse', '--path-format=absolute', '--show-toplevel', '--absolute-git-dir',
+                    '--git-common-dir', '--show-object-format', '--is-shallow-repository').decode('utf-8', 'replace').split('\n')
+    if len(lines) != 6:
+        raise Refuse('unsupported_git', 'unexpected repository layout for ' + worker)
+    top, gitdir, common, fmt, shallow = lines[:5]
+    if os.path.realpath(top) != os.path.realpath(wt):
+        raise Refuse('unsupported_git', 'worktree is not its own repository top: ' + wt)
+    if fmt not in ('sha1', 'sha256') or shallow != 'false':
+        raise Refuse('unsupported_git', 'unsupported object format or shallow repository')
+    rc, ref = git(wt, budget, 'symbolic-ref', '-q', 'HEAD', codes=(0, 1))
+    if rc or ref.strip() != ('refs/heads/agent/' + worker).encode():
+        raise Refuse('unsupported_git', 'HEAD is not on agent/' + worker)
+    for name in IN_PROGRESS:
+        if os.path.lexists(os.path.join(gitdir, name)):
+            raise Refuse('unsupported_git', 'a Git operation is in progress (%s)' % name)
+    rc, value = git(wt, budget, 'config', '--type=bool', '--get', 'core.sparseCheckout', codes=(0, 1))
+    if rc == 0 and value.strip() == b'true':
+        raise Refuse('unsupported_git', 'sparse checkout is unsupported')
+    return dict(wt=os.path.realpath(wt), gitdir=gitdir, common=os.path.realpath(common), fmt=fmt)
+
+
+def resolve_commit(wt, budget, name, fmt):
+    rc, out = git(wt, budget, 'rev-parse', '--verify', '-q', '--end-of-options', name + '^{commit}', codes=(0, 1))
+    value = out.decode('ascii', 'replace').strip()
+    return value if rc == 0 and oid_ok(value, fmt) else None
+
+
+def resolve_base(root, worker, task, repo, budget):
+    # The frozen task base recorded by `unio run`, else the native coord/base.
+    try:
+        doc = json.loads(read_path(under(root, 'coord', 'results', worker, task + '.json'), MIB)[1])
+    except (OSError, Refuse, ValueError):
+        doc = None
+    revisions = []
+    if isinstance(doc, dict):
+        revisions = [doc.get('revision'), doc['process'].get('revision') if isinstance(doc.get('process'), dict) else None]
+    for rev in revisions:
+        frozen = rev.get('base_commit') if isinstance(rev, dict) else None
+        if oid_ok(frozen, repo['fmt']):
+            if resolve_commit(repo['wt'], budget, frozen, repo['fmt']) != frozen:
+                raise Refuse('unsupported_git', 'the frozen task base is not available: ' + frozen)
+            return frozen, 'task'
+    try:
+        name = read_path(under(root, 'coord', 'base'), 4096)[1].decode('utf-8').strip()
+    except FileNotFoundError:
+        name = 'main'
+    except (OSError, Refuse, UnicodeError):
+        raise Refuse('unsupported_git', 'unreadable coord/base')
+    if not ident(name.replace('/', '_')):
+        raise Refuse('unsupported_git', 'invalid coord/base branch name')
+    base = resolve_commit(repo['wt'], budget, name, repo['fmt'])
+    if base is None:
+        raise Refuse('unsupported_git', 'coord/base does not name a commit: ' + name)
+    return base, 'coord'
+
+
+def varint(data, pos):
+    c = data[pos]
+    pos += 1
+    value = c & 0x7f
+    while c & 0x80:
+        c = data[pos]
+        pos += 1
+        value = ((value + 1) << 7) | (c & 0x7f)
+    return value, pos
+
+
+def parse_index(data, fmt):
+    """Exact stage-0 entries from the raw index, refusing hidden-state flags."""
+    hlen = 20 if fmt == 'sha1' else 32
+    bad = Refuse('unsupported_git', 'unreadable Git index')
+    if len(data) < 12 + hlen or data[:4] != b'DIRC':
+        raise bad
+    version, count = struct.unpack('>II', data[4:12])
+    if version not in (2, 3, 4):
+        raise Refuse('unsupported_git', 'unsupported index version %d' % version)
+    if count > MAX_ENTRIES:
+        raise Refuse('excessive', 'more than %d index entries' % MAX_ENTRIES)
+    body, trailer = data[:-hlen], data[-hlen:]
+    if trailer != b'\0' * hlen and hashlib.new(fmt, body).digest() != trailer:
+        raise Refuse('unstable', 'Git index checksum mismatch (concurrent write?)')
+    entries, pos, prev = {}, 12, b''
+    try:
+        for _ in range(count):
+            start = pos
+            mode = struct.unpack('>I', body[pos + 24:pos + 28])[0]
+            pos += 40
+            oid = body[pos:pos + hlen].hex()
+            pos += hlen
+            flags = struct.unpack('>H', body[pos:pos + 2])[0]
+            pos += 2
+            extended = 0
+            if flags & 0x4000:
+                if version < 3:
+                    raise bad
+                extended = struct.unpack('>H', body[pos:pos + 2])[0]
+                pos += 2
+            if version == 4:
+                strip, pos = varint(body, pos)
+                if strip > len(prev):
+                    raise bad
+                end = body.index(b'\0', pos)
+                name = prev[:len(prev) - strip] + body[pos:end]
+                pos = end + 1
+            else:
+                end = body.index(b'\0', pos)
+                name = body[pos:end]
+                pos = start + (((pos - start) + len(name) + 8) & ~7)
+            prev = name
+            label = name.decode('utf-8', 'replace')
+            if (flags >> 12) & 3:
+                raise Refuse('unsupported_git', 'unmerged index entry: ' + label)
+            if flags & 0x8000:
+                raise Refuse('unsupported_git', 'assume-unchanged index entry: ' + label)
+            if extended & 0x4000:
+                raise Refuse('unsupported_git', 'skip-worktree index entry: ' + label)
+            if extended & 0x2000:
+                raise Refuse('unsupported_git', 'intent-to-add index entry: ' + label)
+            if mode == 0o120000:
+                raise Refuse('unsupported_type', 'symbolic link in the index: ' + label)
+            if mode == 0o160000:
+                raise Refuse('unsupported_type', 'gitlink/submodule in the index: ' + label)
+            if mode not in INDEX_MODES:
+                raise Refuse('unsupported_git', 'unsupported index mode for ' + label)
+            entries[path_text(name)] = (INDEX_MODES[mode], oid)
+        while pos < len(body):
+            signature, size = body[pos:pos + 4], struct.unpack('>I', body[pos + 4:pos + 8])[0]
+            if signature in (b'link', b'sdir'):
+                raise Refuse('unsupported_git', 'split or sparse index is unsupported')
+            pos += 8 + size
+    except (struct.error, ValueError, IndexError):
+        raise bad
+    if pos != len(body) or len(entries) != count:
+        raise bad
+    return entries
+
+
+def tree_paths(wt, budget, commit, with_modes):
+    out = git_out(wt, budget, 'ls-tree', '-r', '-z', '--full-tree', commit, charge=True)
+    result = {}
+    for record in out.split(b'\0'):
+        if not record:
+            continue
+        meta, _, name = record.partition(b'\t')
+        parts = meta.split(b' ')
+        if len(parts) != 3:
+            raise Refuse('unsupported_git', 'unexpected tree listing')
+        if not with_modes:
+            result[name.decode('utf-8', 'replace')] = None
+            continue
+        mode, oid = parts[0].decode(), parts[2].decode()
+        p = path_text(name)
+        if mode == '120000':
+            raise Refuse('unsupported_type', 'symbolic link in HEAD: ' + p)
+        if mode == '160000':
+            raise Refuse('unsupported_type', 'gitlink/submodule in HEAD: ' + p)
+        if mode not in ('100644', '100755'):
+            raise Refuse('unsupported_git', 'unsupported HEAD mode for ' + p)
+        result[p] = (mode, oid)
+    return result
+
+
+def ignored_names(wt, budget, rels):
+    if not rels:
+        return set()
+    out = git_out(wt, budget, 'check-ignore', '--no-index', '-z', '--stdin',
+                  data=b'\0'.join(os.fsencode(r) for r in rels) + b'\0', codes=(0, 1), charge=True)
+    return set(os.fsdecode(n) for n in out.split(b'\0') if n)
+
+
+def walk_worktree(wt, budget, tracked):
+    """Supported nonignored files: path -> (mode text, bytes). No-follow reads."""
+    tracked_dirs = set()
+    for p in tracked:
+        parts = p.split('/')
+        for i in range(1, len(parts)):
+            tracked_dirs.add('/'.join(parts[:i]))
+    files = {}
+
+    def visit(dfd, prefix):
+        names = sorted(os.listdir(dfd))
+        if not prefix:
+            names = [n for n in names if n != '.git']
+        if len(names) > MAX_ENTRIES:
+            raise Refuse('excessive', 'more than %d entries in one directory' % MAX_ENTRIES)
+        rels = [prefix + n for n in names]
+        ignored = ignored_names(wt, budget, rels)
+        for name, rel in zip(names, rels):
+            st = os.stat(name, dir_fd=dfd, follow_symlinks=False)
+            known = rel in tracked or rel in tracked_dirs
+            if rel in ignored and not known:
+                # Omitted before any body is read; secret names still refuse.
+                check_secret(rel, 'ignored files')
+                continue
+            p = path_text(rel)
+            check_secret(p, 'the worktree')
+            if stat.S_ISDIR(st.st_mode):
+                if p in tracked:
+                    raise Refuse('unsupported_type', 'tracked file replaced by a directory: ' + p)
+                sub = open_dir(name, dfd)
+                try:
+                    if os.fstat(sub).st_ino != st.st_ino:
+                        raise Refuse('unstable', 'directory changed while reading: ' + p)
+                    try:
+                        os.stat('.git', dir_fd=sub, follow_symlinks=False)
+                        raise Refuse('unsupported_type', 'nested repository: ' + p)
+                    except FileNotFoundError:
+                        pass
+                    visit(sub, p + '/')
+                finally:
+                    os.close(sub)
+            elif stat.S_ISREG(st.st_mode):
+                if st.st_nlink != 1:
+                    raise Refuse('unsupported_type', 'hard link: ' + p)
+                if stat.S_IMODE(st.st_mode) & 0o7000:
+                    raise Refuse('unsupported_type', 'setuid/setgid/sticky file: ' + p)
+                if len(files) >= MAX_ENTRIES:
+                    raise Refuse('excessive', 'more than %d worktree files' % MAX_ENTRIES)
+                fst, body = read_at(dfd, name, MAX_BODY, budget, p)
+                if fst.st_ino != st.st_ino or fst.st_nlink != 1 or stat.S_IMODE(fst.st_mode) & 0o7000:
+                    raise Refuse('unstable', 'file changed while reading: ' + p)
+                files[p] = ('%04o' % (stat.S_IMODE(fst.st_mode) & 0o777), body)
+            elif stat.S_ISLNK(st.st_mode):
+                raise Refuse('unsupported_type', 'symbolic link: ' + p)
+            else:
+                raise Refuse('unsupported_type', 'FIFO, device or socket: ' + p)
+
+    root_fd = open_dir(wt)
+    try:
+        visit(root_fd, '')
+    finally:
+        os.close(root_fd)
+    return files
+
+
+def read_blobs(wt, budget, oids, fmt):
+    if not oids:
+        return {}
+    request = ''.join(o + '\n' for o in sorted(oids)).encode()
+    sizes = {}
+    for line in git_out(wt, budget, 'cat-file', '--batch-check', data=request, charge=True).decode('ascii', 'replace').splitlines():
+        parts = line.split(' ')
+        if len(parts) == 2 and parts[1] == 'missing':
+            raise Refuse('incomplete', 'missing Git object ' + parts[0])
+        if len(parts) != 3 or parts[1] != 'blob' or not parts[2].isdigit():
+            raise Refuse('unsupported_git', 'unexpected object: ' + line[:100])
+        if int(parts[2]) > MAX_BODY:
+            raise Refuse('excessive', 'index blob larger than 4 MiB: ' + parts[0])
+        sizes[parts[0]] = int(parts[2])
+    if set(sizes) != set(oids):
+        raise Refuse('incomplete', 'Git did not describe every index blob')
+    total = sum(sizes.values())
+    if total > MAX_STORED:
+        raise Refuse('excessive', 'index content exceeds 32 MiB')
+    out = git_out(wt, budget, 'cat-file', '--batch', data=request, limit=total + 200 * len(sizes), charge=True)
+    blobs, pos = {}, 0
+    for _ in sizes:
+        end = out.index(b'\n', pos)
+        oid, typ, size = out[pos:end].decode().split(' ')
+        body = out[end + 1:end + 1 + int(size)]
+        pos = end + 2 + int(size)
+        if typ != 'blob' or len(body) != sizes.get(oid) or git_oid(fmt, body) != oid:
+            raise Refuse('incomplete', 'index blob does not match its object ID: ' + oid)
+        blobs[oid] = body
+    return blobs
+
+
+def observe(root, worker, budget, task_bytes, base=None, task=None):
+    """One full bounded observation of a worker's supported Git/file state."""
+    repo = worker_repo(root, worker, budget)
+    wt, fmt = repo['wt'], repo['fmt']
+    if os.path.lexists(os.path.join(repo['gitdir'], 'index.lock')):
+        raise Refuse('unstable', 'a Git index write is in progress')
+    head = resolve_commit(wt, budget, 'HEAD', fmt)
+    if head is None:
+        raise Refuse('unsupported_git', 'HEAD has no commit')
+    head_tree = git_out(wt, budget, 'rev-parse', '--verify', head + '^{tree}').decode().strip()
+    base_source = 'given'
+    if base is None:
+        base, base_source = resolve_base(root, worker, task, repo, budget)
+    if git(wt, budget, 'merge-base', '--is-ancestor', base, head, codes=(0, 1))[0]:
+        raise Refuse('unsupported_git', 'base %s is not an ancestor of HEAD' % base[:12])
+    commits = git_out(wt, budget, 'rev-list', '--topo-order', '--reverse', '--max-count=%d' % (MAX_COMMITS + 1),
+                      head, '^' + base).decode().split()
+    if len(commits) > MAX_COMMITS:
+        raise Refuse('excessive', 'more than %d commits after the base' % MAX_COMMITS)
+    if commits and commits[-1] != head or not all(oid_ok(c, fmt) for c in commits):
+        raise Refuse('unsupported_git', 'unexpected commit range')
+    index_raw = read_path(os.path.join(repo['gitdir'], 'index'), MAX_OBSERVED, budget)[1]
+    index_map = parse_index(index_raw, fmt)
+    head_map = tree_paths(wt, budget, head, True)
+    for p in index_map:
+        check_secret(p, 'the index')
+    for p in head_map:
+        check_secret(p, 'HEAD')
+    files = walk_worktree(wt, budget, set(index_map) | set(head_map))
+    paths = sorted(set(head_map) | set(index_map) | set(files))
+    if len(paths) > MAX_ENTRIES:
+        raise Refuse('excessive', 'more than %d paths' % MAX_ENTRIES)
+    no_case_collisions(paths)
+    need = set()
+    for p, (mode, oid) in index_map.items():
+        if p not in files or git_oid(fmt, files[p][1]) != oid:
+            need.add(oid)
+    blobs = read_blobs(wt, budget, need, fmt)
+    bodies, entries = {}, []
+    for p in paths:
+        index = worktree = None
+        if p in index_map:
+            mode, oid = index_map[p]
+            body = blobs[oid] if oid in blobs else files[p][1]
+            digest = sha(body)
+            bodies[digest] = body
+            index = dict(mode=mode, oid=oid, sha256=digest, bytes=len(body))
+        if p in files:
+            mode, body = files[p]
+            digest = sha(body)
+            bodies[digest] = body
+            worktree = dict(mode=mode, sha256=digest, bytes=len(body))
+        entries.append(dict(path=p, index=index, worktree=worktree))
+    if sum(len(b) for b in bodies.values()) > MAX_STORED:
+        raise Refuse('excessive', 'saved content exceeds 32 MiB')
+    context = dict(task_sha256=sha(task_bytes), task_bytes=len(task_bytes), literal=True)
+    state = dict(object_format=fmt, base_commit=base, head_commit=head, head_tree=head_tree, commit_ids=commits)
+    return dict(repo=repo, git=state, entries=entries, bodies=bodies, context=context, head_map=head_map,
+                files=files, index_raw=index_raw, base_source=base_source,
+                fingerprint=fingerprint(state, entries, context))
+
+
+def fingerprint(git_state, entries, context):
+    state = {k: git_state[k] for k in ('object_format', 'base_commit', 'head_commit', 'head_tree', 'commit_ids')}
+    return sha(canon(dict(git=state, entries=entries, context=context)))
+
+
+def scan_history(wt, budget, commits):
+    for commit in commits:
+        for p in tree_paths(wt, budget, commit, False):
+            check_secret(p, 'carried commit ' + commit[:12])
+
+
+def bundle_header(data, fmt):
+    pos, prereqs, refs = 0, [], []
+
+    def line():
+        nonlocal pos
+        end = data.find(b'\n', pos)
+        if end < 0 or end - pos > 4096:
+            raise Refuse('invalid_save', 'malformed bundle header')
+        text = data[pos:end].decode('utf-8', 'replace')
+        pos = end + 1
+        return text
+    first = line()
+    if first == '# v3 git bundle':
+        text = line()
+        while text.startswith('@'):
+            if text != '@object-format=' + fmt:
+                raise Refuse('invalid_save', 'unsupported bundle capability')
+            text = line()
+    elif first == '# v2 git bundle' and fmt == 'sha1':
+        text = line()
+    else:
+        raise Refuse('invalid_save', 'unsupported bundle version')
+    while text:
+        if text.startswith('-'):
+            oid = text[1:].split(' ', 1)[0]
+            if not oid_ok(oid, fmt):
+                raise Refuse('invalid_save', 'malformed bundle prerequisite')
+            prereqs.append(oid)
+        else:
+            oid, _, name = text.partition(' ')
+            if not oid_ok(oid, fmt):
+                raise Refuse('invalid_save', 'malformed bundle reference')
+            refs.append((oid, name))
+        text = line()
+    if data[pos:pos + 4] != b'PACK':
+        raise Refuse('invalid_save', 'bundle has no pack data')
+    return prereqs, refs
+
+
+# -------------------------------------------------------- stored validation
+def manifest_doc(doc, save_id):
+    bad = lambda why: Refuse('invalid_save', 'invalid manifest: ' + why)
+    if not isinstance(doc, dict):
+        raise bad('not an object')
+    if 'schema_version' in doc and doc['schema_version'] != 1 or not is_int(doc.get('schema_version')):
+        raise Refuse('invalid_save', 'unsupported save schema: %r' % (doc.get('schema_version'),))
+    if set(doc) != MANIFEST_KEYS:
+        raise bad('unexpected or missing keys')
+    if doc['status'] != 'complete' or doc['content_complete'] is not True:
+        raise bad('not complete')
+    if doc['save_id'] != save_id or not ident(doc['worker']) or not ident(doc['task']):
+        raise bad('identity')
+    if doc['run_id'] is not None and not ident(doc['run_id']):
+        raise bad('run_id')
+    reason, exit_code = doc['reason'], doc['provider_exit']
+    if reason not in SAVE_REASONS:
+        raise bad('reason')
+    if not ((reason in ('manual', 'baseline', 'periodic') and exit_code is None)
+            or (reason == 'final' and is_int(exit_code) and exit_code == 0)
+            or (reason == 'final-failure' and is_int(exit_code) and exit_code != 0)):
+        raise bad('provider_exit')
+    if when(doc['observed_at']) is None or when(doc['published_at']) is None:
+        raise bad('timestamps')
+    g = doc['git']
+    if not isinstance(g, dict) or set(g) != GIT_KEYS or g['object_format'] not in ('sha1', 'sha256'):
+        raise bad('git')
+    fmt = g['object_format']
+    if not all(oid_ok(g[k], fmt) for k in ('base_commit', 'head_commit', 'head_tree')):
+        raise bad('git object IDs')
+    commits = g['commit_ids']
+    if (not isinstance(commits, list) or len(commits) > MAX_COMMITS or not all(oid_ok(c, fmt) for c in commits)
+            or len(set(commits)) != len(commits) or g['base_commit'] in commits):
+        raise bad('commit_ids')
+    if g['head_commit'] == g['base_commit']:
+        if commits or g['bundle_sha256'] is not None or g['bundle_bytes'] != 0 or not is_int(g['bundle_bytes']):
+            raise bad('equal base must have no bundle')
+    elif (not commits or commits[-1] != g['head_commit'] or not isinstance(g['bundle_sha256'], str)
+          or not HEX64.fullmatch(g['bundle_sha256']) or not is_int(g['bundle_bytes']) or g['bundle_bytes'] <= 0):
+        raise bad('bundle')
+    entries = doc['entries']
+    if not isinstance(entries, list) or len(entries) > MAX_ENTRIES:
+        raise bad('entries')
+    previous = None
+    for e in entries:
+        if not isinstance(e, dict) or set(e) != {'path', 'index', 'worktree'} or not path_ok(e['path']):
+            raise bad('entry')
+        if previous is not None and e['path'] <= previous:
+            raise bad('entries not sorted and unique')
+        previous = e['path']
+        i, w = e['index'], e['worktree']
+        if i is not None and (not isinstance(i, dict) or set(i) != {'mode', 'oid', 'sha256', 'bytes'}
+                              or i['mode'] not in ('100644', '100755') or not oid_ok(i['oid'], fmt)):
+            raise bad('index entry for ' + e['path'])
+        if w is not None and (not isinstance(w, dict) or set(w) != {'mode', 'sha256', 'bytes'}
+                              or not isinstance(w['mode'], str) or not WORK_MODE.fullmatch(w['mode'])):
+            raise bad('worktree entry for ' + e['path'])
+        for part in (i, w):
+            if part is not None and (not isinstance(part['sha256'], str) or not HEX64.fullmatch(part['sha256'])
+                                     or not is_int(part['bytes']) or not 0 <= part['bytes'] <= MAX_BODY):
+                raise bad('content reference for ' + e['path'])
+    try:
+        no_case_collisions([e['path'] for e in entries])
+    except Refuse:
+        raise bad('case collision')
+    c = doc['context']
+    if (not isinstance(c, dict) or set(c) != {'task_sha256', 'task_bytes', 'literal'} or c['literal'] is not True
+            or not isinstance(c['task_sha256'], str) or not HEX64.fullmatch(c['task_sha256'])
+            or not is_int(c['task_bytes']) or not 0 <= c['task_bytes'] <= MAX_TASK):
+        raise bad('context')
+    if not isinstance(doc['fingerprint'], str) or doc['fingerprint'] != fingerprint(g, entries, c):
+        raise bad('fingerprint does not match the recorded state')
+    sizes = {}
+    for e in entries:
+        for part in (e['index'], e['worktree']):
+            if part is not None and sizes.setdefault(part['sha256'], part['bytes']) != part['bytes']:
+                raise bad('conflicting sizes for one content hash')
+    if sum(sizes.values()) + g['bundle_bytes'] > MAX_STORED:
+        raise bad('stored content exceeds 32 MiB')
+    return doc, sizes
+
+
+def private_at(dfd, name, kind):
+    st = os.stat(name, dir_fd=dfd, follow_symlinks=False)
+    want = stat.S_ISDIR if kind == 'dir' else stat.S_ISREG
+    if (not want(st.st_mode) or st.st_uid != os.getuid()
+            or stat.S_IMODE(st.st_mode) != (0o700 if kind == 'dir' else 0o600)
+            or (kind == 'file' and st.st_nlink != 1)):
+        raise Refuse('invalid_save', 'unsafe stored %s: %s' % (kind, name))
+    return st
+
+
+def load_save(path, save_id, deep):
+    """Validate one published (or staged) save; deep also rereads every byte."""
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        raise Refuse('invalid_save', 'no such save: ' + save_id)
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o700:
+        raise Refuse('invalid_save', 'unsafe save directory: ' + save_id)
+    try:
+        dfd = open_dir(path)
+    except OSError:
+        raise Refuse('invalid_save', 'unreadable save directory: ' + save_id)
+    try:
+        private_at(dfd, 'manifest.json', 'file')
+        doc, sizes = manifest_doc(strict_json(read_at(dfd, 'manifest.json', MAX_MANIFEST)[1], MAX_MANIFEST, 'manifest'), save_id)
+        g = doc['git']
+        expected = {'manifest.json', 'context', 'pool'} | ({'bundle'} if g['commit_ids'] else set())
+        if set(os.listdir(dfd)) != expected:
+            raise Refuse('invalid_save', 'unexpected or missing files in save ' + save_id)
+        private_at(dfd, 'context', 'dir')
+        private_at(dfd, 'pool', 'dir')
+        cfd, pfd = open_dir('context', dfd), open_dir('pool', dfd)
+        try:
+            if os.listdir(cfd) != ['task.md'] or set(os.listdir(pfd)) != set(sizes):
+                raise Refuse('invalid_save', 'stored content files do not match the manifest')
+            if private_at(cfd, 'task.md', 'file').st_size != doc['context']['task_bytes']:
+                raise Refuse('invalid_save', 'task context size mismatch')
+            for digest, size in sizes.items():
+                if private_at(pfd, digest, 'file').st_size != size:
+                    raise Refuse('invalid_save', 'stored content size mismatch: ' + digest)
+            if g['commit_ids'] and private_at(dfd, 'bundle', 'file').st_size != g['bundle_bytes']:
+                raise Refuse('invalid_save', 'bundle size mismatch')
+            if not deep:
+                return dict(manifest=doc)
+            task = read_at(cfd, 'task.md', MAX_TASK)[1]
+            if sha(task) != doc['context']['task_sha256']:
+                raise Refuse('invalid_save', 'task context hash mismatch')
+            bodies = {}
+            for digest, size in sizes.items():
+                body = read_at(pfd, digest, MAX_BODY)[1]
+                if sha(body) != digest or len(body) != size:
+                    raise Refuse('invalid_save', 'stored content hash mismatch: ' + digest)
+                bodies[digest] = body
+            for e in doc['entries']:
+                i = e['index']
+                if i is not None and git_oid(g['object_format'], bodies[i['sha256']]) != i['oid']:
+                    raise Refuse('invalid_save', 'index content does not match its Git object: ' + e['path'])
+            bundle = None
+            if g['commit_ids']:
+                bundle = read_at(dfd, 'bundle', MAX_STORED)[1]
+                if sha(bundle) != g['bundle_sha256'] or len(bundle) != g['bundle_bytes']:
+                    raise Refuse('invalid_save', 'bundle hash mismatch')
+                prereqs, refs = bundle_header(bundle, g['object_format'])
+                if refs != [(g['head_commit'], 'HEAD')] or g['base_commit'] not in prereqs:
+                    raise Refuse('invalid_save', 'bundle does not carry exactly HEAD over the base')
+            return dict(manifest=doc, bodies=bodies, task=task, bundle=bundle)
+        finally:
+            os.close(cfd)
+            os.close(pfd)
+    except FileNotFoundError as e:
+        raise Refuse('invalid_save', 'missing stored file in save %s: %s' % (save_id, e.filename))
+    except OSError as e:
+        if isinstance(e.filename, str) and e.errno == 40:
+            raise Refuse('invalid_save', 'symbolic link in save ' + save_id)
+        raise Refuse('invalid_save', 'unreadable save %s: %s' % (save_id, e.strerror))
+    finally:
+        os.close(dfd)
+
+
+def claim_doc(doc, claim_id=None):
+    bad = Refuse('invalid_save', 'invalid claim evidence')
+    if not isinstance(doc, dict) or set(doc) != CLAIM_KEYS or not is_int(doc['schema_version']) or doc['schema_version'] != 1:
+        raise bad
+    if (not isinstance(doc['claim_id'], str) or not HEX32.fullmatch(doc['claim_id']) or (claim_id and doc['claim_id'] != claim_id)
+            or not isinstance(doc['save_id'], str) or not HEX32.fullmatch(doc['save_id']) or not ident(doc['destination'])):
+        raise bad
+    if (doc['new_task'] is None) != (doc['task_sha256'] is None):
+        raise bad
+    if doc['new_task'] is not None and (not ident(doc['new_task']) or not isinstance(doc['task_sha256'], str)
+                                        or not HEX64.fullmatch(doc['task_sha256'])):
+        raise bad
+    for k in ('source_fingerprint', 'preimage_fingerprint'):
+        if not isinstance(doc[k], str) or not HEX64.fullmatch(doc[k]):
+            raise bad
+    if when(doc['created_at']) is None or when(doc['updated_at']) is None or doc['state'] not in CLAIM_STATES:
+        raise bad
+    o = doc['outcome']
+    if doc['state'] in ('reserved', 'mutating', 'calling'):
+        if o is not None:
+            raise bad
+    elif (not isinstance(o, dict) or set(o) != {'exit_code', 'reason'} or not is_int(o['exit_code'])
+          or o['reason'] not in CODES + ('restored', 'called')):
+        raise bad
+    return doc
+
+
+def load_claims(store):
+    """All claims, plus whether unreadable claim evidence exists."""
+    claims, corrupt = [], 0
+    directory = os.path.join(store, 'claims')
+    for name in sorted(os.listdir(directory)):
+        if re.fullmatch(r'[0-9a-f]{32}\.json\.tmp-[0-9a-f]{16}', name):
+            continue
+        try:
+            if not (name.endswith('.json') and HEX32.fullmatch(name[:-5])):
+                raise Refuse('invalid_save', 'unexpected claim file')
+            dfd = open_dir(directory)
+            try:
+                private_at(dfd, name, 'file')
+                claims.append(claim_doc(strict_json(read_at(dfd, name, 65536)[1], 65536, 'claim'), name[:-5]))
+            finally:
+                os.close(dfd)
+        except (Refuse, OSError):
+            corrupt += 1
+    return claims, corrupt
+
+
+def write_claim(store, doc):
+    claim_doc(doc)
+    atomic_private(os.path.join(store, 'claims', doc['claim_id'] + '.json'),
+                   json.dumps(doc, indent=2, sort_keys=True).encode() + b'\n')
+
+
+def lenient_worker(path):
+    try:
+        doc = json.loads(read_path(os.path.join(path, 'manifest.json'), MAX_MANIFEST)[1])
+        return doc['worker'] if ident(doc.get('worker')) else None
+    except Exception:
+        return None
+
+
+def scan_store(store):
+    """Published saves (lightly validated) and corrupt evidence."""
+    saves, corrupt = [], []
+    for name in sorted(os.listdir(store)):
+        if name in ('attempts', 'claims') or name.startswith('.staging-'):
+            continue
+        path = os.path.join(store, name)
+        if HEX32.fullmatch(name):
+            try:
+                doc = load_save(path, name, False)['manifest']
+                saves.append(dict(id=name, worker=doc['worker'], task=doc['task'],
+                                  published=when(doc['published_at']), manifest=doc))
+                continue
+            except Refuse:
+                pass
+        corrupt.append(dict(id=name, worker=lenient_worker(path) if HEX32.fullmatch(name) else None))
+    saves.sort(key=lambda s: (s['published'], s['id']), reverse=True)
+    return saves, corrupt
+
+
+def last_good(store, worker, deep):
+    saves, _ = scan_store(store)
+    for s in saves:
+        if s['worker'] != worker:
+            continue
+        if not deep:
+            return s
+        try:
+            load_save(os.path.join(store, s['id']), s['id'], True)
+            return s
+        except Refuse:
+            continue
+    return None
+
+
+# --------------------------------------------------------------- create
+def capture(root, worker, task, budget):
+    tf = under(root, 'coord', 'tasks', task + '.md')
+    try:
+        task_bytes = read_path(tf, MAX_TASK, budget)[1]
+    except FileNotFoundError:
+        raise Refuse('incomplete', 'no task file: coord/tasks/%s.md' % task)
+    return observe(root, worker, budget, task_bytes, task=task), task_bytes
+
+
+def same(a, b):
+    return (a['fingerprint'] == b['fingerprint'] and a['base_source'] == b['base_source']
+            and a['repo'] == b['repo'] and a['git'] == b['git'])
+
+
+def retention_plan(store, worker):
+    saves, corrupt = scan_store(store)
+    claims, bad_claims = load_claims(store)
+    pins = {c['save_id'] for c in claims}
+    mine = [s for s in saves if s['worker'] == worker]
+    unpinned = [] if bad_claims else [s for s in mine if s['id'] not in pins]
+    evict = []
+    for s in unpinned[KEEP_UNPINNED - 1:]:
+        try:
+            load_save(os.path.join(store, s['id']), s['id'], True)
+            evict.append(s)
+        except Refuse:
+            corrupt.append(dict(id=s['id'], worker=worker))
+            mine.remove(s)
+    worker_after = len(mine) - len(evict) + 1 + sum(1 for c in corrupt if c['worker'] == worker)
+    project_after = len(saves) + len(corrupt) - len(evict) + 1
+    if worker_after > CAP_WORKER or project_after > CAP_PROJECT:
+        raise Refuse('excessive', 'save retention cap reached (%d per worker, %d per project) by pinned or corrupt evidence'
+                     % (CAP_WORKER, CAP_PROJECT))
+    return evict
+
+
+def clean_staging(store):
+    for name in os.listdir(store):
+        if name.startswith('.staging-'):
+            path = os.path.join(store, name)
+            st = os.lstat(path)
+            if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+                raise Refuse('io_error', 'unsafe abandoned staging entry: ' + name)
+            shutil.rmtree(path)
+
+
+def publish(root, store, worker, task, obs, task_bytes, observed_at, budget):
+    save_id = os.urandom(16).hex()
+    g, wt = obs['git'], obs['repo']['wt']
+    lock = saves_lock(root)
+    staging = os.path.join(store, '.staging-' + save_id)
+    try:
+        clean_staging(store)
+        evict = retention_plan(store, worker)
+        os.mkdir(staging, 0o700)
+        os.chmod(staging, 0o700)
+        try:
+            for sub in ('context', 'pool'):
+                os.mkdir(os.path.join(staging, sub), 0o700)
+                os.chmod(os.path.join(staging, sub), 0o700)
+            stored = 0
+            for digest, body in sorted(obs['bodies'].items()):
+                write_private(os.path.join(staging, 'pool', digest), body)
+                stored += len(body)
+            write_private(os.path.join(staging, 'context', 'task.md'), task_bytes)
+            bundle_sha, bundle_bytes = None, 0
+            if g['commit_ids']:
+                bundle = git_out(wt, budget, 'bundle', 'create', '-q', '-', 'HEAD', '^' + g['base_commit'],
+                                 limit=MAX_STORED - stored, what='git bundle create')
+                prereqs, refs = bundle_header(bundle, g['object_format'])
+                if refs != [(g['head_commit'], 'HEAD')]:
+                    raise Refuse('unstable', 'HEAD moved while the bundle was written')
+                if g['base_commit'] not in prereqs:
+                    raise Refuse('unsupported_git', 'bundle does not depend on the base')
+                for p in prereqs:
+                    if git(wt, budget, 'merge-base', '--is-ancestor', p, g['base_commit'], codes=(0, 1))[0]:
+                        raise Refuse('unsupported_git', 'bundle needs history outside the base')
+                write_private(os.path.join(staging, 'bundle'), bundle)
+                git(wt, budget, 'bundle', 'verify', '-q', os.path.join(staging, 'bundle'), what='git bundle verify')
+                bundle_sha, bundle_bytes = sha(bundle), len(bundle)
+            manifest = dict(schema_version=1, status='complete', content_complete=True, save_id=save_id,
+                            worker=worker, task=task, run_id=None, reason='manual', provider_exit=None,
+                            observed_at=observed_at, published_at=stamp(), fingerprint=obs['fingerprint'],
+                            git=dict(g, bundle_sha256=bundle_sha, bundle_bytes=bundle_bytes),
+                            entries=obs['entries'], context=obs['context'])
+            data = json.dumps(manifest, indent=1, sort_keys=True, ensure_ascii=False).encode('utf-8') + b'\n'
+            if len(data) > MAX_MANIFEST:
+                raise Refuse('excessive', 'manifest would exceed 1 MiB')
+            write_private(os.path.join(staging, 'manifest.json'), data)
+            for sub in ('context', 'pool', ''):
+                fsync_dir(os.path.join(staging, sub))
+            load_save(staging, save_id, True)
+        except BaseException:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+        fault('publish-interrupt')
+        os.rename(staging, os.path.join(store, save_id))
+        fsync_dir(store)
+        fault('publish-after-rename')
+        for s in evict:
+            doomed = os.path.join(store, '.staging-' + s['id'])
+            os.rename(os.path.join(store, s['id']), doomed)
+            fsync_dir(store)
+            shutil.rmtree(doomed)
+        return save_id, len(evict)
+    finally:
+        os.close(lock)
+
+
+def write_attempt(store, worker, task, observed_at, reason, status, save_id):
+    try:
+        good = last_good(store, worker, False)
+        doc = dict(schema_version=1, worker=worker, task=task, observed_at=observed_at, reason=reason,
+                   status=status, save_id=save_id, last_good_id=good['id'] if good else None, provider_exit=None)
+        atomic_private(os.path.join(store, 'attempts', worker + '.json'),
+                       json.dumps(doc, indent=2, sort_keys=True).encode() + b'\n')
+        return doc
+    except (OSError, Refuse) as e:
+        print('unio: could not record the save attempt: %s' % getattr(e, 'message', e), file=sys.stderr)
+        return None
+
+
+def attempt_doc(doc, worker):
+    bad = Refuse('invalid_save', 'invalid attempt evidence')
+    if not isinstance(doc, dict) or set(doc) != ATTEMPT_KEYS or not is_int(doc['schema_version']) or doc['schema_version'] != 1:
+        raise bad
+    if doc['worker'] != worker or not ident(doc['task']) or when(doc['observed_at']) is None:
+        raise bad
+    if doc['status'] not in ('complete', 'refused', 'failed') or doc['reason'] not in CODES + SAVE_REASONS:
+        raise bad
+    for k in ('save_id', 'last_good_id'):
+        if doc[k] is not None and (not isinstance(doc[k], str) or not HEX32.fullmatch(doc[k])):
+            raise bad
+    if (doc['status'] == 'complete') != (doc['save_id'] is not None) or (doc['provider_exit'] is not None and not is_int(doc['provider_exit'])):
+        raise bad
+    return doc
+
+
+def require_lock(root, worker):
+    fd = worker_lock_fd(root, worker, True)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        raise Refuse('lock_busy', 'the native worker lock for %s is busy' % worker)
+    except OSError:
+        os.close(fd)
+        raise Refuse('io_error', 'cannot acquire native worker lock for ' + worker)
+    return fd
+
+
+def cmd_create(root, worker, task):
+    with os.fdopen(require_lock(root, worker), 'rb'):
+        return create_locked(root, worker, task)
+
+
+def create_locked(root, worker, task):
+    store = open_store(root, True)
+    observed_at = stamp()
+    try:
+        budget = Budget(CAPTURE_SECONDS)
+        first, task_bytes = capture(root, worker, task, budget)
+        fault('between-passes')
+        second, task_bytes2 = capture(root, worker, task, budget)
+        if not same(first, second) or task_bytes != task_bytes2:
+            raise Refuse('unstable', 'the worktree changed between two observations; nothing was saved')
+        scan_history(second['repo']['wt'], budget, second['git']['commit_ids'])
+        save_id, evicted = publish(root, store, worker, task, second, task_bytes, observed_at, budget)
+    except Refuse as r:
+        status = 'failed' if r.code in ('io_error', 'unknown') else 'refused'
+        write_attempt(store, worker, task, observed_at, r.code, status, None)
+        print('unio: save %s (%s): %s' % (status, r.code, r.message), file=sys.stderr)
+        return r.exit_code
+    write_attempt(store, worker, task, observed_at, 'manual', 'complete', save_id)
+    g = second['git']
+    print('saved %s: worker %s, task %s, %d paths, %d commits' % (save_id, worker, task, len(second['entries']), len(g['commit_ids'])))
+    print('  base %s (%s), head %s' % (g['base_commit'][:12], 'frozen task base' if second['base_source'] == 'task' else 'coord/base', g['head_commit'][:12]))
+    print('  local unverified recovery snapshot: nothing committed, accepted or sent to a provider'
+          + ('; %d older save(s) evicted' % evicted if evicted else ''))
+    return 0
+
+
+# --------------------------------------------------------------- inspect
+def summary(doc):
+    counts = dict(paths=len(doc['entries']), index=0, worktree=0, untracked=0, unstaged=0, missing=0, removed=0)
+    for e in doc['entries']:
+        i, w = e['index'], e['worktree']
+        counts['index'] += i is not None
+        counts['worktree'] += w is not None
+        counts['untracked'] += i is None and w is not None
+        counts['missing'] += i is not None and w is None
+        counts['removed'] += i is None and w is None
+        if i is not None and w is not None and (i['sha256'] != w['sha256'] or (i['mode'] == '100755') != bool(int(w['mode'], 8) & 0o100)):
+            counts['unstaged'] += 1
+    return counts
+
+
+def described(doc, claims):
+    head = {k: v for k, v in doc.items() if k not in ('entries',)}
+    return dict(manifest=head, summary=summary(doc), verified=False,
+                claims=[dict(claim_id=c['claim_id'], destination=c['destination'], state=c['state'], outcome=c['outcome'])
+                        for c in claims if c['save_id'] == doc['save_id']])
+
+
+def emit(doc):
+    data = json.dumps(doc, sort_keys=True, ensure_ascii=False)
+    if len(data.encode('utf-8')) > MIB:
+        data = json.dumps(dict(schema_version=1, error='output exceeds 1 MiB'))
+    print(data)
+
+
+def cmd_inspect_id(root, save_id, as_json):
+    try:
+        store = open_store(root, False)
+        if store is None:
+            raise Refuse('invalid_save', 'no saves in this project')
+        doc = load_save(os.path.join(store, save_id), save_id, True)['manifest']
+        claims, _ = load_claims(store)
+    except Refuse as r:
+        if as_json:
+            emit(dict(schema_version=1, save_id=save_id, valid=False, reason=r.code, message=r.message))
+        else:
+            print('unio: save %s is not usable (%s): %s' % (save_id, r.code, r.message), file=sys.stderr)
+        return r.exit_code
+    info = described(doc, claims)
+    if as_json:
+        emit(dict(schema_version=1, save_id=save_id, valid=True, **info))
+        return 0
+    g, s = doc['git'], info['summary']
+    print('save %s: complete, valid, unverified recovery snapshot' % save_id)
+    print('  worker %s, task %s, reason %s, run %s' % (doc['worker'], doc['task'], doc['reason'], doc['run_id'] or '-'))
+    print('  observed %s, published %s' % (doc['observed_at'], doc['published_at']))
+    print('  base %s, head %s, %d commits, bundle %d bytes' % (g['base_commit'][:12], g['head_commit'][:12], len(g['commit_ids']), g['bundle_bytes']))
+    print('  %d paths: %d in index, %d worktree files, %d untracked, %d unstaged differences, %d missing from worktree, %d removed from index'
+          % (s['paths'], s['index'], s['worktree'], s['untracked'], s['unstaged'], s['missing'], s['removed']))
+    for c in info['claims']:
+        print('  claim %s: %s into %s' % (c['claim_id'], c['state'], c['destination']))
+    return 0
+
+
+def cmd_inspect_worker(root, worker, as_json):
+    out = dict(schema_version=1, worker=worker, last_good=None, latest_attempt=None, corrupt_evidence=0,
+               live='unknown', live_reason=None)
+    try:
+        store = open_store(root, False)
+        if store is not None:
+            saves, corrupt = scan_store(store)
+            out['corrupt_evidence'] = sum(1 for c in corrupt if c['worker'] in (worker, None))
+            good = last_good(store, worker, True)
+            if good:
+                claims, _ = load_claims(store)
+                out['last_good'] = dict(save_id=good['id'], task=good['task'], published_at=good['manifest']['published_at'],
+                                        fingerprint=good['manifest']['fingerprint'],
+                                        pinned=any(c['save_id'] == good['id'] for c in claims))
+            try:
+                data = read_path(os.path.join(store, 'attempts', worker + '.json'), 65536)[1]
+                out['latest_attempt'] = attempt_doc(strict_json(data, 65536, 'attempt'), worker)
+            except FileNotFoundError:
+                pass
+            except (Refuse, OSError):
+                out['latest_attempt'] = 'unreadable'
+    except Refuse as r:
+        print('unio: %s' % r.message, file=sys.stderr)
+        return r.exit_code
+    busy = worker_busy(root, worker) if out['last_good'] is not None else False
+    if out['last_good'] is None:
+        out['live_reason'] = 'no valid save'
+    elif busy:
+        out['live_reason'] = 'worker lock is unsafe or unobservable' if busy == 'unknown' else 'worker is busy'
+    else:
+        try:
+            m = good['manifest']
+            tf = under(root, 'coord', 'tasks', m['task'] + '.md')
+            now = observe(root, worker, Budget(CAPTURE_SECONDS), read_path(tf, MAX_TASK)[1], base=m['git']['base_commit'])
+            out['live'] = 'saved' if now['fingerprint'] == m['fingerprint'] else 'changed'
+        except (Refuse, OSError) as e:
+            out['live_reason'] = getattr(e, 'message', None) or str(e)
+    if as_json:
+        emit(out)
+        return 0
+    print('worker %s' % worker)
+    if out['last_good']:
+        lg = out['last_good']
+        print('  last good save: %s (task %s, published %s%s)' % (lg['save_id'], lg['task'], lg['published_at'], ', pinned' if lg['pinned'] else ''))
+    else:
+        print('  last good save: none')
+    a = out['latest_attempt']
+    if isinstance(a, dict):
+        print('  latest attempt: %s (%s) at %s, save %s, last good %s' % (a['status'], a['reason'], a['observed_at'], a['save_id'] or '-', a['last_good_id'] or '-'))
+    else:
+        print('  latest attempt: %s' % (a or 'none'))
+    labels = dict(saved='matches the last good save', changed='changed since the last good save', unknown='Unknown')
+    print('  live state: %s%s' % (labels[out['live']], ' (%s)' % out['live_reason'] if out['live_reason'] else ''))
+    if out['corrupt_evidence']:
+        print('  corrupt evidence kept: %d' % out['corrupt_evidence'])
+    return 0
+
+
+# --------------------------------------------------------------- restore
+def lstat_at(base_fd, rel):
+    parts = rel.split('/')
+    fd = os.dup(base_fd)
+    try:
+        for part in parts[:-1]:
+            try:
+                nfd = open_dir(part, fd)
+            except FileNotFoundError:
+                return None
+            except OSError:
+                return 'blocked'
+            os.close(fd)
+            fd = nfd
+        try:
+            return os.stat(parts[-1], dir_fd=fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return None
+    finally:
+        os.close(fd)
+
+
+def parent_fd(base_fd, rel, created):
+    """Open rel's parent, creating real directories (never following links)."""
+    parts = rel.split('/')
+    fd, done = os.dup(base_fd), []
+    try:
+        for part in parts[:-1]:
+            done.append(part)
+            try:
+                os.mkdir(part, 0o777, dir_fd=fd)
+                created.append('/'.join(done))
+            except FileExistsError:
+                pass
+            nfd = open_dir(part, fd)
+            os.close(fd)
+            fd = nfd
+        return fd, parts[-1]
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def put_file(base_fd, rel, body, mode, created):
+    fd, name = parent_fd(base_fd, rel, created)
+    try:
+        temp = '.unio-restore-' + os.urandom(8).hex()
+        out = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=fd)
+        try:
+            view = memoryview(body)
+            while view:
+                view = view[os.write(out, view):]
+            os.fchmod(out, mode)
+            os.fsync(out)
+        finally:
+            os.close(out)
+        try:
+            os.rename(temp, name, src_dir_fd=fd, dst_dir_fd=fd)
+        except BaseException:
+            os.unlink(temp, dir_fd=fd)
+            raise
+    finally:
+        os.close(fd)
+
+
+def drop_file(base_fd, rel):
+    fd, name = parent_fd(base_fd, rel, [])
+    try:
+        if not stat.S_ISREG(os.stat(name, dir_fd=fd, follow_symlinks=False).st_mode):
+            raise Refuse('io_error', 'expected a regular file: ' + rel)
+        os.unlink(name, dir_fd=fd)
+    finally:
+        os.close(fd)
+
+
+def drop_empty_parents(base_fd, rel, removed):
+    parts = rel.split('/')[:-1]
+    while parts:
+        d = '/'.join(parts)
+        fd, name = parent_fd(base_fd, d, [])
+        try:
+            mode = stat.S_IMODE(os.stat(name, dir_fd=fd, follow_symlinks=False).st_mode)
+            try:
+                os.rmdir(name, dir_fd=fd)
+            except OSError:
+                return
+            removed.append((d, mode))
+        finally:
+            os.close(fd)
+        parts.pop()
+
+
+def install_index(gitdir, data):
+    lock, target = os.path.join(gitdir, 'index.lock'), os.path.join(gitdir, 'index')
+    try:
+        fd = os.open(lock, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o644)
+    except FileExistsError:
+        raise Refuse('io_error', 'destination index is locked by another Git process')
+    try:
+        try:
+            view = memoryview(data)
+            while view:
+                view = view[os.write(fd, view):]
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.rename(lock, target)
+    except BaseException:
+        if os.path.lexists(lock):
+            os.unlink(lock)
+        raise
+    fsync_dir(gitdir)
+
+
+def verify_carried(save, dst, budget, scratch):
+    """Quarantine: fetch the bundle into a private repo that borrows only the
+    destination's trusted objects, then check exact range, tree and names."""
+    g = save['manifest']['git']
+    q = os.path.join(scratch, 'quarantine.git')
+    run(['git', 'init', '-q', '--bare', '--template=', '--object-format=' + g['object_format'], q], budget, what='git init')
+    with open(os.path.join(q, 'objects', 'info', 'alternates'), 'w') as f:
+        f.write(os.path.join(dst['common'], 'objects') + '\n')
+    bundle = os.path.join(scratch, 'bundle')
+    write_private(bundle, save['bundle'])
+    if git(q, budget, 'cat-file', '-e', g['base_commit'] + '^{commit}', codes=(0, 1, 128))[0]:
+        raise Refuse('destination_rejected', 'the saved base commit is not in the destination repository')
+    git(q, budget, 'bundle', 'verify', '-q', bundle, what='git bundle verify')
+    for p in bundle_header(save['bundle'], g['object_format'])[0]:
+        if git(q, budget, 'merge-base', '--is-ancestor', p, g['base_commit'], codes=(0, 1, 128))[0]:
+            raise Refuse('invalid_save', 'bundle needs history outside the saved base')
+    git(q, budget, 'fetch', '-q', '--no-tags', '--no-write-fetch-head', bundle, 'HEAD:refs/unio/restore', what='git fetch (quarantine)')
+    if resolve_commit(q, budget, 'refs/unio/restore', g['object_format']) != g['head_commit']:
+        raise Refuse('invalid_save', 'bundle HEAD differs from the manifest')
+    commits = git_out(q, budget, 'rev-list', '--topo-order', '--reverse', g['head_commit'], '^' + g['base_commit']).decode().split()
+    if commits != g['commit_ids']:
+        raise Refuse('invalid_save', 'bundle commit range differs from the manifest')
+    if git_out(q, budget, 'rev-parse', '--verify', g['head_commit'] + '^{tree}').decode().strip() != g['head_tree']:
+        raise Refuse('invalid_save', 'bundle HEAD tree differs from the manifest')
+    scan_history(q, budget, commits)
+    return bundle
+
+
+def snapshot_fingerprint(root, dest, save, base):
+    o = observe(root, dest, Budget(CAPTURE_SECONDS), save['task'], base=base)
+    return o, fingerprint(o['git'], o['entries'], save['manifest']['context'])
+
+
+def reject(fn, *args):
+    try:
+        return fn(*args)
+    except Refuse as r:
+        if r.code in ('lock_busy', 'excessive', 'io_error', 'unknown'):
+            raise
+        raise Refuse('destination_rejected', r.message)
+
+
+def cmd_restore(root, save_id, dest):
+    try:
+        with os.fdopen(require_lock(root, dest), 'rb'):
+            return restore(root, save_id, dest)
+    except Refuse as r:
+        print('unio: restore %s (%s): %s' % ('outcome Unknown' if r.code == 'unknown' else 'refused', r.code, r.message), file=sys.stderr)
+        return r.exit_code
+
+
+def restore(root, save_id, dest):
+    store = open_store(root, False)
+    if store is None:
+        raise Refuse('invalid_save', 'no saves in this project')
+    budget = Budget(RESTORE_SECONDS)
+    save = load_save(os.path.join(store, save_id), save_id, True)
+    m = save['manifest']
+    g, fmt = m['git'], m['git']['object_format']
+    if dest == m['worker']:
+        raise Refuse('destination_rejected', 'destination must differ from the saved worker')
+    src = under(root, 'wt', m['worker'])
+    common = None
+    if os.path.isdir(src) and not os.path.islink(src):
+        rc, out = git(src, budget, 'rev-parse', '--path-format=absolute', '--git-common-dir', codes=(0, 128))
+        common = os.path.realpath(out.decode('utf-8', 'replace').strip()) if rc == 0 else None
+    dst = reject(worker_repo, root, dest, budget)
+    if common != dst['common'] or dst['fmt'] != fmt:
+        raise Refuse('destination_rejected', 'destination does not share the saved worker repository')
+    claims, bad_claims = load_claims(store)
+    if bad_claims:
+        raise Refuse('destination_rejected', 'unreadable claim evidence must be resolved first')
+    if any(c['destination'] == dest and c['state'] in UNRESOLVED for c in claims):
+        raise Refuse('destination_rejected', 'destination has an unresolved claim; it is never retried automatically')
+    if len(claims) >= CAP_CLAIMS:
+        raise Refuse('excessive', 'claim cap (%d) reached; earlier evidence is preserved' % CAP_CLAIMS)
+    if resolve_commit(dst['wt'], budget, 'HEAD', fmt) != g['base_commit']:
+        raise Refuse('destination_rejected', 'destination is not at the saved base %s' % g['base_commit'][:12])
+    pre, pre_fp = reject(snapshot_fingerprint, root, dest, save, g['base_commit'])
+    for e in pre['entries']:
+        p, i, w = e['path'], e['index'], e['worktree']
+        h = pre['head_map'].get(p)
+        if (h is None or i is None or w is None or (i['mode'], i['oid']) != h or w['sha256'] != i['sha256']
+                or (i['mode'] == '100755') != bool(int(w['mode'], 8) & 0o100)):
+            raise Refuse('destination_rejected', 'destination is not clean: ' + p)
+    want = {e['path']: e for e in m['entries']}
+    writes = [p for p, e in want.items() if e['worktree'] is not None
+              and not (p in pre['files'] and sha(pre['files'][p][1]) == e['worktree']['sha256'] and pre['files'][p][0] == e['worktree']['mode'])]
+    deletes = [p for p in pre['files'] if want.get(p) is None or want[p]['worktree'] is None]
+    gone = set(deletes)
+    base_fd = open_dir(dst['wt'])
+    try:
+        for p in writes:
+            parts = p.split('/')
+            for n in range(1, len(parts) + 1):
+                q = '/'.join(parts[:n])
+                if q in gone or (n == len(parts) and q in pre['files']):
+                    continue
+                st = lstat_at(base_fd, q)
+                if st is None:
+                    break
+                if st == 'blocked' or n == len(parts) or not stat.S_ISDIR(st.st_mode):
+                    raise Refuse('destination_rejected', 'saved path collides with an ignored or untracked destination path: ' + q)
+    finally:
+        os.close(base_fd)
+    if os.path.lexists(os.path.join(dst['gitdir'], 'index.lock')):
+        raise Refuse('lock_busy', 'destination index is locked by another Git process')
+    scratch = tempfile.mkdtemp(prefix='unio-save-restore-')
+    try:
+        bundle = verify_carried(save, dst, budget, scratch) if g['commit_ids'] else None
+        index_file = os.path.join(scratch, 'index')
+        lines = b''.join(b'%s %s\t%s\0' % (e['index']['mode'].encode(), e['index']['oid'].encode(), e['path'].encode('utf-8'))
+                         for e in m['entries'] if e['index'] is not None)
+        git(dst['wt'], budget, 'update-index', '-z', '--index-info', data=lines, env=git_env(index_file), what='git update-index (private)')
+        new_index = read_path(index_file, MAX_OBSERVED)[1]
+        if parse_index(new_index, fmt) != {e['path']: (e['index']['mode'], e['index']['oid']) for e in m['entries'] if e['index'] is not None}:
+            raise Refuse('io_error', 'rebuilt index does not match the saved index')
+        claim = dict(schema_version=1, claim_id=os.urandom(16).hex(), save_id=save_id, destination=dest, new_task=None,
+                     task_sha256=None, source_fingerprint=m['fingerprint'], preimage_fingerprint=pre_fp,
+                     created_at=stamp(), updated_at=stamp(), state='reserved', outcome=None)
+        lock = saves_lock(root)
+        try:
+            claims, bad_claims = load_claims(store)
+            if bad_claims or len(claims) >= CAP_CLAIMS or any(c['destination'] == dest and c['state'] in UNRESOLVED for c in claims):
+                raise Refuse('destination_rejected', 'claim evidence changed; refusing')
+            if not os.path.isdir(os.path.join(store, save_id)):
+                raise Refuse('invalid_save', 'save was removed before it could be claimed')
+            write_claim(store, claim)
+        finally:
+            os.close(lock)
+        try:
+            unchanged = (resolve_commit(dst['wt'], budget, 'HEAD', fmt) == g['base_commit']
+                         and read_path(os.path.join(dst['gitdir'], 'index'), MAX_OBSERVED)[1] == pre['index_raw'])
+        except (Refuse, OSError):
+            unchanged = False
+        if not unchanged:
+            settle(root, store, claim, 'failed', 1, 'destination_rejected')
+            raise Refuse('destination_rejected', 'destination changed during preflight; nothing was modified')
+        settle(root, store, claim, 'mutating', None, None)
+        journal = dict(ref=False, index=False, created=[], written=[], deleted=[], removed=[])
+        try:
+            mutate(dst, dest, save, pre, budget, bundle, new_index, writes, deletes, journal, scratch)
+            post, post_fp = snapshot_fingerprint(root, dest, save, g['base_commit'])
+            if post_fp != m['fingerprint']:
+                raise Refuse('io_error', 'restored destination does not match the saved fingerprint')
+        except BaseException as failure:
+            reason = failure.code if isinstance(failure, Refuse) and failure.code in CODES else 'io_error'
+            try:
+                fault('restore-rollback')
+                rollback(dst, dest, pre, budget, journal, g)
+                _, back_fp = snapshot_fingerprint(root, dest, save, g['base_commit'])
+                proven = back_fp == pre_fp
+            except BaseException:
+                proven = False
+            if proven:
+                settle(root, store, claim, 'failed', 1, reason)
+                note = getattr(failure, 'message', None) or repr(failure)
+                raise Refuse(reason if reason != 'unknown' else 'io_error',
+                             '%s; destination rolled back to its exact preimage (claim %s; unreferenced Git objects may remain)'
+                             % (note, claim['claim_id']), exit_code=1)
+            settle(root, store, claim, 'unknown', 2, 'unknown')
+            raise Refuse('unknown', 'restore failed and rollback could not be proven; destination %s is Unknown (claim %s)'
+                         % (dest, claim['claim_id']))
+        settle(root, store, claim, 'restored', 0, 'restored')
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    print('restored %s into %s (claim %s): HEAD %s, %d paths, fingerprint verified'
+          % (save_id, dest, claim['claim_id'], g['head_commit'][:12], len(m['entries'])))
+    print('  unverified recovery: no commit, check, review or provider call was made')
+    return 0
+
+
+def settle(root, store, claim, state, exit_code, reason):
+    claim.update(state=state, updated_at=stamp(), outcome=None if exit_code is None else dict(exit_code=exit_code, reason=reason))
+    lock = saves_lock(root)
+    try:
+        write_claim(store, claim)
+    finally:
+        os.close(lock)
+
+
+def mutate(dst, dest, save, pre, budget, bundle, new_index, writes, deletes, journal, scratch):
+    m = save['manifest']
+    g, wt = m['git'], dst['wt']
+    if g['commit_ids']:
+        if git(wt, budget, 'cat-file', '-e', g['head_commit'] + '^{commit}', codes=(0, 1, 128))[0]:
+            git(wt, budget, 'fetch', '-q', '--no-tags', '--no-write-fetch-head', bundle, 'HEAD', what='git fetch (bundle)')
+        commits = git_out(wt, budget, 'rev-list', '--topo-order', '--reverse', g['head_commit'], '^' + g['base_commit']).decode().split()
+        if commits != g['commit_ids']:
+            raise Refuse('io_error', 'carried history did not arrive intact')
+    oids = {e['index']['oid']: e['index']['sha256'] for e in m['entries'] if e['index'] is not None}
+    if oids:
+        request = ''.join(o + '\n' for o in sorted(oids)).encode()
+        present = git_out(wt, budget, 'cat-file', '--batch-check', data=request).decode().splitlines()
+        missing = [line.split(' ')[0] for line in present if line.endswith(' missing')]
+        if missing:
+            folder = tempfile.mkdtemp(dir=scratch)
+            names = []
+            for n, oid in enumerate(missing):
+                name = os.path.join(folder, str(n))
+                write_private(name, save['bodies'][oids[oid]])
+                names.append(name)
+            if any('\n' in n for n in names):
+                raise Refuse('io_error', 'unsupported scratch path')
+            got = git_out(wt, budget, 'hash-object', '-w', '--no-filters', '--stdin-paths',
+                          data=''.join(n + '\n' for n in names).encode()).decode().split()
+            shutil.rmtree(folder, ignore_errors=True)
+            if got != missing:
+                raise Refuse('io_error', 'stored index blobs did not hash to their object IDs')
+    if g['commit_ids']:
+        git(wt, budget, 'update-ref', '-m', 'unio save restore', 'refs/heads/agent/' + dest, g['head_commit'], g['base_commit'])
+        journal['ref'] = True
+    install_index(dst['gitdir'], new_index)
+    journal['index'] = True
+    base_fd = open_dir(wt)
+    try:
+        for p in sorted(deletes, reverse=True):
+            mode, body = pre['files'][p]
+            drop_file(base_fd, p)
+            journal['deleted'].append((p, mode, body))
+            drop_empty_parents(base_fd, p, journal['removed'])
+        want = {e['path']: e for e in m['entries']}
+        for n, p in enumerate(sorted(writes)):
+            w = want[p]['worktree']
+            journal['written'].append((p, pre['files'].get(p)))
+            put_file(base_fd, p, save['bodies'][w['sha256']], int(w['mode'], 8), journal['created'])
+            if n == 0:
+                fault('restore-after-worktree')
+    finally:
+        os.close(base_fd)
+    git(wt, budget, 'update-index', '-q', '--refresh', codes=(0, 1), what='git update-index --refresh')
+
+
+def rollback(dst, dest, pre, budget, journal, g):
+    base_fd = open_dir(dst['wt'])
+    try:
+        for p, before in reversed(journal['written']):
+            if before is None:
+                if lstat_at(base_fd, p) is not None:
+                    drop_file(base_fd, p)
+            else:
+                put_file(base_fd, p, before[1], int(before[0], 8), [])
+        for d in reversed(journal['created']):
+            fd, name = parent_fd(base_fd, d, [])
+            try:
+                os.rmdir(name, dir_fd=fd)
+            finally:
+                os.close(fd)
+        for d, mode in reversed(journal['removed']):
+            fd, name = parent_fd(base_fd, d, [])
+            try:
+                os.mkdir(name, 0o700, dir_fd=fd)
+                os.chmod(name, mode, dir_fd=fd)
+            finally:
+                os.close(fd)
+        for p, mode, body in reversed(journal['deleted']):
+            put_file(base_fd, p, body, int(mode, 8), [])
+    finally:
+        os.close(base_fd)
+    if journal['index']:
+        install_index(dst['gitdir'], pre['index_raw'])
+    if journal['ref']:
+        git(dst['wt'], budget, 'update-ref', '-m', 'unio save restore rollback', 'refs/heads/agent/' + dest,
+            g['base_commit'], g['head_commit'])
+
+
+# ------------------------------------------------------------------ main
+USAGE = ('usage: unio save create <worker> <task>\n'
+         '       unio save inspect <save-id> [--json]\n'
+         '       unio save inspect --worker <worker> [--json]\n'
+         '       unio save restore <save-id> <destination>')
+
+
+def main(argv):
+    if len(argv) < 2:
+        print(USAGE, file=sys.stderr)
+        return 2
+    root, command, args = os.path.realpath(argv[0]), argv[1], argv[2:]
+    as_json = '--json' in args
+    plain = [a for a in args if a != '--json']
+    try:
+        if command == 'create' and len(args) == 2 and ident(args[0]) and ident(args[1]):
+            return cmd_create(root, args[0], args[1])
+        if command == 'inspect' and args.count('--json') <= 1:
+            if len(plain) == 1 and HEX32.fullmatch(plain[0]):
+                return cmd_inspect_id(root, plain[0], as_json)
+            if len(plain) == 2 and plain[0] == '--worker' and ident(plain[1]):
+                return cmd_inspect_worker(root, plain[1], as_json)
+        if command == 'restore' and len(args) == 2 and HEX32.fullmatch(args[0]) and ident(args[1]):
+            return cmd_restore(root, args[0], args[1])
+    except Refuse as r:
+        print('unio: save %s: %s' % (r.code, r.message), file=sys.stderr)
+        return r.exit_code
+    except OSError as e:
+        print('unio: save io_error: %s' % e, file=sys.stderr)
+        return 1
+    print(USAGE, file=sys.stderr)
+    return 2
+
+
+sys.exit(main(sys.argv[1:]))
+SAVES_PY
+}
+
 host_warning() {
   quality preflight || return $?
   echo 'Execution boundary: trusted_host — configured commands may have host-level access. Worktrees and temporary directories are not OS sandboxes.' >&2
@@ -3813,6 +5650,44 @@ cmd_allow_retry() {
   quality retry "$root" "$task" allow
 }
 
+# ------------------------------------------------------------------ save
+save_usage() {
+  echo "usage: unio save create <worker> <task>
+       unio save inspect <save-id> [--json]
+       unio save inspect --worker <worker> [--json]
+       unio save restore <save-id> <destination>" >&2
+  return 2
+}
+
+save_name_ok() { # same rules as check_id, but a refusal here is exit 2
+  case "$1" in ''|.|..|*/*|*\\*|-*|*..*|*[[:cntrl:][:space:]]*) return 1;; esac
+}
+
+cmd_save() { # manual capture, inspection and exact restore; zero provider calls
+  local sub="${1:-}" root rc=0
+  [ $# -eq 0 ] || shift
+  root=$(find_root) || { echo "unio: not inside a Unio project" >&2; return 2; }
+  case "$sub" in
+    create|restore)
+      [ $# -eq 2 ] || { save_usage; return 2; }
+      local worker="$1"
+      if [ "$sub" = create ]; then
+        set -- "$1" "${2%.md}"
+        save_name_ok "$1" && save_name_ok "$2" || { save_usage; return 2; }
+      else
+        worker="$2"
+        save_name_ok "$2" || { save_usage; return 2; }
+      fi
+      [ -d "$root/wt/$worker" ] || { echo "unio: no worktree for '$worker'" >&2; return 1; }
+      saves "$root" "$sub" "$@" || rc=$?
+      return "$rc";;
+    inspect)
+      saves "$root" inspect "$@" || rc=$?
+      return "$rc";;
+    *) save_usage; return 2;;
+  esac
+}
+
 # ------------------------------------------------------------------ race
 cmd_race() { # same task to several workers in parallel; merge ONE winner
   local task="${1:-}"; shift || true
@@ -4636,6 +6511,23 @@ work
   unio sync [w]                 after merges: bring base into worker
                                      branches (ff/merge; skips dirty/running)
 
+work saving (manual; private local snapshots under coord/saves, unverified)
+  unio save create <w> <task>   save w's actual committed, staged, unstaged,
+                                     untracked and deleted work, or refuse
+                                     (exit 1): unstable bytes, secret names,
+                                     unsupported files/Git states, bounds
+  unio save inspect <save-id> [--json]
+  unio save inspect --worker <w> [--json]
+                                     validate and describe a save, or a worker's
+                                     last good save, latest attempt and live
+                                     state (Unknown while busy); read-only
+  unio save restore <save-id> <dest>
+                                     restore exactly into another clean, idle
+                                     worker at the saved base; on failure roll
+                                     back (exit 1) or report Unknown (exit 2)
+      Saving makes no provider call and works while STOP is set. A save is
+      not a commit, acceptance or retry; it is not an off-device backup.
+
 fleet plays
   unio race <task> <w1> <w2> [...]  same task to several workers in
                                      parallel — merge exactly one winner
@@ -4743,6 +6635,7 @@ case "${1:-help}" in
   stop)     shift; cmd_stop "$@";;
   resume)   shift; cmd_resume "$@";;
   allow-retry) shift; cmd_allow_retry "$@";;
+  save)     shift; cmd_save "$@";;
   help|-h|--help) cmd_help;;
   *) die "unknown command '${1}' (unio help)";;
 esac
@@ -5756,7 +7649,7 @@ cat > "$COMP_DIR/unio" <<'COMPLETION_EOF'
 _unio() {
   local cur cmd root d cmds
   cur="${COMP_WORDS[COMP_CWORD]}"
-  cmds="new init run verify result handoff diff sync review race sabotage score doctor tail kill report status mode tier lead account policy agents watch off on smoke selftest stop resume allow-retry version license help"
+  cmds="new init run verify result handoff save diff sync review race sabotage score doctor tail kill report status mode tier lead account policy agents watch off on smoke selftest stop resume allow-retry version license help"
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ); return
   fi
@@ -5798,6 +7691,21 @@ _unio() {
     tier) COMPREPLY=( $(compgen -W "low medium high" -- "$cur") );;
     lead) COMPREPLY=( $(compgen -W "none $agents" -- "$cur") );;
     policy) COMPREPLY=( $(compgen -W "--json" -- "$cur") );;
+    save)
+      local saves=""
+      [ -n "$root" ] && saves=$(ls "$root/coord/saves" 2>/dev/null | grep -E '^[0-9a-f]{32}$')
+      case "$COMP_CWORD:${COMP_WORDS[2]}" in
+        2:*) COMPREPLY=( $(compgen -W "create inspect restore" -- "$cur") );;
+        3:create) COMPREPLY=( $(compgen -W "$workers" -- "$cur") );;
+        3:inspect) COMPREPLY=( $(compgen -W "--worker $saves" -- "$cur") );;
+        3:restore) COMPREPLY=( $(compgen -W "$saves" -- "$cur") );;
+        4:create) COMPREPLY=( $(compgen -W "$tasks" -- "$cur") );;
+        4:restore) COMPREPLY=( $(compgen -W "$workers" -- "$cur") );;
+        4:inspect)
+          if [ "${COMP_WORDS[3]}" = --worker ]; then COMPREPLY=( $(compgen -W "$workers" -- "$cur") )
+          else COMPREPLY=( $(compgen -W "--json" -- "$cur") ); fi;;
+        5:inspect) COMPREPLY=( $(compgen -W "--json" -- "$cur") );;
+      esac;;
   esac
 }
 complete -F _unio unio

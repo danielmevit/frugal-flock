@@ -1,11 +1,74 @@
-# Automatic work saving — planned for v0.5.4
+# Work saving — manual commands in source, automatic saving planned for v0.5.4
 
 Owner requirement recorded 2026-10-06 after a worker reached its allowance
-limit with useful edits but no final commit. This is an implementation plan,
-not a feature available in the current release. See the
-[version plan](VERSION-PLAN.md) and [roadmap](development/ROADMAP.md#approved-delivery-priorities).
+limit with useful edits but no final commit. See the
+[version plan](VERSION-PLAN.md), the frozen
+[implementation contract](development/WORK-SAVING-CONTRACT.md) and the
+[roadmap](development/ROADMAP.md#approved-delivery-priorities).
 
-## The intended behavior
+## Status
+
+| Part | State |
+| --- | --- |
+| Manual `unio save create`, `inspect` and `restore` | Implemented in source (slice 1); not in any public release yet |
+| Automatic baseline, periodic and final saves during runs | Planned for v0.5.4 (slice 2) |
+| One authorized continuation from a save (`unio save continue`) | Planned for v0.5.4 (slice 2); not available |
+| Lead cooldown supervisor | Later slice under its own contract |
+
+The current public release is v0.5.3. It contains none of these commands.
+The source version stays at 0.5.3 until the combined v0.5.4 delivery has
+passed its full release gate.
+
+## Manual saving (slice 1, in source)
+
+```text
+unio save create WORKER TASK
+unio save inspect SAVE_ID [--json]
+unio save inspect --worker WORKER [--json]
+unio save restore SAVE_ID DESTINATION
+```
+
+These commands make no provider call and work while STOP is set. Exit 0
+means success, 1 a known refusal or failure, 2 bad arguments, a busy lock
+or an Unknown restore outcome.
+
+`create` acquires the source worker's native lock exactly once (a validated, regular, owned file in a safe parent directory, without following symlinks or blocking) and observes the worktree twice. It saves only when both observations match: committed history after the base (as a verified Git bundle carrying HEAD over the base), the full index and the working files, each with its own bytes and modes. Staged, unstaged, untracked, deleted, binary, empty, executable and retained deleted-from-index content is kept exactly. Ignored caches and the native ignored role cards are omitted before any of their bytes are read; however, required paths like HEAD-tracked files inside ignored directories are still saved. The base is the frozen task base that `unio run` recorded, otherwise the commit named by `coord/base`.
+
+A save is refused, not partially written, for changing bytes, secret-looking
+names (including ignored `.env` files and secrets in carried commits, even
+when later deleted), symbolic links, hard links, FIFOs, nested repositories,
+unmerged, sparse, assume-unchanged, skip-worktree or intent-to-add index
+states, an operation in progress, unsafe or case-colliding path names and
+anything over the bounds: 4000 paths, 100 commits, 4 MiB per file, 32 MiB
+stored, 1 MiB task text, 30 seconds. The source HEAD, index and files are
+never written.
+
+Saves live under the private `coord/saves/` directory: one directory per
+save with `manifest.json`, the literal task text, a content pool named by
+SHA-256 and the optional bundle. A save becomes visible only after it is
+complete and verified; an interrupted save leaves the previous good save in
+place. Each worker keeps its latest five unclaimed saves; restore claims pin
+the saves they used. A separate latest-attempt record per worker shows a
+newer refused or failed attempt without hiding the last good save.
+
+`inspect` validates every stored byte and reports the save, or a worker's
+last good save, latest attempt and live state. Live state is Unknown while
+the worker is busy, its native lock or coordination parents are unsafe, or it
+cannot be observed. Unsafe lock admission refuses before changing saved or
+claim evidence. Existing owned, single-link 0644 native locks are supported;
+new native locks are 0600, and save-store privacy remains 0700/0600.
+
+`restore` writes into a different worker that is idle, clean and at the
+saved base in the same repository. Everything is validated first: manifest,
+content, task text, bundle (in a private quarantine), paths and collisions
+with ignored destination files. It then records a claim, fast-forwards only
+the destination branch, rebuilds the exact index and working files, and
+compares the result with the saved fingerprint. On failure it restores the
+destination's exact earlier state, or records the outcome as Unknown and
+never restores into that destination again automatically. It never commits,
+resets the source, cleans ignored files or moves another branch.
+
+## Automatic saving (planned for v0.5.4)
 
 Unio should save recoverable checkpoints throughout a run, preserving
 unfinished work when an AI stops unexpectedly. The native supervisor saves
@@ -22,37 +85,32 @@ AI answering a final request.
 
 Show the last successful save and its age, plus unsaved, stale, refused or
 failed capture states. A failed final save must leave the previous valid
-save available. Atomically publish bounded snapshots and retain bounded
-history. Concurrent edits can prevent an exact latest capture; never claim
-those changing bytes were saved successfully.
+save available. Concurrent edits can prevent an exact latest capture; never
+claim those changing bytes were saved successfully.
 
 ## Recovery and acceptance
 
-A recovery snapshot contains actual supported committed, staged, unstaged
-and nonignored untracked content, modes and deletions. It is not just a
-summary. Validate the manifest and content hashes before restoring into a
-separate idle worker. Keep the original branch, files and failed run intact.
-Use a new bounded task and exclusive continuation ownership, followed by
-fresh checks and independent reviews. Do not inherit earlier readiness.
+A continuation (planned) restores a save into a separate idle worker and
+starts one separately authorized new task with exclusive ownership, followed
+by fresh checks and independent reviews. It does not inherit earlier
+readiness. Keep the original branch, files and failed run intact.
 
-Saving never automatically commits arbitrary dirty files or accepts code.
-A coherent source commit is still subject to checks and reviews. A recovery
-snapshot is explicitly unverified. Restore and inspection make no provider
-calls; a continuation is one separately authorized worker invocation.
+Saving never commits arbitrary dirty files or accepts code. A coherent
+source commit is still subject to checks and reviews. A recovery save is
+explicitly unverified. Restore and inspection make no provider calls.
 
-Exclude credential paths, Git internals, ignored caches, unsupported file
-types and excessive data. Refuse incomplete required content instead of
-claiming a recoverable save. Enforce stable byte captures, safe path handling
-and bounded local storage. Filename exclusions cannot guarantee arbitrary
-source text is secret-free. Worktrees are trusted-host coordination, and a
-private local save is not an off-device backup.
+Filename exclusions cannot guarantee arbitrary source or task text is
+secret-free. Worktrees are trusted-host coordination, and a private local
+save is not an off-device backup.
 
 ## Required checks
 
-Use offline providers to prove abrupt quota failure, timeout, termination,
-missing allowance telemetry and low reported allowance. Recover actual
-staged, unstaged, untracked and deleted files. Test concurrent writes,
-interrupted snapshot publication, secret-name exclusions, capture failures,
-stale saves, retention bounds and exact restoration. Prove saving and
-restoring make zero provider calls, preserve the original failed exit, and
-do not authorize a second paid attempt or bypass current verification.
+Slice 1 is covered by `tests/unio-work-saving.py`: actual restored HEAD,
+full index and bytes/modes, source immutability, zero provider calls,
+corruption, unsupported states, concurrent edits, interrupted publication,
+retention, pinning, caps, destination refusals, rollback and Unknown.
+
+Slice 2 still needs offline providers to prove abrupt quota failure,
+timeout, termination, missing allowance telemetry and low reported
+allowance, preserving the original failed exit, and that a continuation
+neither authorizes a second paid attempt nor bypasses current verification.

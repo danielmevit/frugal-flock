@@ -1,0 +1,1 @@
+- Treat shared and exclusive native worker locks as busy during live save inspection; preserve the previous failed full-suite result and verify the correction with real create, inspect and restore operations.
