@@ -18,7 +18,6 @@ acceptance and the combined v0.5.4 release checks remain. Published/installed
 v0.5.3 is unchanged.
 The audit counts below describe the earlier baseline, before this delivery.
 
-
 Validation update, 2026-10-08: see [completed checks, preserved failures and
 remaining release work](RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
 not replace the final versioned release gate.
@@ -109,7 +108,7 @@ offline acceptance are now in main; real subscription-limit restart remains
 unrun while this low-tier lead session is active. Manual save corrections,
 automatic saving and continuation passed focused checks. The combined source
 gate exposed a stale completion assertion and embedded guide mismatch; both
-received bounded corrections. Manual186, automatic61 and cooldown106 checks
+received bounded corrections. Manual 186, automatic 61 and cooldown 106 checks
 passed. Finish continuation full acceptance, then genuine restart and final
 versioned release validation.
 

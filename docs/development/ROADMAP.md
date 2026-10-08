@@ -2,7 +2,6 @@
 
 Your AIs, in sync.
 
-
 Validation update, 2026-10-08: see [completed checks, preserved failures and
 remaining release work](RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
 not replace the final versioned release gate.

@@ -8,7 +8,6 @@ separates shipped features from source additions and recommends a functional
 delivery order. The approved v0.5.4 recovery scope stays intact; later release
 numbers remain unassigned. Finish recovery before further visual expansion.
 
-
 Validation update, 2026-10-08: see [completed checks, preserved failures and
 remaining release work](development/RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
 not replace the final versioned release gate.

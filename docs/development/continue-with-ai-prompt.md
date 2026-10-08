@@ -7,7 +7,6 @@ Read [the development index](README.md), [lead routing](LEAD-ROUTING.md),
 In an existing team workspace, read the newest coordination log and actual
 worker branches before changing anything. Preserve prior work and failures.
 
-
 Validation update, 2026-10-08: see [completed checks, preserved failures and
 remaining release work](RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
 not replace the final versioned release gate.
@@ -21,7 +20,8 @@ one authorized continuation and the first [lead cooldown runtime](../LEAD-COOLDO
 are accepted and pushed in main. The original combined gate failed a stale
 completion expectation; the corrected manual suite passed 186 checks. Automatic
 saving passed 61 checks and cooldown passed 106 offline assertions. Full
-continuation acceptance is pending. Real
+continuation release acceptance is pending; its remaining focused phase passed
+31 assertions. Real
 subscription-limit restart acceptance, final release packaging and upgrade
 checks remain before v0.5.4 publication and installation. Further UI work and
 scan optimization are deferred until recovery is complete; later releases have
@@ -99,7 +99,7 @@ These commands remain unreleased until the completed v0.5.4 gate.
 Preserve the saving review history: original and replacement findings, the
 lead's full-suite shared-lock observation failure, and the final focused
 correction's scope/checks PASS and personal approval. A later stale completion
-assertion was corrected at main43a45b1; the full manual suite then passed186checks.
+assertion was corrected at main `43a45b1`; the full manual suite then passed 186 checks.
 The original failing gates stay preserved; final versioned release checks remain.
 The direct lead tasks have no delegated Source, and self-review is not an
 independent AI-lab verdict.
@@ -217,3 +217,8 @@ handoff is in wt/codex-lead/docs/development/continue-with-ai-prompt.md. Never
 merge that generic lead branch. No private logs, credentials or snapshots belong
 in public release assets. Without the workspace, use the official Git history
 and release metadata and prepare new bounded tasks from the current source.
+
+For new commits, preserve the human author and record actual agent assistance
+consistently in commit messages and receipts. Do not invent a GitHub-linked
+agent email or rewrite published history to add AI credit. See
+[the attribution finding](RECOVERY-ACCEPTANCE-2026-10-08.md#agent-credit).
