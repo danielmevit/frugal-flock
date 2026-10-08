@@ -238,10 +238,11 @@ changes is an explicit owner action, with conflicts surfaced for a decision.
 
 ## Visual and language direction
 
-Use a calm, minimal workspace: off-white canvas, charcoal text, white
-surfaces, light dividers, and restrained pastel status accents. Use a clear
-system sans-serif, readable body text, and visible keyboard focus. Status
-meaning must be conveyed in words as well as color. Support reduced motion.
+Use a calm monochrome workspace: black and charcoal dark surfaces, white
+and off-white light surfaces, neutral gray dividers, and readable contrasting
+text. Use contrast, borders, shape and explicit labels for status and selection;
+avoid lime, vivid colors and pastel accents. Use a clear system sans-serif,
+readable body text, and visible keyboard focus. Support reduced motion.
 
 Use the flock motif sparingly in identity and empty states. Keep actual
 provider names visible and actions literal. On a narrow screen, show the
