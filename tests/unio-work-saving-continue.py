@@ -25,8 +25,9 @@ from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parent.parent
 passed = 0
-if sys.argv[1:] not in ([], ['--prompt-only']):
-    raise SystemExit('usage: unio-work-saving-continue.py [--prompt-only]')
+if sys.argv[1:] not in ([], ['--prompt-only'], ['--remaining-only']):
+    raise SystemExit('usage: unio-work-saving-continue.py [--prompt-only|--remaining-only]')
+remaining_only = sys.argv[1:] == ['--remaining-only']
 
 
 def check(label, condition):
@@ -63,9 +64,23 @@ with tempfile.TemporaryDirectory(prefix='saving-continue-') as directory:
     def git(cwd, *args):
         return subprocess.check_output(['git', *args], cwd=cwd, env=env, stderr=subprocess.DEVNULL)
 
-    def unio(*args, extra=None, timeout=90):
-        return subprocess.run([at, *args], cwd=repo, env=dict(env, **(extra or {})),
-                              capture_output=True, text=True, timeout=timeout)
+    def unio(*args, extra=None, timeout=300):
+        # The native provider may run for120s, plus bounded30s snapshots,
+        # admission and final bookkeeping. The outer fixture must outlive it.
+        started = time.monotonic()
+        try:
+            result = subprocess.run([at, *args], cwd=repo, env=dict(env, **(extra or {})),
+                                    capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            # Preserve evidence if a later failure is a real lifecycle stall.
+            print('fixture timeout: %r after %ss; stdout=%r; stderr=%r'
+                  % (args, timeout, error.stdout, error.stderr), file=sys.stderr, flush=True)
+            raise
+        elapsed = time.monotonic() - started
+        if elapsed >= 60:
+            print('fixture duration: %r %.3fs, actual exit=%s'
+                  % (args[:2], elapsed, result.returncode), flush=True)
+        return result
 
     def good(run):
         assert run.returncode == 0, run.stdout + run.stderr
@@ -255,77 +270,82 @@ raise SystemExit(0 if case in ('success', 'clean') else 23)
         source_index = Path(git(source, 'rev-parse', '--path-format=absolute', '--git-path', 'index').decode().strip())
         raw_index = source_index.read_bytes()
         sid = save()
-        if sys.argv[1:]:
+        if sys.argv[1:] == ['--prompt-only']:
             exercise_prompt(sid)
             clean_sid = exercise_clean()
             finish((sid, clean_sid))
             print('unio-work-saving-continue prompt/recovery: %d assertions passed' % passed)
             raise SystemExit(0)
-        good(unio('stop'))
-        refused('STOP', sid)
-        good(unio('resume'))
-        refused('destination not restored', sid)
-        restore(sid, 'mock-dest')
-        refused('same original task is context, not new authority', sid, task='OLD')
-        refused('source worker cannot be destination', sid, worker='mock-source')
-        refused('missing task', sid, task='MISSING')
-        for body in ('# no scope\n## Validate\n$ true\n',
-                     '# no checks\n## Allowed scope\n- *\n',
-                     '# whitespace\n## Allowed scope\n-   \n## Validate\n$   \n'):
-            (tasks / 'BAD.md').write_text(body)
-            refused('incomplete new orders', sid, task='BAD')
-        (wt / 'mock-dest' / 'binary').write_bytes(b'changed')
-        refused('changed recovered bytes', sid)
-        (wt / 'mock-dest' / 'binary').write_bytes(b'\0\xff\x01')
-        with (coord / '.locks' / 'mock-dest.lock').open('a') as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            refused('busy destination', sid)
+        # Partial diagnostic only: the default release invocation runs all cases.
+        prefix_saves = []
+        if not remaining_only:
+            good(unio('stop'))
+            refused('STOP', sid)
+            good(unio('resume'))
+            refused('destination not restored', sid)
+            restore(sid, 'mock-dest')
+            refused('same original task is context, not new authority', sid, task='OLD')
+            refused('source worker cannot be destination', sid, worker='mock-source')
+            refused('missing task', sid, task='MISSING')
+            for body in ('# no scope\n## Validate\n$ true\n',
+                         '# no checks\n## Allowed scope\n- *\n',
+                         '# whitespace\n## Allowed scope\n-   \n## Validate\n$   \n'):
+                (tasks / 'BAD.md').write_text(body)
+                refused('incomplete new orders', sid, task='BAD')
+            (wt / 'mock-dest' / 'binary').write_bytes(b'changed')
+            refused('changed recovered bytes', sid)
+            (wt / 'mock-dest' / 'binary').write_bytes(b'\0\xff\x01')
+            with (coord / '.locks' / 'mock-dest.lock').open('a') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                refused('busy destination', sid)
+                before = count()
+                forged = unio('run', 'mock-dest', 'NEW', extra=dict(RUN_CONTINUATION_CLAIM='a' * 32))
+                check('environment cannot bypass ordinary run lock', forged.returncode != 0 and count() == before)
+            check('private bridge without inherited ownership refuses',
+                  unio('_continue-run', 'mock-dest', 'NEW', 'a' * 32).returncode != 0)
+            check('preflight refusals reserve no continuation', not claim(sid))
+
             before = count()
-            forged = unio('run', 'mock-dest', 'NEW', extra=dict(RUN_CONTINUATION_CLAIM='a' * 32))
-            check('environment cannot bypass ordinary run lock', forged.returncode != 0 and count() == before)
-        check('private bridge without inherited ownership refuses',
-              unio('_continue-run', 'mock-dest', 'NEW', 'a' * 32).returncode != 0)
-        check('preflight refusals reserve no continuation', not claim(sid))
+            run = continuing(sid, 'mock-dest', CONTINUE_CASE='failed', UNIO_AUTO_SYNC='1')
+            check('one continuation preserves actual provider failure exit', run.returncode == 23 and count() == before + 1)
+            info = json.loads((base / 'failed.json').read_text())
+            check('provider receives exact recovered commit, staged/unstaged and working state',
+                  {k: info[k] for k in original} == original)
+            check('provider receives only current separately authorized orders',
+                  info['original'] == orders and 'Separately authorized' in info['orders']
+                  and 'Original failed task' not in info['orders'] and '$ false' not in info['orders'])
+            doc = claim(sid)[0]
+            check('called claim binds full task hash, worker, save and real exit',
+                  len(claim(sid)) == 1 and doc['state'] == 'called' and doc['destination'] == 'mock-dest'
+                  and doc['new_task'] == 'NEW' and doc['task_sha256'] == hashlib.sha256(orders.encode()).hexdigest()
+                  and doc['outcome'] == dict(exit_code=23, reason='called'))
+            result = json.loads(good(unio('result', 'mock-dest', 'NEW')).stdout)
+            check('new failure has fresh process evidence and no inherited acceptance',
+                  result['process']['exit_code'] == 23 and not result['ready_for_human_review'])
+            released('mock-dest', 'failed')
+            refused('same-task replay', sid)
+            refused('different-task replay', sid, task='OTHER')
+            restore(sid, 'mock-other')
+            refused('different-destination replay', sid, worker='mock-other', task='OTHER')
 
-        before = count()
-        run = continuing(sid, 'mock-dest', CONTINUE_CASE='failed', UNIO_AUTO_SYNC='1')
-        check('one continuation preserves actual provider failure exit', run.returncode == 23 and count() == before + 1)
-        info = json.loads((base / 'failed.json').read_text())
-        check('provider receives exact recovered commit, staged/unstaged and working state',
-              {k: info[k] for k in original} == original)
-        check('provider receives only current separately authorized orders',
-              info['original'] == orders and 'Separately authorized' in info['orders']
-              and 'Original failed task' not in info['orders'] and '$ false' not in info['orders'])
-        doc = claim(sid)[0]
-        check('called claim binds full task hash, worker, save and real exit',
-              len(claim(sid)) == 1 and doc['state'] == 'called' and doc['destination'] == 'mock-dest'
-              and doc['new_task'] == 'NEW' and doc['task_sha256'] == hashlib.sha256(orders.encode()).hexdigest()
-              and doc['outcome'] == dict(exit_code=23, reason='called'))
-        result = json.loads(good(unio('result', 'mock-dest', 'NEW')).stdout)
-        check('new failure has fresh process evidence and no inherited acceptance',
-              result['process']['exit_code'] == 23 and not result['ready_for_human_review'])
-        released('mock-dest', 'failed')
-        refused('same-task replay', sid)
-        refused('different-task replay', sid, task='OTHER')
-        restore(sid, 'mock-other')
-        refused('different-destination replay', sid, worker='mock-other', task='OTHER')
+            unknown = save()
+            restore(unknown, 'mock-unknown')
+            refused('lost launch after durable calling', unknown, worker='mock-unknown',
+                    task='UNKNOWN', UNIO_SAVE_TEST_FAULT='continue-after-calling')
+            check('uncertain launch is Unknown, never unclaimed', claim(unknown)[0]['state'] == 'unknown')
+            refused('Unknown blocks replay under another task', unknown, worker='mock-unknown', task='OTHER')
 
-        unknown = save()
-        restore(unknown, 'mock-unknown')
-        refused('lost launch after durable calling', unknown, worker='mock-unknown',
-                task='UNKNOWN', UNIO_SAVE_TEST_FAULT='continue-after-calling')
-        check('uncertain launch is Unknown, never unclaimed', claim(unknown)[0]['state'] == 'unknown')
-        refused('Unknown blocks replay under another task', unknown, worker='mock-unknown', task='OTHER')
+            budget = save()
+            restore(budget, 'mock-budget')
+            good(unio('tier', 'low'))
+            good(unio('lead', 'mock'))
+            refused('current shared account occupied by lead', budget, worker='mock-budget', task='BUDGET')
+            good(unio('lead', 'none'))
+            check('admission refusal settles a durable failed claim without changing restored bytes',
+                  claim(budget)[0]['state'] == 'failed' and view(wt / 'mock-budget') == original)
+            refused('freeing account does not grant a replay', budget, worker='mock-budget')
 
-        budget = save()
-        restore(budget, 'mock-budget')
-        good(unio('tier', 'low'))
-        good(unio('lead', 'mock'))
-        refused('current shared account occupied by lead', budget, worker='mock-budget', task='BUDGET')
-        good(unio('lead', 'none'))
-        check('admission refusal settles a durable failed claim without changing restored bytes',
-              claim(budget)[0]['state'] == 'failed' and view(wt / 'mock-budget') == original)
-        refused('freeing account does not grant a replay', budget, worker='mock-budget')
+            prefix_saves = [unknown, budget]
 
         changed = save()
         restore(changed, 'mock-changed')
@@ -379,8 +399,9 @@ raise SystemExit(0 if case in ('success', 'clean') else 23)
         exercise_prompt(prompt)
 
         clean_sid = exercise_clean()
-        finish((sid, unknown, budget, changed, fault, interrupted, success, prompt, clean_sid))
+        finish((sid, *prefix_saves, changed, fault, interrupted, success, prompt, clean_sid))
     finally:
         unio('stop')
 
-print('unio-work-saving-continue: %d assertions passed' % passed)
+print(('unio-work-saving-continue remaining-only (partial): ' if remaining_only
+       else 'unio-work-saving-continue: ') + '%d assertions passed' % passed)
