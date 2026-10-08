@@ -4,12 +4,42 @@ Your AIs, in sync.
 
 The [dark theme and live work map](development/LIVE-WORKSPACE-VIEW.md)
 records the owner's 2026-10-08 request and the proposed connected overview.
-These additions are planned for the existing browser workspace; the sections
-below preserve the earlier UX proposal and prototype context.
+Dark theme and the work map are accepted in source for v0.5.4. Interactive
+zoom, pan and the outward-branching map remain the next UI enhancement.
+The sections below preserve the earlier UX proposal and prototype context.
+
+## Future visual milestone: Marathon direction
+
+Owner-selected on 2026-10-08 from supplied Marathon UI screenshots, including
+its settings screen and loading/mission views. Apply this direction in a
+separate visual milestone after the current functional work:
+
+- Deep charcoal surfaces, crisp pale text and a restrained electric lime
+  accent for the current action or selection.
+- Strong grid alignment, flat sections, precise dividers and clear contrast
+  between labels, values and selected controls.
+- Compact technical labels and monospaced status details, paired with
+  comfortable body text. Keep long worker output readable.
+- A dominant working canvas and a compact inspector. Let the responsive
+  layout use the available screen; stack supporting panels on narrow screens.
+- A small Settings entry for display preferences such as theme, refresh and
+  default view. Keep task actions beside the task; expose only implemented
+  controls, with work-policy changes distinct from visual preferences.
+
+Create original Unio components, typography and icons. Keep the reference
+screenshots private; no game imagery, logos, fonts or assets enter the app.
+Avoid texture over code, tiny game-style labels, color-only status or motion
+that interferes with reading. Preserve light/dark choice, visible keyboard
+focus, reduced motion and accessible controls. Marathon informs the visual
+language; [Toolcraft](TOOLCRAFT-REFERENCE.md) remains a composition reference.
+
+Acceptance should include the real worker journey, readable output, settings
+behavior and the interactive map at phone, laptop and wide desktop sizes.
+This milestone does not delay saving/recovery or introduce new engine controls.
 
 ## Status and intended user
 
-Unio ships a command-line engine. An original
+Unio v0.5.3 ships a command-line engine and a local browser workspace. An original
 [mock-data prototype](../prototype/README.md) now covers one connected
 sample journey: project/tool, plan approval, question/progress, a named
 replacement after a simulated limit, and separate checks/review/acceptance.

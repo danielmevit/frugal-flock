@@ -59,6 +59,13 @@ Repeated limits create new waits; stop and completion cancel further restarts.
 Existing worker limit handling stays unchanged. Deliver work saving first so
 each restarted session can reconcile the current work without duplicating it.
 
+Future visual milestone, owner-selected on 2026-10-08:
+[Marathon-inspired UI direction](../UX-DIRECTION.md#future-visual-milestone-marathon-direction),
+with charcoal surfaces, restrained lime accents, aligned control rows and a
+compact Settings entry. Build original components, preserve responsive and
+accessible behavior, and keep task controls functional. Schedule it separately
+after current functional work; it does not replace recovery priorities.
+
 After these two milestones, build the following in this order. They are
 approved planning priorities; implementation boundaries, release numbers and
 delivery dates will be assigned to bounded milestones separately.
