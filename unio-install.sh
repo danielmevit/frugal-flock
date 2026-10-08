@@ -3738,10 +3738,11 @@ def cmd_inspect_worker(root, worker, as_json):
     except Refuse as r:
         print('unio: %s' % r.message, file=sys.stderr)
         return r.exit_code
+    busy = worker_busy(root, worker) if out['last_good'] is not None else False
     if out['last_good'] is None:
         out['live_reason'] = 'no valid save'
-    elif worker_busy(root, worker):
-        out['live_reason'] = 'worker is busy'
+    elif busy:
+        out['live_reason'] = 'worker lock is unsafe or unobservable' if busy == 'unknown' else 'worker is busy'
     else:
         try:
             m = good['manifest']

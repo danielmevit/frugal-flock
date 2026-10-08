@@ -53,7 +53,10 @@ newer refused or failed attempt without hiding the last good save.
 
 `inspect` validates every stored byte and reports the save, or a worker's
 last good save, latest attempt and live state. Live state is Unknown while
-the worker is busy or cannot be observed.
+the worker is busy, its native lock or coordination parents are unsafe, or it
+cannot be observed. Unsafe lock admission refuses before changing saved or
+claim evidence. Existing owned, single-link 0644 native locks are supported;
+new native locks are 0600, and save-store privacy remains 0700/0600.
 
 `restore` writes into a different worker that is idle, clean and at the
 saved base in the same repository. Everything is validated first: manifest,

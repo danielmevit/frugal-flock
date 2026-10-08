@@ -60,9 +60,9 @@ with tempfile.TemporaryDirectory(prefix='work-saving-') as directory:
         return subprocess.run(['git', *args], cwd=cwd, env=env, check=True, capture_output=True,
                               input=data).stdout
 
-    def unio(*args, fault=None, cwd=None):
+    def unio(*args, fault=None, cwd=None, timeout=120):
         e = dict(env, UNIO_SAVE_TEST_FAULT=fault) if fault else env
-        return subprocess.run([at, *args], cwd=cwd or repo, env=e, capture_output=True, text=True, timeout=120)
+        return subprocess.run([at, *args], cwd=cwd or repo, env=e, capture_output=True, text=True, timeout=timeout)
 
     def write(path, data, mode=0o644):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -589,68 +589,129 @@ with tempfile.TemporaryDirectory(prefix='work-saving-') as directory:
         shutil.rmtree(fake, ignore_errors=True)
     check('create works again once evidence is cleared', unio('save', 'create', 'mock-e', 'T1').returncode == 0)
 
-    # ---- finding 1: deleted ignored file ----------------------------------
-    git(a, 'checkout', 'HEAD', '--', '.')
-    Path(a, '.gitignore').write_text('*.log\n/ign/\n')
-    Path(a, 'tracked.log').write_bytes(b'tracked-log')
-    Path(a, 'ign').mkdir(exist_ok=True)
-    Path(a, 'ign/req.txt').write_bytes(b'req-txt')
-    git(a, 'add', '-f', '.gitignore', 'tracked.log', 'ign/req.txt')
-    git(a, 'commit', '-m', 'add ignored but tracked files')
-    git(a, 'rm', '--cached', 'tracked.log', 'ign/req.txt')
-    before_a = snap(a)
-    r = unio('save', 'create', 'mock-a', 'T1')
-    check('create saves ignored tracked files deleted from index', r.returncode == 0)
-    save_id = saved_id(r)
-    unio('init', 'mock-z')
-    z = wt / 'mock-z'
-    check('restore deleted ignored files', unio('save', 'restore', save_id, 'mock-z').returncode == 0)
-    b_after = snap(z)
+    # ---- retained HEAD paths, including ignored leaves and parents --------
+    check('fresh regression workers initialize', unio('init', 'mock-y', 'mock-z', 'mock-x').returncode == 0)
+    y, z, x = (wt / ('mock-' + c) for c in 'yzx')
+    write(y / '.gitignore', '*.log\n/ign/\n')
+    write(y / 'tracked.log', b'tracked-log\x00', 0o640)
+    write(y / 'ign/req.txt', b'required bytes\n', 0o750)
+    git(y, 'add', '-f', '.gitignore', 'tracked.log', 'ign/req.txt')
+    git(y, 'commit', '-qm', 'track ignored required files')
+    git(y, 'rm', '--cached', 'tracked.log', 'ign/req.txt')
+    retained_before, retained_view = snap(y), view(y)
+    r = unio('save', 'create', 'mock-y', 'T1')
+    retained_id = saved_id(r)
+    check('create preserves ignored HEAD files removed from index', r.returncode == 0 and retained_id)
+    retained_entries = {e['path']: e for e in manifest(retained_id)['entries']}
+    check('manifest retains leaf and ignored-parent bytes with absent index',
+          all(retained_entries[p]['index'] is None and retained_entries[p]['worktree'] is not None
+              for p in ('tracked.log', 'ign/req.txt')))
+    check('retained save inspects successfully', unio('save', 'inspect', retained_id, '--json').returncode == 0)
+    check('retained save restores into a clean different worker',
+          unio('save', 'restore', retained_id, 'mock-z').returncode == 0)
+    check('restored HEAD, full index, status and required bytes/modes exactly match', view(z) == retained_view)
+    check('retained source raw index, HEAD and all on-disk state unchanged', snap(y) == retained_before)
 
-    check('restored bytes of ignored tracked files match',
-          b_after['files'].get('tracked.log') == (420, b'tracked-log') and
-          b_after['files'].get('ign/req.txt') == (420, b'req-txt'))
+    # ---- unsafe native admission never writes targets, workers or evidence -
+    locks = coord / '.locks'
+    target = base / 'lock target'
+    def evidence():
+        return {str(p.relative_to(store)): (stat.S_IMODE(p.stat().st_mode), p.read_bytes())
+                for p in store.rglob('*') if p.is_file()}
 
-    # ---- finding 2: worker lock validation --------------------------------
-    lock_file = coord / '.locks' / 'mock-a.lock'
-    lock_file.parent.mkdir(parents=True, exist_ok=True)
-    lock_file.unlink(missing_ok=True)
-    os.symlink('missing', lock_file)
-    r = unio('save', 'create', 'mock-a', 'T1')
-    check('create refuses symlink lock absent target', r.returncode == 2 and 'unsafe' in r.stderr)
-    check('symlink absent target not created', not (coord / '.locks' / 'missing').exists())
-    lock_file.unlink()
+    def install_unsafe(kind, lock):
+        lock.unlink(missing_ok=True)
+        if kind in ('absent symlink', 'existing symlink', 'hardlink'):
+            target.unlink(missing_ok=True)
+            if kind != 'absent symlink':
+                write(target, b'TARGET MUST NOT CHANGE\x00', 0o640)
+            if kind == 'hardlink':
+                os.link(target, lock)
+            else:
+                os.symlink(target, lock)
+        elif kind == 'FIFO':
+            os.mkfifo(lock)
+        elif kind == 'directory':
+            lock.mkdir()
+        else:
+            write(lock, b'LOCK MUST NOT CHANGE\n', 0o666 if kind == 'writable file' else 0o644)
+            if kind == 'writable lock parent':
+                locks.chmod(0o777)
+            elif kind == 'writable coordination parent':
+                coord.chmod(0o777)
 
-    Path(coord / '.locks' / 'existing').write_bytes(b'')
-    os.symlink('existing', lock_file)
-    check('create refuses symlink lock existing target', unio('save', 'create', 'mock-a', 'T1').returncode == 2)
-    lock_file.unlink()
-    (coord / '.locks' / 'existing').unlink()
+    def remove_unsafe(lock):
+        locks.chmod(0o755)
+        coord.chmod(0o755)
+        if lock.is_dir() and not lock.is_symlink():
+            lock.rmdir()
+        else:
+            lock.unlink(missing_ok=True)
+        target.unlink(missing_ok=True)
 
-    (coord / '.locks' / 'real.lock').write_bytes(b'')
-    os.link(coord / '.locks' / 'real.lock', lock_file)
-    check('create refuses hardlink lock', unio('save', 'create', 'mock-a', 'T1').returncode == 2)
-    lock_file.unlink()
-    (coord / '.locks' / 'real.lock').unlink()
+    for kind in ('absent symlink', 'existing symlink', 'hardlink', 'FIFO', 'directory',
+                 'writable file', 'writable lock parent', 'writable coordination parent'):
+        for worker, args in [('mock-y', ('save', 'create', 'mock-y', 'T1')),
+                             ('mock-x', ('save', 'restore', retained_id, 'mock-x'))]:
+            lock = locks / (worker + '.lock')
+            install_unsafe(kind, lock)
+            try:
+                before_workers, before_evidence = (snap(y), snap(x)), evidence()
+                target_before = (target.read_bytes(), stat.S_IMODE(target.stat().st_mode)) if target.exists() else None
+                started = time.monotonic()
+                r = unio(*args, timeout=8)
+                check('%s %s refuses unsafe admission promptly as known failure' % (args[1], kind),
+                      r.returncode == 1 and time.monotonic() - started < 8)
+                target_after = (target.read_bytes(), stat.S_IMODE(target.stat().st_mode)) if target.exists() else None
+                check('%s %s preserves target, source, destination and saved/claim evidence' % (args[1], kind),
+                      target_before == target_after and (snap(y), snap(x)) == before_workers and evidence() == before_evidence)
+                if worker == 'mock-y':
+                    rc, observation = inspect_worker(worker)
+                    check('%s live inspection is Unknown without blocking' % kind,
+                          rc == 0 and observation['live'] == 'unknown')
+                    check('inspect by ID is independent of %s native lock' % kind,
+                          unio('save', 'inspect', retained_id, '--json', timeout=8).returncode == 0)
+            finally:
+                remove_unsafe(lock)
 
-    os.mkfifo(lock_file)
-    check('create refuses FIFO lock without hang', unio('save', 'create', 'mock-a', 'T1').returncode == 2)
-    lock_file.unlink()
+    # A symlinked lock directory is rejected before following it or creating
+    # leaf files there. Existing saves can still be inspected read-only.
+    original_locks = base / 'original locks'
+    outside_locks = base / 'outside locks'
+    outside_locks.mkdir()
+    locks.rename(original_locks)
+    os.symlink(outside_locks, locks)
+    try:
+        before_workers, before_evidence = (snap(y), snap(x)), evidence()
+        check('symlink parent refuses create and restore',
+              unio('save', 'create', 'mock-y', 'T1', timeout=8).returncode == 1
+              and unio('save', 'restore', retained_id, 'mock-x', timeout=8).returncode == 1)
+        rc, observation = inspect_worker('mock-y')
+        check('symlink parent live inspection is Unknown', rc == 0 and observation['live'] == 'unknown')
+        check('symlink parent leaves outside directory, workers and evidence unchanged',
+              not list(outside_locks.iterdir()) and (snap(y), snap(x)) == before_workers and evidence() == before_evidence)
+    finally:
+        locks.unlink()
+        original_locks.rename(locks)
 
-    # unsafe parent
-    os.chmod(coord / '.locks', 0o777)
-    check('create refuses unsafe parent dir', unio('save', 'create', 'mock-a', 'T1').returncode == 2)
-    os.chmod(coord / '.locks', 0o755)
-
-    # legacy lock and busy
-    lock_file.write_bytes(b'')
-    os.chmod(lock_file, 0o644)
-    fd = os.open(lock_file, os.O_RDONLY)
-    fcntl.flock(fd, fcntl.LOCK_SH)
-    check('create busy legacy exit 2', unio('save', 'create', 'mock-a', 'T1').returncode == 2)
-    fcntl.flock(fd, fcntl.LOCK_UN)
-    os.close(fd)
-    check('create admits valid legacy0644', unio('save', 'create', 'mock-a', 'T1').returncode == 0)
+    for worker, args in [('mock-y', ('save', 'create', 'mock-y', 'T1')),
+                         ('mock-x', ('save', 'restore', retained_id, 'mock-x'))]:
+        lock = locks / (worker + '.lock')
+        write(lock, b'legacy native lock\n', 0o644)
+        before_workers, before_evidence = (snap(y), snap(x)), evidence()
+        with lock.open('rb') as held:
+            fcntl.flock(held, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            check('%s held legacy lock is busy exit2' % args[1], unio(*args, timeout=8).returncode == 2)
+            if worker == 'mock-y':
+                rc, observation = inspect_worker(worker)
+                check('genuine busy inspection is Unknown', rc == 0 and observation['live'] == 'unknown')
+        check('%s contention preserves workers and saved evidence' % args[1],
+              (snap(y), snap(x)) == before_workers and evidence() == before_evidence)
+        check('%s admits an idle owned legacy0644 lock' % args[1], unio(*args).returncode == 0)
+        check('%s does not rewrite legacy lock bytes or permissions' % args[1],
+              lock.read_bytes() == b'legacy native lock\n' and stat.S_IMODE(lock.stat().st_mode) == 0o644)
+    check('legacy restore still matches retained state exactly', view(x) == retained_view)
+    check('retained source remains byte-for-byte unchanged after lock tests', snap(y) == retained_before)
 
     # ---- help, completion and zero provider calls -------------------------
     help_text = unio('help').stdout
