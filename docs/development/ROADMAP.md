@@ -16,6 +16,11 @@ main alongside one authorized continuation; lead cooldown restart is next. The
 recent map/UI requests are complete in main and should not keep expanding the
 recovery milestone. Published/installed v0.5.3 is unchanged.
 
+The [first lead cooldown contract](LEAD-COOLDOWN-CONTRACT.md) is frozen:
+Codex exec with a separate structured quota probe, durable ownership and
+explicit launch controls. Runtime implementation and live restart acceptance
+are next; the contract itself does not restart a lead.
+
 | Priority | Functional milestone | Current state |
 | --- | --- | --- |
 | 1 | Close v0.5.4 recovery, release and install | Automatic baseline/periodic/final saves and one authorized continuation accepted in main. Next: one supported lead cooldown adapter and the full release gate. |

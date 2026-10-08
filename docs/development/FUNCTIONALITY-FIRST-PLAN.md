@@ -84,7 +84,7 @@ scope is frozen, rather than promising a release number for every idea.
    start one separately frozen task under current authority. Preserve source
    work, existing account limits, STOP and retry rules. Unknown/replayed claims
    must not start another provider call; restored edits must survive autosync.
-3. **Lead cooldown restart.** Freeze the supervisor/adapter contract and deliver
+3. **Lead cooldown restart.** Implement the frozen supervisor/adapter contract and deliver
    one supported lead CLI first. Persist waiting outside the AI session; use
    trusted reset evidence or the known five-hour fallback of five hours and one
    minute. Ordinary errors do not become cooldowns. Stop/completion prevents
@@ -94,8 +94,9 @@ scope is frozen, rather than promising a release number for every idea.
    verified release. Do not add another visual feature before this boundary.
 
 The [saving contract](WORK-SAVING-CONTRACT.md) defines the first two slices.
-The [lead cooldown plan](LEAD-COOLDOWN-RESTART.md) still requires its concrete
-adapter/state/ownership contract before implementation. Manual save corrections
+The [lead cooldown plan](LEAD-COOLDOWN-RESTART.md) now has a frozen
+[adapter/state/ownership contract](LEAD-COOLDOWN-CONTRACT.md); its runtime and
+live restart acceptance remain pending. Manual save corrections
 passed focused checks; their corrected revision still needs the combined full
 release gate. Automatic saving and one authorized continuation now exist in
 source; lead restart is still pending.

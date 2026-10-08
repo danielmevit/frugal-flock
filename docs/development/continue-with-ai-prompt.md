@@ -19,6 +19,15 @@ complete. Keep the approved v0.5.4 scope; later priorities are
 recommendations with no new release numbers assigned. Recheck default browser
 observation before release: the private30-second preview override is not a fix.
 
+The [lead cooldown implementation contract](LEAD-COOLDOWN-CONTRACT.md) is now
+frozen in main. The owner's one fresh Opus 5.5 high attempt succeeded after
+the Claude CLI update; its original OAuth failure is retained. Personal lead
+review tightened allowance permission, launch inputs, pause races and longer
+resets before integration. Implement the contract next: this documentation
+does not add a supervisor or authorize a second concurrent Codex lead. Runtime,
+offline acceptance and an owner-enabled live restart remain pending. Opus is
+reserved again; no further attempt is authorized by that one-task exception.
+
 [Unio 0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3) is published and installed from exact source
 `ae61bf3d11ffc0701d32c1efcf90bccd18b267a6`. It delivers the real browser-to-worker workflow,
 protected output and tracked files, work modes and native shared-budget
