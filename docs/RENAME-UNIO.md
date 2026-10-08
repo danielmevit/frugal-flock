@@ -19,7 +19,7 @@ from different companies into one team; the name says that plainly.
 | Command | `unio` only. `frugal-flock`, `frgl-flc` and `agentteam` are removed, not kept as aliases. |
 | Repository | github.com/danielmevit/unio (renamed 2026-10-05; the old URL redirects). |
 | Legal NOTICE | Names only Unio (draft below, exact text needs owner approval). |
-| Tagline | "Small plans. Big ideas." stays until a new Unio tagline is chosen. |
+| Tagline | "Your AIs, in sync." (owner-approved 2026-10-08). |
 | Domain and trademark | unio.io registration and a trademark search for UNIO are the owner's. |
 
 ## Lead proposals (approved)
@@ -63,7 +63,7 @@ from different companies into one team; the name says that plainly.
 
 Every "Frugal Flock" in NOTICE becomes "Unio", and the project URL becomes
 `https://github.com/danielmevit/unio`. The first line reads
-"Unio — Small plans. Big ideas." until a new tagline exists. The legal terms
+"Unio — Your AIs, in sync." following the 2026-10-08 tagline approval. The legal terms
 themselves (AGPL-3.0-only, attribution and origin terms under sections 7(b)
 and 7(c), the independent-projects clause) are unchanged. Source file
 headers change the same way: "Unio — Copyright (C) 2026 Daniel Mitev".

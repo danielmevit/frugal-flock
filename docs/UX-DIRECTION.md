@@ -1,15 +1,47 @@
 # Unio — UX direction
 
-Give your AI subscriptions a group project.
+Your AIs, in sync.
 
 The [dark theme and live work map](development/LIVE-WORKSPACE-VIEW.md)
 records the owner's 2026-10-08 request and the proposed connected overview.
-These additions are planned for the existing browser workspace; the sections
-below preserve the earlier UX proposal and prototype context.
+Dark theme and the work map are accepted in source for v0.5.4. Interactive
+zoom, pan and the outward-branching map remain the next UI enhancement.
+The sections below preserve the earlier UX proposal and prototype context.
+
+## Future visual milestone: Marathon direction
+
+Owner-selected on 2026-10-08 from supplied Marathon UI screenshots, including
+its settings screen and loading/mission views. Apply this direction in a
+separate visual milestone after the current functional work:
+
+- Black and charcoal surfaces, white text and neutral gray controls. The
+  reference is for UX, layout and shapes; use no lime or other vivid accents.
+  Show selection through contrast, borders, labels and shape rather than hue.
+- Strong grid alignment, flat sections, precise dividers and aligned full-row
+  controls. Adapt the grouped settings, segmented choices and clear navigation
+  hierarchy, with contrast between labels, values and selected controls.
+- Compact technical labels and monospaced status details, paired with
+  comfortable body text. Keep long worker output readable.
+- A dominant working canvas and a compact inspector. Let the responsive
+  layout use the available screen; stack supporting panels on narrow screens.
+- A small Settings entry for display preferences such as theme, refresh and
+  default view. Keep task actions beside the task; expose only implemented
+  controls, with work-policy changes distinct from visual preferences.
+
+Create original Unio components, typography and icons. Keep the reference
+screenshots private; no game imagery, logos, fonts or assets enter the app.
+Avoid texture over code, tiny game-style labels, color-only status or motion
+that interferes with reading. Preserve light/dark choice, visible keyboard
+focus, reduced motion and accessible controls. Marathon informs the visual
+language; [Toolcraft](TOOLCRAFT-REFERENCE.md) remains a composition reference.
+
+Acceptance should include the real worker journey, readable output, settings
+behavior and the interactive map at phone, laptop and wide desktop sizes.
+This milestone does not delay saving/recovery or introduce new engine controls.
 
 ## Status and intended user
 
-Unio ships a command-line engine. An original
+Unio v0.5.3 ships a command-line engine and a local browser workspace. An original
 [mock-data prototype](../prototype/README.md) now covers one connected
 sample journey: project/tool, plan approval, question/progress, a named
 replacement after a simulated limit, and separate checks/review/acceptance.
@@ -104,7 +136,7 @@ decision. It is not primarily a terminal viewer or a wall of usage charts.
 
 ```text
 Unio                         My flock     Settings
-Small plans. Big ideas.
+Your AIs, in sync.
 
 Project: Garden journal
 What would you like to build?
@@ -206,10 +238,11 @@ changes is an explicit owner action, with conflicts surfaced for a decision.
 
 ## Visual and language direction
 
-Use a calm, minimal workspace: off-white canvas, charcoal text, white
-surfaces, light dividers, and restrained pastel status accents. Use a clear
-system sans-serif, readable body text, and visible keyboard focus. Status
-meaning must be conveyed in words as well as color. Support reduced motion.
+Use a calm monochrome workspace: black and charcoal dark surfaces, white
+and off-white light surfaces, neutral gray dividers, and readable contrasting
+text. Use contrast, borders, shape and explicit labels for status and selection;
+avoid lime, vivid colors and pastel accents. Use a clear system sans-serif,
+readable body text, and visible keyboard focus. Support reduced motion.
 
 Use the flock motif sparingly in identity and empty states. Keep actual
 provider names visible and actions literal. On a narrow screen, show the

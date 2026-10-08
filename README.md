@@ -1,4 +1,4 @@
-# Unio — Give your AI subscriptions a group project.
+# Unio — Your AIs, in sync.
 
 Unio brings AI agents from different AI labs together to build and improve
 your project. A lead delegates the work, other agents review the changes,

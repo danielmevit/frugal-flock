@@ -323,11 +323,13 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.equal(view.pressed, "true");
     await page.click("#map-reset");
     view = await page.evaluate(() => { const s = document.getElementById("work-map"); return { view: s.dataset.view, w: s.style.width, h: s.style.height, content: s.dataset.contentHeight }; });
-    assert.deepEqual([view.view, view.w, view.h], ["actual", "800px", view.content + "px"]);
+    assert.deepEqual([view.view, view.w], ["actual", "100%"]);
+    assert.ok(parseInt(view.h, 10) > 0);
     await poll(page);
     view = await page.evaluate(() => { const s = document.getElementById("work-map"); return { view: s.dataset.view, w: s.style.width, h: s.style.height, content: s.dataset.contentHeight }; });
-    assert.deepEqual([view.view, view.w, view.h], ["actual", "800px", view.content + "px"]);
-    ok("Fit survives polling; Reset restores width and height and survives polling");
+    assert.deepEqual([view.view, view.w], ["actual", "100%"]);
+    assert.ok(parseInt(view.h, 10) > 0);
+    ok("Fit and Reset preserve responsive width and survive polling");
 
     // Desktop screenshots in Light and Dark with details open.
     await page.selectOption("#theme-selector", "light");
@@ -391,6 +393,28 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
     await page.screenshot({ path: path.join(shots, "work-map-mobile-390-light.png"), fullPage: true });
     ok("390px map has no horizontal overflow; screenshots captured");
+
+    // Resize the same live page: wide screens use their width, narrow controls
+    // remain reachable, and a selected node survives without a reload.
+    await page.locator('#work-map [data-kind="task"]').first().click();
+    const selectedKey = await page.locator('#work-map [aria-pressed="true"]').getAttribute('data-node-key');
+    for (const width of [1920, 768, 320, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.waitForFunction(() => {
+        const svg = document.getElementById('work-map');
+        return Math.abs(svg.getBoundingClientRect().width - svg.parentElement.clientWidth) <= 1;
+      });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no overflow at ' + width);
+      assert.ok(await page.evaluate(() => document.querySelector('main').getBoundingClientRect().width >= innerWidth - 1), 'workspace uses screen width at ' + width);
+      assert.equal(await page.locator('#work-map [aria-pressed="true"]').getAttribute('data-node-key'), selectedKey);
+      assert.ok(await page.evaluate(() => [...document.querySelectorAll('.map-controls > *, .map-details-header > *')].every(e => {
+        const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth;
+      })), 'controls remain within screen at ' + width);
+    }
+    assert.ok(!(await page.locator('footer').innerText()).includes('Daniel'));
+    assert.equal(await page.locator('footer a').nth(0).getAttribute('href'), 'https://github.com/danielmevit/unio');
+    assert.equal(await page.locator('footer a').nth(1).getAttribute('href'), 'https://github.com/danielmevit/unio/blob/main/LICENSE');
+    ok('same page adapts from 320 to 1920px, preserves selection and displays repository/license footer');
 
     assert.deepEqual(problems, [], "No page errors, console errors, external requests or mutation calls");
     ok("no page errors, console errors, external or mutation requests");

@@ -36,7 +36,7 @@ universal automatic requirement of the tool or a guarantee of correctness.
 - Public repository: https://github.com/danielmevit/unio
 - Published implementation/README baseline: `f962b6a`. Read the latest main
   for this handoff and the research documents added afterward.
-- Product: Unio. Tagline: Small plans. Big ideas.
+- Product: Unio. Tagline: Your AIs, in sync.
 - Command: `unio` only.
 - The runtime, templates and completion are embedded in the single
   `unio-install.sh` installer. Unio 0.5.0 is installed in the development

@@ -1,6 +1,6 @@
 # Unio
 
-Small plans. Big ideas.
+Your AIs, in sync.
 
 ## Name and promise
 
@@ -25,12 +25,12 @@ provider's quota or conversation memory.
 | Surface | Name |
 |---------|------|
 | Product and window title | Unio |
-| Tagline | Small plans. Big ideas. |
-| One-sentence description (README title, GitHub) | Connect AI agents from different AI labs into one workspace |
+| Tagline | Your AIs, in sync. |
+| One-sentence description | Connect AI agents from different AI labs into one workspace |
 | Canonical terminal command | `unio` |
 | Installer entrypoint | `unio-install.sh` |
 
-Owner-selected wording (2026-10-06). Keep the README and the following
+Tagline approved by the owner on 2026-10-08. Description selected on 2026-10-06. Keep the README and the following
 intended GitHub description consistent; changing this document alone does
 not update repository metadata. The topics below were set on 2026-10-04:
 

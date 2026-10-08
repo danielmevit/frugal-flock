@@ -1,6 +1,6 @@
 # Unio roadmap and development priorities
 
-Give your AI subscriptions a group project.
+Your AIs, in sync.
 
 ## Browser appearance and live work overview
 
@@ -63,6 +63,13 @@ fallback for a known five-hour limit, then starts the configured lead again.
 Repeated limits create new waits; stop and completion cancel further restarts.
 Existing worker limit handling stays unchanged. Deliver work saving first so
 each restarted session can reconcile the current work without duplicating it.
+
+Future visual milestone, owner-selected on 2026-10-08:
+[Marathon-inspired UI direction](../UX-DIRECTION.md#future-visual-milestone-marathon-direction),
+using its layout, shapes and UX structure with black/white/charcoal surfaces,
+aligned control rows and a compact Settings entry. No vivid accent colors. Build original components, preserve responsive and
+accessible behavior, and keep task controls functional. Schedule it separately
+after current functional work; it does not replace recovery priorities.
 
 After these two milestones, build the following in this order. They are
 approved planning priorities; implementation boundaries, release numbers and

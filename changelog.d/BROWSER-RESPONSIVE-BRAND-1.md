@@ -1,0 +1,1 @@
+- Let the browser workspace use the available screen width and resize the work map with its container. Keep filters and detail actions within narrow screens. Adopt the owner-approved tagline, “Your AIs, in sync.”, and replace the dashboard's personal footer credit with repository and license links.
