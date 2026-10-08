@@ -396,14 +396,27 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     await page.locator("#work-map").scrollIntoViewIfNeeded();
     const viewport = await page.locator("#work-map").boundingBox();
     const px = viewport.x + viewport.width / 2 + 30, py = viewport.y + viewport.height / 2 + 20;
+    await page.evaluate(() => {
+      const svg = document.getElementById("work-map");
+      svg.addEventListener("wheel", event => {
+        const before = new DOMPoint(event.clientX, event.clientY).matrixTransform(svg.getScreenCTM().inverse());
+        window.mapWheelProbe = { clientX: event.clientX, clientY: event.clientY, x: before.x, y: before.y };
+      }, { capture: true, once: true });
+    });
     await page.mouse.move(px, py);
     await page.keyboard.down("Control");
     await page.mouse.wheel(0, -100);
     await page.keyboard.up("Control");
     await page.waitForFunction(() => +document.getElementById("work-map").dataset.scale === 1.25);
     const wheelCamera = await camera();
-    assert.ok(Math.abs(wheelCamera.x + 30 / 1.25 - 30) < 0.01);
-    assert.ok(Math.abs(wheelCamera.y + 20 / 1.25 - 20) < 0.01);
+    const wheelAnchor = await page.evaluate(() => {
+      const before = window.mapWheelProbe;
+      const after = new DOMPoint(before.clientX, before.clientY).matrixTransform(document.getElementById("work-map").getScreenCTM().inverse());
+      return { before, after: { x: after.x, y: after.y } };
+    });
+    assert.ok(Math.abs(wheelAnchor.before.x - wheelAnchor.after.x) < 0.01, JSON.stringify(wheelAnchor));
+    assert.ok(Math.abs(wheelAnchor.before.y - wheelAnchor.after.y) < 0.01, JSON.stringify(wheelAnchor));
+    console.log("Wheel anchor evidence " + JSON.stringify({ requested: { x: px, y: py }, ...wheelAnchor }));
     await page.mouse.wheel(0, 100);
     assert.deepEqual(await camera(), wheelCamera);
     await page.click("#map-fit");
