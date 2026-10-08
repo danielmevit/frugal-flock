@@ -8,6 +8,9 @@ Dark theme and the work map are accepted in source for v0.5.4, including
 interactive zoom, mouse/touch panning and radial ownership branches. Both
 themes use black, white, charcoal and neutral gray. These additions are not
 in the published v0.5.3 release.
+Owner update on 2026-10-08 permits small semantic status strips in terminal-style
+green, red and yellow on map nodes, with a textual legend. Surfaces, controls and
+selection remain neutral. Exact host terminal theme colors are not inspected.
 The sections below preserve the earlier UX proposal and prototype context.
 
 ## Future visual milestone: Marathon direction
@@ -17,7 +20,8 @@ its settings screen and loading/mission views. Apply this direction in a
 separate visual milestone after the current functional work:
 
 - Black and charcoal surfaces, white text and neutral gray controls. The
-  reference is for UX, layout and shapes; use no lime or other vivid accents.
+  reference is for UX, layout and shapes; use no lime or decorative vivid accents.
+  Small green/red/yellow map status strips are the owner's explicit exception.
   Show selection through contrast, borders, labels and shape rather than hue.
 - Strong grid alignment, flat sections, precise dividers and aligned full-row
   controls. Adapt the grouped settings, segmented choices and clear navigation
@@ -243,7 +247,9 @@ changes is an explicit owner action, with conflicts surfaced for a decision.
 Use a calm monochrome workspace: black and charcoal dark surfaces, white
 and off-white light surfaces, neutral gray dividers, and readable contrasting
 text. Use contrast, borders, shape and explicit labels for status and selection;
-avoid lime, vivid colors and pastel accents. Use a clear system sans-serif,
+avoid lime, decorative vivid colors and pastel accents. The small semantic
+map status strips are the owner's exception; always pair color with text.
+Use a clear system sans-serif,
 readable body text, and visible keyboard focus. Support reduced motion.
 
 Use the flock motif sparingly in identity and empty states. Keep actual

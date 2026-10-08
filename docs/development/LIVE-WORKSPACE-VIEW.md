@@ -95,6 +95,17 @@ explicit action in the existing workflow.
 
 ## Live means observed
 
+Thin right-edge node strips use green for fully passed/reviewed task evidence,
+red for explicit process/check/review failures, yellow for other attention states,
+and gray for active or missing evidence. Text and a visible legend explain them.
+Worker and hub marks summarize all their observed records (including history),
+with failure before attention, active and finished; they do not claim a live
+worker failed or a human accepted anything. Neutral surfaces and selection
+outlines remain unchanged. Wheel over the canvas zooms at the pointer; hold the
+middle mouse button and drag to pan horizontally or vertically. Left-button,
+touch and keyboard navigation remain available. Wheel outside the map scrolls
+the page normally.
+
 Reuse the current activity polling first: the shipped page refreshes every
 two seconds. Show the observation time and update the affected nodes rather
 than reconstructing the layout. On failure, mark the view unavailable and
