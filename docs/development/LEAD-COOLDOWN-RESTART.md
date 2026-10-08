@@ -8,6 +8,11 @@ read-only allowance probe passed. A real subscription-limit restart and combined
 release checks remain pending; published/installed v0.5.3 is unchanged.
 The original milestone and acceptance goals below remain the delivery reference.
 
+
+Validation update, 2026-10-08: see [completed checks, preserved failures and
+remaining release work](RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
+not replace the final versioned release gate.
+
 ## Intended behavior
 
 Unio keeps a small supervisor running outside the lead AI's CLI process.

@@ -8,6 +8,11 @@ separates shipped features from source additions and recommends a functional
 delivery order. The approved v0.5.4 recovery scope stays intact; later release
 numbers remain unassigned. Finish recovery before further visual expansion.
 
+
+Validation update, 2026-10-08: see [completed checks, preserved failures and
+remaining release work](development/RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
+not replace the final versioned release gate.
+
 | Version | Included work | State |
 | --- | --- | --- |
 | 0.5.0 | Completed A/B/C/D rename; installer, commands, config, docs and prototypes | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.0); source aebe23c; installed with owner approval |

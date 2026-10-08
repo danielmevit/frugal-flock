@@ -18,6 +18,11 @@ acceptance and the combined v0.5.4 release checks remain. Published/installed
 v0.5.3 is unchanged.
 The audit counts below describe the earlier baseline, before this delivery.
 
+
+Validation update, 2026-10-08: see [completed checks, preserved failures and
+remaining release work](RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
+not replace the final versioned release gate.
+
 ## Where the original plan stands
 
 The [five steps approved on 2026-10-05](../NEXT-MILESTONE-CONTRACTS.md)
@@ -102,8 +107,11 @@ The [lead cooldown plan](LEAD-COOLDOWN-RESTART.md) now has a frozen
 [adapter/state/ownership contract](LEAD-COOLDOWN-CONTRACT.md). Its runtime and
 offline acceptance are now in main; real subscription-limit restart remains
 unrun while this low-tier lead session is active. Manual save corrections,
-automatic saving and continuation passed focused checks; the combined full
-source gate is next, followed by remaining live and release acceptance.
+automatic saving and continuation passed focused checks. The combined source
+gate exposed a stale completion assertion and embedded guide mismatch; both
+received bounded corrections. Manual186, automatic61 and cooldown106 checks
+passed. Finish continuation full acceptance, then genuine restart and final
+versioned release validation.
 
 One existing functional issue belongs at release readiness: the real workspace
 observation took 10.37 seconds against the default 10-second cutoff. A private

@@ -279,6 +279,8 @@ exact restored save, with account limits and replay protection. An owner-enabled
 for the supported Codex CLI. Real subscription-limit restart acceptance and
 release checks remain pending. Published v0.5.3 handoffs provide context, without
 recovery snapshots.
+See the [current recovery validation](docs/development/RECOVERY-ACCEPTANCE-2026-10-08.md)
+for completed checks and remaining release work.
 
 </details>
 
