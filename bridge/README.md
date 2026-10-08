@@ -695,3 +695,83 @@ engine and must not call a provider. `tests/unio-work-policy.py` and
 policy branch; this branch does not run or edit them. Version remains 0.5.3.
 The real provider journey, the final whole release gate and publication are
 still separate.
+
+## Browser Themes and Work Map (BROWSER-THEME-MAP-1)
+
+The workspace page supports three themes: System (default), Light, and Dark.
+The chosen theme is stored locally and applied safely even if storage is
+restricted. All native surfaces, UI states, output consoles, and the activity map
+fully adapt to these themes using safe CSS variables without inline styles or
+external assets, preserving the restrictive Content Security Policy.
+
+A Work map view replaces the traditional flat list of tasks on large screens,
+displaying a visual Project hub connected to recorded workers and their
+owned tasks. The map prioritizes active, uncertain, and attention-requiring
+work. A history toggle optionally reveals finished history. The view includes
+deterministic layout, search, task/worker bounds, counts, and pagination (capped
+at 24 expanded nodes). This uses the existing `/api/activity` feed without
+backend, dependency, or route changes.
+
+Selecting a task on the map opens its details. If the selected worker is also
+granted in the local session for Source console tracking (`--progress-binding`
+or `--progress-worker`), the console can be opened directly from the map
+details. The detail view accurately labels if the granted protected output
+belongs to a different (usually newer) task rather than implying it belongs
+to the historical record you clicked on. The map is entirely read-only; it never
+starts, reviews, or merges work. Observation failures clear the map alongside
+the list and details.
+
+Offline checks are included in `bridge/tests/work_map_browser.cjs`.
+These UI enhancements are implemented-in-source; the published official version
+remains 0.5.3.
+
+### Browser Theme and Map Correction (BROWSER-THEME-MAP-FIX-1)
+
+The browser map and themes underwent concrete corrections to actually resolve system theme preference dynamically, fix primary button contrast in dark mode, and enforce semantic `createElement` rendering for task details instead of interpolated HTML. The map accurately collapses only genuinely finished work lacking failed or unknown states. SVG nodes and console bindings now use exact worker and task identities instead of substring checks. Map controls, view states, and focus survive observation failures without resurrecting stale nodes, and recovery functions properly. Added worker and state filters. These corrections are verified offline via strengthened `bridge/tests/work_map_browser.cjs` checks.
+
+### Map identity and console routing correction (BROWSER-MAP-IDENTITY-OPUS-1)
+
+Map nodes are keyed by the exact worker/task tuple (JSON-encoded, so
+`worker-1`/`TASK-10` and `worker-10`/`TASK-1` can never collide). A poll
+reuses the same SVG group for the same tuple, removes only groups whose tuple
+is gone and reorders around the focused group, so keyboard focus and the
+selection stay on the same task when other tasks are inserted or removed.
+Nodes are `role="button"` with a full `aria-label` and `aria-pressed`; Enter
+and Space select them. Positions do not move when the topology is unchanged.
+
+The details panel is built once per selected task and then updated in place,
+so a focused **Clear selection** or console button survives polling. It shows
+the current observation time separately from the recorded task time. When the
+selected task is off-page, filtered out or no longer observed, the panel keeps
+an explicit **Clear selection** action. An observation failure clears the map,
+details, counts and pagination and drops the cached data; no view, filter,
+search, history, paging, Fit or Reset control can bring the old state back.
+**Fit view** and **Reset** are stored and reapplied after every poll; Reset
+restores width and height. Worker filter options follow the observed workers.
+A selected worker that disappears stays selected and is labelled
+"(not in current observation)".
+
+Only records whose process `succeeded`, validation `passed` and review
+`approved` count as finished and collapse into history. That is still not your
+acceptance. Running records with a held worker lock are shown as active. Every
+other record needs attention and stays visible, including failed, unknown,
+incomplete, not run, changes requested, completion unknown or stale evidence.
+The **Finished** state filter shows finished records without the history
+toggle.
+
+A map console action is offered only when the page's console lists that exact
+worker. The wording reflects that worker's actual grants: Source output and
+files, output only, or files only. If the console's latest task differs from
+the selected record, the action and its event name that actual latest task as
+a different/latest task. The console accepts only a plain `{worker, task}`
+detail that exactly matches a listed button, reuses its normal selection path
+(opening Files for a files-only worker) and scrolls without animation when
+reduced motion is preferred. The theme selector uses the live chosen preference
+as authority, so an explicit Light or Dark choice ignores OS changes even when
+storage is denied. Malformed stored values fall back to System.
+
+Checks: `bridge/tests/work_map_browser.cjs`, the extended
+`bridge/tests/worker_console_browser.cjs` (real `--progress-worker` and
+`--files-worker` grants under the server's unchanged CSP) and
+`bridge/tests/browser.cjs`. No backend, API, grant or dependency changed. The
+published official version remains 0.5.3.

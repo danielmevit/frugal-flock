@@ -1,0 +1,407 @@
+// Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
+// https://github.com/danielmevit/unio
+// SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawn } = require("node:child_process");
+const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
+
+const STORAGE_KEY = "unio-theme-preference";
+const TAG = "TAG<img src=x>";
+const SCRIPT = "<script>alert(1)</script>";
+
+// Actual watch vocabularies: process not_run/running/succeeded/failed,
+// validation not_run/passed/failed/incomplete, review
+// not_run/approved/changes_requested/unknown/failed.
+function task(worker, name, process, validation, review, activity) {
+  return {
+    worker,
+    task: name,
+    recorded_at: "2026-10-08T09:00:00Z",
+    activity: activity || process,
+    worker_lock: process === "running" ? "held" : "free",
+    process: { state: process, exit_code: process === "failed" ? 1 : process === "succeeded" ? 0 : null },
+    validation: { state: validation, checks_run: validation === "not_run" ? 0 : 2, checks_failed: validation === "failed" ? 1 : 0 },
+    review: { state: review, reviewer: review === "not_run" ? null : "r1" },
+  };
+}
+function baseResults() {
+  const results = [
+    task("worker-1", "TASK-1", "failed", "not_run", "not_run"),
+    task("worker-1", "TASK-10", "running", "not_run", "not_run", "running_recorded"),
+    task("worker-10", "TASK-1", "succeeded", "passed", "approved"),
+    task("worker", TAG, "succeeded", "incomplete", "not_run"),
+    task("worker", "FAILED", "failed", "failed", "not_run"),
+    task("worker", SCRIPT, "succeeded", "passed", "unknown"),
+    task("worker-2", "CHANGES", "succeeded", "passed", "changes_requested"),
+    task("worker-2", "DONE-OK", "succeeded", "passed", "approved"),
+    task("worker-2", "COMPLETION", "running", "not_run", "not_run", "completion_unknown"),
+    task("worker-2", "UNRUN", "not_run", "not_run", "not_run"),
+  ];
+  for (let i = 0; i < 30; i++) results.push(task("zz-bulk", "bulk-" + String(i).padStart(2, "0"), "succeeded", "failed", "not_run"));
+  return results;
+}
+
+(async () => {
+  assert.ok(process.env.TMPDIR, "Set TMPDIR to workspace-local tmp before running browser checks");
+  const fixture = fs.mkdtempSync(path.join(process.env.TMPDIR, "work-map-browser-"));
+  const shots = path.join(process.env.TMPDIR, "work-map-screenshots");
+  fs.mkdirSync(shots, { recursive: true });
+  for (const name of ["repo", "coord", "wt"]) fs.mkdirSync(path.join(fixture, name));
+  const snapshotFile = path.join(fixture, "coord", "snapshot.json");
+  const failFlag = path.join(fixture, "coord", "FAIL");
+  let tick = 0;
+  let results = baseResults();
+  function publish() {
+    tick += 1;
+    const observed = "2026-10-08T10:" + String(Math.floor(tick / 60)).padStart(2, "0") + ":" + String(tick % 60).padStart(2, "0") + "Z";
+    fs.writeFileSync(snapshotFile, JSON.stringify({
+      schema_version: 1, observed_at: observed, stopped: false, agents: [], retries: [],
+      results, recent_events: [], warnings: [], evidence: "recorded",
+    }));
+    return observed;
+  }
+  publish();
+  const engine = path.join(fixture, "watch-fixture");
+  fs.writeFileSync(engine, `#!/usr/bin/env python3
+import sys
+from pathlib import Path
+root = Path(__file__).parent
+assert sys.argv[1:] == ['watch','--once','--json'], 'only read-only observation allowed'
+if (root/'coord'/'FAIL').exists():
+    sys.exit(1)
+sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
+`, { mode: 0o755 });
+
+  const child = spawn("python3", ["-B", path.resolve(__dirname, "../server.py"), "--project", fixture, "--engine", engine], { stdio: ["ignore", "pipe", "pipe"] });
+  let stderr = "";
+  child.stderr.on("data", (chunk) => { stderr = (stderr + chunk.toString()).slice(-2000); });
+
+  let browser;
+  const problems = [];
+  let failing = false;
+  const passed = [];
+  function ok(name) { passed.push(name); console.log("PASS " + name); }
+  function watch(page) {
+    page.on("pageerror", (error) => problems.push("pageerror: " + error.message));
+    page.on("console", (message) => {
+      if (message.type() !== "error") return;
+      // 503 responses are expected only while the observer is failing.
+      if (failing && message.text().includes("503")) return;
+      problems.push("console: " + message.text());
+    });
+    page.on("request", (request) => {
+      if (!request.url().startsWith("http://127.0.0.1:")) problems.push("External request: " + request.url());
+      if (request.method() !== "GET" && request.method() !== "HEAD") problems.push("Mutation call: " + request.method() + " " + request.url());
+    });
+  }
+  async function poll(page) {
+    const observed = publish();
+    await page.waitForFunction((stamp) => document.getElementById("status").textContent.includes(stamp), observed, { timeout: 10000 });
+  }
+  function node(page, worker, name) {
+    return page.evaluateHandle(([w, t]) => [...document.querySelectorAll("#work-map [data-node-key]")]
+      .find((g) => g.dataset.kind === "task" && g.dataset.worker === w && g.dataset.task === t) || null, [worker, name]);
+  }
+  async function taskTuples(page) {
+    return page.evaluate(() => [...document.querySelectorAll("#work-map [data-node-key]")]
+      .filter((g) => g.dataset.kind === "task").map((g) => [g.dataset.worker, g.dataset.task]));
+  }
+  async function field(page, name) {
+    return page.evaluate((n) => { const el = document.querySelector('#map-details [data-field="' + n + '"]'); return el ? el.textContent : null; }, name);
+  }
+
+  try {
+    const origin = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Timeout: " + stderr)), 10000);
+      child.once("exit", (code) => { clearTimeout(timer); reject(new Error("server exit " + code + " " + stderr)); });
+      child.stdout.on("data", (chunk) => {
+        const match = chunk.toString().match(/http:\/\/127\.0\.0\.1:\d+/);
+        if (match) { clearTimeout(timer); resolve(match[0]); }
+      });
+    });
+    browser = await chromium.launch(process.env.M2_CHROMIUM_PATH ? { executablePath: process.env.M2_CHROMIUM_PATH } : {});
+
+    // --- Theme: stored preference reload and malformed storage -------------
+    {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+      const page = await context.newPage();
+      watch(page);
+      await page.goto(origin);
+      assert.equal(await page.inputValue("#theme-selector"), "system");
+      assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "light");
+      await page.emulateMedia({ colorScheme: "dark" });
+      await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
+      ok("system preference follows OS dark change");
+      await page.selectOption("#theme-selector", "light");
+      assert.equal(await page.evaluate((k) => localStorage.getItem(k), STORAGE_KEY), "light");
+      await page.reload();
+      assert.equal(await page.inputValue("#theme-selector"), "light");
+      assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "light");
+      await page.emulateMedia({ colorScheme: "light" });
+      await page.emulateMedia({ colorScheme: "dark" });
+      assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "light");
+      ok("stored explicit Light reloads and ignores OS dark");
+      await page.evaluate((k) => localStorage.setItem(k, "purple<script>"), STORAGE_KEY);
+      await page.reload();
+      assert.equal(await page.inputValue("#theme-selector"), "system");
+      assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
+      ok("malformed stored value falls back to System");
+      await context.close();
+    }
+    // --- Theme: denied storage keeps the live explicit choice ---------------
+    {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
+      await context.addInitScript(() => {
+        Object.defineProperty(window, "localStorage", { get: () => { throw new Error("Denied"); } });
+      });
+      const page = await context.newPage();
+      watch(page);
+      await page.goto(origin);
+      assert.equal(await page.inputValue("#theme-selector"), "system");
+      assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
+      await page.selectOption("#theme-selector", "light");
+      assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "light");
+      await page.emulateMedia({ colorScheme: "light" });
+      await page.emulateMedia({ colorScheme: "dark" });
+      assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "light");
+      await page.selectOption("#theme-selector", "system");
+      assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
+      await page.emulateMedia({ colorScheme: "light" });
+      await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
+      ok("denied storage: explicit Light survives OS change; System follows OS");
+      await context.close();
+    }
+
+    // --- Work map ------------------------------------------------------------
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light", reducedMotion: "reduce" });
+    const page = await context.newPage();
+    watch(page);
+    await page.goto(origin);
+    await page.waitForSelector("#tasks-map-container:not([hidden])");
+    await page.waitForFunction(() => document.querySelectorAll("#work-map [data-node-key]").length > 0);
+
+    // Default view: attention/active stay visible; only passed+approved collapse.
+    let tuples = await taskTuples(page);
+    assert.equal(tuples.length, 24, "first page capped at 24 task nodes");
+    assert.equal(await page.isVisible("#map-pagination"), true);
+    for (const [w, t] of [["worker-1", "TASK-1"], ["worker-1", "TASK-10"], ["worker", TAG], ["worker", "FAILED"], ["worker", SCRIPT], ["worker-2", "CHANGES"], ["worker-2", "COMPLETION"], ["worker-2", "UNRUN"]])
+      assert.ok(tuples.some(([a, b]) => a === w && b === t), "visible by default: " + w + " / " + t);
+    for (const [w, t] of [["worker-10", "TASK-1"], ["worker-2", "DONE-OK"]])
+      assert.ok(!tuples.some(([a, b]) => a === w && b === t), "finished hidden by default: " + w + " / " + t);
+    const counts = await page.textContent("#map-counts");
+    assert.ok(counts.includes("40 total tasks (37 need attention, 1 active, 2 finished)"), counts);
+    assert.equal(await page.evaluate(() => [...document.querySelectorAll("#work-map [data-category]")].filter((g) => g.dataset.task === "FAILED")[0].dataset.category), "attention");
+    ok("failed/unknown/changes-requested/incomplete/completion-unknown/not-run tasks visible; only 2 passed+approved collapsed");
+    await page.click("#map-next-page");
+    assert.equal((await taskTuples(page)).length, 14, "second page holds the rest of 38 visible");
+    await page.click("#map-prev-page");
+    ok("pagination 24 + 14");
+
+    // Finished filter without the history toggle.
+    assert.equal(await page.isChecked("#map-history-toggle"), false);
+    await page.selectOption("#map-state-filter", "finished");
+    assert.deepEqual((await taskTuples(page)).sort(), [["worker-10", "TASK-1"], ["worker-2", "DONE-OK"]]);
+    await page.selectOption("#map-state-filter", "attention");
+    tuples = await taskTuples(page);
+    assert.ok(!tuples.some(([, t]) => t === "TASK-10" || t === "DONE-OK"), "attention excludes active and finished");
+    await page.selectOption("#map-state-filter", "");
+    ok("Finished filter exposes finished records with history toggle off");
+
+    // Accessible node buttons and exact prefix-collision identities.
+    const t1 = await node(page, "worker-1", "TASK-1");
+    const t10 = await node(page, "worker-1", "TASK-10");
+    assert.notEqual(await t1.evaluate((g) => g.dataset.nodeKey), await t10.evaluate((g) => g.dataset.nodeKey));
+    assert.equal(await t1.evaluate((g) => g.getAttribute("role")), "button");
+    assert.equal(await t1.evaluate((g) => g.getAttribute("aria-pressed")), "false");
+    assert.equal(await t1.evaluate((g) => g.getAttribute("aria-label")), "Task TASK-1 on worker worker-1. Needs attention: process failed, validation not run, review not run.");
+    await t1.evaluate((g) => g.focus());
+    await page.keyboard.press("Enter");
+    await page.waitForSelector("#map-details:not([hidden])");
+    assert.equal(await field(page, "title"), "worker-1 / TASK-1");
+    assert.ok((await field(page, "status")).startsWith("Needs attention · process failed"));
+    assert.equal(await t1.evaluate((g) => g.getAttribute("aria-pressed")), "true");
+    await t10.evaluate((g) => g.focus());
+    await page.keyboard.press(" ");
+    await page.waitForFunction(() => document.querySelector('#map-details [data-field="title"]').textContent === "worker-1 / TASK-10");
+    assert.equal(await t1.evaluate((g) => g.getAttribute("aria-pressed")), "false");
+    assert.equal(await t10.evaluate((g) => g.getAttribute("aria-pressed")), "true");
+    assert.equal(await field(page, "status"), "Active · process running");
+    ok("Enter opens worker-1/TASK-1, Space opens worker-1/TASK-10; aria-pressed follows exact key");
+
+    // No grants: console stays unavailable and offers no action.
+    assert.ok((await field(page, "console")).includes("unavailable"));
+    assert.equal(await page.locator('#map-details [data-field="console-open"]').count(), 0);
+    ok("default no grants keeps console unavailable without an action");
+
+    // Root's reproduction: focus TAG, insert AAA before it, focus must stay.
+    const tag = await node(page, "worker", TAG);
+    await tag.evaluate((g) => g.focus());
+    await page.keyboard.press("Enter");
+    await page.waitForFunction((t) => document.querySelector('#map-details [data-field="title"]').textContent === "worker / " + t, TAG);
+    const failedBefore = await node(page, "worker", "FAILED");
+    results = [task("worker", "AAA", "failed", "not_run", "not_run"), task("worker-3", "NEW-1", "running", "not_run", "not_run", "running_recorded")].concat(results);
+    await poll(page);
+    assert.ok(await tag.evaluate((g) => g === document.activeElement && g.isConnected), "same TAG group keeps focus after AAA insertion");
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.task), TAG);
+    assert.equal(await tag.evaluate((g) => g.getAttribute("aria-pressed")), "true");
+    assert.ok(await failedBefore.evaluate((g) => g.isConnected && g.dataset.task === "FAILED"), "FAILED kept its own group");
+    assert.equal(await field(page, "title"), "worker / " + TAG);
+    assert.ok(await (await node(page, "worker", "AAA")).evaluate((g) => g !== null));
+    ok("insertion preserves the SAME focused TAG group and selection (Root receipt reproduced and fixed)");
+
+    // New worker appears in the filter options.
+    assert.deepEqual(await page.evaluate(() => [...document.getElementById("map-worker-filter").options].map((o) => o.value)),
+      ["", "worker", "worker-1", "worker-10", "worker-2", "worker-3", "zz-bulk"]);
+    ok("worker filter options include newly observed worker-3");
+
+    // A focused detail action survives an unchanged poll; values update in place.
+    const clearBtn = await page.$("#map-clear-sel");
+    await clearBtn.focus();
+    const transforms = async () => page.evaluate(() => Object.fromEntries([...document.querySelectorAll("#work-map [data-node-key]")].map((g) => [g.dataset.nodeKey, g.getAttribute("transform")])));
+    const positionsBefore = await transforms();
+    const observedBefore = await field(page, "observed");
+    await poll(page);
+    assert.ok(await clearBtn.evaluate((b) => b === document.activeElement && b.isConnected), "clear button survives unchanged poll");
+    assert.deepEqual(await transforms(), positionsBefore, "positions stable when topology unchanged");
+    assert.notEqual(await field(page, "observed"), observedBefore, "current observation time updates");
+    assert.equal(await field(page, "recorded"), "Task evidence recorded 2026-10-08T09:00:00Z");
+    results = results.map((r) => r.worker === "worker" && r.task === TAG
+      ? { ...r, recorded_at: "2026-10-08T09:30:00Z", validation: { state: "failed", checks_run: 3, checks_failed: 2 }, review: { state: "changes_requested", reviewer: "r2" } } : r);
+    await poll(page);
+    assert.ok(await clearBtn.evaluate((b) => b === document.activeElement && b.isConnected), "clear button survives evidence change");
+    assert.equal(await field(page, "validation"), "failed · 3 checks / 2 failed");
+    assert.equal(await field(page, "review"), "changes requested · reviewer r2");
+    assert.equal(await field(page, "recorded"), "Task evidence recorded 2026-10-08T09:30:00Z");
+    assert.ok(await tag.evaluate((g) => g.getAttribute("aria-label").includes("review changes requested")));
+    ok("focused detail action survives unchanged and changed polls; state/review/recorded values update; positions stable");
+
+    // Worker filter: selected worker disappears while the select is focused.
+    await page.selectOption("#map-worker-filter", "worker-3");
+    await page.focus("#map-worker-filter");
+    results = results.filter((r) => r.worker !== "worker-3");
+    await poll(page);
+    assert.equal(await page.evaluate(() => document.activeElement.id), "map-worker-filter");
+    assert.equal(await page.inputValue("#map-worker-filter"), "worker-3");
+    assert.equal(await page.evaluate(() => document.getElementById("map-worker-filter").selectedOptions[0].textContent), "worker-3 (not in current observation)");
+    assert.ok((await page.textContent("#map-counts")).includes("worker worker-3 is not in the current observation"));
+    assert.equal((await taskTuples(page)).length, 0);
+    // The selected TAG is now filtered: persistent explicit clear action.
+    assert.ok((await field(page, "missing")).includes("is off-page or filtered out"));
+    const missingClear = await page.$("#map-clear-sel");
+    await poll(page);
+    assert.ok(await missingClear.evaluate((b) => b.isConnected), "off-page clear action persists across polls");
+    await page.selectOption("#map-worker-filter", "");
+    assert.equal(await page.evaluate(() => [...document.getElementById("map-worker-filter").options].some((o) => o.value === "worker-3")), false);
+    ok("focused worker filter keeps a truthful unavailable selection; off-page selection keeps a persistent clear action");
+
+    // Off-page via search, then explicit clear.
+    await page.fill("#map-search", "nonexistent");
+    await page.waitForFunction(() => document.querySelectorAll("#work-map [data-node-key][data-kind='task']").length === 0);
+    await page.click("#map-clear-sel");
+    await page.waitForFunction(() => document.getElementById("map-details").hidden && !document.getElementById("map-details").childElementCount);
+    await page.fill("#map-search", "");
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#work-map [aria-pressed="true"]').length), 0);
+    ok("filtered selection cleared explicitly");
+
+    // Literal malicious labels.
+    await (await node(page, "worker", SCRIPT)).evaluate((g) => g.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await page.waitForFunction((t) => document.querySelector('#map-details [data-field="title"]')?.textContent === "worker / " + t, SCRIPT);
+    assert.equal(await page.locator("#map-details script, #map-details img, #work-map script, #work-map img").count(), 0);
+    assert.ok((await page.innerText("#map-details")).includes(SCRIPT));
+    assert.ok((await field(page, "status")).includes("review unknown"));
+    ok("literal <script>/<img> labels create no elements");
+
+    // Fit/Reset survive polling.
+    await page.click("#map-fit");
+    await poll(page);
+    let view = await page.evaluate(() => { const s = document.getElementById("work-map"); return { view: s.dataset.view, w: s.style.width, h: s.style.height, content: s.dataset.contentHeight, pressed: document.getElementById("map-fit").getAttribute("aria-pressed") }; });
+    assert.equal(view.view, "fit");
+    assert.equal(view.w, "100%");
+    assert.ok(parseInt(view.h, 10) <= 480, view.h);
+    assert.equal(view.pressed, "true");
+    await page.click("#map-reset");
+    view = await page.evaluate(() => { const s = document.getElementById("work-map"); return { view: s.dataset.view, w: s.style.width, h: s.style.height, content: s.dataset.contentHeight }; });
+    assert.deepEqual([view.view, view.w, view.h], ["actual", "800px", view.content + "px"]);
+    await poll(page);
+    view = await page.evaluate(() => { const s = document.getElementById("work-map"); return { view: s.dataset.view, w: s.style.width, h: s.style.height, content: s.dataset.contentHeight }; });
+    assert.deepEqual([view.view, view.w, view.h], ["actual", "800px", view.content + "px"]);
+    ok("Fit survives polling; Reset restores width and height and survives polling");
+
+    // Desktop screenshots in Light and Dark with details open.
+    await page.selectOption("#theme-selector", "light");
+    await page.screenshot({ path: path.join(shots, "work-map-desktop-light.png"), fullPage: true });
+    await page.selectOption("#theme-selector", "dark");
+    await page.screenshot({ path: path.join(shots, "work-map-desktop-dark.png"), fullPage: true });
+    ok("desktop Light and Dark screenshots captured");
+
+    // Failure clears everything; no control resurrects it.
+    await page.selectOption("#map-worker-filter", "worker");
+    failing = true;
+    fs.writeFileSync(failFlag, "");
+    await page.waitForFunction(() => document.getElementById("status").textContent.includes("unavailable"), null, { timeout: 10000 });
+    async function dead(step) {
+      const state = await page.evaluate(() => ({
+        nodes: document.querySelectorAll("#work-map [data-node-key]").length,
+        details: document.getElementById("map-details").childElementCount,
+        detailsHidden: document.getElementById("map-details").hidden,
+        counts: document.getElementById("map-counts").textContent,
+        pagination: document.getElementById("map-pagination").hidden,
+        pageInfo: document.getElementById("map-page-info").textContent,
+        rows: document.querySelectorAll("#tasks .row").length,
+      }));
+      assert.deepEqual(state, { nodes: 0, details: 0, detailsHidden: true, counts: "", pagination: true, pageInfo: "", rows: 0 }, "after " + step);
+    }
+    await dead("failure");
+    await page.click("#view-list"); await dead("list view");
+    await page.click("#view-map"); await dead("map view");
+    await page.check("#map-history-toggle"); await dead("history toggle");
+    await page.fill("#map-search", "task"); await dead("search");
+    await page.fill("#map-search", ""); await dead("search clear");
+    assert.deepEqual(await page.evaluate(() => [...document.getElementById("map-worker-filter").options].map((o) => o.textContent)),
+      ["All Workers", "worker (not in current observation)"]);
+    await page.selectOption("#map-worker-filter", ""); await dead("worker filter all");
+    assert.equal(await page.evaluate(() => document.getElementById("map-worker-filter").options.length), 1);
+    await page.selectOption("#map-state-filter", "finished"); await dead("state filter");
+    await page.selectOption("#map-state-filter", ""); await dead("state filter all");
+    await page.evaluate(() => { document.getElementById("map-next-page").click(); document.getElementById("map-prev-page").click(); }); await dead("paging");
+    await page.click("#map-fit"); await dead("fit");
+    await page.click("#map-reset"); await dead("reset");
+    await page.uncheck("#map-history-toggle"); await dead("history off");
+    ok("failure clears map/details/counts/pagination/list; list/map/history/search/filters/paging/fit/reset do not resurrect");
+
+    // Recovery without reload.
+    fs.rmSync(failFlag);
+    await page.waitForFunction(() => document.querySelectorAll("#work-map [data-node-key][data-kind='task']").length > 0, null, { timeout: 10000 });
+    failing = false;
+    assert.ok((await page.textContent("#map-counts")).includes("total tasks"));
+    ok("recovery without reload");
+
+    // Mobile 390px: no horizontal document overflow.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(origin);
+    await page.waitForSelector("#tasks .row");
+    await page.click("#view-map");
+    await page.waitForFunction(() => document.querySelectorAll("#work-map [data-node-key]").length > 0);
+    assert.equal(await page.inputValue("#theme-selector"), "dark");
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal overflow at 390px");
+    await page.screenshot({ path: path.join(shots, "work-map-mobile-390-dark.png"), fullPage: true });
+    await page.selectOption("#theme-selector", "light");
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+    await page.screenshot({ path: path.join(shots, "work-map-mobile-390-light.png"), fullPage: true });
+    ok("390px map has no horizontal overflow; screenshots captured");
+
+    assert.deepEqual(problems, [], "No page errors, console errors, external requests or mutation calls");
+    ok("no page errors, console errors, external or mutation requests");
+    await context.close();
+    console.log("Work map browser: " + passed.length + " assertion groups passed. Screenshots: " + shots);
+  } finally {
+    if (browser) await browser.close();
+    child.kill();
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
+})().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

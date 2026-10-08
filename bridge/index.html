@@ -24,6 +24,14 @@
         <div class="topbar-controls">
           <span id="mode-label" class="mode-label">Checking mode</span>
           <button id="refresh" type="button">Refresh</button>
+          <div class="theme-control">
+            <label for="theme-selector" class="visually-hidden">Theme</label>
+            <select id="theme-selector">
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
         </div>
       </header>
       <p class="notice">
@@ -169,9 +177,40 @@
             <p class="eyebrow">Project evidence</p>
             <h2 id="tasks-title">Recorded tasks</h2>
           </div>
+          <div class="view-switch" role="group" aria-label="Task view">
+            <button id="view-map" type="button" aria-pressed="true">Work map</button>
+            <button id="view-list" type="button" aria-pressed="false">List</button>
+          </div>
           <p id="status" role="status" aria-live="polite">Loading local activity…</p>
         </div>
         <p class="small evidence-help">These are recorded observations. A successful process alone does not mean verified, reviewed or accepted source.</p>
+
+        <div id="tasks-map-container" class="map-container">
+          <div class="map-controls">
+            <button id="map-fit" type="button" aria-pressed="false">Fit view</button>
+            <button id="map-reset" type="button">Reset</button>
+            <label class="history-toggle"><input type="checkbox" id="map-history-toggle"> Show finished history</label>
+            <select id="map-worker-filter" aria-label="Filter by worker"><option value="">All Workers</option></select>
+            <select id="map-state-filter" aria-label="Filter by state">
+              <option value="">All States</option>
+              <option value="attention">Needs Attention</option>
+              <option value="active">Active</option>
+              <option value="finished">Finished</option>
+            </select>
+            <input type="search" id="map-search" placeholder="Filter tasks..." aria-label="Filter tasks">
+            <span id="map-counts" class="map-counts"></span>
+          </div>
+          <div class="map-scroll-area">
+            <svg id="work-map" tabindex="0" role="group" aria-label="Work map"></svg>
+          </div>
+          <div id="map-pagination" class="map-pagination" hidden>
+            <button id="map-prev-page" type="button" disabled>Earlier</button>
+            <span id="map-page-info"></span>
+            <button id="map-next-page" type="button" disabled>Later</button>
+          </div>
+          <div id="map-details" class="map-details" hidden></div>
+        </div>
+
         <div id="tasks"></div>
       </section>
       <div class="observer-details">

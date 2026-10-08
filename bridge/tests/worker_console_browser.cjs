@@ -35,10 +35,25 @@ with open(os.path.join(root, "calls.lock"), "a") as lock:
     with open(os.path.join(root, "calls.jsonl"), "a") as handle:
         handle.write(json.dumps(sys.argv[1:]) + "\\n")
 if len(sys.argv) > 1 and sys.argv[1] == "watch":
-    print(json.dumps({"schema_version":1,"observed_at":"2026-10-07T00:00:00Z","stopped":False,"agents":[],"results":[],"retries":[],"recent_events":[],"warnings":[],"evidence":"recorded only"}))
+    results = json.load(open(os.path.join(root, "map-results.json")))
+    print(json.dumps({"schema_version":1,"observed_at":"2026-10-07T00:00:00Z","stopped":False,"agents":[],"results":results,"retries":[],"recent_events":[],"warnings":[],"evidence":"recorded only"}))
 else:
     sys.exit(0)
 `, { mode: 0o755 });
+  function mapTask(w, t, proc, validation, review, activity) {
+    return { worker: w, task: t, recorded_at: "2026-10-07T00:00:00Z", activity: activity || proc, worker_lock: "free",
+      process: { state: proc, exit_code: proc === "running" ? null : proc === "failed" ? 1 : 0 },
+      validation: { state: validation, checks_run: 0, checks_failed: 0 }, review: { state: review, reviewer: null } };
+  }
+  fs.writeFileSync(path.join(fixture, "map-results.json"), JSON.stringify([
+    mapTask("w1", "SOURCE-1", "running", "not_run", "not_run", "running_recorded"),
+    mapTask("w1", "SOURCE-0", "succeeded", "failed", "not_run"),
+    mapTask("w1", "SOURCE-10", "failed", "not_run", "not_run"),
+    mapTask("w10", "SOURCE-10", "running", "not_run", "not_run", "running_recorded"),
+    mapTask("w10", "SOURCE-1", "failed", "not_run", "not_run"),
+    mapTask("w2", "FILES-1", "succeeded", "incomplete", "not_run"),
+    mapTask("w3", "NONE-1", "failed", "not_run", "not_run"),
+  ]));
   const setup = path.join(fixture, "setup.py");
   fs.writeFileSync(setup, `
 import json, os, subprocess, time
@@ -89,6 +104,26 @@ open(os.path.join(root, "coord", "reports", "ledger.jsonl"), "w").write(json.dum
 log = os.path.join(root, "coord", "reports", task + ".log")
 open(log, "w").write("line-one\\n")
 os.utime(log, (time.time(), time.time()))
+# w10 shares the w1 prefix and owns SOURCE-10 (Source output only, no files grant).
+w10, t10 = "w10", "SOURCE-10"
+for name in ("wt/" + w10, "coord/results/" + w10, "coord/retries/" + t10):
+    os.makedirs(os.path.join(root, name), exist_ok=True)
+t10_path = os.path.join(root, "coord", "tasks", t10 + ".md")
+open(t10_path, "w").write("Owner task ten\\n")
+rev10 = dict(revision, task_sha256=hashlib.sha256(open(t10_path, "rb").read()).hexdigest())
+native10 = dict(native, worker=w10, task=t10, current_revision=rev10, revision=rev10,
+  process={"state":"running","exit_code":None,"revision":rev10})
+retry10 = dict(retry, task=t10, latest={w10:{"id":"b"*32,"failed":False,"pending":True}})
+open(os.path.join(root, "coord", "results", w10, t10 + ".json"), "w").write(json.dumps(native10))
+open(os.path.join(root, "coord", "retries", t10, "state.json"), "w").write(json.dumps(retry10))
+open(os.path.join(root, "coord", "reports", "ledger.jsonl"), "a").write(json.dumps({"event":"run_start","ts":updated,"worker":w10,"task":t10}) + "\\n")
+open(os.path.join(root, "coord", "reports", t10 + ".log"), "w").write("w10-only-line\\n")
+# w2 has a files grant only.
+w2 = os.path.join(root, "wt", "w2")
+git("worktree", "add", "-q", "-b", "agent/w2", w2, cwd=repo)
+open(os.path.join(w2, "w2-file.txt"), "w").write("w2 tracked\\n")
+git("-c", "user.email=mock@invalid", "-c", "user.name=Mock", "add", "w2-file.txt", cwd=w2)
+git("-c", "user.email=mock@invalid", "-c", "user.name=Mock", "commit", "-qm", "w2", cwd=w2)
 `);
   execFileSync("python3", ["-B", setup], { env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } });
   child = spawn("python3", ["-u", "-B", path.resolve(__dirname, "../server.py"),
@@ -97,8 +132,8 @@ os.utime(log, (time.time(), time.time()))
     "--worker-company", "C1", "--reviewer-company", "C2",
     "--config-dir", path.join(fixture, "config"),
     "--task-template", path.join(fixture, "template.json"),
-    "--enable-progress-output", "--progress-worker", worker,
-    "--enable-worker-files", "--files-worker", worker],
+    "--enable-progress-output", "--progress-worker", worker, "--progress-worker", "w10",
+    "--enable-worker-files", "--files-worker", worker, "--files-worker", "w2"],
     { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } });
   let stderr = "";
   child.stderr.on("data", (data) => { stderr = (stderr + data).slice(-2000); });
@@ -116,8 +151,22 @@ os.utime(log, (time.time(), time.time()))
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
     page.on("pageerror", (error) => problems.push(error.message));
     page.on("request", (request) => requests.push({ url: request.url(), method: request.method() }));
+    page.on("console", (message) => {
+      if (/Content Security Policy|Refused to/i.test(message.text())) problems.push("csp console: " + message.text());
+    });
+    // Record CSP violations and console scroll requests under the server's unchanged CSP.
+    await page.addInitScript(() => {
+      window.__csp = [];
+      window.__scrolls = [];
+      document.addEventListener("securitypolicyviolation", (event) => window.__csp.push(event.violatedDirective + " " + event.blockedURI));
+      const original = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = function (options) {
+        if (this.id === "worker-console") window.__scrolls.push(options && typeof options === "object" ? options.behavior : String(options));
+        return original.call(this, options);
+      };
+    });
     await page.goto(origin);
-    const workerButton = page.getByRole("button", { name: /w1 \/ SOURCE-1/ });
+    const workerButton = page.locator("#console-workers").getByRole("button", { name: /^w1 \/ SOURCE-1/ });
     await workerButton.waitFor({ timeout: 10000 });
     await page.waitForFunction(() => {
       const button = [...document.querySelectorAll("#console-workers button")].find((node) => node.textContent.includes("line-one"));
@@ -191,7 +240,143 @@ os.utime(log, (time.time(), time.time()))
     await page.waitForFunction(() => document.getElementById("console-status").textContent.includes("Session refreshed. No action was replayed."));
     await page.waitForFunction(() => [...document.querySelectorAll("#console-workers button")].some((node) => node.textContent.includes("line-two")));
     assert.equal(requests.filter((item) => item.method === "POST").length, postsBefore);
+
+    // --- Work map routing into this enabled console ---------------------------
+    const shots = path.join(process.env.TMPDIR, "worker-console-screenshots");
+    fs.mkdirSync(shots, { recursive: true });
+    const consoleState = () => page.evaluate(() => ({
+      flags: Object.fromEntries([...document.querySelectorAll("#console-workers button.console-worker")]
+        .map((b) => [b.dataset.worker, [b.dataset.task, b.dataset.output, b.dataset.files]])),
+      expanded: [...document.querySelectorAll("#console-workers button.console-worker")]
+        .filter((b) => b.getAttribute("aria-expanded") === "true").map((b) => b.dataset.worker),
+      panelHidden: document.getElementById("console-panel").hidden,
+      scrolls: window.__scrolls.length,
+    }));
+    await page.waitForFunction(() => document.querySelectorAll("#console-workers button.console-worker").length === 3);
+    assert.deepEqual((await consoleState()).flags, {
+      w1: ["SOURCE-1", "true", "true"],
+      w10: ["SOURCE-10", "true", "false"],
+      w2: ["", "false", "true"],
+    });
+    console.log("PASS console buttons expose exact task and output/files booleans (w1 both, w10 output-only, w2 files-only)");
+
+    // Malformed or non-exact local events are ignored.
+    const before = await consoleState();
+    await page.evaluate(() => {
+      const send = (detail) => document.dispatchEvent(new CustomEvent("unio-open-console", { detail }));
+      send(undefined); send(null); send("w1"); send(["w1", "SOURCE-1"]); send(42);
+      send({ worker: 1, task: "SOURCE-1" }); send({ worker: "w1" }); send({ worker: "", task: "" });
+      send({ worker: "w1", task: "SOURCE-10" }); send({ worker: "w", task: "SOURCE-1" });
+      send({ worker: "w1 ", task: "SOURCE-1" }); send({ worker: "w10", task: "SOURCE-1" });
+      send(Object.create({ worker: "w1", task: "SOURCE-1" }));
+      send(new (class Detail { constructor() { this.worker = "w1"; this.task = "SOURCE-1"; } })());
+      document.dispatchEvent(new Event("unio-open-console"));
+    });
+    await page.waitForTimeout(600);
+    const after = await consoleState();
+    assert.deepEqual([after.expanded, after.panelHidden, after.scrolls], [before.expanded, before.panelHidden, before.scrolls]);
+    assert.deepEqual(after.expanded, []);
+    console.log("PASS 15 malformed/non-exact unio-open-console events ignored (no selection, no scroll)");
+
+    async function selectMapTask(w, t) {
+      const handle = await page.evaluateHandle(([a, b]) => [...document.querySelectorAll("#work-map [data-node-key]")]
+        .find((g) => g.dataset.kind === "task" && g.dataset.worker === a && g.dataset.task === b), [w, t]);
+      await handle.evaluate((g) => g.focus());
+      await page.keyboard.press("Enter");
+      await page.waitForFunction((title) => document.querySelector('#map-details [data-field="title"]')?.textContent === title, w + " / " + t);
+    }
+    async function mapConsole() {
+      return page.evaluate(() => {
+        const open = document.querySelector('#map-details [data-field="console-open"]');
+        return {
+          text: document.querySelector('#map-details [data-field="console"]').textContent,
+          label: open ? open.textContent : null,
+          worker: open ? open.dataset.worker : null,
+          task: open ? open.dataset.task : null,
+        };
+      });
+    }
+    async function openFromMap(expectedWorker) {
+      const scrolls = (await consoleState()).scrolls;
+      await page.click('#map-details [data-field="console-open"]');
+      await page.waitForFunction((w) => {
+        const b = [...document.querySelectorAll("#console-workers button.console-worker")].find((n) => n.dataset.worker === w);
+        return b && b.getAttribute("aria-expanded") === "true" && !document.getElementById("console-panel").hidden;
+      }, expectedWorker);
+      const state = await consoleState();
+      assert.deepEqual(state.expanded, [expectedWorker]);
+      assert.equal(state.scrolls, scrolls + 1);
+    }
+    await page.waitForSelector("#tasks-map-container:not([hidden])");
+    await page.waitForFunction(() => document.querySelectorAll("#work-map [data-kind='task']").length === 7);
+
+    // Output-only exact task on the prefix-colliding worker w10.
+    await selectMapTask("w10", "SOURCE-10");
+    await page.waitForFunction(() => document.querySelector('#map-details [data-field="console-open"]'));
+    assert.deepEqual(await mapConsole(), {
+      text: "Source output is available for this task. Worktree files are not enabled.",
+      label: "Open Source console for w10 / SOURCE-10", worker: "w10", task: "SOURCE-10",
+    });
+    await openFromMap("w10");
+    await page.waitForFunction(() => document.getElementById("console-text").textContent.includes("w10-only-line"));
+    assert.equal((await page.textContent("#console-text")).includes("line-one"), false);
+    assert.equal(await page.evaluate(() => window.__scrolls[window.__scrolls.length - 1]), "auto");
+    console.log("PASS map opens w10/SOURCE-10 (not w1) under unchanged CSP; output-only wording; reduced motion uses auto scroll");
+
+    // Historical w10/SOURCE-1 names the actual latest task SOURCE-10, never w1/SOURCE-1.
+    await selectMapTask("w10", "SOURCE-1");
+    assert.deepEqual(await mapConsole(), {
+      text: "Protected output is currently showing a different/latest task (SOURCE-10), not this historical record. Worktree files are not enabled.",
+      label: "Open console for different/latest task SOURCE-10", worker: "w10", task: "SOURCE-10",
+    });
+    // Historical w1/SOURCE-10 names w1's latest SOURCE-1, never w10/SOURCE-10.
+    await selectMapTask("w1", "SOURCE-10");
+    assert.deepEqual(await mapConsole(), {
+      text: "Protected output is currently showing a different/latest task (SOURCE-1), not this historical record. Tracked worktree files show the worker's current worktree, not this record.",
+      label: "Open console for different/latest task SOURCE-1", worker: "w1", task: "SOURCE-1",
+    });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await openFromMap("w1");
+    await page.waitForFunction(() => document.getElementById("console-text").textContent.includes("line-one"));
+    assert.equal((await page.textContent("#console-text")).includes("w10-only-line"), false);
+    assert.equal(await page.evaluate(() => window.__scrolls[window.__scrolls.length - 1]), "smooth");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    console.log("PASS historical labels name the actual latest task; w1/SOURCE-10 routes to w1/SOURCE-1; smooth scroll only without reduced motion");
+
+    // Exact current task with both grants.
+    await selectMapTask("w1", "SOURCE-1");
+    assert.deepEqual(await mapConsole(), {
+      text: "Source output and tracked worktree files are available for this task.",
+      label: "Open Source console for w1 / SOURCE-1", worker: "w1", task: "SOURCE-1",
+    });
+    // Files-only worker.
+    await selectMapTask("w2", "FILES-1");
+    assert.deepEqual(await mapConsole(), {
+      text: "Source output is not available for this worker. Only tracked worktree files are available; they show the worker's current worktree, not this record.",
+      label: "Open worktree files for w2", worker: "w2", task: "",
+    });
+    await openFromMap("w2");
+    await page.getByRole("button", { name: "w2-file.txt", exact: true }).waitFor();
+    assert.equal(await page.getAttribute("#console-tab-files", "aria-selected"), "true");
+    // No grant at all.
+    await selectMapTask("w3", "NONE-1");
+    assert.deepEqual(await mapConsole(), {
+      text: "Protected output and worktree files are unavailable for this worker in the current session.",
+      label: null, worker: null, task: null,
+    });
+    console.log("PASS both-grants, files-only (opens Files tab) and no-grant wording are exact");
+
+    await selectMapTask("w10", "SOURCE-1");
+    await page.screenshot({ path: path.join(shots, "console-map-desktop-light.png"), fullPage: true });
+    await page.selectOption("#theme-selector", "dark");
+    await page.screenshot({ path: path.join(shots, "console-map-desktop-dark.png"), fullPage: true });
+    assert.deepEqual(await page.evaluate(() => window.__csp), []);
+    console.log("PASS no CSP violations; desktop Light/Dark screenshots captured");
+
     await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal overflow at 390px");
+    await page.screenshot({ path: path.join(shots, "console-map-mobile-390-dark.png"), fullPage: true });
+    console.log("PASS 390px console page has no horizontal overflow. Screenshots: " + shots);
     assert.equal(await page.locator("#console-title").isVisible(), true);
     assert.equal(await workerButton.isVisible(), true);
     assert.deepEqual(problems, []);

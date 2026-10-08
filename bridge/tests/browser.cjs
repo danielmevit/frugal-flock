@@ -163,7 +163,15 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     assert.ok(
       (await page.locator("#limits").textContent()).includes("BLOCKED"),
     );
-    assert.equal(await page.getByRole("button").count(), 1);
+    // Read-only mode exposes only view controls and read-only map nodes.
+    const buttons = await page.getByRole("button").evaluateAll((nodes) =>
+      nodes.map((node) => node.closest("#work-map") && node.dataset.nodeKey ? "map-node" : node.textContent.trim()),
+    );
+    assert.deepEqual(
+      buttons.filter((name) => name !== "map-node"),
+      ["Refresh", "Work map", "List", "Fit view", "Reset"],
+    );
+    assert.equal(buttons.filter((name) => name === "map-node").length, 3);
     assert.equal(
       await page.getByRole("button", { name: "Refresh", exact: true }).count(),
       1,
