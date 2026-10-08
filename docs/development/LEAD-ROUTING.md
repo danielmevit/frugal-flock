@@ -1,6 +1,7 @@
 # Lead routing, reasoning effort and spending
 
-Read this policy and [the model effort guide](MODEL-EFFORT.md) before planning
+Read this policy, [bounded escalation](../ai/LEAD-ESCALATION.md), the
+[model scoreboard](MODEL-SCOREBOARD.md) and [model effort](MODEL-EFFORT.md) before planning
 assignments and at the start of each new lead session. Follow the owner's
 current instructions and the selected project's rules. These defaults apply
 whenever Unio is active; they are not permission to spend beyond an owner's
@@ -12,7 +13,12 @@ Read [the standing model roles](../ai/MODEL-ROLES.md) before each session.
 Grok, Antigravity/Gemini, Claude Code and Codex are the main implementation
 agents. Use available workers from that group for product features, core
 behavior, UI, complex debugging and substantive security corrections. The
-owner's designated lead plans, coordinates, reviews and integrates.
+owner's designated lead normally plans, coordinates, reviews and integrates.
+After a worker and one suitable replacement fail to finish, it directly
+implements the remaining correction in its existing session. Follow
+[bounded escalation](../ai/LEAD-ESCALATION.md) and consult the
+[model scoreboard](MODEL-SCOREBOARD.md) before delegation. This does not
+create another workflow or grant extra spending or integration authority.
 
 Use the [verified free worker pool](../FREE-MODELS.md) only for routine
 support: documentation, formatting, inventories, mechanical changes,

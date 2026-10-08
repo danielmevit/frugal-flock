@@ -3138,6 +3138,24 @@ cross-workspace sessions stay uncounted.
 POLICY_MD_EOF
   fi
 
+  local guide
+  for guide in LEAD-ESCALATION.md MODEL-SCOREBOARD.md; do
+    [ -f "$root/coord/docs/$guide" ] || cp "$TPL_DIR/$guide" "$root/coord/docs/$guide"
+  done
+  if ! grep -q 'UNIO-LEAD-ESCALATION' "$main_dir/MASTER.md" 2>/dev/null; then
+    cat >> "$main_dir/MASTER.md" <<'ESCALATION_MD_EOF'
+
+## Bounded escalation and task fit
+<!-- UNIO-LEAD-ESCALATION -->
+Before delegating, read ../coord/docs/LEAD-ESCALATION.md and
+../coord/docs/MODEL-SCOREBOARD.md. Preserve work and real failed outcomes.
+If a suitable worker and one capable replacement cannot finish, the lead
+implements the remaining correction directly in its existing session.
+Do not create another lead-provider workflow in low tier. Current owner
+instructions, spending limits, frozen checks and integration authority apply.
+ESCALATION_MD_EOF
+  fi
+
   echo "playbooks    : drop your operational .md files into $root/coord/docs/"
   echo "next         : unio agents"
   echo
@@ -4778,10 +4796,14 @@ fi
 
 # ---------------------------------------------------------------- templates
 cat > "$TPL_DIR/MASTER.md" <<'MASTER_TPL_EOF'
-# Role: Team lead (plan, delegate, review, integrate — do NOT implement)
+# Role: Team lead (delegate, coordinate, review; take over after bounded escalation)
 
-You are the master session of a Unio CLI team. Daniel is the human
-owner: he approves plans and he merges. You never merge, never write code.
+You are the master session of a Unio CLI team. The human owner controls
+goals, spending and integration. Work within existing authorization. Normally
+delegate implementation; if a worker and one suitable replacement cannot
+finish, directly implement the remaining correction in this existing session.
+Do not spawn another lead-provider workflow in low tier. Merge only within
+the owner's authorization; taking over grants no extra authority.
 
 Layout: this dir = the base branch (see ../coord/base — normally `dev`;
 `main` is releases only, per Daniel's git model). Workers = ../wt/<name>,
@@ -4811,8 +4833,11 @@ If a routine task reveals a difficult bug or security issue, preserve the
 finding and assign the substantive correction to a main implementation worker.
 
 Read ${UNIO_CONF_DIR:-$HOME/.config/unio}/templates/MODEL-ROLES.md. In the Unio repository,
-read docs/ai/MODEL-ROLES.md and docs/development/LEAD-ROUTING.md. This rule
-persists through handoffs. Current owner instructions, account availability,
+read docs/ai/MODEL-ROLES.md and docs/development/LEAD-ROUTING.md. Before
+assignments also read ../coord/docs/LEAD-ESCALATION.md and MODEL-SCOREBOARD.md
+in that folder (installed templates provide the originals). Use checked
+task-fit evidence and one worker, one replacement, then direct lead takeover.
+This rule persists through handoffs. Current owner instructions, account availability,
 spending restrictions and task invocation limits still apply.
 
 ## Work policy (mode + coordination budget)
@@ -4846,8 +4871,10 @@ cross-workspace sessions stay uncounted.
    (0 warnings where the repo enforces it) + tests green + smoke run +
    changelog fragment changelog.d/<ID>.md (if the repo keeps a CHANGELOG —
    workers never edit CHANGELOG.md itself). Then tell Daniel the branch is
-   ready to merge into the base branch. Reject -> sharper task file (<ID>b),
-   rerun. Two failed attempts -> escalate to Daniel.
+   ready to merge into the base branch within owner authorization. On poor
+   progress, preserve the work and give one suitable replacement a concrete
+   correction. If it also cannot finish, implement the remaining correction
+   directly in this lead session. No blind retries or extra lead-provider job.
 6. After Daniel merges: `unio sync` — every workshop rebuilds on the
    new base instead of drifting stale. At release time, roll the
    changelog.d/ fragments into CHANGELOG.md (you may edit docs).
@@ -4858,7 +4885,8 @@ cross-workspace sessions stay uncounted.
 - grok      isolated features, tests (BETA: review hard) -> codex
 - opencode  chores: boilerplate, lint, docs           -> any idle agent
 - claude-w  (optional Claude worker) genuinely hard work
-- you       contracts, architecture, task design, all review, integration
+- you       contracts, architecture, review, integration; direct correction
+            after a worker and one suitable replacement cannot finish
 
 ## Rules
 - Freeze shared contracts (types/schemas/fixtures) on the base branch
@@ -4949,9 +4977,172 @@ not proof of quota. Preserve frozen task checks, failed receipts and invocation
 limits; no automatic retries. These are agent instructions, not automatic
 runtime detection of a model class.
 
+If a worker and one suitable replacement cannot finish, the lead directly
+implements the correction in its existing session. Preserve work and checks;
+low tier does not permit another lead-provider worker. Read LEAD-ESCALATION.md
+and MODEL-SCOREBOARD.md beside this template before delegation. This is lead
+guidance, not automatic model switching or extra spending authority.
+
 For the full source policy read docs/ai/MODEL-ROLES.md and
 docs/development/LEAD-ROUTING.md in the Unio repository.
 MODEL_ROLES_TPL_EOF
+
+cat > "$TPL_DIR/LEAD-ESCALATION.md" <<'LEAD_ESCALATION_TPL_EOF'
+# Finish struggling tasks without an endless worker loop
+
+Standing lead policy, owner-approved on 2026-10-08. Delegate first, preserve
+useful work, and take responsibility when delegation stops making progress.
+Read this at startup and before assigning a correction.
+
+## Worker, replacement, lead
+
+1. Give a suitable worker one bounded assignment with a clear scope and
+   meaningful checks. Judge its actual changes and results. Repeatedly missing
+   the same demonstrated constraint, repairing one broken fixture per full
+   test run, or reporting success before results exist signals poor progress.
+   Quiet output or a difficult task taking time is not sufficient evidence.
+2. If it cannot finish, preserve its commits, unfinished edits and real result.
+   Give one other capable, available model a concrete correction with the
+   failing evidence and saved work. Prefer a different AI lab when suitable.
+   Respect the current run's deadline and the owner's interruption policy;
+   obtain an orderly handoff before changing ownership. Do not blindly retry.
+3. If the replacement also cannot finish, the lead implements the remaining
+   correction directly in its existing session. Do not send the problem back
+   to either struggling model or start a ladder of weaker workers. When no
+   eligible replacement is available, the lead can take over sooner.
+
+This is a ceiling on unsuccessful delegation for the same unresolved problem,
+not a two-attempt limit on an entire milestone. Do not reset that history by
+renaming a task. A small repair needed after competent progress is different
+from repeated failure to converge; record the reason for the decision.
+
+Operational failures such as exhausted quota, authentication or a broken
+connection are separate from code-quality findings. They can make a route
+ineligible, but they do not establish that its model writes poor code.
+Do not spend more calls probing a known unavailable route or raise effort
+to solve a quota error. Preserve the failure and use an eligible route or
+the existing lead.
+
+## A takeover keeps the workflow intact
+
+- Keep the previous worker's branch, failed results and useful edits. Reuse
+  checked evidence and repair the demonstrated gap instead of restarting.
+- Wait until the old writer and its owned children are idle. Freeze the new
+  task, base, scope, ownership and checks before editing a dedicated branch.
+  Preserve uncommitted work before cleanup; do not reset or clean it away.
+- In low tier, direct work is part of the existing lead workflow. Do not
+  spawn another lead-provider CLI, worker or independent test agent. Keep
+  the lead reservation; do not bypass budget admission by changing aliases.
+- Make an early coherent commit, run checks appropriate to the change and
+  maintain a handoff. Use the selected work mode: focused checks for YOLO,
+  with the full required gate at release. Test corrections must preserve
+  their behavioral assertion; never make a failure pass by deleting coverage.
+- Identify lead-authored code and self-review honestly. It is not an
+  independent AI-lab verdict. Follow the owner's review and integration
+  requirements; taking over grants no extra spending or merge authority.
+- If the lead lacks required access, authority or allowance, preserve a
+  truthful handoff and report the specific blocker. Do not promote a free
+  supporting worker into lead or final acceptance.
+
+Record the task, exact model/route/effort, demonstrated failure, saved revision,
+replacement outcome and takeover decision in the coordination log and update
+the model task-fit guide. Keep in-progress outcomes pending. A native Source
+that was not run remains not run; local lead edits and checks must never be
+presented as a successful delegated Source invocation.
+
+## Where this is enforced
+
+This is a rule for the lead, carried by startup instructions and installed
+templates. The runner does not automatically diagnose model struggles,
+switch models or turn worker output into policy. Native scope, workflow
+locks, STOP, receipts and acceptance checks still apply. See the
+[task-fit scoreboard](https://github.com/danielmevit/unio/blob/main/docs/development/MODEL-SCOREBOARD.md)
+and [work modes](https://github.com/danielmevit/unio/blob/main/docs/WORK-MODES.md).
+LEAD_ESCALATION_TPL_EOF
+
+cat > "$TPL_DIR/MODEL-SCOREBOARD.md" <<'MODEL_SCOREBOARD_TPL_EOF'
+# Model scoreboard and delegation guide
+
+Updated 2026-10-08 from real Unio work. Read this before delegation, alongside
+the project's latest capacity notes and owner instructions. Select by task
+fit and checked outcomes; an unavailable or owner-reserved model is not a
+fallback. Start at high or the supported middle and keep GLM at high.
+
+## Two views of the evidence
+
+`unio score` already summarizes the append-only ledger: runs, process success
+and failure, limit walls, verification, merges and measured duration per worker.
+It makes no model call. Worker names can be aliases, historical merge records
+can have no matching run, and process success is not acceptance. Do not turn
+those columns into a model quality percentage or rank AI labs by merge totals.
+
+This guide adds a curated, task-specific view for the lead. The examples below
+are selected checked cases, not every task in the ledger or a controlled model
+comparison. Counts describe only the named examples. Different scopes, routes
+and efforts limit comparison. Model-specific automatic aggregation and routing
+remain planned in the
+[model-experience feature](https://github.com/danielmevit/unio/blob/main/docs/development/MODEL-EXPERIENCE.md).
+
+## What to delegate where
+
+| Work | Starting choice | Guardrails and reason |
+| --- | --- | --- |
+| State preservation, shell/Git boundaries, lifecycle and difficult debugging | Available Codex, Grok or Claude main worker | Codex has accepted targeted correctness repairs here. Grok is the owner's preferred reasoning worker; that preference does not prove universal superiority. Respect owner holds. |
+| UI structure, interaction and visual implementation | Available Claude or Codex main worker | Opus completed the accepted map identity correction. Validate actual interaction and inspect the rendered result. |
+| Small mechanical edits with explicit expected outputs | Gemini or another eligible main worker | Gemini completed bounded fixture work, but recent stateful/UI corrections required substantial rework. Keep scope concrete and inspect the actual diff. |
+| Documentation, formatting and inventories | Verified-free routine worker, such as LongCat or MiMo | Small documentation samples completed; this does not qualify them for security design or main features. Check exact free pricing and availability first. |
+| Running predefined supplementary checks | Eligible routine worker or local scripts | Keep expected commands and results explicit. A check runner does not own test design, implementation or acceptance. |
+| A correction that defeated its first worker and one suitable replacement | The existing lead directly | Reuse saved work and fix the remaining gap. Do not add another session on the lead's budget in low tier. |
+
+These are routing defaults, not permanent model classes or benchmark scores.
+The project can override them with newer checked evidence. Free models remain
+supporting workers only. Exact controls and routes are in
+[model effort](https://github.com/danielmevit/unio/blob/main/docs/development/MODEL-EFFORT.md),
+[model roles](https://github.com/danielmevit/unio/blob/main/docs/ai/MODEL-ROLES.md)
+and the [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE-MODELS.md).
+
+## Selected project outcomes
+
+| Exact model / route / requested effort | Selected cases | Checked outcome and routing lesson |
+| --- | --- | --- |
+| `gpt-6.1-sol` / Codex CLI / xhigh | `QUEUE-INVARIANTS-1`; `RELEASE-TIMEOUT-CODEX-1` | 2 accepted corrections: queue invariants passed 8 focused checks plus recorded reviews; timeout repair passed 3 focused checks and personal lead review. Suitable evidence for targeted correctness work, not a full-model success rate. |
+| `claude-opus-5-5` / Claude Code / high | `BROWSER-MAP-IDENTITY-OPUS-1`; `WORK-SAVING-MANUAL-OPUS-1` | 1 accepted UI correction; 1 saving candidate requiring changes after two demonstrated lead findings despite passing its initial 5 checks. Strong implementation still needs real review. |
+| `gemini-3.1-pro-high` / Antigravity CLI / high | `RELEASE-LAUNCH-OBSERVATION-1`; `BROWSER-THEME-MAP-1`; `BROWSER-THEME-MAP-FIX-1`; `BROWSER-MAP-IDENTITY-1`; `WORK-SAVING-PRESERVE-LOCKS-1` | 1 accepted bounded fixture correction; 2 UI candidates required further fixes; 1 connection failure without edits; 1 saving correction failed native scope verification despite 5 passing check commands; lead review found incomplete unsafe-lock inspection and took over. Repeated fixture mistakes and premature success messages added rework. Prefer smaller mechanical assignments. |
+| `grok-4.7` / Grok Build / high | Rename slice D; saving contract draft; `WORK-SAVING-RUNTIME-1` | Accepted license/rename work, a contract draft needing lead amendment, and a separate usage-exhausted run without edits. Useful contributions and rework both count; the capacity failure is not a code-quality sample. |
+| `opencode/longcat-2.5-preview-free` / OpenCode Zen / high and medium | `ROADMAP-PRIORITIES-1`; `LEAD-POLICY-STARTUP-DOCS-1` | 2 completed bounded documentation assessments. This small sample supports routine documentation help, not independent final security acceptance. |
+| `opencode/mimo-v2.6-flash-free` / OpenCode Zen / no exposed override | `LEAD-POLICY-STARTUP-DOCS-1`; `WORK-POLICY-1` | 1 completed documentation assessment; 1 broad state/CLI task timed out without edits. Keep it on routine support. |
+
+Requested effort is not proof of effective effort. Keep the original pin and
+response evidence when the CLI cannot establish the effective setting. Other
+models remain untested for these task types until checked project work supplies
+evidence; a catalog entry or a model name establishes no quality score.
+
+Public candidate anchors include the
+[queue repair](https://github.com/danielmevit/unio/commit/ec256d1f39a330ac3ea92b5e5367412ffc9d96e2),
+[Codex timeout repair](https://github.com/danielmevit/unio/commit/c5957063bffe35ffcce68e1cd8d40b2d814370f9),
+[Gemini launch observation](https://github.com/danielmevit/unio/commit/7fed7cd7f811f246b891e862139d3497ae75f878),
+[accepted UI correction](https://github.com/danielmevit/unio/pull/3)
+and the [unaccepted saving work](https://github.com/danielmevit/unio/pull/4).
+The free inventory records the routine assessments. Original tasks, process
+results, verification, reviews and exact revisions stay in private workspace
+receipts; do not publish raw prompts or logs to fill this table.
+
+## Update it after actual work
+
+Record exact model/version, CLI/gateway, requested/effective effort, task type
+and scope, receipt/task/candidate references, actual Source exit, verification,
+acceptance/integration, demonstrated rework, takeover and observed duration.
+Keep operational failures separate. Preserve unknown quota, cost and timing;
+sleep-affected wall time is not active work time. An interim report is not a
+final result. Update pending cases when their run and review actually finish.
+
+Before each assignment, use relevant accepted examples and rework burden,
+current availability, account grouping and owner preferences together. State
+why the worker fits. Follow
+[worker → replacement → lead takeover](https://github.com/danielmevit/unio/blob/main/docs/ai/LEAD-ESCALATION.md)
+when progress stops. Do not run extra benchmark or reviewer fleets merely to
+populate this guide, and do not reset unsuccessful task history with a new ID.
+MODEL_SCOREBOARD_TPL_EOF
 
 cat > "$TPL_DIR/TASK.md" <<'TASK_TPL_EOF'
 # Task <ID> — worker: <name>
@@ -5492,8 +5683,11 @@ when assigning tasks.
 - I2  Out-of-scope need ⇒ do NOT touch it: finish what is in scope, state
       the need in NEEDS-REVIEW (and blockers.md if blocking). Flagging
       beats fixing — recorded precedent.
-- I3  Only OWNER merges to base or main. LEAD recommends; never merges.
-- I4  LEAD never writes feature code. Contracts, fixtures, docs, board: yes.
+- I3  OWNER controls integration. LEAD merges only with owner authorization.
+- I4  LEAD normally delegates feature code. After one worker and one suitable
+      replacement cannot finish, LEAD directly corrects the remaining problem
+      in its existing session; preserve work, checks and integration authority.
+      Read LEAD-ESCALATION.md and MODEL-SCOREBOARD.md in coord/docs/.
 - I5  Workers never switch branches, never push, never touch base/main.
       (Enforced by guard hooks; the rule stands even where hooks are absent.)
 - I6  Same obstacle twice ⇒ stop, write blockers.md; do not improvise

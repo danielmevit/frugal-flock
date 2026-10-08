@@ -13,6 +13,9 @@ ordinary use, start with the [project README](../../README.md) or the
 | [AI session startup](../ai/START_HERE.md) | Public entry point for lead and worker reading instructions |
 | [Lead routing and spending](LEAD-ROUTING.md) | Agent roles, verified-free chores, subscription limits and startup rules |
 | [Model effort](MODEL-EFFORT.md) | Lead defaults, supported controls and justified escalation |
+| [Worker escalation and lead takeover](../ai/LEAD-ESCALATION.md) | One worker, one suitable replacement, then the existing lead finishes the correction |
+| [Model scoreboard and task fit](MODEL-SCOREBOARD.md) | Practical delegation guide with checked project outcomes and rework |
+| [Model experience feature](MODEL-EXPERIENCE.md) | Planned automatic model/task profiles built on the current ledger |
 | [Version plan](../VERSION-PLAN.md) | Work assigned to each version |
 | [Milestone contracts](../NEXT-MILESTONE-CONTRACTS.md) | Implementation and acceptance boundaries |
 | [Lead cooldown restart](LEAD-COOLDOWN-RESTART.md) | Planned supervisor that waits out the lead CLI's allowance and resumes from its handoff |

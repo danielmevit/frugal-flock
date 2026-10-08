@@ -6,7 +6,7 @@ choice for one run. The owner can explicitly change the policy.
 
 | Role | Agents | Work they own |
 | --- | --- | --- |
-| Lead | The owner's designated subscription agent | Planning, contracts, delegation, coordination, personal final review and authorized integration |
+| Lead | The owner's designated subscription agent | Planning, contracts, delegation, coordination, final assessment and authorized integration; direct implementation after bounded worker escalation |
 | Main implementation workers | Grok, Antigravity/Gemini, Claude Code and Codex | Product features, core behavior, architecture within the assigned scope, complex debugging, UI and substantive security corrections |
 | Routine supporting workers | The verified-free OpenCode Zen pool | Documentation, formatting, inventories, mechanical edits, boilerplate, running predefined checks and supplementary observations |
 
@@ -20,6 +20,15 @@ worker. Raising a free model's effort does not change its permitted role.
 The distinction is an owner-selected routing policy, not a claim that every
 listed model has a measured quality or reasoning score. See the exact free
 routes and checked outcomes in [the inventory](../FREE-MODELS.md).
+
+## When delegation struggles
+
+Follow [worker, replacement, lead](LEAD-ESCALATION.md): one suitable worker,
+one capable available replacement, then the lead directly finishes the
+remaining correction in its existing session. Preserve the previous work
+and failures; do not send a struggling model another blind attempt. In low
+tier this is the same lead workflow, not permission for another worker CLI.
+Consult the [task-fit scoreboard](../development/MODEL-SCOREBOARD.md).
 
 ## Choose available workers without duplicating the lead
 

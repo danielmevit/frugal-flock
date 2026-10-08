@@ -1,0 +1,1 @@
+- Add standing worker/replacement/lead escalation instructions and an evidence-based model task-fit scoreboard, linked at lead startup and carried by standalone installer templates. Lead takeover uses the existing session and preserves low-tier limits, saved work and actual acceptance evidence.

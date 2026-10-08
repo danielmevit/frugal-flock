@@ -46,7 +46,7 @@ only_unio() {
   [ -x "$UNIO_BIN_DIR/unio" ] || fail 'unio is not executable'
 }
 
-# A standalone installer carries byte-identical legal files and protocol.
+# A standalone installer carries byte-identical legal files and lead guides.
 mkdir -p "$BRAND_SANDBOX/standalone"
 cp "$REPO_DIR/unio-install.sh" "$BRAND_SANDBOX/standalone/unio-install.sh"
 bash "$BRAND_SANDBOX/standalone/unio-install.sh" > "$BRAND_SANDBOX/install.log"
@@ -54,6 +54,8 @@ only_unio
 cmp "$REPO_DIR/LICENSE" "$UNIO_CONF_DIR/legal/LICENSE"
 cmp "$REPO_DIR/NOTICE" "$UNIO_CONF_DIR/legal/NOTICE"
 cmp "$REPO_DIR/docs/PROTOCOL.md" "$UNIO_CONF_DIR/templates/PROTOCOL.md"
+cmp "$REPO_DIR/docs/ai/LEAD-ESCALATION.md" "$UNIO_CONF_DIR/templates/LEAD-ESCALATION.md"
+cmp "$REPO_DIR/docs/development/MODEL-SCOREBOARD.md" "$UNIO_CONF_DIR/templates/MODEL-SCOREBOARD.md"
 
 # Reinstalling preserves user configuration, bench state and playbooks.
 printf '# existing user config\nmock=bash -c "exit 0"\n' > "$UNIO_CONF_DIR/agents.conf"

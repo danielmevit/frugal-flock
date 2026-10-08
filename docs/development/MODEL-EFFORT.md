@@ -22,6 +22,9 @@ misses interacting constraints, cannot explain a reproducible defect,
 overlooks a demonstrated security boundary, or struggles with a genuinely
 complex design. First give it the relevant evidence and a focused question.
 Missing context and an overly broad task often need a clearer assignment.
+Do not increase effort or retry indefinitely: follow
+[bounded worker escalation and direct lead takeover](../ai/LEAD-ESCALATION.md)
+when one worker and one suitable replacement cannot finish the correction.
 
 Use the next **effective, supported** level. On supported Codex and Claude Code routes this can be
 high → xhigh → max. Other routes have different scales. Reserve max for an
