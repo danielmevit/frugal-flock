@@ -61,8 +61,8 @@ each restarted session can reconcile the current work without duplicating it.
 
 Future visual milestone, owner-selected on 2026-10-08:
 [Marathon-inspired UI direction](../UX-DIRECTION.md#future-visual-milestone-marathon-direction),
-with charcoal surfaces, restrained lime accents, aligned control rows and a
-compact Settings entry. Build original components, preserve responsive and
+using its layout, shapes and UX structure with black/white/charcoal surfaces,
+aligned control rows and a compact Settings entry. No vivid accent colors. Build original components, preserve responsive and
 accessible behavior, and keep task controls functional. Schedule it separately
 after current functional work; it does not replace recovery priorities.
 

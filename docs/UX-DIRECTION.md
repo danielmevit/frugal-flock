@@ -14,10 +14,12 @@ Owner-selected on 2026-10-08 from supplied Marathon UI screenshots, including
 its settings screen and loading/mission views. Apply this direction in a
 separate visual milestone after the current functional work:
 
-- Deep charcoal surfaces, crisp pale text and a restrained electric lime
-  accent for the current action or selection.
-- Strong grid alignment, flat sections, precise dividers and clear contrast
-  between labels, values and selected controls.
+- Black and charcoal surfaces, white text and neutral gray controls. The
+  reference is for UX, layout and shapes; use no lime or other vivid accents.
+  Show selection through contrast, borders, labels and shape rather than hue.
+- Strong grid alignment, flat sections, precise dividers and aligned full-row
+  controls. Adapt the grouped settings, segmented choices and clear navigation
+  hierarchy, with contrast between labels, values and selected controls.
 - Compact technical labels and monospaced status details, paired with
   comfortable body text. Keep long worker output readable.
 - A dominant working canvas and a compact inspector. Let the responsive
