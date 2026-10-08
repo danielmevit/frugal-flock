@@ -81,6 +81,8 @@ bad = quota(); bad['rateLimits']['primary']['usedPercent'] = True
 check('boolean percentage is invalid metadata', refuses(lambda: proof(bad)))
 check('API key override refuses before dispatch', refuses(lambda: m.environment_digest({'OPENAI_API_KEY': 'fixture'})))
 check('endpoint override refuses before dispatch', refuses(lambda: m.environment_digest({'OPENAI_BASE_URL': 'https://example.invalid'})))
+workspace_block = quota(); workspace_block['rateLimits']['rateLimitReachedType'] = 'workspace_owner_credits_depleted'
+check('workspace credit block cannot borrow five-hour fallback', proof(workspace_block)['wait']['wake_at'] is None)
 
 with tempfile.TemporaryDirectory(prefix='lead-cooldown-') as tmp:
     base = Path(tmp)
@@ -105,6 +107,8 @@ if 'app-server' in sys.argv:
   else:result=json.loads((base/'quota').read_text())
   if (base/'protocol-case').exists():
    case=(base/'protocol-case').read_text()
+   if case=='timeout':
+    while True:time.sleep(1)
    if case=='oversized':print('x'*1100000,flush=True);continue
    if case=='malformed':print('not json',flush=True);continue
   print(json.dumps({'id':request['id'],'result':result}),flush=True)
@@ -352,7 +356,8 @@ sys.exit(0)
     probe_pid=next(item['probe_pid'] for item in items if 'probe_pid' in item)
     check('real protocol parser reads structured wait then reaps probe', observed['wait']['wake_at']==D+7260 and m.process_identity(probe_pid) is None)
     check('quota receipt contains no email or raw credential', 'private@example.invalid' not in json.dumps(observed))
-    for case in ['malformed','oversized']:
+    codex.probe_timeout=0.3
+    for case in ['malformed','oversized','timeout']:
         (base/'protocol-case').write_text(case)
         check('probe '+case+' output refuses and is reaped', refuses(codex.probe))
         pid=next(item['probe_pid'] for item in reversed(calls()) if 'probe_pid' in item)
@@ -384,6 +389,8 @@ sys.exit(0)
     check('packaged CLI loads helper and returns real state JSON',result.returncode==0 and json.loads(result.stdout)['state']['enablement_id']==store.read()['enablement_id'])
     result=cli('pause')
     check('packaged pause persists',result.returncode==0 and store.read()['mode']=='paused')
+    registration=subprocess.run([at,'lead','none'],cwd=store.root/'repo',env=env,capture_output=True,text=True,timeout=20)
+    check('native policy setter refuses while paused supervisor owns registration',registration.returncode!=0 and not (store.root/'coord/work-policy.json').exists())
     result=cli('stop')
     check('packaged stop persists',result.returncode==0 and store.read()['mode']=='stopped')
     result=cli('resume')
@@ -396,5 +403,54 @@ sys.exit(0)
     result=cli('stop','--force-corrupt')
     check('explicit force-stop preserves corrupt evidence',result.returncode==0 and store.read()['mode']=='stopped' and any(p.read_bytes()==b'{broken' for p in store.directory.glob('state.corrupt-*')))
     check('standalone installed helper matches canonical source', (install/'conf/lib/lead_cooldown.py').read_bytes()==(ROOT/'tools/runtime/lead_cooldown.py').read_bytes())
+
+    # Actual detached command -> inherited lifetime lock -> private supervise
+    # entry. The adapter alone is substituted; no production test override.
+    store, adapter, supervisor, clock = scenario('detached-controls')
+    store.path.unlink()  # A genuinely disabled fixture project, not a replay.
+    goal_path=store.root/'coord/owner-goal.md';goal_path.write_bytes(b'Finish the fixture goal.')
+    frozen_launch=frozen(store.root)
+    harness=base/'detached-harness.py'
+    harness.write_text('''import importlib.util,json,os,sys,time\nfrom pathlib import Path\np=Path(%r)\nspec=importlib.util.spec_from_file_location('cooldown',p)\nm=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\nclass LocalAdapter:\n def __init__(self,root,frozen,**kwargs):\n  self.root=Path(root);self.frozen=frozen;self.env=dict(os.environ)\n  (self.root/'coord'/('detached-ready-'+str(os.getpid()))).write_text('owned')\n def check(self,goal):m.require(m.sha(goal)==self.frozen['goal_sha256'],'launch_changed')\n def probe(self):return m.classify(%r,%r,time.time())\nm.CodexAdapter=LocalAdapter\nm.external_codex=lambda *args:False\nsys.exit(m.main(sys.argv[1:]))\n''' % (str(ROOT/'tools/runtime/lead_cooldown.py'), ACCOUNT, quota()))
+    class LocalAdapter:
+        def __init__(self,*args,**kwargs):pass
+        def probe(self):return proof(quota(),time.time())
+    children=[]
+    original_spawn=m.spawn_supervisor
+    def spawn(*args):
+        pid=original_spawn(*args);children.append(pid);return pid
+    def invoke(*args):
+        with contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
+            return m.main([str(store.root),'--runner',str(runner),*args])
+    def ready(pid):
+        deadline=time.monotonic()+8
+        while time.monotonic()<deadline:
+            if (store.root/'coord'/('detached-ready-'+str(pid))).exists():return
+            time.sleep(0.02)
+        raise AssertionError('detached supervisor did not validate inherited ownership')
+    def ended(pid):
+        deadline=time.monotonic()+8
+        while time.monotonic()<deadline and store.busy():time.sleep(0.02)
+        assert not store.busy(),'detached supervisor did not stop'
+        os.waitpid(pid,0)
+    with patch.dict(os.environ),patch.object(m,'launch_snapshot',return_value=frozen_launch),\
+         patch.object(m,'CodexAdapter',LocalAdapter),patch.object(m,'external_codex',return_value=False),\
+         patch.object(m,'__file__',str(harness)),patch.object(m,'spawn_supervisor',side_effect=spawn):
+        os.environ.pop('CODEX_THREAD_ID',None);os.environ.pop('UNIO_LEAD_SUPERVISED',None)
+        result=invoke('start','--model','fixture-model','--cd',str(store.root),'--goal-file',str(goal_path))
+        check('explicit start creates a real detached supervisor',result==0 and len(children)==1)
+        ready(children[-1])
+        check('child retains lifetime ownership after launcher closes descriptor',store.busy() and store.read()['phase']=='cooldown')
+        result=invoke('start','--model','fixture-model','--cd',str(store.root),'--goal-file',str(goal_path))
+        check('competing public start is refused without another child',result==2 and len(children)==1)
+        result=invoke('resume')
+        check('resume against a live supervisor does not spawn another',result==0 and len(children)==1)
+        result=invoke('pause');ended(children[-1])
+        check('pause ends idle detached supervisor and preserves wait',result==0 and store.read()['mode']=='paused' and store.read()['cooldown']['wake_at'] is not None)
+        result=invoke('resume');ready(children[-1])
+        check('resume respawns exactly one missing supervisor',result==0 and len(children)==2 and store.busy())
+        result=invoke('stop');ended(children[-1])
+        check('stop persists after detached supervisor exits',result==0 and store.read()['mode']=='stopped' and not store.busy())
+        check('terminal public resume creates no new process',invoke('resume')!=0 and len(children)==2)
 
 print('lead cooldown: %d assertions passed; model calls=0' % passed)

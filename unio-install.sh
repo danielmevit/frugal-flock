@@ -7595,7 +7595,8 @@ def classify(account, response, now):
     require(type(bucket) is dict, 'invalid quota bucket')
     reached = bucket.get('rateLimitReachedType')
     require(reached is None or reached in REACHED, 'unknown quota classification')
-    require(bucket.get('spendControlReached') in (None, False, True), 'invalid spending control')
+    spending = bucket.get('spendControlReached')
+    require(spending is None or type(spending) is bool, 'invalid spending control')
     windows = []
     for key in ('primary', 'secondary'):
         window = bucket.get(key)
@@ -7623,6 +7624,10 @@ def classify(account, response, now):
     # Every exhausted longer window needs a usable reset; a shorter known
     # reset must not hide an unknown weekly reset.
     usable = bool(exhausted) and all(w.get('resetsAt') is not None and w['resetsAt'] > now for w in exhausted)
+    if spending is True or reached not in {None, 'rate_limit_reached'}:
+        # Workspace spending/credit blocks have no verified window mapping.
+        # A separate exhausted rolling window cannot supply their reset.
+        kind, usable = 'unknown_longer', False
     reset = max(resets) if usable else None
     wake = max(reset + 60, int(now) + 300) if reset is not None else int(now) + 18060 if kind == 'five_hour' else None
     wait = dict(kind=kind, detected_at=int(now), wake_at=wake,
@@ -7632,10 +7637,11 @@ def classify(account, response, now):
 
 
 class CodexAdapter:
-    def __init__(self, root, frozen, env=None, clock=time.time):
+    def __init__(self, root, frozen, env=None, clock=time.time, probe_timeout=30):
         self.root, self.frozen = Path(root), frozen
         self.env = dict(os.environ if env is None else env)
         self.clock = clock
+        self.probe_timeout = probe_timeout
 
     def check(self, goal):
         f = self.frozen
@@ -7654,7 +7660,7 @@ class CodexAdapter:
             os.set_blocking(stream.fileno(), False)
             selector.register(stream, selectors.EVENT_READ)
         buffer, total = b'', 0
-        deadline = time.monotonic() + 30
+        deadline = time.monotonic() + self.probe_timeout
 
         def send(method, params, request_id=None):
             message = dict(method=method, params=params)
@@ -7874,12 +7880,14 @@ class Supervisor:
         self.failed |= kind in {'turn.failed', 'error'}
 
     def drain(self):
+        activity = 0
         for key, _ in self.selector.select(0):
             stream = key.fileobj
             if stream is self.process.stdin:
                 try:
                     count = os.write(stream.fileno(), self.input[:65536])
                     self.input = self.input[count:]
+                    activity += count
                 except BrokenPipeError:
                     self.input = memoryview(b'')
                 if not self.input:
@@ -7887,6 +7895,7 @@ class Supervisor:
                     stream.close()
                 continue
             chunk = os.read(stream.fileno(), 65536)
+            activity += len(chunk)
             if not chunk:
                 self.selector.unregister(stream)
                 continue
@@ -7909,16 +7918,14 @@ class Supervisor:
             if len(self.output) > IO_CAP:
                 self.output = b''
                 self.dropping = self.bad_output = True
+        return activity
 
     def finish(self):
         process = self.process
         # Drain finite pipe data after reap; lingering descendants are cleaned
         # by token+session, excluding separately sessioned native workers.
         for _ in range(64):
-            before = sum(self.event_types.values()) + len(self.stderr) + len(self.output)
-            self.drain()
-            after = sum(self.event_types.values()) + len(self.stderr) + len(self.output)
-            if before == after:
+            if self.drain() == 0:
                 break
         if self.output.strip() and not self.dropping:
             self.event(self.output)
@@ -8154,6 +8161,8 @@ def main(argv=None):
             goal_path = Path(args.goal_file).absolute()
             require(goal_path.resolve() == goal_path and goal_path.is_relative_to(store.root), 'goal file must be inside project without symlinks')
             goal = regular(goal_path, 65536)
+            require(b'\x00' not in goal, 'goal must be UTF-8 text without NUL bytes')
+            goal.decode('utf-8')
             frozen = launch_snapshot(store.root, args.model, args.effort, args.sandbox, args.cd, goal, os.environ)
             require(not external_codex(frozen), 'another unmanaged Codex session is active')
             policy(store.root, args.runner, os.environ)
