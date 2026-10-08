@@ -63,9 +63,23 @@ with tempfile.TemporaryDirectory(prefix='saving-continue-') as directory:
     def git(cwd, *args):
         return subprocess.check_output(['git', *args], cwd=cwd, env=env, stderr=subprocess.DEVNULL)
 
-    def unio(*args, extra=None, timeout=90):
-        return subprocess.run([at, *args], cwd=repo, env=dict(env, **(extra or {})),
-                              capture_output=True, text=True, timeout=timeout)
+    def unio(*args, extra=None, timeout=300):
+        # The native provider may run for120s, plus bounded30s snapshots,
+        # admission and final bookkeeping. The outer fixture must outlive it.
+        started = time.monotonic()
+        try:
+            result = subprocess.run([at, *args], cwd=repo, env=dict(env, **(extra or {})),
+                                    capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            # Preserve evidence if a later failure is a real lifecycle stall.
+            print('fixture timeout: %r after %ss; stdout=%r; stderr=%r'
+                  % (args, timeout, error.stdout, error.stderr), file=sys.stderr, flush=True)
+            raise
+        elapsed = time.monotonic() - started
+        if elapsed >= 60:
+            print('fixture duration: %r %.3fs, actual exit=%s'
+                  % (args[:2], elapsed, result.returncode), flush=True)
+        return result
 
     def good(run):
         assert run.returncode == 0, run.stdout + run.stderr
