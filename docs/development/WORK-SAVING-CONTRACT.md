@@ -141,13 +141,20 @@ Missing live freshness is Unknown, not current or saved. Inspect is read-only.
 
 ## Locks, restore and failure evidence
 
-Shell holds the native worker lock once: source for manual create, destination
-for restore/continue. In-run captures inherit existing ownership without
-reflocking. The Python helper alone takes `coord/.locks/saves.lock` for bounded
+The manual save frontend holds the native worker lock once: source for create,
+destination for restore/continue. The Python helper may own that admission so
+the shell never opens an unvalidated lock path. Open without following symlinks
+or blocking on special files; validate the descriptor and coordination parents
+before use. Native worker locks must be regular, owned, single-link files with
+no group/other write permission. Existing owned 0644 locks remain valid; create
+new locks as 0600. Unsafe paths are refused without creating a symlink target or
+repairing permissions. In-run captures inherit existing ownership without
+reflocking. The helper alone takes `coord/.locks/saves.lock` for bounded
 publication/retention/claim updates; never nest that lock or hold it during AI.
-Inspect by ID needs no worker lock. Live inspection while busy reports Unknown.
-Validate lock/store ownership, file type and private modes; do not repair unsafe
-paths by chmod. Source is never opened for writing by restore.
+Inspect by ID needs no worker lock. Live inspection while busy or unsafe reports
+Unknown and never blocks on a FIFO. Save-store files and its lock retain their
+private modes. Source is never opened for writing by restore. This clarification
+does not change ordinary native run/review lock behavior.
 
 Destination must be a different existing owned Unio worker, idle, clean and on
 its own agent/DESTINATION branch at exact base, with the same common repository.
