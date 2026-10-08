@@ -8,7 +8,10 @@ not a release, a command-free launcher or a live execution UI.
 The owner supplies an enclosing workspace (repo/, coord/, wt/) and an explicit
 trusted CLI executable. There is one fixed observation command:
 `ENGINE watch --once --json`, with cwd set to the selected workspace's repo/,
-stdin closed, a 10-second timeout and no shell. The service serializes
+stdin closed, a bounded 30-second default timeout and no shell. An explicit
+`--observer-timeout` accepts 1 through 120 seconds for different workspace sizes.
+This source readiness correction supersedes the original ten-second budget;
+dated verification below retains the earlier slice's evidence. The service serializes
 observations and caches each result or failure for one second. It accepts
 schema 1 with the expected top-level collection types, omits unexpected
 top-level data, and never relays raw stdout/stderr errors. Invalid/nonzero/

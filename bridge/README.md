@@ -37,6 +37,11 @@ browser opener does not block observations. Ctrl-C stops the service. The defaul
 Refresh button. A failed observation clears the old display and says activity
 is unavailable. Refreshing the page performs only another observation.
 
+Native observation has a bounded 30-second default deadline, so larger local
+workspaces can finish a scan. Use `--observer-timeout SECONDS` to choose a
+deadline from 1 through 120 seconds. This changes observation waiting only;
+it does not alter worker/model time limits, cache duration or execution rights.
+
 Default mode serves the static workspace assets, `GET /api/activity` and a
 same-origin capability document at `GET /api/session`. The server
 binds 127.0.0.1; Host must match its actual address, and an Origin header
