@@ -10,7 +10,9 @@ and [browser guide](../../bridge/README.md) describe grouped history, filters,
 24-task pagination, stable exact selection and observation-backed details.
 The map uses the existing two-second activity feed and worker/task ownership;
 lead/dependency edges need future engine evidence. Focused browser checks and
-personal lead review passed. These additions are not in published v0.5.3.
+personal lead review passed. The fluid layout now follows screen width, with
+repository/license footer links and the approved “Your AIs, in sync.” tagline.
+These additions are not in published v0.5.3.
 Recoverable continuation is the next task; finish and integrate one task
 before starting another under the owner's current session direction.
 
@@ -50,11 +52,12 @@ are accepted in source for v0.5.4.
 | Order | Milestone | Intended result | Status |
 | --- | --- | --- | --- |
 | First | v0.5.3: browser-to-worker workflow | Prepare and approve a task, start a worker once, inspect results and reviews, and accept the exact verified changes. Add actual worker output and console access as described in the [worker progress contract](../WORKER-PROGRESS.md). | [Delivered in v0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3), including UI, output/files, the real worker journey and release checks. |
-| Next | v0.5.4: recoverable continuation | Save recoverable work during runs and on failure, then let an owner-enabled supervisor restart the lead CLI after its allowance cooldown using the saved handoff. | Approved; work-saving contract frozen; manual capture/inspect/restore is the next implementation slice. Dark theme/work map accepted in source for this release. |
+| Next | v0.5.4: recoverable continuation | Save recoverable work during runs and on failure, then let an owner-enabled supervisor restart the lead CLI after its allowance cooldown using the saved handoff. | Manual capture/inspect/restore accepted in source; automatic saves, authorized continuation and lead cooldown remain pending. Dark theme/responsive work map accepted in source. Full combined release gate still required. |
 
 The v0.5.4 scope now includes [automatic work saving](../WORK-SAVING.md),
 requested after a real worker reached its quota before committing. This is
-a planned feature; existing handoffs remain context rather than backups.
+partly implemented: manual saves are in main; automatic saving and continuation
+remain planned. Context handoffs alone are not recovery backups.
 
 On 2026-10-07 the owner added [lead CLI cooldown restart](LEAD-COOLDOWN-RESTART.md)
 to the continuation milestone. Unio waits outside the stopped lead process,

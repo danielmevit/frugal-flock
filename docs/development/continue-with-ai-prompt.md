@@ -21,12 +21,29 @@ correction, with all three native checks and personal lead approval.
 Keep earlier failed runs and rejected drafts; the temporary extra Codex
 workflow exception is complete and normal low-tier rules apply.
 
-Next is 0.5.4: implement manual capture/inspect/restore against the frozen
-[work-saving contract](WORK-SAVING-CONTRACT.md), then automatic recovery
-saves and authorized continuation, followed by
-[lead CLI cooldown restart](LEAD-COOLDOWN-RESTART.md). These features remain
-planned; existing worker limit handling stays unchanged. Read the
-[version plan](../VERSION-PLAN.md) and actual latest state before dispatch.
+The next release is 0.5.4. Accepted in main: dark/system themes and live work
+map, fluid screen-width layout, the approved “Your AIs, in sync.” tagline,
+GitHub/license footer links, startup escalation guidance and the task-fit
+scoreboard. Manual save creation, inspection and exact restore are also integrated
+from [PR4](https://github.com/danielmevit/unio/pull/4), including the existing
+lead's retained-file and lock-safety corrections. These additions are not in
+the published or installed 0.5.3 release.
+
+Preserve the saving review history: original and replacement findings, the
+lead's full-suite shared-lock observation failure, and the final focused
+correction's scope/checks PASS and personal approval. Do not claim the corrected
+revision has passed the full suite; it remains required at the combined release.
+The direct lead tasks have no delegated Source, and self-review is not an
+independent AI-lab verdict.
+
+Next UI task: the owner's queued zoom/pan and centre-to-edge radial map layout.
+Next recovery slices: automatic baseline/periodic/final saves and authorized
+continuation under the frozen [work-saving contract](WORK-SAVING-CONTRACT.md),
+then [lead CLI cooldown restart](LEAD-COOLDOWN-RESTART.md). Existing worker limit
+handling stays unchanged. Future Marathon-inspired UI uses UX/layout/control
+shapes in black, white, charcoal and neutral gray, with no vivid or pastel accents;
+Settings remains a proposal. Opus stays reserved until the owner reintroduces it.
+Read the [version plan](../VERSION-PLAN.md) and actual latest state before dispatch.
 
 ## How to continue
 
