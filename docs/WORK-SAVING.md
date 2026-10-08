@@ -20,8 +20,9 @@ not replace the final versioned release gate.
 | [Lead cooldown supervisor](LEAD-COOLDOWN.md) | Supported Codex adapter implemented in source; real subscription-limit restart acceptance and release checks pending |
 
 The current public release is v0.5.3. It contains none of these commands.
-The source version stays at 0.5.3 until the combined v0.5.4 delivery has
-passed its full release gate.
+Development main retains 0.5.3 until the completed delivery is accepted.
+A separate versioned release candidate can print 0.5.4 before publication;
+its branch and staged installer are not the official installed release.
 
 ## Manual saving (slice 1, in source)
 

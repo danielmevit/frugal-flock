@@ -4,6 +4,35 @@ Release notes for Unio. Between releases, each task writes a short
 fragment in `changelog.d/`; the fragments are rolled into this file when a
 version is released.
 
+## 0.5.4 — recoverable work and live work map — unreleased
+
+Release candidate only. Genuine subscription-limit restart acceptance, final
+release checks, publication and verified installation are required before this
+becomes an official release. Published v0.5.3 remains the stable version.
+
+- Save exact committed, staged and unstaged work with manual create, inspect
+  and restore commands. Refuse unsupported or unsafe state and preserve the
+  original worker, receipts and last good save.
+- Capture baseline, changed periodic and final recovery saves around native
+  runs, including failure and interruption. Keep real provider exits and
+  bounded cleanup of the actual owned processes.
+- Continue one explicitly restored save under a separately authorized task.
+  Freeze task and effective prompt authority, retain current account admission
+  and prevent replay after completion, refusal or an unknown launch.
+- Add an owner-enabled lead cooldown supervisor for Codex CLI 0.161.0 on
+  Linux with Python 3.11+ and an individual first-party ChatGPT subscription.
+  Wait on authoritative allowance evidence; use five hours and one minute
+  for a confirmed five-hour limit with no useful reset. Every launch requires
+  fresh ordinary-usage permission. Stop, pause and completion remain explicit.
+- Add Light/Dark themes, responsive radial work-map navigation with zoom and
+  pan, every-node details, semantic status strips and repository/license links.
+- Give browser observation a configurable 30-second default budget, bounded
+  from 1 through 120 seconds. This fixes scan availability, not scan speed.
+- Keep installed model guidance synchronized with checked task outcomes and
+  document worker escalation, effort defaults and truthful agent attribution.
+- Correct completion expectations and continuation test deadlines. Preserve
+  all default release assertions and clearly label partial diagnostic modes.
+
 ## 0.5.3 — browser workspace and work policies — 2026-10-08
 
 [Official release](https://github.com/danielmevit/unio/releases/tag/v0.5.3). Published from exact source `ae61bf3d11ff` after the full release gate, packaged installer checks and upgrade/rollback checks.
