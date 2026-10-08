@@ -2359,11 +2359,13 @@ POLICY_PY
 # (source for create, destination for restore), then takes the store lock as needed.
 saves() {
   command -v python3 >/dev/null || { echo "unio: Python 3 is required before save" >&2; return 2; }
-  python3 - "$@" <<'SAVES_PY'
+  local -a saves_runner=(python3)
+  if [ "${1:-}" = __exec ]; then saves_runner=(exec python3); shift; fi
+  "${saves_runner[@]}" - "$@" <<'SAVES_PY'
 import datetime, fcntl, hashlib, json, os, re, selectors, shutil, signal, stat, struct, subprocess, sys, tempfile, time
 
-# Manual work saving (contract: docs/development/WORK-SAVING-CONTRACT.md,
-# slice 1). Stored data is only ever compared, hashed and copied; it never
+# Work saving (contract: docs/development/WORK-SAVING-CONTRACT.md).
+# Stored data is only ever compared, hashed and copied; it never
 # becomes a shell command, a policy or a provider prompt. No provider call.
 MIB = 1024 * 1024
 MAX_ENTRIES, MAX_COMMITS = 4000, 100
@@ -3520,7 +3522,8 @@ def clean_staging(store):
             shutil.rmtree(path)
 
 
-def publish(root, store, worker, task, obs, task_bytes, observed_at, budget):
+def publish(root, store, worker, task, obs, task_bytes, observed_at, budget,
+            reason='manual', run_id=None, provider_exit=None):
     save_id = os.urandom(16).hex()
     g, wt = obs['git'], obs['repo']['wt']
     lock = saves_lock(root)
@@ -3555,7 +3558,7 @@ def publish(root, store, worker, task, obs, task_bytes, observed_at, budget):
                 git(wt, budget, 'bundle', 'verify', '-q', os.path.join(staging, 'bundle'), what='git bundle verify')
                 bundle_sha, bundle_bytes = sha(bundle), len(bundle)
             manifest = dict(schema_version=1, status='complete', content_complete=True, save_id=save_id,
-                            worker=worker, task=task, run_id=None, reason='manual', provider_exit=None,
+                            worker=worker, task=task, run_id=run_id, reason=reason, provider_exit=provider_exit,
                             observed_at=observed_at, published_at=stamp(), fingerprint=obs['fingerprint'],
                             git=dict(g, bundle_sha256=bundle_sha, bundle_bytes=bundle_bytes),
                             entries=obs['entries'], context=obs['context'])
@@ -3583,11 +3586,11 @@ def publish(root, store, worker, task, obs, task_bytes, observed_at, budget):
         os.close(lock)
 
 
-def write_attempt(store, worker, task, observed_at, reason, status, save_id):
+def write_attempt(store, worker, task, observed_at, reason, status, save_id, provider_exit=None):
     try:
         good = last_good(store, worker, False)
         doc = dict(schema_version=1, worker=worker, task=task, observed_at=observed_at, reason=reason,
-                   status=status, save_id=save_id, last_good_id=good['id'] if good else None, provider_exit=None)
+                   status=status, save_id=save_id, last_good_id=good['id'] if good else None, provider_exit=provider_exit)
         atomic_private(os.path.join(store, 'attempts', worker + '.json'),
                        json.dumps(doc, indent=2, sort_keys=True).encode() + b'\n')
         return doc
@@ -3630,7 +3633,7 @@ def cmd_create(root, worker, task):
         return create_locked(root, worker, task)
 
 
-def create_locked(root, worker, task):
+def create_locked(root, worker, task, reason='manual', run_id=None, provider_exit=None):
     store = open_store(root, True)
     observed_at = stamp()
     try:
@@ -3640,20 +3643,192 @@ def create_locked(root, worker, task):
         second, task_bytes2 = capture(root, worker, task, budget)
         if not same(first, second) or task_bytes != task_bytes2:
             raise Refuse('unstable', 'the worktree changed between two observations; nothing was saved')
+        if reason == 'periodic':
+            previous = last_good(store, worker, True)
+            if (previous and previous['manifest']['run_id'] == run_id
+                    and previous['manifest']['fingerprint'] == second['fingerprint']):
+                print('unio: periodic state unchanged; keeping save ' + previous['id'])
+                return 0  # No new bytes: retain the existing good checkpoint.
         scan_history(second['repo']['wt'], budget, second['git']['commit_ids'])
-        save_id, evicted = publish(root, store, worker, task, second, task_bytes, observed_at, budget)
+        save_id, evicted = publish(root, store, worker, task, second, task_bytes, observed_at, budget,
+                                  reason, run_id, provider_exit)
     except Refuse as r:
         status = 'failed' if r.code in ('io_error', 'unknown') else 'refused'
-        write_attempt(store, worker, task, observed_at, r.code, status, None)
+        write_attempt(store, worker, task, observed_at, r.code, status, None, provider_exit)
         print('unio: save %s (%s): %s' % (status, r.code, r.message), file=sys.stderr)
         return r.exit_code
-    write_attempt(store, worker, task, observed_at, 'manual', 'complete', save_id)
+    write_attempt(store, worker, task, observed_at, reason, 'complete', save_id, provider_exit)
     g = second['git']
     print('saved %s: worker %s, task %s, %d paths, %d commits' % (save_id, worker, task, len(second['entries']), len(g['commit_ids'])))
     print('  base %s (%s), head %s' % (g['base_commit'][:12], 'frozen task base' if second['base_source'] == 'task' else 'coord/base', g['head_commit'][:12]))
     print('  local unverified recovery snapshot: nothing committed, accepted or sent to a provider'
           + ('; %d older save(s) evicted' % evicted if evicted else ''))
     return 0
+
+
+# ---------------------------------------------------- native supervision
+def inherited_run(root, worker, task):
+    """Validate the shell's existing ownership; never acquire another flock."""
+    fd = worker_lock_fd(root, worker, False)
+    try:
+        if fd is None:
+            raise Refuse('lock_busy', 'native worker lock is missing')
+        native, inherited = os.fstat(fd), os.fstat(9)
+        if (native.st_dev, native.st_ino) != (inherited.st_dev, inherited.st_ino):
+            raise Refuse('lock_busy', 'native worker ownership was not inherited')
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            pass
+        else:
+            raise Refuse('lock_busy', 'native worker ownership is no longer held')
+    finally:
+        if fd is not None:
+            os.close(fd)
+    doc = strict_json(read_path(under(root, 'coord', 'retries', task, 'state.json'), MIB)[1], MIB, 'native attempt')
+    attempt = doc.get('latest', {}).get(worker) if isinstance(doc, dict) else None
+    if (not isinstance(attempt, dict) or not isinstance(attempt.get('id'), str)
+            or not HEX32.fullmatch(attempt['id']) or attempt.get('pending') is not True):
+        raise Refuse('unknown', 'no current native attempt to bind automatic saves')
+    return attempt['id']
+
+
+def signal_group(pid, sig):
+    try:
+        os.killpg(pid, sig)
+    except ProcessLookupError:
+        pass
+
+
+def capture_child(root, worker, task, reason, run_id, provider_exit, interrupted, provider=None):
+    """Isolate a capture, enforce its wall deadline, and reap it before returning."""
+    fault('capture-launch')
+    sys.stdout.flush()
+    sys.stderr.flush()
+    pid = os.fork()
+    if pid == 0:
+        def cancelled(signum, frame):
+            raise Refuse('unknown', 'automatic capture interrupted')
+        try:
+            os.setsid()
+            signal.signal(signal.SIGTERM, cancelled)
+            signal.signal(signal.SIGINT, cancelled)
+            rc = create_locked(root, worker, task, reason, run_id, provider_exit)
+        except (Refuse, OSError) as e:
+            print('unio: automatic save failed: %s' % e, file=sys.stderr)
+            rc = 1
+        finally:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        os._exit(rc)
+    deadline, stopping, status = time.monotonic() + CAPTURE_SECONDS, None, None
+    while status is None:
+        found, result = os.waitpid(pid, os.WNOHANG)
+        if found:
+            status = os.waitstatus_to_exitcode(result)
+            break
+        now = time.monotonic()
+        cancelled = reason != 'final-failure' and bool(interrupted[0])
+        obsolete = reason == 'periodic' and provider is not None and provider.poll() is not None
+        if stopping is None and (now >= deadline or cancelled or obsolete):
+            # TERM unwinds the helper's Git subprocess cleanup before escalation.
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            stopping = now
+        elif stopping is not None and now - stopping >= 1:
+            signal_group(pid, signal.SIGKILL)
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        time.sleep(0.05)
+    if status != 0:
+        print('unio: automatic %s save unavailable (helper exit %s); previous good save retained'
+              % (reason, status), file=sys.stderr)
+        # A killed/crashed helper may not have recorded its own refusal.
+        if status not in (1, 2):
+            try:
+                store = open_store(root, True)
+                write_attempt(store, worker, task, stamp(), 'io_error', 'failed', None, provider_exit)
+            except (Refuse, OSError) as e:
+                print('unio: could not record automatic save failure: %s' % e, file=sys.stderr)
+
+
+def automatic_capture(root, worker, task, reason, run_id, provider_exit, interrupted, provider=None):
+    try:
+        capture_child(root, worker, task, reason, run_id, provider_exit, interrupted, provider)
+    except (Refuse, OSError) as e:
+        print('unio: automatic %s save could not start: %s; provider exit is independent'
+              % (reason, e), file=sys.stderr)
+        try:
+            store = open_store(root, True)
+            write_attempt(store, worker, task, stamp(), 'io_error', 'failed', None, provider_exit)
+        except (Refuse, OSError):
+            pass  # Unsafe/unavailable storage is never repaired by a failed save.
+
+
+def supervise_run(root, worker, task, timeout, command):
+    interrupted, provider = [0], None
+
+    def stop(signum, frame):
+        interrupted[0] = 128 + signum
+        if provider is not None:
+            signal_group(provider.pid, signal.SIGTERM)
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    run_id = None
+    try:
+        run_id = inherited_run(root, worker, task)
+    except (Refuse, OSError, ValueError) as e:
+        print('unio: automatic saving unavailable: %s; provider execution remains independent' % e, file=sys.stderr)
+    finally:
+        # The shell alone holds ownership. No provider or capture inherits it.
+        try:
+            os.close(9)
+        except OSError:
+            pass
+    if run_id:
+        automatic_capture(root, worker, task, 'baseline', run_id, None, interrupted)
+    rc = interrupted[0]
+    try:
+        if not rc:
+            log = under(root, 'coord', 'reports', task + '.log')
+            with open(log, 'wb') as output:
+                provider = subprocess.Popen(['timeout', '--kill-after=5s', timeout, 'bash', '-c', command],
+                                            cwd=under(root, 'wt', worker), stdin=subprocess.DEVNULL,
+                                            stdout=output, stderr=subprocess.STDOUT,
+                                            close_fds=True, preexec_fn=os.setpgrp)
+            next_capture, stopping = time.monotonic() + 60, None
+            while provider.poll() is None:
+                now = time.monotonic()
+                if interrupted[0]:
+                    if stopping is None:
+                        signal_group(provider.pid, signal.SIGTERM)
+                        stopping = now
+                    elif now - stopping >= 5:
+                        signal_group(provider.pid, signal.SIGKILL)
+                elif run_id and now >= next_capture:
+                    automatic_capture(root, worker, task, 'periodic', run_id, None, interrupted, provider)
+                    next_capture = time.monotonic() + 60
+                time.sleep(0.05)
+            rc = provider.wait()
+            rc = 128 - rc if rc < 0 else rc
+            if interrupted[0]:
+                rc = interrupted[0]
+    except OSError as e:
+        print('unio: provider launch failed: %s' % e, file=sys.stderr)
+        rc = 127
+    finally:
+        if provider is not None:
+            # timeout's group is ours, including descendants left at shell exit.
+            signal_group(provider.pid, signal.SIGKILL)
+            provider.wait()
+    if run_id:
+        automatic_capture(root, worker, task, 'final' if rc == 0 else 'final-failure', run_id, rc, interrupted)
+    return rc
 
 
 # --------------------------------------------------------------- inspect
@@ -4168,6 +4343,8 @@ def main(argv):
     as_json = '--json' in args
     plain = [a for a in args if a != '--json']
     try:
+        if command == '_supervise' and len(args) == 4 and ident(args[0]) and ident(args[1]):
+            return supervise_run(root, *args)
         if command == 'create' and len(args) == 2 and ident(args[0]) and ident(args[1]):
             return cmd_create(root, args[0], args[1])
         if command == 'inspect' and args.count('--json') <= 1:
@@ -4338,6 +4515,21 @@ policy_stop_provider() { # stop the provider started by this run or review
   [ -n "$pid" ] || return 0
   if ! kill -0 -- "$pid" 2>/dev/null; then
     POLICY_PROVIDER_PID=""
+    return 0
+  fi
+  if [ "${POLICY_SOURCE_SUPERVISOR:-0}" = 1 ]; then
+    # The supervisor owns provider/helper cleanup and its final bounded save.
+    # Signal it alone; killing descendants first could destroy that checkpoint.
+    kill -TERM -- "$pid" 2>/dev/null || true
+    while [ "$n" -lt 800 ]; do
+      kill -0 -- "$pid" 2>/dev/null || break
+      n=$((n + 1))
+      sleep 0.05
+    done
+    if kill -0 -- "$pid" 2>/dev/null; then policy_signal_descendants "$pid" KILL; fi
+    wait "$pid" 2>/dev/null || true
+    POLICY_PROVIDER_PID=""
+    POLICY_SOURCE_SUPERVISOR=0
     return 0
   fi
   policy_signal_descendants "$pid" TERM
@@ -5120,20 +5312,31 @@ cmd_run() {
   # 'wallsec' so the two never collide.
   local rc=0 t0 t0w dur wallsec suspended=0
   t0=$(mono_now); t0w=$(date +%s)
-  # headless workers must not read stdin — an agent that does (e.g. codex)
-  # would otherwise consume whatever the caller left on stdin and hang/misfire
-  # --kill-after bounds a TERM-ignoring provider: TERM first, KILL 5s later.
-  # Drop the release pipe, admission pipe, and worker lock in the provider.
-  # A child that inherits the writer keeps the holder from seeing EOF.
-  # Wait in the shell, not in a foreground provider: bash defers TERM/INT
-  # until a foreground command exits, which left this provider and its holder
-  # alive. The EXIT trap stops this recorded pid and reaps the holder.
+  # The supervisor saves baseline/changed periodic/final state without AI calls.
+  # It validates then closes inherited worker ownership; control pipes never
+  # reach it, providers or capture helpers. The parent holds the native lock.
+  # Wait asynchronously so TERM/INT can reach the supervisor immediately and
+  # still allow a final save and the normal structured failure receipts.
   POLICY_PROVIDER_PID=""
-  ( cd "$wt" && timeout --kill-after=5s "$TIMEOUT" bash -c "$cmdline" </dev/null ) \
-    >"$log" 2>&1 9>&- {POLICY_IN}>&- {POLICY_RD}>&- {POLICY_WR}>&- &
+  POLICY_SOURCE_SUPERVISOR=1
+  local run_signal=0
+  trap 'run_signal=143; [ -z "$POLICY_PROVIDER_PID" ] || kill -TERM -- "$POLICY_PROVIDER_PID" 2>/dev/null || true' TERM
+  trap 'run_signal=130; [ -z "$POLICY_PROVIDER_PID" ] || kill -INT -- "$POLICY_PROVIDER_PID" 2>/dev/null || true' INT
+  saves __exec "$root" _supervise "$worker" "$task" "$TIMEOUT" "$cmdline" \
+    {POLICY_IN}>&- {POLICY_RD}>&- {POLICY_WR}>&- &
   POLICY_PROVIDER_PID=$!
-  wait "$POLICY_PROVIDER_PID" || rc=$?
+  # An interrupted wait is not proof that the child finished. Reap it before
+  # releasing account ownership or observing the final worktree.
+  while true; do
+    rc=0
+    wait "$POLICY_PROVIDER_PID" || rc=$?
+    kill -0 -- "$POLICY_PROVIDER_PID" 2>/dev/null || break
+  done
+  [ "$run_signal" = 0 ] || rc="$run_signal"
   POLICY_PROVIDER_PID=""
+  POLICY_SOURCE_SUPERVISOR=0
+  trap 'exit 143' TERM
+  trap 'exit 130' INT
   # The reservation ends with the provider invocation: release before the
   # post-run receipts so the next admission can reuse the group.
   policy_release_slot "$root"
@@ -5829,8 +6032,12 @@ cmd_kill() {
   [ -f "$pf" ] || die "no background run recorded for '$task' (foreground runs: Ctrl-C)"
   local pid; pid=$(cat "$pf" 2>/dev/null || true)
   if [ -z "$pid" ]; then rm -f "$pf"; die "empty pidfile removed — nothing to kill"; fi
-  # background runs are session leaders (setsid); kill the SESSION — a plain
-  # group-kill misses the agent because `timeout` runs it in its own group
+  # A negative value means a process group (or every permitted process for -1)
+  # to Bash kill. Invalid evidence must never reach even its signal-zero probe.
+  [[ "$pid" =~ ^[1-9][0-9]{0,8}$ ]] && [ "$pid" -gt 1 ] \
+    || die "invalid background pid — refusing to signal it (pidfile retained)"
+  # Background runs are session leaders. Signal the identified parent so its
+  # supervisor can reap the provider, save final state and finish receipts.
   # A recorded pid is not proof of identity: after a SIGKILLed run the OS can
   # reuse it, and `kill` would then take out an innocent process. Confirm the
   # session really is a Unio run before signalling it.
@@ -5848,18 +6055,21 @@ cmd_kill() {
       die "pid $pid is not a Unio run (stale pidfile removed) — refusing to signal it"
     fi
   fi
-  if pgrep -s "$pid" >/dev/null 2>&1; then
-    pkill -TERM -s "$pid" 2>/dev/null || true
-    sleep 1
-    if pgrep -s "$pid" >/dev/null 2>&1; then pkill -KILL -s "$pid" 2>/dev/null || true; fi
-    echo "killed '$task' (session $pid) — partial work may sit uncommitted in the worktree"
-  elif kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; then
-    kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-    sleep 1
-    if kill -0 -- "-$pid" 2>/dev/null || kill -0 "$pid" 2>/dev/null; then
-      kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+  if kill -0 -- "$pid" 2>/dev/null; then
+    kill -TERM -- "$pid" 2>/dev/null || true
+    local n=0 state=""
+    while [ "$n" -lt 600 ] && kill -0 -- "$pid" 2>/dev/null; do
+      state=$(awk '{print $3}' "/proc/$pid/stat" 2>/dev/null || true)
+      [ "$state" != Z ] || break
+      n=$((n + 1))
+      sleep 0.1
+    done
+    if [ "$n" -ge 600 ]; then
+      policy_signal_descendants "$pid" KILL
+      echo "force-killed '$task' (pid $pid) after cleanup deadline — inspect the last good save and partial work"
+    else
+      echo "killed '$task' (session $pid) — final capture attempted; inspect: unio save inspect --worker <worker>"
     fi
-    echo "killed '$task' (pid $pid) — partial work may sit uncommitted in the worktree"
   else
     echo "'$task' already finished — cleaning up its pidfile"
   fi
