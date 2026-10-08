@@ -63,6 +63,15 @@ the local read-only preview now uses a30-second Observer budget. No released
 CLI option or performance fix is claimed. The [observation finding](LIVE-WORKSPACE-VIEW.md#large-workspace-observation-follow-up)
 is tracked for the performance milestone; preserve original503 diagnostics.
 
+Selected-task sidebar [a05e39a](https://github.com/danielmevit/unio/commit/a05e39a296758932b41f9a49bd490a14fd3060f0)
+is accepted and pushed: clicking a task opens details in the right-hand quarter
+of the map area on wide screens (1100px+), leaving three-quarters for the map.
+Clear selection closes it and restores full width; narrow screens stack details
+below. Long desktop details scroll. Native scope6 and all four checks passed,
+including29 browser assertion groups, followed by four screenshot inspections
+and personal lead approval. Source JS/backend/grants and installed0.5.3 are
+unchanged. These remain unreleased0.5.4 source additions.
+
 Next recovery slices: automatic baseline/periodic/final saves and authorized
 continuation under the frozen [work-saving contract](WORK-SAVING-CONTRACT.md),
 then [lead CLI cooldown restart](LEAD-COOLDOWN-RESTART.md). Existing worker limit
