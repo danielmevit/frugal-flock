@@ -4586,7 +4586,8 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
       g.dataset.inactive = String(n.kind === "task" ? n.verdict.category !== "active"
         : n.kind === "worker" && !data.results.some(r => r.worker === n.worker && categories.get(r).category === "active"));
       const signal = n.kind === "task" ? taskSignal(n.data, n.verdict)
-        : summarySignal(n.kind === "worker" ? data.results.filter(r => r.worker === n.worker) : data.results, categories);
+        : n.kind === "worker" && n.latest ? taskSignal(n.latest, categories.get(n.latest))
+          : summarySignal(data.results, categories);
       g.dataset.signal = signal;
       if (n.kind !== "task") {
         const records = n.kind === "worker" ? data.results.filter(r => r.worker === n.worker) : data.results;
@@ -4595,6 +4596,13 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
         const summary = historySummary(records, categories);
         aria += ". " + summary;
         description += "\n" + summary;
+        if (n.kind === "worker" && n.latest) {
+          const outcome = "Current/latest task " + n.latest.task + ": process " + label(sectionState(n.latest, "process"))
+            + ", validation " + label(sectionState(n.latest, "validation")) + ", review " + label(sectionState(n.latest, "review"))
+            + ". Right edge describes this task only.";
+          aria += " " + outcome;
+          description += "\n" + outcome;
+        }
       }
       if (g.getAttribute("aria-label") !== aria) g.setAttribute("aria-label", aria);
       const rect = g.querySelector("rect");

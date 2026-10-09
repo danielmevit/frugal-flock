@@ -233,6 +233,9 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
       const g = await node(page, route + '-brand', 'TASK-FOR-' + route.toUpperCase());
       assert.equal(await g.evaluate(g => g.dataset.agentMark), mark);
       assert.equal(await g.evaluate(g => g.querySelector('.node-agent').textContent), name);
+      const workerCard = page.locator('#work-map [data-kind="worker"][data-worker="' + route + '-brand"]');
+      assert.equal(await workerCard.getAttribute('data-signal'), route === 'codex' ? 'attention' : 'failed');
+      assert.ok((await workerCard.getAttribute('aria-label')).includes('Right edge describes this task only'));
       assert.ok(await g.evaluate(g => g.querySelector('.node-logo path').getAttribute('d').length > 20));
       assert.equal(await g.evaluate(g => g.querySelector('.node-label').dataset.fullTitle), 'TASK-FOR-' + route.toUpperCase());
       assert.ok((await g.evaluate(g => g.querySelector('.node-state').textContent)).startsWith('Recorded Oct 8'));
@@ -270,6 +273,7 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     await page.selectOption("#map-state-filter", "finished");
     assert.deepEqual((await taskTuples(page)).sort(), [["worker-10", "TASK-1"], ["worker-2", "DONE-OK"]]);
     assert.equal(await page.locator('#work-map [data-kind="task"][data-signal="passed"]').count(), 2);
+    assert.equal(await page.locator('#work-map [data-kind="worker"][data-worker="worker-10"]').getAttribute('data-signal'), 'passed');
     const finishedNode = page.locator('#work-map [data-kind="task"]').first();
     await page.mouse.move(1, 1);
     assert.equal(await finishedNode.evaluate(g => getComputedStyle(g.querySelector('rect')).opacity), '0.55');

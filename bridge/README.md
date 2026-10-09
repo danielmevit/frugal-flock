@@ -884,9 +884,10 @@ validation or review failure, and yellow for other attention states (including
 requested changes, unknown or stale evidence). Active and no-evidence states
 use neutral text emphasis and gray respectively. Text labels and a legend
 accompany the colors; green is recorded evidence, not human acceptance.
-Worker and hub grouping nodes show active counts or neutral idle status.
-They do not turn red for old task failures: those remain on individual tasks
-and are counted explicitly in the groups' accessible descriptions and details.
+The hub shows active counts or neutral idle status, with historical failures
+counted explicitly in its accessible description and details. Worker cards'
+right edges describe their named current/latest task only; they do not
+aggregate every historical failure into a current worker-health claim.
 Grouping nodes represent ownership and activity, not overall project health.
 Exact terminal theme colors are not read from the host.
 No external assets, UI package, provider call
