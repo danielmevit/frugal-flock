@@ -5017,7 +5017,7 @@ footer a { display: inline-flex; align-items: center; min-height: 44px; color: v
 #work-map [data-layer="links"] { pointer-events: none; }
 #work-map [data-node-key]:focus-visible rect { stroke: var(--focus-ring); stroke-width: 3; }
 #work-map [data-category="finished"] { opacity: 0.55; }
-#work-map [data-category="finished"]:is(:hover, :focus-visible, [aria-pressed="true"]) { opacity: 1; }
+#work-map [data-category="finished"]:is(:hover, :focus, [aria-pressed="true"]) { opacity: 1; }
 #work-map [data-signal="active"] .node-state { fill: var(--text-main); font-weight: 700; }
 #work-map [data-signal="active"] .node-label { font-weight: 700; }
 .map-pagination {
