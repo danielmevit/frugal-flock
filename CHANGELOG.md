@@ -4,6 +4,21 @@ Release notes for Unio. Between releases, each task writes a short
 fragment in `changelog.d/`; the fragments are rolled into this file when a
 version is released.
 
+## 0.5.7 — dashboard and AI allowance overview — 2026-10-09
+
+See [release scope and usage](docs/RELEASE-0.5.7.md).
+
+- Start, reuse, inspect and stop one managed local dashboard per workspace.
+- Show AI routes, shared budgets, lead reservation, mode/tier and allowance
+  windows with source, age, reset and truthful Unknown handling.
+- Add explicit read-only Codex metadata refresh; browser polling reads only
+  cached local snapshots. Preserve manual readings and failed refresh history.
+- Share task search, lifecycle, worker and category filters across map and list;
+  correct detail-pane layout, pagination and whole-token category detection.
+- Reject malformed nested limits metadata, extreme percentages and timestamps
+  without crashing. Synchronize standalone installer payloads and lead guidance.
+- Document future temporary lead handover separately from current instructions.
+
 ## 0.5.6 — manual allowance tracking — 2026-10-09
 
 [Release and downloads](https://github.com/danielmevit/unio/releases/tag/v0.5.6).

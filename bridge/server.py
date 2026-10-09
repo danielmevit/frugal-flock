@@ -7,6 +7,7 @@
 # See LICENSE and NOTICE; distributed without warranty.
 """Loopback-only read-only Activity preview; no dispatch or project writes."""
 import argparse
+from datetime import datetime
 import hashlib
 import hmac
 import json
@@ -158,11 +159,21 @@ def _limit_time(value, nullable=True):
     if value is None and nullable:
         return None
     _limit_expect(isinstance(value, str) and LIMIT_TIME.fullmatch(value) is not None)
+    try:
+        parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        _limit_expect(parsed.tzinfo is not None)
+    except (ValueError, OverflowError):
+        raise LimitsRefused('invalid calendar time') from None
     return value
 
 
 def _limit_number(value, low=None, high=None):
-    _limit_expect(type(value) in (int, float) and math.isfinite(value))
+    _limit_expect(type(value) in (int, float))
+    try:
+        finite = math.isfinite(value)
+    except OverflowError:
+        finite = False
+    _limit_expect(finite)
     _limit_expect((low is None or value >= low) and (high is None or value <= high))
     return value
 
@@ -177,7 +188,7 @@ def _limit_count_map(value):
 
 
 def limits_policy(doc):
-    _limit_expect(isinstance(doc, dict) and doc.get('schema_version') == 1)
+    _limit_expect(isinstance(doc, dict) and type(doc.get('schema_version')) is int and doc['schema_version'] == 1)
     _limit_expect(doc.get('mode') in LIMIT_MODES and doc.get('tier') in LIMIT_TIERS)
     _limit_expect(doc.get('workflow_enforcement') == 'native_workflows')
     limit = doc.get('workflow_limit_per_group')
@@ -218,7 +229,7 @@ def _limit_window(window, source):
 
 
 def limits_manual(doc):
-    _limit_expect(isinstance(doc, dict) and doc.get('schema_version') == 1)
+    _limit_expect(isinstance(doc, dict) and type(doc.get('schema_version')) is int and doc['schema_version'] == 1)
     state = doc.get('state')
     _limit_expect(state in ('ok', 'missing', 'invalid'))
     groups = doc.get('groups')
@@ -226,8 +237,9 @@ def limits_manual(doc):
     result = {}
     for name, group in groups.items():
         _limit_expect(isinstance(group, dict) and isinstance(group.get('windows'), dict))
+        _limit_expect(len(group['windows']) <= MAX_LIMIT_ENTRIES)
         windows = {}
-        for label, window in list(group['windows'].items())[:MAX_LIMIT_ENTRIES]:
+        for label, window in group['windows'].items():
             entry = _limit_window(window, 'manual')
             if entry['status'] != 'invalid':
                 _limit_expect(window.get('source') == 'manual')
@@ -250,13 +262,15 @@ def _limit_buckets(buckets, observed_at, age):
             elif isinstance(window, dict) and window.get('status') == 'unknown' and 'window_minutes' not in window:
                 windows[name] = {'status': 'unknown', 'source': 'codex'}
             else:
+                _limit_expect(isinstance(window, dict))
                 windows[name] = _limit_window(dict(window, observed_at=observed_at, age_seconds=age), 'codex')
         result[_limit_label(key, LIMIT_BUCKET)] = {'windows': windows}
     return result
 
 
 def limits_codex(doc):
-    _limit_expect(isinstance(doc, dict) and doc.get('schema_version') == 1 and doc.get('provider') == 'codex')
+    _limit_expect(isinstance(doc, dict) and type(doc.get('schema_version')) is int
+                  and doc['schema_version'] == 1 and doc.get('provider') == 'codex')
     state = doc.get('state')
     _limit_expect(state in ('ok', 'missing', 'invalid'))
     groups = doc.get('groups')
@@ -266,7 +280,7 @@ def limits_codex(doc):
         _limit_expect(isinstance(entry, dict) and entry.get('source') == 'codex')
         _limit_expect(entry.get('state') in ('ok', 'unknown'))
         reason = entry.get('reason')
-        _limit_expect(reason is None or reason in CODEX_REASONS)
+        _limit_expect(reason is None or isinstance(reason, str) and reason in CODEX_REASONS)
         observed = _limit_time(entry.get('observed_at'))
         age = entry.get('age_seconds')
         age = None if age is None else _limit_number(age)

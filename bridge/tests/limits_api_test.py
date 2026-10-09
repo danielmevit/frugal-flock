@@ -229,6 +229,29 @@ class LimitsApi(unittest.TestCase):
         self.assertEqual(view['policy'], {'state': 'unknown'})
         self.assertEqual(view['manual']['state'], 'ok')
 
+    def test_malformed_nested_metadata_is_unknown_without_a_server_error(self):
+        # These inputs crashed the observer or accepted an impossible date at
+        # 1c953c2. They must produce bounded Unknown JSON, not an HTTP disconnect.
+        nested = json.loads(json.dumps(CODEX))
+        nested['groups']['codex']['buckets']['codex']['windows']['primary'] = 17
+        reason = json.loads(json.dumps(CODEX))
+        reason['groups']['codex']['reason'] = []
+        integer = json.loads(json.dumps(CODEX))
+        integer['groups']['codex']['age_seconds'] = 10 ** 500
+        cases = [
+            dict(policy={'exit': 2}, manual={'exit': 2}, codex={'stdout': nested}),
+            dict(policy={'exit': 2}, manual={'exit': 2}, codex={'stdout': reason}),
+            dict(policy={'exit': 2}, manual={'exit': 2}, codex={'stdout': integer}),
+            dict(policy={'exit': 2}, manual={'stdout': dict(MANUAL, checked_at='2026-99-99T12:00:00Z')}, codex={'exit': 2}),
+            dict(policy={'stdout': dict(POLICY, schema_version=True)}, manual={'exit': 2}, codex={'exit': 2}),
+        ]
+        for plan in cases:
+            with self.subTest(plan=list(plan)):
+                self.script(**plan)
+                self.fresh()
+                view = self.view()
+                self.assertEqual([view[k] for k in ('policy', 'manual', 'codex')], [{'state': 'unknown'}] * 3)
+
     def test_no_injection_cross_origin_or_writes(self):
         origin = '127.0.0.1:' + str(self.server.server_port)
         for method, path, headers, body in (

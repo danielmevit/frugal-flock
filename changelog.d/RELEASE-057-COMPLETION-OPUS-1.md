@@ -1,0 +1,1 @@
+Saved Opus checkpoints add the local dashboard, shared task filters and AI limits overview for0.5.7. Source stopped at a reported usage limit; the existing Codex lead completed bounded malformed-metadata corrections, release notes and validation. Automatic acting-lead switching remains planned. No Source success or native independent review is inferred from saved work.
