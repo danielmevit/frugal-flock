@@ -185,26 +185,27 @@
         </div>
         <p class="small evidence-help">These are recorded observations. A successful process alone does not mean verified, reviewed or accepted source.</p>
 
-        <div id="tasks-map-container" class="map-container">
-          <div class="map-controls">
-            <div class="map-camera-controls" role="group" aria-label="Map viewport">
-              <button id="map-zoom-out" type="button" aria-label="Zoom out">−</button>
-              <output id="map-zoom-level" aria-label="Map zoom">100%</output>
-              <button id="map-zoom-in" type="button" aria-label="Zoom in">+</button>
-              <button id="map-fit" type="button" aria-pressed="true">Fit view</button>
-              <button id="map-reset" type="button">Reset 100%</button>
-            </div>
-            <label class="history-toggle"><input type="checkbox" id="map-history-toggle"> Show finished history</label>
-            <select id="map-worker-filter" aria-label="Filter by worker"><option value="">All Workers</option></select>
-            <select id="map-state-filter" aria-label="Filter by state">
-              <option value="">All States</option>
-              <option value="attention">Needs Attention</option>
-              <option value="active">Active</option>
-              <option value="finished">Finished</option>
-            </select>
-            <input type="search" id="map-search" placeholder="Filter tasks..." aria-label="Filter tasks">
-            <span id="map-counts" class="map-counts"></span>
+        <div class="map-controls">
+          <div class="map-camera-controls" role="group" aria-label="Map viewport">
+            <button id="map-zoom-out" type="button" aria-label="Zoom out">−</button>
+            <output id="map-zoom-level" aria-label="Map zoom">100%</output>
+            <button id="map-zoom-in" type="button" aria-label="Zoom in">+</button>
+            <button id="map-fit" type="button" aria-pressed="true">Fit view</button>
+            <button id="map-reset" type="button">Reset 100%</button>
           </div>
+          <select id="map-worker-filter" aria-label="Filter by worker"><option value="">All Workers</option></select>
+          <select id="map-state-filter" aria-label="Filter by state">
+            <option value="">All States</option>
+            <option value="attention">Needs Attention</option>
+            <option value="active">Active</option>
+            <option value="finished">Finished</option>
+          </select>
+          <select id="map-category-filter" aria-label="Filter by category"><option value="">All Categories</option></select>
+          <input type="search" id="map-search" placeholder="Filter tasks..." aria-label="Filter tasks">
+          <button id="map-reset-filters" type="button">Reset filters</button>
+          <span id="map-counts" class="map-counts"></span>
+        </div>
+        <div id="tasks-map-container" class="map-container">
           <p id="map-activity" class="small map-activity" role="status" aria-live="polite"></p>
           <p id="map-empty" class="small map-empty" hidden></p>
           <p id="map-help" class="small map-help">Read left to right: project → worker → task. Connections show ownership, not execution order. Scroll to zoom at the pointer; hold the middle mouse button and drag to pan, or drag with the left button or touch. Use + / − to zoom, arrow keys to pan, 0 to fit, or Home to reset. Tab to a node, then Enter or Space to select.</p>
@@ -220,17 +221,17 @@
               <div class="map-scroll-area">
                 <svg id="work-map" tabindex="0" role="group" aria-label="Work map" aria-describedby="map-help"></svg>
               </div>
-              <div id="map-pagination" class="map-pagination" hidden>
-                <button id="map-prev-page" type="button" disabled>Earlier</button>
-                <span id="map-page-info"></span>
-                <button id="map-next-page" type="button" disabled>Later</button>
-              </div>
-            </div>
           <aside id="map-details" class="map-details" aria-label="Node details" hidden></aside>
           </div>
         </div>
 
         <div id="tasks"></div>
+
+        <div id="map-pagination" class="map-pagination" hidden>
+          <button id="map-prev-page" type="button" disabled>Earlier</button>
+          <span id="map-page-info"></span>
+          <button id="map-next-page" type="button" disabled>Later</button>
+        </div>
       </section>
       <div class="observer-details">
         <details>

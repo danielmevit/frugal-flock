@@ -169,7 +169,7 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     );
     assert.deepEqual(
       buttons.filter((name) => name !== "map-node"),
-      ["Refresh", "Work map", "List", "Fit view", "Reset"],
+      ["Refresh", "Work map", "List", "Fit view", "Reset", "Reset filters"],
     );
     assert.equal(buttons.filter((name) => name === "map-node").length, 3);
     assert.equal(
