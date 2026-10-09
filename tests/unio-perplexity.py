@@ -18,6 +18,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -78,6 +79,7 @@ class Models:
     SONAR = Model(identifier='experimental', mode='concise')
     GLM_5_2 = Model(identifier='glm_5_2')
     GLM_5_3 = Model(identifier='glm_5_3_thinking')
+    GPT_6_SOL_THINKING = Model(identifier='gpt6_sol_thinking')
     KIMI_K2_6_THINKING = Model(identifier='kimik26thinking')
     KIMI_K3 = Model(identifier='kimik3thinking')
 if os.environ.get('FAKE_PPLX_MODE') == 'renamed':
@@ -251,6 +253,7 @@ class PerplexityWorker(unittest.TestCase):
     def test_exact_identifiers_one_token_load_one_ask(self):
         sha = hashlib.sha256(self.prompt.read_bytes()).hexdigest()
         cases = ((['--model', 'glm53', '--prompt-file', str(self.prompt)], {}, 'glm_5_3_thinking', ['web']),
+                 (['--model', 'gpt6_sol', '--prompt-file', str(self.prompt)], {}, 'gpt6_sol_thinking', ['web']),
                  (['--model', 'kimi_k3', '--source', 'none', '--timeout', '90'], {'TASKFILE': str(self.prompt)},
                   'kimik3thinking', []))
         for args, env, identifier, sources in cases:
@@ -296,6 +299,52 @@ class PerplexityWorker(unittest.TestCase):
         self.assertEqual({k: receipt[k] for k in expected}, expected)
         for leak in (SECRET, 'research question', 'Findings', 'example.invalid'):
             self.assertNotIn(leak, text)
+
+    def test_selected_context_and_proposal_handoff(self):
+        context = self.base / 'selected source.py'
+        context.write_text('def selected_function():\n    return 42\n')
+        original = context.read_bytes()
+        proposals = self.private_dir('proposals')
+        result, events = self.run_worker('--model', 'gpt6_sol', '--prompt-file', str(self.prompt),
+                                         '--context-file', str(context), '--proposal-dir', str(proposals), '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        packet = json.loads(result.stdout)
+        self.assertEqual(packet['status'], 'draft_requires_review')
+        run = Path(packet['proposal_dir'])
+        self.assertEqual(run.parent, proposals)
+        self.assertEqual({p.name for p in run.iterdir()}, {'task.md', 'proposal.md', 'handoff.md', 'receipt.json'})
+        self.assertEqual(context.read_bytes(), original)
+        self.assertEqual((run / 'task.md').read_bytes(), self.prompt.read_bytes())
+        self.assertIn('Findings', (run / 'proposal.md').read_text())
+        self.assertIn('https://example.invalid/a', (run / 'proposal.md').read_text())
+        self.assertIn('bounded Unio task', (run / 'handoff.md').read_text())
+        record = json.loads((run / 'receipt.json').read_text())
+        self.assertEqual(record['workflow'], 'code_proposal')
+        self.assertEqual(record['selected_files'], [{'path': str(context), 'bytes': len(original),
+                                                    'sha256': hashlib.sha256(original).hexdigest()}])
+        ask = next(e for e in events if e['event'] == 'ask')
+        self.assertEqual(record['question_sha256'], ask['sha256'])
+        self.assertNotEqual(record['question_sha256'], record['task_sha256'])
+        self.assertGreater(record['question_bytes'], len(original) + len(self.prompt.read_bytes()))
+        self.assertEqual(self.kinds(events), ['load_token', 'client', 'conversation', 'ask', 'close'])
+        for file in run.iterdir():
+            self.assertEqual(stat.S_IMODE(file.stat().st_mode), 0o600)
+            self.assertNotIn(SECRET, file.read_text())
+
+    def test_invalid_context_never_authenticates(self):
+        large = self.base / 'large selected.py'
+        large.write_bytes(b'x' * (300 * 1024))
+        other = self.base / 'other selected.py'
+        other.write_bytes(b'y' * (300 * 1024))
+        secret = self.base / '.env'
+        secret.write_text(SECRET)
+        cases = [['--context-file', str(secret)], ['--context-file', str(self.base / 'missing.py')],
+                 ['--context-file', str(large), '--context-file', str(other)],
+                 ['--receipt-dir', str(self.base), '--proposal-dir', str(self.base)],
+                 ['--model', 'gpt61_sol']]
+        for extra in cases:
+            result, events = self.run_worker('--model', 'glm53', '--prompt-file', str(self.prompt), *extra)
+            self.assertEqual((result.returncode, events), (2, []))
 
     def test_invalid_input_rejected_before_any_import(self):
         oversize = self.base / 'oversize.md'
@@ -379,9 +428,58 @@ class PerplexityWorker(unittest.TestCase):
                     b'{"state": "ok", "answer": "A", "citations": [{"title": "t", "url": "file:///etc/passwd"}]}\n',
                     b'{"state": "ok", "answer": " ", "citations": []}\n',
                     b'{"state": "fine"}\n', b'{"state": []}\n', b'{"state": {"ok": 1}}\n', b'{"state": "ok", "answer": "A", "citations": []}',
-                    b'{"state": "auth_missing"}\n{"state": "ok"}\n', b'[]\n', b''):
+                    b'{"state": "auth_missing"}\n{"state": "ok"}\n', b'[]\n', b'',
+                    b'{"state": ' + b'[' * 2000 + b'0' + b']' * 2000 + b'}\n'):
             with self.assertRaises((ValueError, UnicodeDecodeError), msg=raw):
                 worker.parse_transport(raw, 4096)
+
+    def test_sigterm_stops_owned_group_and_records_interruption(self):
+        receipts = self.private_dir('interrupted receipts')
+        log = self.base / 'interrupted events.jsonl'
+        env = dict(os.environ, FAKE_PPLX_LOG=str(log), FAKE_PPLX_MODE='sleep', FAKE_PPLX_TOKEN=SECRET)
+        process = subprocess.Popen([str(self.python), '-B', str(WORKER), '--model', 'glm53',
+                                    '--prompt-file', str(self.prompt), '--receipt-dir', str(receipts)],
+                                   env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        grandchild = None
+        try:
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline:
+                events = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+                pids = [e['pid'] for e in events if e['event'] == 'grandchild']
+                if pids:
+                    grandchild = pids[0]
+                    break
+                self.assertIsNone(process.poll(), 'adapter stopped before the fake query began')
+                time.sleep(0.05)
+            self.assertIsNotNone(grandchild, 'fake query did not start')
+            process.send_signal(signal.SIGTERM)
+            stdout, stderr = process.communicate(timeout=15)
+            self.assertEqual((process.returncode, stdout), (130, ''))
+            self.assertIn('interrupted', stderr)
+            self.assertNotIn('Traceback', stderr)
+            self.assertNotIn(SECRET, stderr)
+            for _ in range(50):
+                try:
+                    state = Path(f'/proc/{grandchild}/stat').read_text().rsplit(')', 1)[1].split()[0]
+                except FileNotFoundError:
+                    break
+                if state == 'Z':
+                    break
+                time.sleep(0.05)
+            else:
+                self.fail('owned query grandchild survived SIGTERM')
+            record = json.loads(next(receipts.glob('*/receipt.json')).read_text())
+            self.assertEqual((record['outcome'], record['exit_code'], record['ask_may_have_run']),
+                             ('interrupted', 130, True))
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate()
+            if grandchild is not None:
+                try:
+                    os.kill(grandchild, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
 
 if __name__ == '__main__':

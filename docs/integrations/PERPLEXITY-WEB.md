@@ -1,11 +1,12 @@
-# Perplexity Pro web research adapter
+# Perplexity Pro research and code proposals
 
-*Prepared 2026-10-09. Optional, owner-installed, research answers only.*
+*Prepared 2026-10-09. Optional, owner-installed research and proposal workflow.*
 
 `tools/perplexity-worker.py` sends one bounded question to Perplexity
 through your existing Perplexity Pro web subscription and prints the
-answer. It is a research and Q&A helper. It does not edit files, run
-commands, commit, or give an accepted final review.
+answer. It can also include selected source files and save a code proposal for
+another agent to review and implement through Unio. It does not edit project
+files, run proposed commands, commit, or give an accepted final review.
 
 What has been verified: the adapter's own code, against offline fake
 fixtures only (`tests/unio-perplexity.py`). No live Perplexity query was
@@ -81,6 +82,30 @@ these points wrong:
   non-loopback hosts without an API key
   ([`api/server.py#L94-L108`](https://github.com/jacob-bd/perplexity-web-mcp/blob/e34b5082d6c16283358d8a1e3cbd7fa61c35fc0d/src/perplexity_web_mcp/api/server.py#L94-L108)).
 
+### Can Perplexity write code?
+
+The models can suggest code, explain a failure and propose a patch from context
+supplied in a question. This adapter returns that text for the lead to assess.
+It does not give the model local file or command access.
+
+The community connector author disabled its tool-calling integration because
+models did not reliably follow the requested format. Its unused
+[`tool_calling.py`](https://github.com/jacob-bd/perplexity-web-mcp/blob/e34b5082d6c16283358d8a1e3cbd7fa61c35fc0d/src/perplexity_web_mcp/api/tool_calling.py)
+tries to turn text such as `Action:` into tool requests. Uncommenting an import
+does not connect that parser to the request/response handlers or provide a
+reliable coding workflow.
+
+Unio supports a proposal handoff with `--context-file` and `--proposal-dir`:
+the lead supplies selected project files; Perplexity proposes code; a separate
+implementation agent reviews the suggestion, applies suitable changes within
+its task's allowed paths and runs the checks. The packet is a draft, not an
+automatically applied or validated patch. A later interactive worker
+would also need a bounded loop for file reads, edits and explicitly authorized
+commands. That interactive loop is not implemented here. Both workflows retain
+one workflow per Perplexity account, no automatic model fallback and no execution
+of arbitrary instructions from an answer. Upstream's disabled parser is not an Unio setting
+the owner needs to enable.
+
 ### The alternative that was not chosen
 
 `perplexity-subscription-mcp` 0.1.2
@@ -102,8 +127,9 @@ reasons:
 |---|---|---|---|
 | `glm53` | `glm_5_3_thinking` | Z.ai | Perplexity Pro web, group `perplexity` |
 | `kimi_k3` | `kimik3thinking` | Moonshot AI | Perplexity Pro web, group `perplexity` |
+| `gpt6_sol` | `gpt6_sol_thinking` | OpenAI | Perplexity Pro web, group `perplexity` |
 
-The two models come from two labs, but both run through one Perplexity Pro
+These models come from different AI labs, but all run through one Perplexity Pro
 web allowance. That allowance is separate from Z.ai, Moonshot or OpenCode
 accounts. It is also separate from the Perplexity API (Sonar, credits),
 which is billed separately. The adapter never falls back to the API, to
@@ -121,6 +147,13 @@ Perplexity's help centre lists which advanced models each plan includes:
 and
 [choosing a plan](https://www.perplexity.ai/help-center/en/articles/11187416-which-perplexity-subscription-plan-is-right-for-you).
 A static catalogue does not prove that your account has access.
+
+The pinned connector exposes GPT-6 Sol Thinking through
+[`Models.GPT_6_SOL_THINKING`](https://github.com/jacob-bd/perplexity-web-mcp/blob/e34b5082d6c16283358d8a1e3cbd7fa61c35fc0d/src/perplexity_web_mcp/models.py#L55-L59).
+It does not define GPT-6.1 Sol. `gpt6_sol` is not presented as a 6.1 alias;
+GPT-6.1 availability and its exact identifier need account-specific evidence
+before adding that route. All three supported routes request Thinking; its
+effective depth is unknown and there is no high/xhigh/max effort flag here.
 
 ## Owner setup (manual, once)
 
@@ -161,15 +194,60 @@ unknown.
 Then make one bounded, genuine question:
 
 ```bash
+mkdir -p "$HOME/.local/state/unio-perplexity-receipts"
+chmod 700 "$HOME/.local/state/unio-perplexity-receipts"
 "$PPLX_PY" tools/perplexity-worker.py --model glm53 --source web \
   --prompt-file "my question.md" --timeout 600 --receipt-dir "$HOME/.local/state/unio-perplexity-receipts"
 ```
+
+### Research, propose, review, implement
+
+Choose a real task and only the source files it needs. Run from the checkout:
+
+```bash
+mkdir -p "$HOME/.local/state/unio-perplexity-proposals"
+chmod 700 "$HOME/.local/state/unio-perplexity-proposals"
+"$PPLX_PY" tools/perplexity-worker.py --model glm53 --source web \
+  --prompt-file "coordination task.md" \
+  --context-file "tools/example.py" --context-file "tests/example.py" \
+  --proposal-dir "$HOME/.local/state/unio-perplexity-proposals" --timeout 600
+```
+
+Replace the example file names with actual selected files. No directory scan or
+automatic context upload occurs. Up to 20 explicit regular UTF-8 files are
+accepted; the task, instructions and context together must fit 512 KiB.
+Secret-looking filenames such as `.env`, private keys and `token` are refused.
+Select appropriate source content yourself; filename checks cannot detect every
+secret. Context is transmitted to your Perplexity web account with the question.
+
+Each successful proposal creates a fresh private folder containing `task.md`,
+`proposal.md`, `handoff.md` and `receipt.json`. The proposal contains the answer,
+code suggestions and citations. The receipt records selected-file hashes and
+the complete question hash. Files are mode `0600`, the folder mode `0700`.
+No project source is changed. A failed or interrupted query creates no usable
+proposal; a receipt without a proposal records that failure.
+
+The lead creates the next bounded Unio task for an available main implementation
+agent and cites the packet's path. That agent reads the original task and draft,
+checks current source, rejects unsuitable suggestions, makes appropriate edits
+in its own worktree and runs the defined validation. The lead inspects the diff
+and results before integration. Perplexity's answer alone never accepts work.
+The implementation assignment is a separate authorized task, not an automatic
+second provider call hidden inside this adapter.
+
+With `--proposal-dir --json`, stdout is packet metadata and
+`status: draft_requires_review`; the answer stays in `proposal.md`.
+`--proposal-dir` and `--receipt-dir` are mutually exclusive: proposals already
+contain their own receipt. Without proposal mode, normal answer output remains.
 
 How each option behaves:
 
 - **Task.** The question comes from `--prompt-file` or `$TASKFILE`,
   never from argv. It must be a regular UTF-8 file of at most 512 KiB.
   Symlinks and FIFOs are refused.
+- **`--context-file`.** Repeat to attach selected reference files to the question;
+  no model-specified file reads or traversal are performed.
+- **`--proposal-dir`.** Save a private draft packet for implementation review.
 - **Validation first.** Flags, the task file and the bounds are all
   validated before anything is imported or authenticated.
 - **`--timeout`.** The whole-run deadline in seconds, 2 to 3600.
@@ -187,7 +265,8 @@ private temporary working directory. The parent handles the rest:
 
 - It reads and discards the child's stderr.
 - It caps the child's stdout.
-- It kills only the child's own process group on timeout or overflow.
+- It kills only the child's own process group on timeout, overflow or interruption
+  (Ctrl-C or SIGTERM).
 
 The child returns one strict JSON line. Duplicate keys, `NaN` and
 `Infinity` are rejected. Terminal control characters are removed from
@@ -211,13 +290,15 @@ upstream payloads and tokens are never printed.
 | 9 | `invalid_output` |
 | 10 | `internal_error` |
 | 11 | `receipt_failed`: no answer is printed without its receipt |
+| 130 | `interrupted`: the owned query process group was stopped |
 
 ### What a receipt contains
 
 A receipt records:
 
 - the task's SHA-256 and size;
-- UTC start and finish times, elapsed time and bounds;
+- the transmitted question hash, selected-file hashes and workflow type;
+- UTC start and finish times from `date`, elapsed time and bounds;
 - the requested model and its lab;
 - the configured identifier, with thinking always on at unknown depth;
 - the source focus;
@@ -227,7 +308,9 @@ A receipt records:
 - the outcome and exit code;
 - a claims note.
 
-It never holds the token, the prompt, the answer, citations or raw config.
+The receipt never holds the token, the prompt, the answer, citations or raw config.
+Proposal mode intentionally saves the original task and returned draft in
+separate private files for the next agent.
 Exit 0 means only that an answer arrived. It is not an accepted result.
 
 Treat the answer as research text. Read it as untrusted content: do not
@@ -243,10 +326,12 @@ group both aliases into one budget:
 ```text
 perplexityglm="$HOME/.local/share/unio-perplexity/bin/python" "$HOME/code/unio/tools/perplexity-worker.py" --model glm53 --prompt-file "$TASKFILE"
 perplexitykimi="$HOME/.local/share/unio-perplexity/bin/python" "$HOME/code/unio/tools/perplexity-worker.py" --model kimi_k3 --prompt-file "$TASKFILE"
+perplexitygpt="$HOME/.local/share/unio-perplexity/bin/python" "$HOME/code/unio/tools/perplexity-worker.py" --model gpt6_sol --prompt-file "$TASKFILE"
 ```
 
 ```bash
 unio account perplexityglm perplexity
 unio account perplexitykimi perplexity
+unio account perplexitygpt perplexity
 unio tier low   # one workflow at a time on the shared Perplexity allowance
 ```
