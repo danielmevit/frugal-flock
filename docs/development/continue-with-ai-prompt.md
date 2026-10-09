@@ -7,11 +7,38 @@ Read [the development index](README.md), [lead routing](LEAD-ROUTING.md),
 In an existing team workspace, read the newest coordination log and actual
 worker branches before changing anything. Preserve prior work and failures.
 
-Validation update, 2026-10-08: see [completed checks, preserved failures and
-remaining release work](RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
-not replace the final versioned release gate.
+Validation update, 2026-10-09: see [the complete candidate gate, preserved
+failures and remaining release work](RECOVERY-ACCEPTANCE-2026-10-08.md).
 
-## Current delivery checkpoint — 2026-10-08
+## Current delivery checkpoint — 2026-10-09
+
+The separate unpublished v0.5.4 candidate
+[`5a839fc`](https://github.com/danielmevit/unio/commit/5a839fc69e942c694b12c926f3eecb076dff2ade)
+passed the complete quality gate in 1,408.12 seconds, including all 65 default
+continuation assertions. Native validation passed 3/3 with scope OK for nine
+paths, followed by exact-material personal lead approval. Source remains
+`not_run` for existing-lead implementation; combined readiness is not inferred.
+No extra AI/reviewer session was started. Earlier failures remain preserved.
+
+Exact private artifacts/checksums and isolated legacy/stable upgrades with
+explicit backup restoration passed. One actual native worker save on the
+Windows-mounted project passed: 236 paths, five commits and successful
+inspection. Full-gate fixtures used a private workspace-local RAM filesystem;
+do not turn those results into a mounted-filesystem speed claim.
+
+The remaining release requirement is a genuine subscription-limit-to-restart
+cycle. Current Codex workflows must exit before owner-terminal enablement under
+low tier. Preserve actual waiting, reset, launch and exit evidence; do not burn
+allowance or manufacture a clock/quota signal. Then finish release notes and
+final exact-source validation/assets before publication and verified install.
+v0.5.3 remains the latest public and installed release; do not install a draft.
+Keep the reviewed candidate and its frozen-base receipts intact when main moves
+for this documentation update. A later stale native result is not a new failure
+or permission to call old evidence fresh. Further UI and scan optimization wait
+until recovery is complete. In an existing workspace, read its newest private
+handoff and coordination log for the exact prepared acceptance kit.
+
+## Previous delivery checkpoint — 2026-10-08
 
 Owner requested a functionality-first milestone review after the completed map
 polish. Read the [audit and delivery plan](FUNCTIONALITY-FIRST-PLAN.md) and the
