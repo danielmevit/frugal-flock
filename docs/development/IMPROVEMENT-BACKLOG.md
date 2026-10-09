@@ -7,7 +7,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 - **Shipped**: Released globally and installed (e.g., v0.5.4).
 - **Accepted Development**: Merged in `main`, passes focused checks and personal review, waiting for a release.
 - **Partially Implemented**: Working pieces exist in `main`, but the full milestone is incomplete.
-- **Pending**: Being actively worked on in parallel branches (e.g., pending 0.5.5 candidate, manual allowance component).
+- **Pending**: A prepared task or candidate awaiting completion or acceptance. Distinguish an active run from a queued task or a failed attempt.
 - **Planned**: Approved by the owner but not yet started.
 - **Unknown Evidence**: Claims lacking measured verification or runtime support.
 
@@ -16,14 +16,16 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 ### 1. Allowance, Reset, and Worker Readiness
 
 - **Next Slice**: Implement manual capacity readings and age tracking, treating missing/stale capacity as `Unknown`.
-- **Planned**: Shared-budget accounting and integration with live fleet quotas. One workflow per shared budget in low tier includes lead. No extra per-token spending/free-model promotion.
-- **Dependencies**: Wait for Grok's pending source-only manual allowance component.
+- **Shipped**: Native shared-budget workflow admission, including the lead in low tier.
+- **Planned**: Remaining-allowance readings, reset/age indicators and their integration with worker readiness. No extra per-token spending or promotion of free workers to lead.
+- **Next implementation**: The manual-reading task is queued after Grok returned 402 without edits; assign it to an available eligible worker. No live meter or completed component is claimed.
 - **Evidence**: [PROVIDER-QUOTA-MONITORING.md](../PROVIDER-QUOTA-MONITORING.md), [TASK-TIME-BUDGETS.md](TASK-TIME-BUDGETS.md)
 
 ### 2. Ready-Task Scheduling and Parallel Execution
 
 - **Next Slice**: Automated dependency handling, conflict ownership, and ready-task dispatch.
-- **Planned**: Parallel execution using independent accounts.
+- **Available now**: The lead can run independent tasks concurrently through native workflows on separate budgets.
+- **Planned**: Automatic ready-queue scheduling and explainable idle/dependency decisions.
 - **Evidence**: [PARALLEL-WORK.md](PARALLEL-WORK.md)
 
 ### 3. Connection, Auth, and Transport Reliability
@@ -41,7 +43,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 ### 6. Work Saving and Recoverable Handoffs
 
 - **Shipped**: Manual and automatic native-run saves and separately authorized restored-worker continuation shipped in 0.5.4.
-- **Planned**: Broader work-saving features, early commits, and handoffs. Note: Snapshots are not commits or off-device backups.
+- **Available now**: Early commits are worker policy and context handoffs already exist. Snapshots are not commits or off-device backups.
+- **Planned**: Better enforcement of early checkpoints and clearer recovery/handoff status.
 - **Evidence**: [WORK-SAVING-CONTRACT.md](WORK-SAVING-CONTRACT.md)
 
 ### 7. Lead Cooldown and Identity Controls
@@ -53,7 +56,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 ### 8. Work Modes and Model Roles
 
 - **Shipped**: CLI mode/tier switches and shared-budget workflow admission shipped in 0.5.3.
-- **Planned**: Live allowance readings/automatic readiness and browser selectors, fine-grained model effort controls/roles, leveraging free routine-only workers, and task-fit evidence.
+- **Documented now**: Supported model effort controls, main implementation roles, free routine-only workers and a curated task-fit scoreboard.
+- **Planned**: Browser policy selectors, automatic task-fit recommendations and richer model/outcome measurements. See [model experience](MODEL-EXPERIENCE.md).
 - **Evidence**: [MODEL-EFFORT.md](MODEL-EFFORT.md), [MODEL-EXPERIENCE.md](MODEL-EXPERIENCE.md)
 
 ### 9. Browser Appearance and Live Overview
