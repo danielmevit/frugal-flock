@@ -50,21 +50,21 @@ const legend = [
   { label: "Active", tone: "active" },
 ];
 
-const tools = [
+// AIs that ship their own command-line tool, plus OpenCode. Anything else with
+// a CLI joins the same way, which the last (open) slot says.
+const agents: { name: string; mark: string; note?: string }[] = [
   { name: "Claude Code", mark: "claude" },
   { name: "Codex", mark: "openai" },
-  { name: "Grok", mark: "grok" },
+  { name: "Gemini CLI", mark: "gemini" },
   { name: "Antigravity", mark: "antigravity" },
-  { name: "OpenCode", mark: "opencode" },
+  { name: "Grok", mark: "grok" },
   // An optional adapter run from the source checkout, not in the installer.
   { name: "Mistral Vibe", mark: "mistral", note: "Optional" },
-];
-const models: { name: string; mark: string; note?: string }[] = [
-  { name: "GLM", mark: "zai" },
-  { name: "Kimi", mark: "kimi" },
-  { name: "DeepSeek", mark: "deepseek" },
-  { name: "Qwen", mark: "qwen" },
-  { name: "MiniMax", mark: "minimax" },
+  { name: "Kimi Code", mark: "kimi" },
+  { name: "Qwen Code", mark: "qwen" },
+  { name: "MiniMax Code", mark: "minimax" },
+  { name: "Z.ai GLM", mark: "zai" },
+  { name: "OpenCode", mark: "opencode" },
 ];
 
 const features = [
@@ -288,40 +288,24 @@ const faqs = [
           <span class="index">01</span>
           <h2 id="works-title">Works with</h2>
           <span class="rule" aria-hidden="true"></span>
-          <span class="count">{pad(tools.length + models.length)} + any CLI</span>
+          <span class="count">{pad(agents.length)} + any CLI</span>
         </div>
         <p class="section-lead">
           These, and any other AI that has a command-line interface (CLI).
         </p>
-        <div class="roster">
-          <div class="roster-group">
-            <p class="micro">Coding tools</p>
-            <ul class="slots">
-              {tools.map((t) => (
-                <li class="slot">
-                  {t.note && <span class="slot-note">{t.note}</span>}
-                  <svg viewBox="0 0 24 24" aria-hidden="true" fill-rule={evenOdd.has(t.mark) ? "evenodd" : undefined}>{marks[t.mark].map((d) => <path d={d} />)}</svg>
-                  <span class="slot-name">{t.name}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div class="roster-group">
-            <p class="micro">Models through OpenCode</p>
-            <ul class="slots">
-              {models.map((m) => (
-                <li class="slot">
-                  <svg viewBox="0 0 24 24" aria-hidden="true" fill-rule={evenOdd.has(m.mark) ? "evenodd" : undefined}>{marks[m.mark].map((d) => <path d={d} />)}</svg>
-                  <span class="slot-name">{m.name}</span>
-                </li>
-              ))}
-              <li class="slot slot-empty">
-                <span class="slot-plus" aria-hidden="true">+</span>
-                <span class="slot-name">Any other AI with a CLI</span>
-              </li>
-            </ul>
-          </div>
-        </div>
+        <ul class="slots">
+          {agents.map((a) => (
+            <li class="slot">
+              {a.note && <span class="slot-note">{a.note}</span>}
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill-rule={evenOdd.has(a.mark) ? "evenodd" : undefined}>{marks[a.mark].map((d) => <path d={d} />)}</svg>
+              <span class="slot-name">{a.name}</span>
+            </li>
+          ))}
+          <li class="slot slot-empty">
+            <span class="slot-plus" aria-hidden="true">+</span>
+            <span class="slot-name">Any other AI with a CLI</span>
+          </li>
+        </ul>
         <p class="roster-note">
           If an AI can take a task from the terminal without a chat window, one
           line of configuration adds it to your team. Mistral Vibe connects
@@ -693,9 +677,8 @@ const faqs = [
   .rule { flex: 1; min-width: 24px; height: 1px; background: var(--line); align-self: center; }
   .count { color: var(--muted); white-space: nowrap; }
 
-  /* Roster of agents: two groups of six slots, one even row when wide */
-  .roster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
-  .slots { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--gap); margin: 0; padding: 0; list-style: none; }
+  /* Roster of agents: twelve slots, one even row when wide */
+  .slots { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); margin: 0; padding: 0; list-style: none; }
   .slot {
     position: relative;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem;
@@ -804,7 +787,7 @@ const faqs = [
     .intel li { flex-direction: column; gap: 10px; }
   }
   @media (max-width: 1280px) {
-    .roster { grid-template-columns: minmax(0, 1fr); }
+    .slots { grid-template-columns: repeat(6, minmax(0, 1fr)); }
     .hud-readout { display: none; }
   }
   @media (max-width: 1100px) {
