@@ -169,11 +169,14 @@
       : "No recorded workers are running. These nodes show task history and outstanding checks or reviews. Lead CLI activity is not shown here.");
     const empty = document.getElementById("map-empty");
     empty.hidden = filtered.length !== 0;
-    setText(empty, mapStateFilter === "active" ? "No active tasks match these filters." : "No tasks match these filters.");
+    setText(empty, mapStateFilter === "active" ? "No active tasks match these filters."
+      : !mapStateFilter && tally.finished ? "No current work matches these filters. Choose All states or Finished to include " + tally.finished + " finished " + (tally.finished === 1 ? "task" : "tasks") + "."
+      : "No tasks match these filters.");
 
-    if (currentView === "map") {
-      renderMap(data, pageTasks, categories);
-    } else {
+    if (currentView === "map") renderMap(data, pageTasks, categories);
+    // The list shares the same filtered page and is kept current even while
+    // hidden, so switching views never shows an older observation.
+    {
       const tasks = document.getElementById("tasks");
       tasks.replaceChildren();
       for (const result of pageTasks) {
@@ -237,7 +240,7 @@
       row.append(identity, state);
       tasks.append(row);
     }
-    if (!filtered.length)
+    if (!data.results.length)
       tasks.append(text("p", "No structured task evidence yet.", "small"));
     }
     const limits = document.getElementById("limits");
@@ -318,13 +321,29 @@
     return section && typeof section.state === "string" ? section.state : "unavailable";
   }
 
+  // Category comes from an explicit kind, else from whole task-name tokens
+  // (never substrings: SIMPLIFY and NETWORK are Other). Review and check
+  // conventions outrank incidental fix/build words in the same name.
+  const KIND_NAMES = { implementation: "Implementation", review: "Review", check: "Checks", checks: "Checks" };
+  const REVIEW_TOKENS = new Set(["review", "reviews", "reviewer", "audit"]);
+  const CHECK_TOKENS = new Set(["check", "checks", "test", "tests", "lint", "verify", "validation", "validate", "gate"]);
+  const IMPLEMENTATION_TOKENS = new Set(["impl", "implement", "implementation", "feature", "feat", "fix", "bugfix", "build"]);
   function taskKind(r) {
-    const kind = String(r.kind || "").toLowerCase();
-    const name = String(r.task || "").toLowerCase();
-    if (kind === "implementation" || name.includes("impl") || name.includes("feature") || name.includes("fix") || name.includes("build") || name.includes("work")) return "Implementation";
-    if (kind === "review" || name.includes("review") || name.includes("audit")) return "Review";
-    if (kind === "checks" || kind === "check" || name.includes("check") || name.includes("test") || name.includes("lint") || name.includes("verify") || name.includes("validation")) return "Checks";
+    const kind = typeof r.kind === "string" ? r.kind.toLowerCase() : "";
+    if (Object.prototype.hasOwnProperty.call(KIND_NAMES, kind)) return KIND_NAMES[kind];
+    const tokens = String(r.task || "").toLowerCase().split(/[^a-z0-9]+/);
+    if (tokens.some((t) => REVIEW_TOKENS.has(t))) return "Review";
+    if (tokens.some((t) => CHECK_TOKENS.has(t))) return "Checks";
+    if (tokens.some((t) => IMPLEMENTATION_TOKENS.has(t))) return "Implementation";
     return "Other";
+  }
+
+  // "" is Current work (active + attention); "all" includes every recorded
+  // task; a direct Finished choice shows finished history without a toggle.
+  function stateMatches(category) {
+    if (mapStateFilter === "all") return true;
+    if (!mapStateFilter) return category !== "finished";
+    return category === mapStateFilter;
   }
 
   function getFilteredTasks(data) {
@@ -336,7 +355,7 @@
       categories.set(r, verdict);
       tally[verdict.category]++;
       if (mapWorkerFilter && r.worker !== mapWorkerFilter) continue;
-      if (mapStateFilter && verdict.category !== mapStateFilter) continue;
+      if (!stateMatches(verdict.category)) continue;
       if (mapCategoryFilter && taskKind(r) !== mapCategoryFilter) continue;
       const stateStr = (sectionState(r, "process") + " " + r.activity + " " + sectionState(r, "validation") + " " + sectionState(r, "review") + " " + verdict.category + " " + taskKind(r)).toLowerCase();
       const searchMatch = !mapSearchQuery ||
@@ -779,7 +798,7 @@
       worker: g.dataset.worker,
       task: g.dataset.task,
     };
-    renderMap(lastData);
+    render(lastData);
   }
 
   function clearSelection() {
@@ -787,7 +806,7 @@
     clearDetails();
     const svg = document.getElementById("work-map");
     if (svg) svg.focus({ preventScroll: true });
-    if (lastData) renderMap(lastData);
+    if (lastData) render(lastData);
   }
 
   // Order children without moving the focused group, so focus survives.

@@ -182,14 +182,16 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     await page.waitForSelector("#tasks-map-container:not([hidden])");
     await page.waitForFunction(() => document.querySelectorAll("#work-map [data-node-key]").length > 0);
 
-    // Default view: All tasks are visible since history toggle is removed and 'All' is default.
+    // Default Current work: attention/active stay visible; only passed+approved collapse.
     let tuples = await taskTuples(page);
     assert.equal(tuples.length, 24, "first page capped at 24 task nodes");
     assert.equal(await page.isVisible("#map-pagination"), true);
     for (const [w, t] of [["worker-1", "TASK-1"], ["worker-1", "TASK-10"], ["worker", TAG], ["worker", "FAILED"], ["worker", SCRIPT], ["worker-2", "CHANGES"], ["worker-2", "COMPLETION"], ["worker-2", "UNRUN"]])
       assert.ok(tuples.some(([a, b]) => a === w && b === t), "visible by default: " + w + " / " + t);
     for (const [w, t] of [["worker-10", "TASK-1"], ["worker-2", "DONE-OK"]])
-      assert.ok(tuples.some(([a, b]) => a === w && b === t), "finished visible by default in All states: " + w + " / " + t);
+      assert.ok(!tuples.some(([a, b]) => a === w && b === t), "finished hidden by default: " + w + " / " + t);
+    assert.equal(await page.inputValue("#map-state-filter"), "");
+    assert.equal(await page.locator("#map-state-filter option:checked").textContent(), "Current work");
     const counts = await page.textContent("#map-counts");
     assert.ok(counts.includes("40 total tasks (37 need attention, 1 active, 2 finished)"), counts);
     assert.deepEqual(tuples[0], ["worker-1", "TASK-10"], "running task sorts before historical failures");
@@ -197,8 +199,8 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.ok((await (await node(page, 'worker-1', 'TASK-10')).evaluate(g => g.querySelector('.node-state').textContent)).startsWith('Recorded Oct 8'));
     assert.equal(await page.locator('#work-map [data-kind="worker"][data-worker="worker-1"] .node-label').getAttribute('data-full-title'), 'TASK-10');
     assert.equal(await page.evaluate(() => [...document.querySelectorAll("#work-map [data-category]")].filter((g) => g.dataset.task === "FAILED")[0].dataset.category), "attention");
-    ok("failed/unknown/changes-requested/incomplete/completion-unknown/not-run/passed+approved tasks visible in All filter");
-    for (const [worker, name, signal] of [["worker-1", "TASK-1", "failed"], ["worker", "FAILED", "failed"], ["worker-1", "TASK-10", "active"], ["worker", SCRIPT, "attention"], ["worker-2", "CHANGES", "attention"], ["worker-2", "UNRUN", "attention"], ["worker-10", "TASK-1", "passed"]]) {
+    ok("failed/unknown/changes-requested/incomplete/completion-unknown/not-run tasks visible; only 2 passed+approved collapsed");
+    for (const [worker, name, signal] of [["worker-1", "TASK-1", "failed"], ["worker", "FAILED", "failed"], ["worker-1", "TASK-10", "active"], ["worker", SCRIPT, "attention"], ["worker-2", "CHANGES", "attention"], ["worker-2", "UNRUN", "attention"]]) {
       const g = await node(page, worker, name);
       assert.equal(await g.evaluate(n => n.dataset.signal), signal);
       assert.ok(await g.evaluate(n => {
@@ -217,6 +219,21 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     await page.click("#map-prev-page");
     ok("pagination 24 + 14");
 
+    // All states includes every recorded task; finished sort after current work.
+    await page.selectOption("#map-state-filter", "all");
+    assert.ok((await page.textContent("#map-counts")).includes("· 40 shown"));
+    assert.equal((await taskTuples(page)).length, 24);
+    assert.equal(await page.textContent("#map-page-info"), "Page 1 of 2");
+    await page.click("#map-next-page");
+    tuples = await taskTuples(page);
+    assert.equal(tuples.length, 16, "second All page holds the rest of 40");
+    for (const [w, t] of [["worker-10", "TASK-1"], ["worker-2", "DONE-OK"]])
+      assert.ok(tuples.some(([a, b]) => a === w && b === t), "All states includes finished: " + w + " / " + t);
+    assert.equal(await (await node(page, "worker-10", "TASK-1")).evaluate((n) => n.dataset.signal), "passed");
+    await page.selectOption("#map-state-filter", "");
+    assert.equal(await page.textContent("#map-page-info"), "Page 1 of 2", "filter change returns to the first page");
+    ok("All states pages through all 40 including finished; Current work restores 38");
+
     // Local brand marks identify the configured agent route, not an invented model.
     const beforeBrands = results;
     const brands = [['codex', 'Codex', 'openai'], ['claude', 'Claude', 'claude'],
@@ -226,6 +243,7 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
       i === 0 ? 'succeeded' : 'failed', i === 0 ? 'passed' : 'not_run', i === 0 ? 'approved' : 'not_run'));
     results.push({ ...task('constructor-brand', 'UNKNOWN-TIME', 'succeeded', 'incomplete', 'not_run'), recorded_at: null });
     results.push({ ...task('codex-brand', 'LATEST-OBSERVED-TASK', 'succeeded', 'incomplete', 'not_run'), recorded_at: '2026-10-09T09:00:00Z' });
+    await page.selectOption('#map-state-filter', 'all');
     await poll(page);
     await page.mouse.move(1, 1);
     for (const [route, name, mark] of brands) {
@@ -263,6 +281,7 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     await page.screenshot({ path: path.join(shots, 'work-map-card-brands-dark.png'), fullPage: true });
     await page.selectOption('#theme-selector', 'light');
     results = beforeBrands;
+    await page.selectOption('#map-state-filter', '');
     await poll(page);
     ok('quarter-width local AI marks, task-first titles, latest worker task, timestamp/fallback subtitles and all three muted outcome hues');
 
@@ -668,40 +687,60 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     }
     ok("Light/Dark retain neutral surfaces and use only the three approved status colors on node strips");
 
-    // Category filter and fallback, list/map parity, empty/reset, poll/view preservation.
+    // Category filter: explicit kind or whole name tokens, list/map parity,
+    // empty/reset messages in both views, poll/view preservation.
+    const beforeCategories = results;
     results = [
       task("worker-cat", "impl-feature", "succeeded", "passed", "approved"),
       task("worker-cat", "code-review", "succeeded", "passed", "approved"),
-      task("worker-cat", "random-task", "running", "not_run", "not_run")
+      task("worker-cat", "random-task", "running", "not_run", "not_run"),
+      task("worker-cat", "SIMPLIFY-1", "succeeded", "incomplete", "not_run"),
+      task("worker-cat", "NETWORK-2", "succeeded", "incomplete", "not_run"),
+      task("worker-cat", "REVIEW-FIX-3", "succeeded", "incomplete", "not_run"),
+      task("worker-cat", "BUILD-CHECK-4", "succeeded", "incomplete", "not_run"),
+      { ...task("worker-cat", "PLAIN-5", "succeeded", "incomplete", "not_run"), kind: "review" },
     ];
     await poll(page);
+    assert.deepEqual(await page.evaluate(() => [...document.getElementById("map-category-filter").options].map((o) => o.value)),
+      ["", "Checks", "Implementation", "Other", "Review"]);
+    // Current work hides the finished impl-feature until All states.
     await page.selectOption("#map-category-filter", "Implementation");
-    assert.deepEqual((await taskTuples(page)), [["worker-cat", "impl-feature"]]);
+    assert.deepEqual(await taskTuples(page), []);
+    assert.equal(await page.textContent("#map-empty"), "No current work matches these filters. Choose All states or Finished to include 2 finished tasks.");
+    await page.selectOption("#map-state-filter", "all");
+    assert.deepEqual(await taskTuples(page), [["worker-cat", "impl-feature"]]);
 
-    // View preservation
     await page.click("#view-list");
     assert.equal(await page.locator("#tasks .row").count(), 1);
     assert.ok((await page.locator("#tasks .row").first().textContent()).includes("impl-feature"));
-
     await page.selectOption("#map-category-filter", "Review");
-    assert.equal(await page.locator("#tasks .row").count(), 1);
-    assert.ok((await page.locator("#tasks .row").first().textContent()).includes("code-review"));
-
+    assert.deepEqual((await page.locator("#tasks .row strong").allTextContents()).sort(),
+      ["worker-cat / PLAIN-5", "worker-cat / REVIEW-FIX-3", "worker-cat / code-review"]);
+    await page.selectOption("#map-category-filter", "Checks");
+    assert.deepEqual(await page.locator("#tasks .row strong").allTextContents(), ["worker-cat / BUILD-CHECK-4"]);
     await page.selectOption("#map-category-filter", "Other");
-    assert.equal(await page.locator("#tasks .row").count(), 1);
-    assert.ok((await page.locator("#tasks .row").first().textContent()).includes("random-task"));
+    assert.deepEqual((await page.locator("#tasks .row strong").allTextContents()).sort(),
+      ["worker-cat / NETWORK-2", "worker-cat / SIMPLIFY-1", "worker-cat / random-task"]);
+    await poll(page);
+    assert.equal(await page.inputValue("#map-category-filter"), "Other");
+    assert.equal(await page.locator("#tasks .row").count(), 3, "category survives a poll");
+    await page.fill("#map-search", "nothing-matches");
+    assert.equal(await page.locator("#tasks .row").count(), 0);
+    assert.equal(await page.isVisible("#map-empty"), true, "empty message is visible in list view");
+    assert.equal(await page.textContent("#map-empty"), "No tasks match these filters.");
 
-    // Reset filters
     await page.click("#map-reset-filters");
-    assert.equal(await page.inputValue("#map-category-filter"), "");
-    assert.equal(await page.locator("#tasks .row").count(), 3);
+    for (const id of ["#map-category-filter", "#map-state-filter", "#map-worker-filter", "#map-search"])
+      assert.equal(await page.inputValue(id), "");
+    assert.equal(await page.isVisible("#map-empty"), false);
+    assert.equal(await page.locator("#tasks .row").count(), 6, "reset returns to Current work");
 
-    // View preservation back to map
     await page.click("#view-map");
     assert.equal(await page.inputValue("#map-category-filter"), "");
-    assert.deepEqual((await taskTuples(page)).length, 3);
-
-    ok("categoryunknownfallback, empty/reset, poll/view preservation, list/map parity verified");
+    assert.equal((await taskTuples(page)).length, 6);
+    results = beforeCategories;
+    await poll(page);
+    ok("token categories (SIMPLIFY/NETWORK Other, review/check outrank fix/build, explicit kind), list/map parity, empty/reset in list, poll/view preservation");
 
     // Desktop screenshots in Light and Dark with details open.
     await page.selectOption("#theme-selector", "light");
