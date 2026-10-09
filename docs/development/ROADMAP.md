@@ -79,10 +79,10 @@ The map uses the existing two-second activity feed and worker/task ownership;
 lead/dependency edges need future engine evidence. Focused browser checks and
 personal lead review passed. The fluid layout now follows screen width, with
 repository/license footer links and the approved “Your AIs, in sync.” tagline.
-These theme/map additions shipped in v0.5.4. Later launcher, left-to-right flow
-and task-first logo-card changes are accepted in development main and await a
-later release. Recovery shipping is complete; prioritize the functional queue
-before additional visual polish.
+These theme/map additions shipped in v0.5.4. The launcher, left-to-right flow
+and task-first logo cards shipped in v0.5.5; the managed dashboard and shared
+filters shipped in v0.5.7. Recovery shipping is complete; prioritize the
+functional queue before additional visual polish.
 
 ## Work modes and lead budget
 

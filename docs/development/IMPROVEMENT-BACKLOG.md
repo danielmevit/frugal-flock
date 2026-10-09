@@ -4,9 +4,9 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ## Current Delivery States
 
-- **Shipped**: Released globally and installed (latest: v0.5.6).
-- **Release candidate**: Integrated on a candidate branch with focused checks, waiting for the lead's full gate and publication (currently 0.5.7).
-- **Accepted Development**: Merged in `main`, passes focused checks and personal review, waiting for a release.
+- **Shipped**: Released globally and installed (latest: [v0.5.7](https://github.com/danielmevit/unio/releases/tag/v0.5.7)).
+- **Release candidate**: Integrated on a candidate branch with focused checks, waiting for the lead's full gate and publication. No next release candidate is currently assigned.
+- **Accepted Development**: Merged in `main`, passes focused checks and personal review, waiting for a release. This includes the optional Vibe worker and Perplexity research/code-proposal adapters; live validation remains pending. They are not packaged in v0.5.7. See [adapter setup](../integrations/README.md).
 - **Partially Implemented**: Working pieces exist in `main`, but the full milestone is incomplete.
 - **Pending**: A prepared task or candidate awaiting completion or acceptance. Distinguish an active run from a queued task or a failed attempt.
 - **Planned**: Approved by the owner but not yet started.
@@ -19,7 +19,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 - **Shipped**: Native shared-budget workflow admission, including the lead in low tier.
 - **Added in 0.5.6**: Manual readings with `unio capacity record`/`show`, grouped by shared budget, with observation age, optional reset time, and fresh/stale/expired/Unknown handling. This packages the reviewed store independently of the browser. See [capacity readings](CAPACITY-READINGS.md).
 - **Implementation evidence**: Gemini's first candidate passed 3 native checks but had four reproduced defects. Opus corrected those and packaged the command; the lead then corrected two inherited extreme-input crashes before the release gate. The scoreboard preserves each result rather than treating process success as acceptance.
-- **Release candidate 0.5.7 (not released)**: Explicit `unio capacity refresh codex` reads Codex account/rate-limit metadata once (no model turn) and caches 5h/weekly windows; `show --provider codex` is local only. The browser's Designated AI agents & limits section shows routes, shared groups, the registered lead and every window with remaining, reset countdown, age and source through a cached read-only `/api/limits`. Stored-state validation was hardened after the lead reproduced an accepted 100.000001% value and a year-9999 overflow.
+- **Shipped in 0.5.7**: Explicit `unio capacity refresh codex` reads Codex account/rate-limit metadata once (no model turn) and caches 5h/weekly windows; `show --provider codex` is local only. The browser's Designated AI agents & limits section shows routes, shared groups, the registered lead and every window with remaining, reset countdown, age and source through a cached read-only `/api/limits`. Stored-state validation was hardened after the lead reproduced an accepted 100.000001% value and a year-9999 overflow.
 - **Planned**: Supported readings for other providers and integration of allowance with worker readiness and scheduling. No extra per-token spending or promotion of free workers to lead. A cached reading is not a live meter.
 - **Evidence**: [PROVIDER-QUOTA-MONITORING.md](../PROVIDER-QUOTA-MONITORING.md), [TASK-TIME-BUDGETS.md](TASK-TIME-BUDGETS.md)
 
@@ -33,7 +33,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 ### 3. Connection, Auth, and Transport Reliability
 
 - **Documented now**: A [help-only readiness inventory](AUTH-READINESS-INVENTORY.md), with local sign-in, remote authentication, allowance and workflow readiness kept distinct. Claude JSON status is the smallest documented first adapter; actual exit and safe-field behavior still need checking.
-- **Planned**: Implement supported read-only adapters and improve prompt/connection reliability without blind retries.
+- **Accepted development**: Optional Vibe workers and Perplexity research/code-proposal handoffs are on main with nine and eleven offline functional checks respectively. Perplexity needs owner installation/sign-in before a genuine live trial; the corrected Vibe wrapper also needs a bounded live trial. These checks do not establish model quality or remaining allowance.
+- **Planned**: Implement supported read-only readiness adapters and improve prompt/connection reliability without blind retries.
 
 ### 4. Review Aggregation and Security
 
@@ -54,7 +55,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 - **Shipped**: Lead cooldown shipped experimentally, opt-in in 0.5.4; genuine limit restart is still unobserved.
 - **Current lead instruction**: Delegate more implementation as trustworthy allowance falls (suggested 20% delegate-first, 10% prepare handover; not native thresholds).
-- **Planned**: Extended supported adapters/identity and the automatic [temporary acting-lead handover](LEAD-CAPACITY-HANDOVER.md), documented for the 0.5.7 candidate but not implemented; deterministic fake capacity/handoff tests come first.
+- **Planned**: Extended supported adapters/identity and the automatic [temporary acting-lead handover](LEAD-CAPACITY-HANDOVER.md), documented but not implemented; deterministic fake capacity/handoff tests come first.
 - **Evidence**: [LEAD-COOLDOWN-CONTRACT.md](LEAD-COOLDOWN-CONTRACT.md), [LEAD-COOLDOWN-RESTART.md](LEAD-COOLDOWN-RESTART.md), [LEAD-CAPACITY-HANDOVER.md](LEAD-CAPACITY-HANDOVER.md)
 
 ### 8. Work Modes and Model Roles
@@ -68,7 +69,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 - **Shipped**: Worker updates/output/tracked worktree files shipped in 0.5.3. Themes/basic map shipped in 0.5.4.
 - **Shipped in 0.5.5**: Installed launcher, left-to-right layout and task-logo cards with muted outcome strips. Early commits are policy; snapshots do not guarantee a commit or off-device backup.
-- **Release candidate 0.5.7 (not released)**: Background `unio dashboard ensure|status|stop`, shared map/list filters (Current work default, All states, direct Finished, worker, token-based category, search) and the Designated AI agents & limits section. The imported filter candidate failed 2 of 4 native browser checks; the completion restored the map/details nesting and the original lifecycle assertions.
+- **Shipped in 0.5.7**: Background `unio dashboard ensure|status|stop`, shared map/list filters (Current work default, All states, direct Finished, worker, token-based category, search) and the Designated AI agents & limits section. The imported filter candidate failed 2 of 4 native browser checks; the completion restored the map/details nesting and the original lifecycle assertions.
 - **Planned**: Live lead messages and phone pairing are different, planned capabilities. UI polish comes after functional work.
 - **Evidence**: [LIVE-WORKSPACE-VIEW.md](LIVE-WORKSPACE-VIEW.md)
 
@@ -83,6 +84,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 - **Planned**: Essential settings/access controls UI.
 
 ## Parallel Work
+
+Current status, 2026-10-09: no AI worker is running. The installed v0.5.7 dashboard is running. The next adapter activation step requires the owner's Perplexity sign-in; the entries below record earlier work, not active jobs.
 
 - **Opus**: The initial release-preparation attempt failed OAuth without edits on 2026-10-09. After sign-in, the owner-authorized capacity correction was approved by the lead at `528e214`. Because Grok is unavailable, the owner then authorized further Opus feature work: Opus packaged the native capacity command for 0.5.6; the lead made bounded extreme-input corrections before release validation.
 - **Grok**: Capacity Source ended 402 without edits on 2026-10-09; no active Grok run is claimed.
