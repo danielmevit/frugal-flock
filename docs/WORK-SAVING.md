@@ -1,4 +1,4 @@
-# Work saving — saves and authorized continuation in source for v0.5.4
+# Work saving — saves and authorized continuation in v0.5.4
 
 Owner requirement recorded 2026-10-06 after a worker reached its allowance
 limit with useful edits but no final commit. See the
@@ -6,24 +6,23 @@ limit with useful edits but no final commit. See the
 [implementation contract](development/WORK-SAVING-CONTRACT.md) and the
 [roadmap](development/ROADMAP.md#approved-delivery-priorities).
 
-Validation update, 2026-10-08: see [completed checks, preserved failures and
-remaining release work](development/RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
-not replace the final versioned release gate.
+Validation update, 2026-10-09: the complete versioned quality gate passed,
+including all 65 default continuation assertions. See [completed checks,
+preserved failures and live cooldown limitation](development/RECOVERY-ACCEPTANCE-2026-10-08.md).
 
 ## Status
 
 | Part | State |
 | --- | --- |
-| Manual `unio save create`, `inspect` and `restore` | Implemented in source (slice 1); not in any public release yet |
-| Automatic baseline, periodic and final saves during runs | Implemented in source (automatic part of slice 2); unreleased |
-| One authorized continuation from a save (`unio save continue`) | Implemented in source (slice 2); unreleased |
-| [Lead cooldown supervisor](LEAD-COOLDOWN.md) | Supported Codex adapter implemented in source; real subscription-limit restart acceptance and release checks pending |
+| Manual `unio save create`, `inspect` and `restore` | Available in v0.5.4 |
+| Automatic baseline, periodic and final saves during runs | Available in v0.5.4 |
+| One authorized continuation from a save (`unio save continue`) | Available in v0.5.4 |
+| [Lead cooldown supervisor](LEAD-COOLDOWN.md) | Experimental, explicitly enabled in v0.5.4; genuine lead-limit-to-restart cycle unverified |
 
-The current public release is v0.5.3. It contains none of these commands.
-The source version stays at 0.5.3 until the combined v0.5.4 delivery has
-passed its full release gate.
+Install the [official v0.5.4 release](https://github.com/danielmevit/unio/releases/tag/v0.5.4)
+to use these commands. Check the installed version with `unio version`.
 
-## Manual saving (slice 1, in source)
+## Manual saving
 
 ```text
 unio save create WORKER TASK
@@ -72,7 +71,7 @@ destination's exact earlier state, or records the outcome as Unknown and
 never restores into that destination again automatically. It never commits,
 resets the source, cleans ignored files or moves another branch.
 
-## Automatic saving (in source, unreleased)
+## Automatic saving
 
 Native `unio run` saves local file state before starting its provider, checks
 for changed state every sixty seconds, and captures final state after success,
@@ -106,7 +105,7 @@ Use `inspect` for the last successful save, observation time, latest attempt
 and live saved/changed/Unknown state. Concurrent edits can prevent an exact
 latest capture; those changing bytes are never reported as successfully saved.
 
-## Continue restored work (in source, unreleased)
+## Continue restored work
 
 First inspect a save and restore it into a different, idle worker at the saved
 base. Write a separate new task under `coord/tasks/` with explicit `Allowed

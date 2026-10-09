@@ -1,5 +1,11 @@
 # Unio local project workspace
 
+Included in the [Unio v0.5.4 source archive](https://github.com/danielmevit/unio/releases/tag/v0.5.4):
+Light/Dark themes, the responsive live work map, zoom/pan and every-node details.
+Use the source startup commands below; a packaged `unio browser` command is
+separate later development and is not part of v0.5.4. Historical validation
+notes later in this guide describe their original revisions and versions.
+
 This source-only workspace has three explicit startup modes: read-only
 Activity by default, local manual drafts, and live execution. Default mode
 turns `watch --once --json` into a read-only local browser view. It shows

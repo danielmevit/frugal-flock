@@ -9,8 +9,7 @@ delivery order. The approved v0.5.4 recovery scope stays intact; later release
 numbers remain unassigned. Finish recovery before further visual expansion.
 
 Validation update, 2026-10-08: see [completed checks, preserved failures and
-remaining release work](development/RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
-not replace the final versioned release gate.
+remaining release work](development/RECOVERY-ACCEPTANCE-2026-10-08.md). The complete candidate gate passed; final documentation-only publication retains identical runtime and test bytes.
 
 | Version | Included work | State |
 | --- | --- | --- |
@@ -18,7 +17,7 @@ not replace the final versioned release gate.
 | 0.5.1 | Limit-policy hardening and regression coverage | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.1); source af437b1 |
 | 0.5.2 | Queue approval, reservation and recovery library | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.2); source 1bddeab |
 | 0.5.3 | One real browser-to-worker workflow alongside browser output/files; owner-approved work modes yolo/medium/safe and subscription tiers low/medium/high with native shared-budget workflow accounting | [Published 2026-10-08](https://github.com/danielmevit/unio/releases/tag/v0.5.3); exact source ae61bf3d11ff; full gate, artifact and upgrade checks passed; installed with owner approval |
-| 0.5.4 | Automatic recovery saves, checkpoint continuation and lead CLI cooldown restart; browser themes and live work map | Themes, responsive radial map with zoom/pan, manual save/inspect/restore, automatic native-run saves and one authorized continuation accepted in main; first supported [lead cooldown runtime](LEAD-COOLDOWN.md) implemented and browser observation budget corrected; real subscription-limit restart acceptance and combined release checks pending; not released |
+| 0.5.4 | Automatic recovery saves, checkpoint continuation and lead CLI cooldown restart; browser themes and live work map | [Released 2026-10-09](https://github.com/danielmevit/unio/releases/tag/v0.5.4): complete automated gate and upgrade/restore checks passed; lead cooldown is experimental and explicitly enabled, genuine lead-limit-to-restart cycle unverified; owner approved release with that limitation |
 
 The owner approved the [delivery priorities](development/ROADMAP.md#approved-delivery-priorities)
 on 2026-10-06: finish 0.5.3, deliver 0.5.4, then allowance monitoring, agent
