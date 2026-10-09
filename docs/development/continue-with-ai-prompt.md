@@ -52,6 +52,12 @@ The owner approved experimental opt-in publication without waiting hours to
 manufacture that event. Do not revive that removed release hold.
 See [cooldown usage](../LEAD-COOLDOWN.md).
 
+Local workspace relocation completed 2026-10-09: use
+`/mnt/d/Vibe Coding/_vm/unio` (`D:\Vibe Coding\_vm\unio`). All 149 Git
+worktrees and refs were preserved and repaired. Historical evidence keeps its
+old paths; resolve them through local `coord/WORKSPACE-PATHS.json`. See the
+[completed relocation record](WORKSPACE-RENAME.md).
+
 ## Next functional work
 
 Read the [roadmap](ROADMAP.md), [consolidated backlog](IMPROVEMENT-BACKLOG.md)
