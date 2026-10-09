@@ -7162,7 +7162,7 @@ cat > "$BIN_DIR/unio" <<'UNIO_BIN_EOF'
 #   PROJECT/coord/    board.md, base, docs/, tasks/, reports/, blockers.md, STOP
 set -euo pipefail
 
-UNIO_VERSION="0.5.4"
+UNIO_VERSION="0.5.5"
 CONF_DIR="${UNIO_CONF_DIR:-$HOME/.config/unio}"
 CONF_FILE="$CONF_DIR/agents.conf"
 TPL_DIR="$CONF_DIR/templates"
