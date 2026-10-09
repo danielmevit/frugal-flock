@@ -8,6 +8,7 @@
 | Understand checks and reviews | [Quality guide](QUALITY-USAGE.md) · [Task protocol](PROTOCOL.md) |
 | Lead a team within your spending rules | [Lead routing policy](development/LEAD-ROUTING.md) |
 | Choose an agent's reasoning effort | [Model effort guide](development/MODEL-EFFORT.md) |
+| Connect additional subscriptions | [Optional adapters](integrations/README.md): Mistral Vibe and Perplexity Pro |
 | Develop or continue work on Unio | [Development index](development/README.md) |
 | See the approved development order | [Roadmap priorities](development/ROADMAP.md#approved-delivery-priorities) · [Version plan](VERSION-PLAN.md) |
 | Understand planned recovery saves | [Automatic work saving](WORK-SAVING.md) |

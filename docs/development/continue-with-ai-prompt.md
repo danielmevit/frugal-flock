@@ -7,31 +7,49 @@ do not infer current availability from an earlier successful worker run.
 
 ## Current public checkpoint — 2026-10-09
 
-[Unio v0.5.6](https://github.com/danielmevit/unio/releases/tag/v0.5.6)
-adds installed manual allowance tracking. Its exact release source is
-`98036e10c9d664179877a08b62933036fb0142ee`. The complete quality gate
-passed in 734.105 seconds; isolated installer and upgrade/backup-restore
-checks passed. Release assets bind the exact source with checksums and
-provenance. Later documentation-only commits do not rewrite that release.
+[Unio v0.5.7](https://github.com/danielmevit/unio/releases/tag/v0.5.7)
+is published and installed. Exact release source:
+`30842abea68c8789bfb86b86460e7b13fe51b026`. The complete unchanged quality
+gate passed in 1376.59 seconds; five isolated artifact checks (including
+40/40 selftest), upgrade/backup restore and official download checks passed.
+The installed engine, capacity runtime, dashboard and browser files match
+that release, with operator settings and custom lead templates preserved.
+Later commits do not rewrite published tags or assets.
 
-- v0.5.3: a real browser-to-worker workflow, output/files, work modes and
-  native shared-budget workflow admission.
-- v0.5.4: manual and automatic recovery saves, separately authorized saved-work
-  continuation and experimental, opt-in lead cooldown restart.
-- v0.5.5: installed `unio browser`, left-to-right active-first work map,
-  task-first cards with local AI identity and muted outcome strips.
-- v0.5.6: `unio capacity record`/`show`, shared-budget groups and multiple
-  windows, observation age, optional reset time and JSON output.
+- v0.5.3: browser-to-worker workflow, output/files, work modes and native
+  shared-budget workflow admission.
+- v0.5.4: manual/automatic saves, separately authorized continuation and
+  experimental owner-enabled lead cooldown restart.
+- v0.5.5: installed browser launcher and interactive, task-first work map.
+- v0.5.6: installed manual capacity readings, age/reset and Unknown handling.
+- v0.5.7: managed background dashboard, shared task filters, visible AI agents
+  and limits, plus explicit Codex metadata refresh with cached observations.
 
-Capacity readings are manual. Missing, invalid, stale or expired data supplies
-no usable allowance; a passed reset does not prove refill. No automatic
-provider reading, browser meter or dispatch integration is installed. See
-[capacity usage](CAPACITY-READINGS.md) and [quota monitoring](../PROVIDER-QUOTA-MONITORING.md).
+The browser reads local observations; it never queries a provider. Explicit
+`unio capacity refresh codex --group codex` updates the supported Codex reading.
+Other account readiness, fleet refresh and dispatch integration remain planned.
+Missing, stale or expired readings stay Unknown; a passed reset is not proof
+of refill. See [capacity usage](CAPACITY-READINGS.md).
+
+Main also contains optional source-tree [subscription adapters](../integrations/README.md),
+not packaged in the v0.5.7 installer. Vibe 2.26.1 supports explicitly pinned
+GLM 5.3 and Mistral Medium 3.5/high, with 2M/$5 default and 4M/$10 substantial
+cumulative task bounds. Both pins were checked against the actual installed
+CLI schema offline; nine functional tests passed. Effective model/effort and
+remaining monthly allowance stay Unknown.
+
+Perplexity supports one research answer or a selected-file code-proposal packet,
+then a separate capable implementation agent reviews, applies and validates.
+GLM 5.3, Kimi K3 and the connector's GPT-6 Sol Thinking identifier are pinned;
+GPT-6.1 Sol is not exposed in that pin and is not silently aliased. Eleven
+offline tests passed. Manual dependency installation/login and a genuine
+account-backed trial remain; do not claim live entitlement or quality yet.
+Use the [manual setup and native proposal workflow](../integrations/PERPLEXITY-WEB.md).
+The disabled upstream text tool parser is not enabled as a command executor.
 
 Genuine lead subscription-limit-to-restart acceptance remains unobserved.
-The owner approved publication with cooldown experimental and explicitly
-enabled, without waiting hours to manufacture a usage-limit event. Preserve
-that limitation; do not introduce the removed publication hold again.
+The owner approved experimental opt-in publication without waiting hours to
+manufacture that event. Do not revive that removed release hold.
 See [cooldown usage](../LEAD-COOLDOWN.md).
 
 ## Next functional work
@@ -39,15 +57,18 @@ See [cooldown usage](../LEAD-COOLDOWN.md).
 Read the [roadmap](ROADMAP.md), [consolidated backlog](IMPROVEMENT-BACKLOG.md)
 and [version plan](../VERSION-PLAN.md). Finish one bounded feature at a time.
 
-1. Add supported, read-only allowance and readiness adapters with truthful
+1. After owner Perplexity login, run one bounded real research/code-proposal
+   task through native Unio, then assign its implementation separately. Preserve
+   actual failures; no automatic retry or separately billed fallback.
+2. Add supported, read-only allowance and readiness adapters with truthful
    Unknown, observation age and reset handling. Auth status and allowance
    are separate: the [help-only inventory](AUTH-READINESS-INVENTORY.md)
    recommends Claude's documented JSON auth command as the smallest auth
    adapter; it has not established safe output fields or exit semantics.
-2. Connect checked capacity/readiness evidence to scheduling and explain
+3. Connect checked capacity/readiness evidence to scheduling and explain
    why a worker is idle or a task waits. Existing per-budget admission stays
    authoritative; a manual reading grants no launch or retry permission.
-3. Measure mounted-filesystem saving and observation overhead before
+4. Measure mounted-filesystem saving and observation overhead before
    optimizing it. A killed or unstable save helper is not proof of lost
    committed work or of an existing last-good save; inspect actual evidence.
 
@@ -67,18 +88,20 @@ and [work modes](../WORK-MODES.md).
 - Low tier allows one independent workflow per shared budget, including the
   lead. Do not start an extra Codex worker beside a Codex lead. Independent
   budgets may advance disjoint ready tasks concurrently.
-- Available Codex, Claude, Grok and Gemini are main implementation options.
+- Available Codex, Claude, Grok, Gemini and explicitly pinned Vibe workers
+  are main implementation options.
   Choose by checked task fit and current owner availability. The latest batch
-  used Opus for implementation, Gemini for a bounded CLI-help inventory and
-  verified-free LongCat for a predefined local link audit. Original failures
+  used Opus for the Perplexity adapter and existing-lead concrete corrections
+  after incomplete or invalid worker attempts. Original failures
   and lead corrections are recorded in the scoreboard; no model ranking or
   independent security acceptance follows from these small samples.
 - Free OpenCode models remain routine supporting workers. Check current zero
   pricing and pin primary/helper routes before each assignment. No paid-token
   fallback, account creation, billing change or promotion to lead is allowed.
 - Start at high or the supported middle; GLM stays high. Escalate supported
-  effort only for a concrete difficulty, with max reserved for occasional
-  narrow work. A requested level does not prove the effective level.
+  effort only for a concrete difficulty, up to supported xhigh. Never request
+  max or ultra; a high-only route stays high. A requested level does not
+  prove the effective level.
 - Use one Source invocation per task unless the owner explicitly authorizes
   another. Preserve a struggling worker, try one suitable replacement, then
   let the existing lead finish the remaining correction. Do not cycle through

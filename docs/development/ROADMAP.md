@@ -2,13 +2,16 @@
 
 Your AIs, in sync.
 
-Current update, 2026-10-09: [v0.5.4](https://github.com/danielmevit/unio/releases/tag/v0.5.4)
-is published and installed after the full release gate and installation checks.
-Lead cooldown remains experimental and opt-in; a genuine subscription-limit
-restart cycle has not been observed. The owner explicitly removed waiting for
-that event as a release condition. Earlier dated status sections below are history.
-See the [version plan](../VERSION-PLAN.md) and
-[preserved recovery findings](RECOVERY-ACCEPTANCE-2026-10-08.md).
+Current update, 2026-10-09: [v0.5.7](https://github.com/danielmevit/unio/releases/tag/v0.5.7)
+is published and installed. Recovery shipped in v0.5.4, the browser launcher in
+v0.5.5, manual capacity readings in v0.5.6, and the managed dashboard, task
+filters, visible allowance section and explicit Codex metadata refresh in v0.5.7.
+Genuine lead-limit restart remains unobserved and experimental/opt-in.
+Optional Vibe workers and Perplexity research/code proposals are now in main
+with focused offline checks; owner Perplexity sign-in and a live trial remain.
+They are not packaged in the immutable v0.5.7 release. See
+[adapter setup](../integrations/README.md) and [version plan](../VERSION-PLAN.md).
+Earlier dated status sections below preserve their original context.
 
 ## Current focus: finish the functional core
 
@@ -21,10 +24,10 @@ entry point; dated history and the earlier priority list remain below.
 Limit hardening, the queue and the real browser workflow shipped through
 v0.5.3. Recovery shipped in v0.5.4: manual and automatic native-run saves,
 one authorized continuation and the first supported lead cooldown runtime.
-The packaged browser launcher, left-to-right work map and task-first AI logo
-cards are accepted in development main after focused checks and personal
-review. Those later changes are not in the immutable v0.5.4 release or global
-installation. Further visual polish should not displace functional work.
+The browser launcher and work map shipped in v0.5.5; managed daily startup and
+shared observation filters shipped in v0.5.7. Measured scan optimization and
+responsive observation remain useful. Further visual polish should not displace
+functional work.
 
 The [first lead cooldown contract](LEAD-COOLDOWN-CONTRACT.md) is frozen:
 Codex exec with a separate structured quota probe, durable ownership and
@@ -37,8 +40,8 @@ low-tier lead.
 | Priority | Functional milestone | Current state |
 | --- | --- | --- |
 | Complete | v0.5.4 recovery, release and install | Published and installed after release checks. Genuine lead-limit restart remains unobserved; the feature is experimental and opt-in. |
-| 2 | Simple daily launch and responsive observation | Packaged launcher accepted in development; ship it in a later bounded release. Measured scan optimization remains; a larger budget is not a speed improvement. |
-| 3 | Shared-account allowance and worker readiness | Native account slots exist; live fleet quota/readiness integration does not. Start with manual readings and one supported read-only adapter. |
+| 2 | Simple daily launch and responsive observation | Launcher shipped055 and managed dashboard057. Measured scan optimization remains; a larger budget is not a speed improvement. |
+| 3 | Shared-account allowance and worker readiness | Native slots, manual readings and explicit Codex metadata refresh/browser observations shipped. Readiness and fleet scheduling integration remain. |
 | 4 | Ready-task dispatch and dependency handling | Queue/reservation exists; automated ready/dependency/scope scheduling remains planned. |
 | 5 | Native independent review pipeline | Single reviews exist; built-in separate parallel review views and finding aggregation remain planned and mode-aware. |
 | 6 | Evidence-based routing and context efficiency | Ledger/score and curated guides exist; exact model/task profiles and automatic suggestions remain planned. |

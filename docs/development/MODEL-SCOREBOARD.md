@@ -38,6 +38,30 @@ supporting workers only. Exact controls and routes are in
 [model roles](https://github.com/danielmevit/unio/blob/main/docs/ai/MODEL-ROLES.md)
 and the [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE-MODELS.md).
 
+## Adapter batch — 2026-10-09
+
+- The Mistral Vibe GLM trial stopped at a local 200k cumulative token bound
+  after 201286 tokens and no edits. Medium 3.5 produced partial Perplexity
+  code before its local 600k bound (601926 tokens). These are task-budget
+  stops, not measured subscription exhaustion or a fair reasoning ranking.
+- Gemini's Vibe candidate returned Source 0 and passed its three checks, but
+  personal assessment and the real installed schema exposed incorrect CLI
+  configuration. The existing lead corrected it; nine offline checks and both
+  exact installed 2.26.1 model pins passed. No corrected-wrapper live quality
+  comparison is claimed.
+- Opus 5.5/high completed the saved Perplexity adapter with Source 0 and three
+  native checks. The lead fixed cancellation/date handling and added selected
+  source context, draft handoffs and the exact GPT-6 Sol Thinking route.
+  Eleven offline checks and the final three native checks passed, followed by
+  personal full-material assessment and integration into main.
+- Perplexity has not yet made a live query in this project. Requested model
+  identifiers do not prove effective model/lab or account entitlement. Treat
+  proposals as input for implementation review, never independent acceptance.
+
+Use [task-sized budgets](TASK-TIME-BUDGETS.md); default high/supported middle,
+xhigh ceiling, never max/ultra. Preserve each actual failed attempt and its
+saved work. Do not keep retrying a struggling model.
+
 ## Selected project outcomes
 
 | Exact model / route / requested effort | Selected cases | Checked outcome and routing lesson |

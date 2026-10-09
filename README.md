@@ -90,6 +90,12 @@ Say you want to add search to a small website:
 
 ## Good to know
 
+- Optional [subscription adapters](docs/integrations/README.md) connect
+  Mistral Vibe workers and Perplexity Pro research. Perplexity can research a
+  task and propose code; an implementation agent reviews the proposal, makes
+  suitable changes and tests them. These adapters run from the source checkout
+  and require their own installed, signed-in tools; they are not packaged in
+  the v0.5.7 installer.
 - Unio does not get around usage limits or pool subscriptions. Each
   tool keeps its own plan, limits, and terms.
 - Switching AIs after a limit is supervised today: the next AI gets a

@@ -51,6 +51,16 @@ lead-template update points to readable installed guide copies; that manual
 update is not a new runtime release. Existing custom projects retain their
 owner instructions and need an explicit readable guide reference when updated.
 
+## Optional subscription routes
+
+Read the [adapter guides](../integrations/README.md) before assigning Mistral
+Vibe or Perplexity work. Vibe is an explicitly pinned implementation CLI;
+Perplexity researches and saves draft code proposals for a separate capable
+implementation agent to review, apply and validate. Keep same-subscription
+aliases in one budget group and never count an unknown effective model as
+independent cross-lab acceptance. External installation and sign-in are manual.
+No adapter authorizes paid fallback or an extra lead-provider workflow.
+
 ## Workers: follow the assigned scope
 
 Use the assigned task and role card, preserve other workers' files and commit

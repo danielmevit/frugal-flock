@@ -1,5 +1,12 @@
 # Functionality first: milestone review and delivery plan
 
+Current delivery update, 2026-10-09: v0.5.7 is published and installed. Recovery,
+packaged browser startup, manual capacity readings and the managed dashboard/
+allowance view have shipped. Optional Vibe and Perplexity proposal adapters are
+in main after focused offline checks, with manual Perplexity activation still
+pending. The [roadmap](ROADMAP.md) is the current priority list. The audit below
+records its 2026-10-08 baseline; its counts and pending statements are historical.
+
 Recorded 2026-10-08 at the owner's request. This is a source-backed audit and
 recommended delivery order. It preserves the approved v0.5.4 recovery scope;
 later release numbers and expanded implementation contracts are not assigned.

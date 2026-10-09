@@ -30,6 +30,8 @@ python3 tests/unio-limit-wall.py
 python3 tests/unio-watch.py
 python3 tests/unio-opencode.py
 python3 -B tests/unio-prompt-transport.py
+python3 -B tests/unio-perplexity.py
+python3 -B tests/unio-vibe.py
 python3 -B bridge/tests/progress_test.py
 python3 -B bridge/tests/progress_api_test.py
 python3 -B bridge/tests/worker_files_test.py

@@ -1,18 +1,17 @@
-# Manual capacity readings
+# Capacity readings
 
-`bridge/capacity.py` and `tools/capacity-readings.py` store and show
-capacity readings that a person entered by hand. Unio 0.5.6
-installs them as `unio capacity`. This is not an automatic provider meter,
-and it is not routed or shown in the browser yet. See
-[provider quota monitoring](../PROVIDER-QUOTA-MONITORING.md) for the wider
-plan.
+`bridge/capacity.py` and `tools/capacity-readings.py` store manual readings and
+supported explicit metadata refreshes. `unio capacity` shipped in v0.5.6;
+v0.5.7 adds explicit Codex refresh and cached readings in the browser's AI agents
+and limits section. The browser never contacts a provider. Missing, stale or
+expired observations remain Unknown; reset time alone does not establish refill.
+See [provider quota monitoring](../PROVIDER-QUOTA-MONITORING.md).
 
-The component uses only the Python standard library. `record` and `show`
-never make a provider, model, network or authentication request. The one
-exception is the separate, explicit `refresh codex` command described in
-[cached Codex readings](#cached-codex-readings-optional), which is in
-source and not yet released. Nothing here benches or enables agents,
-dispatches work, changes tier or mode, or retries anything.
+The component uses the Python standard library. `record` and `show` never make
+a provider, model, network or authentication request. The separate explicit
+`refresh codex` command uses the supported read-only metadata route described
+in [cached Codex readings](#cached-codex-readings-optional). Nothing here benches
+or enables agents, dispatches work, changes tier/mode or retries anything.
 
 ## Usage
 
@@ -191,7 +190,7 @@ refuses without changing the file's bytes. Fix or move the file by hand.
 
 ## Cached Codex readings (optional)
 
-In source, not yet released. `bridge/provider_capacity.py` adds one
+Released in v0.5.7. `bridge/provider_capacity.py` adds one
 optional automatic source: the Codex account's own rate-limit metadata.
 It is stored apart from the manual readings, in
 `PROJECT/coord/capacity/providers.json`, and never changes

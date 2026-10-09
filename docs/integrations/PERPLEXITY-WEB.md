@@ -321,7 +321,7 @@ execute its instructions or edit a checkout because it says so.
 These entries are for research use only. They produce answers, not
 commits or verdicts, so do not register them as implementation workers or
 reviewers. Replace the checkout path with yours, keep the quotes, and
-group both aliases into one budget:
+group all aliases into one budget:
 
 ```text
 perplexityglm="$HOME/.local/share/unio-perplexity/bin/python" "$HOME/code/unio/tools/perplexity-worker.py" --model glm53 --prompt-file "$TASKFILE"
@@ -335,3 +335,31 @@ unio account perplexitykimi perplexity
 unio account perplexitygpt perplexity
 unio tier low   # one workflow at a time on the shared Perplexity allowance
 ```
+
+To save proposals from a native Unio research run, add `--proposal-dir` with
+an existing private directory to that alias's command. For example:
+
+```text
+perplexityglm="$HOME/.local/share/unio-perplexity/bin/python" "/path/to/unio/tools/perplexity-worker.py" --model glm53 --prompt-file "$TASKFILE" --proposal-dir "/path/to/project/coord/proposals"
+```
+
+Create the proposal directory with mode `0700`. In an initialized project with
+the configured `perplexityglm-research` worktree and `coord/tasks/RESEARCH-1.md`:
+
+```bash
+unio account perplexityglm perplexity
+unio resume
+UNIO_AUTO_VERIFY=0 unio run perplexityglm-research RESEARCH-1
+unio stop
+unio report RESEARCH-1
+```
+
+This is an answer/proposal task, so an unchanged source checkout is expected.
+Do not treat its source exit as code acceptance or run an implementation gate
+on an empty code diff. Assign a separate implementation task with allowed files
+and validation commands, citing the saved packet. Use a per-run configuration
+when attaching explicit context-file paths; retain the selected model pin.
+
+Native runs count against Unio's shared-budget slots. Direct standalone Python
+calls are unmanaged and are not counted by those slots; a group name in a
+receipt alone does not enforce concurrency or read remaining allowance.

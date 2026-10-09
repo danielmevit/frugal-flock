@@ -1,0 +1,1 @@
+- Link optional Mistral Vibe and Perplexity Pro adapters from the README, documentation index and lead startup guide. Document native shared-budget research/proposal tasks followed by a separate reviewed implementation task. Include both adapters' offline checks in future release gates; the v0.5.7 release remains unchanged.
