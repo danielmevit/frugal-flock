@@ -82,6 +82,5 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 - **Opus**: The initial release-preparation attempt failed OAuth without edits on 2026-10-09. After sign-in, the owner-authorized capacity correction was approved by the lead at `528e214`. Because Grok is unavailable, the owner then authorized further Opus feature work: Opus packaged the native capacity command for 0.5.6; the lead made bounded extreme-input corrections before release validation.
 - **Grok**: Capacity Source ended 402 without edits on 2026-10-09; no active Grok run is claimed.
-
 - **Gemini**: Completed the bounded help-only readiness inventory; lead editorial correction tightened three evidence claims. No credentials or model probes were run by the inventory.
 - **Verified-free LongCat**: Ran the predefined local link audit: 405 targets checked, 125 skipped, 0 missing. The lead corrected document classification wording. This was routine support, not implementation or security acceptance.
