@@ -2,9 +2,13 @@
 
 Your AIs, in sync.
 
-Validation update, 2026-10-08: see [completed checks, preserved failures and
-remaining release work](RECOVERY-ACCEPTANCE-2026-10-08.md). Component coverage does
-not replace the final versioned release gate.
+Current update, 2026-10-09: [v0.5.4](https://github.com/danielmevit/unio/releases/tag/v0.5.4)
+is published and installed after the full release gate and installation checks.
+Lead cooldown remains experimental and opt-in; a genuine subscription-limit
+restart cycle has not been observed. The owner explicitly removed waiting for
+that event as a release condition. Earlier dated status sections below are history.
+See the [version plan](../VERSION-PLAN.md) and
+[preserved recovery findings](RECOVERY-ACCEPTANCE-2026-10-08.md).
 
 ## Current focus: finish the functional core
 
@@ -14,33 +18,53 @@ five steps with actual releases and source, explains the scope drift and sets
 out the recommended order below. This front section is the current planning
 entry point; dated history and the earlier priority list remain below.
 
-Limit hardening, the queue and the real browser workflow have shipped through
-v0.5.3. Recovery is implemented in source: manual and automatic native-run saves,
-one authorized continuation and the first supported lead cooldown runtime. The
-recent map/UI requests are complete in main and should not keep expanding the
-recovery milestone. Published/installed v0.5.3 is unchanged.
+Limit hardening, the queue and the real browser workflow shipped through
+v0.5.3. Recovery shipped in v0.5.4: manual and automatic native-run saves,
+one authorized continuation and the first supported lead cooldown runtime.
+The packaged browser launcher, left-to-right work map and task-first AI logo
+cards are accepted in development main after focused checks and personal
+review. Those later changes are not in the immutable v0.5.4 release or global
+installation. Further visual polish should not displace functional work.
 
 The [first lead cooldown contract](LEAD-COOLDOWN-CONTRACT.md) is frozen:
 Codex exec with a separate structured quota probe, durable ownership and
 explicit launch controls. The [source runtime](../LEAD-COOLDOWN.md) now passes
-offline acceptance and actual read-only quota/configuration checks. Real
-subscription-limit restart acceptance and combined release checks remain; no
-second Codex workflow is started alongside this active low-tier lead.
+offline acceptance and actual read-only quota/configuration checks. Combined
+release checks passed; genuine subscription-limit restart remains unobserved,
+as disclosed above. No second Codex workflow is started alongside this active
+low-tier lead.
 
 | Priority | Functional milestone | Current state |
 | --- | --- | --- |
-| 1 | Close v0.5.4 recovery, release and install | Saving, authorized continuation and the first lead cooldown runtime accepted in main. Source validation exposed bounded fixture/packaging corrections. Next: finish continuation acceptance, genuine subscription-limit restart and final shipping checks. |
-| 2 | Simple daily launch and responsive observation | Default observer budget corrected in source and real HTTP200 confirmed. Packaged launch/setup and measured scan optimization remain; a larger budget is not a speed improvement. |
+| Complete | v0.5.4 recovery, release and install | Published and installed after release checks. Genuine lead-limit restart remains unobserved; the feature is experimental and opt-in. |
+| 2 | Simple daily launch and responsive observation | Packaged launcher accepted in development; ship it in a later bounded release. Measured scan optimization remains; a larger budget is not a speed improvement. |
 | 3 | Shared-account allowance and worker readiness | Native account slots exist; live fleet quota/readiness integration does not. Start with manual readings and one supported read-only adapter. |
 | 4 | Ready-task dispatch and dependency handling | Queue/reservation exists; automated ready/dependency/scope scheduling remains planned. |
 | 5 | Native independent review pipeline | Single reviews exist; built-in separate parallel review views and finding aggregation remain planned and mode-aware. |
 | 6 | Evidence-based routing and context efficiency | Ledger/score and curated guides exist; exact model/task profiles and automatic suggestions remain planned. |
 
-Only v0.5.4 has an assigned release scope here. Later ordering is a recommendation
-from this audit; version numbers and task contracts follow bounded planning.
-Defer additional visual redesign, a broad Settings page, desktop/cloud expansion
-and model benchmark campaigns. See the plan for concrete finish conditions and
-the [handoff](continue-with-ai-prompt.md) for the one next implementation task.
+Later ordering is a recommendation from this audit; new version numbers and
+task contracts follow bounded planning. Defer additional visual redesign,
+a broad Settings page, general desktop/cloud expansion and model benchmark
+campaigns. The owner-requested session-only phone connection below is a bounded
+application feature, not a remote desktop. See the plan for concrete finish
+conditions and the [handoff](continue-with-ai-prompt.md) for the next task.
+
+## Pair a phone with one live session
+
+Owner-requested on 2026-10-09: [mobile session pairing](MOBILE-SESSION-COMPANION.md).
+Scan a short-lived QR invitation, confirm on the PC, and grant access to the
+selected Unio session. Use a mobile browser for progress, messages to the same
+lead and separately authorized approvals. Make connections revocable and expire
+access when the session ends. No dedicated Android app is required.
+
+This remains planned. First define supported live-lead attachment and message
+delivery; then implement pairing and remote transport. An outbound encrypted
+relay is the proposed direction, with hosting/protocol still undecided. Do not
+expose a general terminal or another project, create a second lead workflow,
+or treat the existing loopback dashboard as a finished remote-control service.
+Release number and placement among the remaining functional milestones are
+unassigned; the complete plan records the boundaries and acceptance cases.
 
 ## Browser appearance and live work overview
 
@@ -52,9 +76,10 @@ The map uses the existing two-second activity feed and worker/task ownership;
 lead/dependency edges need future engine evidence. Focused browser checks and
 personal lead review passed. The fluid layout now follows screen width, with
 repository/license footer links and the approved “Your AIs, in sync.” tagline.
-These additions are not in published v0.5.3.
-Recovery runtime is now in main; finish combined acceptance and shipping before
-adding further UI scope under the owner's current session direction.
+These theme/map additions shipped in v0.5.4. Later launcher, left-to-right flow
+and task-first logo-card changes are accepted in development main and await a
+later release. Recovery shipping is complete; prioritize the functional queue
+before additional visual polish.
 
 ## Work modes and lead budget
 
