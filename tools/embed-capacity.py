@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 # Unio — Copyright (C) 2026 Daniel Mitev
 # SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE.
-"""Embed the manual-capacity store and CLI as byte-identical shell heredocs.
+"""Embed the capacity stores and CLI as byte-identical shell heredocs.
 
 The installed tree mirrors the source layout under $CONF_DIR/lib/capacity,
-so the reviewed CLI finds bridge/capacity.py without PYTHONPATH.
+so the reviewed CLI finds bridge/capacity.py and bridge/provider_capacity.py
+without PYTHONPATH.
 """
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 FILES = (('bridge', 'capacity.py', 'UNIO_CAPACITY_STORE_PY'),
+         ('bridge', 'provider_capacity.py', 'UNIO_CAPACITY_PROVIDER_PY'),
          ('tools', 'capacity-readings.py', 'UNIO_CAPACITY_CLI_PY'))
 BEGIN = '# BEGIN EMBEDDED CAPACITY\n'
 END = '# END EMBEDDED CAPACITY\n'
@@ -60,7 +62,7 @@ def main():
     if sys.argv[1:] == ['--check']:
         if old != updated:
             raise SystemExit('embedded capacity differs; run python3 -B tools/embed-capacity.py')
-        print('embedded capacity: store and CLI byte-identical')
+        print('embedded capacity: stores and CLI byte-identical')
     elif not sys.argv[1:]:
         installer.write_text(updated)
     else:

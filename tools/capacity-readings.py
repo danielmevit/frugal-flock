@@ -3,8 +3,10 @@
 # SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE.
 """Record and show manual capacity readings for one selected project.
 
-Runs from the source tree or as the installed `unio capacity` payload; it
-makes no provider, model, network or auth request.
+Runs from the source tree or as the installed `unio capacity` payload. Record
+and show make no provider, model, network or auth request. Only the explicit
+`refresh codex` subcommand starts the installed Codex app-server for one
+read-only account/rate-limit metadata read (bridge/provider_capacity.py).
 """
 import argparse
 import json
@@ -14,7 +16,7 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from bridge.capacity import DEFAULT_MAX_AGE, CapacityError, CapacityStore  # noqa: E402
+from bridge.capacity import DEFAULT_MAX_AGE, CapacityError, CapacityStore, validate_label  # noqa: E402
 
 
 def _integer(text):
@@ -49,9 +51,21 @@ def _parser(prog):
     record.add_argument('--reset-at', help='optional timezone-aware ISO 8601 reset time')
     show = commands.add_parser('show', help='show readings and their freshness', allow_abbrev=False)
     show.add_argument('--group', help='only this shared-budget label (Unknown when absent)')
+    show.add_argument('--provider', metavar='NAME',
+                      help='show cached automatic snapshots instead (only codex is supported; '
+                           'local file read, no provider call)')
     show.add_argument('--json', action='store_true', help='print normalized JSON')
     show.add_argument('--max-age-seconds', type=_integer, default=DEFAULT_MAX_AGE,
                       help=f'fresh/stale boundary (default {DEFAULT_MAX_AGE})')
+    refresh = commands.add_parser(
+        'refresh', allow_abbrev=False,
+        help='explicitly read Codex allowance metadata once and cache it',
+        description='One read-only Codex app-server metadata read (account/read, '
+                    'account/rateLimits/read); never a model turn, login or token refresh. '
+                    'Failure records Unknown. The result is an observation, never permission to run.')
+    refresh.add_argument('provider', metavar='PROVIDER', help='codex (the only supported provider)')
+    refresh.add_argument('--group', required=True, help='opaque shared-budget label')
+    refresh.add_argument('--json', action='store_true', help='print the stored snapshot as JSON')
     return parser
 
 
@@ -80,9 +94,69 @@ def _text(view):
     return '\n'.join(lines)
 
 
+def _provider_text(view):
+    lines = [f'Provider {view["provider"]} snapshots: {view["state"]} (checked {view["checked_at"]}, '
+             f'fresh within {view["max_age_seconds"]}s). Observation only, not permission to run.']
+    if view['error']:
+        lines.append(f'  State refused: {view["error"]}')
+    if not view['groups']:
+        lines.append('  No groups refreshed; capacity is Unknown.')
+    for group, entry in view['groups'].items():
+        lines.append(f'Group {group}: {entry["state"]}' + (f' ({entry["reason"]})' if entry['reason'] else ''))
+        lines.append(f'  Last attempt: {entry["attempted_at"] or "never"}')
+        if entry['observed_at']:
+            lines.append(f'  Observed: {entry["observed_at"]} (age {entry["age_seconds"]:.0f}s, '
+                         f'{entry["freshness"]})')
+        for bucket, item in entry['buckets'].items():
+            for window, reading in item['windows'].items():
+                if reading is None:
+                    continue
+                if reading['status'] == 'unknown':
+                    lines.append(f'  {bucket}/{window}: unknown ({reading["reason"]})')
+                    continue
+                lines.append(f'  {bucket}/{window} ({reading["window_minutes"]} min): {reading["status"]}, '
+                             f'reset {reading["reset_at"] or "not reported"}, '
+                             f'usable now {_percent(reading["usable_remaining_percent"])}')
+        if entry['last_good'] and entry['state'] != 'ok':
+            lines.append(f'  Last good read (historical, not usable): {entry["last_good"]["observed_at"]}')
+    return '\n'.join(lines)
+
+
+def _provider(args, prog):
+    # Loaded only here: manual record/show never load the provider module.
+    provider = __import__('bridge.provider_capacity', fromlist=['ProviderStore'])
+    PROVIDER, resolve_binary = provider.PROVIDER, provider.resolve_binary
+    store = provider.ProviderStore(args.project)
+    if args.command == 'show':
+        if args.provider != PROVIDER:
+            validate_label(args.provider, 'provider')
+            view = {'schema_version': 1, 'provider': args.provider, 'state': 'unsupported',
+                    'reason': 'automatic capacity supports only codex; capacity is Unknown'}
+            print(json.dumps(view, indent=2) if args.json else
+                  f'Provider {args.provider}: Unknown (automatic capacity supports only codex).')
+            return 0
+        view = store.show(args.group, args.max_age_seconds)
+        print(json.dumps(view, indent=2) if args.json else _provider_text(view))
+        return 1 if view['state'] == 'invalid' else 0
+    if args.provider != PROVIDER:
+        raise CapacityError('automatic refresh supports only codex; other providers stay Unknown')
+    entry = store.refresh(args.group, resolve_binary())
+    if args.json:
+        print(json.dumps(entry, indent=2))
+    elif entry['state'] == 'ok':
+        print(f'Refreshed codex/{args.group} observed {entry["observed_at"]}; '
+              f'see {prog.removesuffix(".py")} show --provider codex.')
+    else:
+        print(f'Refresh codex/{args.group}: Unknown ({entry["reason"]}); '
+              'any earlier read is historical only.')
+    return 0 if entry['state'] == 'ok' else 1
+
+
 def main(argv=None, prog='capacity-readings.py'):
     args = _parser(prog).parse_args(argv)
     try:
+        if args.command == 'refresh' or getattr(args, 'provider', None) is not None:
+            return _provider(args, prog)
         store = CapacityStore(args.project)
         if args.command == 'record':
             reading = store.record(args.group, args.window, args.window_minutes, args.remaining_percent,

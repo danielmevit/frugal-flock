@@ -37,6 +37,8 @@ python3 -B bridge/tests/server_test.py
 python3 -B tests/unio-browser-launcher.py
 python3 -B bridge/tests/capacity_test.py
 python3 -B tests/unio-capacity.py
+python3 -B bridge/tests/provider_capacity_test.py
+python3 -B tests/unio-provider-capacity.py
 python3 -B tests/unio-work-policy.py
 python3 -B tests/unio-work-policy-guard.py
 python3 -B tests/unio-work-saving.py

@@ -9,7 +9,7 @@ quota indicator. This proposal extends the
 | Piece | State |
 | --- | --- |
 | Manual readings with age, reset and Unknown handling | `unio capacity record` and `show` in 0.5.6. Not included in 0.5.5. See [manual capacity readings](development/CAPACITY-READINGS.md). |
-| Automatic provider readings (Codex adapter first) | Planned. No adapter is installed. |
+| Automatic provider readings (Codex adapter first) | In source, not yet released: explicit `unio capacity refresh codex --group G` performs one read-only Codex metadata read and caches it; `show --provider codex` reads only that cache. See [cached Codex readings](development/CAPACITY-READINGS.md#cached-codex-readings-optional). Other providers remain Unknown. |
 | Browser indicators and lead refresh before dispatch | Planned. |
 | Scheduling, benching or retry based on readings | Planned. Readings change nothing on their own. |
 
@@ -32,7 +32,7 @@ of finishable tasks.
 
 | Provider or tool | Supported input | Current Unio status |
 | --- | --- | --- |
-| Codex with ChatGPT authentication | Native `account/rateLimits/read` and update notifications provide usage, window duration and reset timestamps, including multiple limit buckets. | A private read-only feasibility probe succeeded; no product adapter exists yet. |
+| Codex with ChatGPT authentication | Native `account/rateLimits/read` and update notifications provide usage, window duration and reset timestamps, including multiple limit buckets. | A private read-only feasibility probe succeeded. An optional on-demand adapter is in source, not yet released, and tested only against a fake app-server. |
 | Claude Code | Supported status-line input can contain five-hour and weekly usage and reset fields. Availability depends on the subscription/session and fields can be absent. | Candidate adapter input; no live reading was collected in this session. |
 | OpenCode Go | Official documentation defines five-hour, weekly and monthly allowances. Account meters are in the console. | No supported automated remaining-quota interface was established by this investigation. Use a timestamped manual meter reading until one is verified. |
 | OpenCode CLI statistics | Session token and cost statistics. | Useful for estimating task consumption; insufficient to establish current subscription headroom. |
@@ -87,7 +87,7 @@ monitoring makes zero model calls, does not expose credentials and cannot
 perform billing or account-control actions. Test both JSON and browser
 views against the same normalized readings and show Unknown on failure.
 
-Until automatic readings ship, the lead should record actual supported
+Until automatic readings ship in a release, the lead should record actual supported
 readings or owner-provided meters with `unio capacity record` where the
 0.5.6 or newer is installed, otherwise in the private coordination log.
 Use bounded tasks and preserve independent review capacity. A manual
