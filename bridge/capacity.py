@@ -43,10 +43,12 @@ class CapacityStore:
         self.project_path = os.path.abspath(project_path)
         self.readings_dir = os.path.join(self.project_path, "coord", "capacity")
         self.readings_path = os.path.join(self.readings_dir, "readings.json")
-        
-        # Prevent path escapes
-        if not self.readings_path.startswith(os.path.abspath(os.path.join(self.project_path, "coord"))):
-            raise ValueError("Invalid project path")
+
+        # Prevent path escapes and symlink escapes
+        real_readings_path = os.path.realpath(self.readings_path)
+        real_project_path = os.path.realpath(self.project_path)
+        if not real_readings_path.startswith(os.path.realpath(os.path.join(real_project_path, "coord"))):
+            raise ValueError("Invalid project path or symlink escape detected")
 
     def _ensure_dir(self):
         os.makedirs(self.readings_dir, exist_ok=True)
@@ -58,12 +60,12 @@ class CapacityStore:
             raise ValueError("invalid window label")
         if isinstance(window_minutes, bool) or not isinstance(window_minutes, int) or window_minutes <= 0:
             raise ValueError("window_minutes must be positive integer")
-        
+
         remaining_percent = validate_percent(remaining_percent)
         observed_at = validate_timestamp(observed_at)
         if reset_at is not None:
             reset_at = validate_timestamp(reset_at)
-        
+
         self._ensure_dir()
         lock_file = self.readings_path + ".lock"
         with open(lock_file, 'a+') as f_lock:
@@ -121,7 +123,7 @@ class CapacityStore:
                             data = parsed
             except Exception:
                 pass
-        
+
         now = datetime.now(timezone.utc)
         result = {}
         groups_to_check = [group] if group else data.get("groups", {}).keys()
@@ -130,7 +132,7 @@ class CapacityStore:
             if not is_valid_label(g):
                 result[g] = {"status": "Unknown"}
                 continue
-                
+
             group_data = data.get("groups", {}).get(g, {})
             result[g] = {}
             for w, w_data in group_data.items():
@@ -139,7 +141,7 @@ class CapacityStore:
                 try:
                     obs_time = datetime.fromisoformat(w_data["observed_at"])
                     age = (now - obs_time).total_seconds()
-                    
+
                     if age < 0:
                         status = "invalid"
                         age = 0.0
@@ -147,7 +149,7 @@ class CapacityStore:
                         status = "fresh"
                     else:
                         status = "stale"
-                    
+
                     if w_data.get("reset_at"):
                         reset_time = datetime.fromisoformat(w_data["reset_at"])
                         if now >= reset_time:
@@ -162,7 +164,7 @@ class CapacityStore:
                     "age_seconds": max(0, float(age)),
                     "status": status
                 }
-                
+
                 if "reset_at" in w_data:
                     res_window["reset_at"] = w_data["reset_at"]
 
@@ -170,9 +172,9 @@ class CapacityStore:
                     res_window["usable_remaining_percent"] = w_data.get("remaining_percent")
                 else:
                     res_window["last_remaining_percent"] = w_data.get("remaining_percent")
-                
+
                 result[g][w] = res_window
-            
+
             if not result[g]:
                 result[g] = {"status": "Unknown"}
 

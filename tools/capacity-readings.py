@@ -7,9 +7,9 @@ from bridge.capacity import CapacityStore
 def main():
     parser = argparse.ArgumentParser(description="Manage capacity readings")
     parser.add_argument("--project", required=True, help="Project directory path")
-    
+
     subparsers = parser.add_subparsers(dest="command", required=True)
-    
+
     record_parser = subparsers.add_parser("record")
     record_parser.add_argument("--group", required=True)
     record_parser.add_argument("--window", required=True)
@@ -38,7 +38,7 @@ def main():
                 reset_at=args.reset_at
             )
             print("Recorded successfully.")
-        
+
         elif args.command == "show":
             result = store.show(group=args.group, max_age_seconds=args.max_age_seconds)
             if args.json:
@@ -49,7 +49,7 @@ def main():
                     if "status" in windows and windows["status"] == "Unknown":
                         print("  Unknown")
                         continue
-                    
+
                     for window, data in windows.items():
                         print(f"  Window: {window} ({data.get('window_minutes')}m)")
                         print(f"    Status: {data.get('status')}")
@@ -57,12 +57,12 @@ def main():
                         print(f"    Observed at: {data.get('observed_at')} (age: {data.get('age_seconds'):.1f}s)")
                         if "reset_at" in data:
                             print(f"    Reset at: {data.get('reset_at')}")
-                        
+
                         if "usable_remaining_percent" in data:
                             print(f"    Usable remaining: {data['usable_remaining_percent']}%")
                         if "last_remaining_percent" in data:
                             print(f"    Last remaining: {data['last_remaining_percent']}% (not usable)")
-                        
+
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
