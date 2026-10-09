@@ -19,6 +19,7 @@ bash -n unio-install.sh
 python3 -B tools/embed-lead-cooldown.py --check
 python3 -B tools/embed-browser.py --check
 python3 -B tools/embed-capacity.py --check
+python3 -B tools/embed-dashboard.py --check
 UNIO_BIN_DIR="$QUALITY_CHECK_DIR/bin" UNIO_CONF_DIR="$QUALITY_CHECK_DIR/conf" \
   UNIO_COMPLETION_DIR="$QUALITY_CHECK_DIR/completion" bash unio-install.sh > "$QUALITY_CHECK_DIR/install.log"
 shellcheck -S warning "$QUALITY_CHECK_DIR/bin/unio"
@@ -35,6 +36,7 @@ python3 -B bridge/tests/worker_files_test.py
 node --check bridge/worker_console.js
 python3 -B bridge/tests/server_test.py
 python3 -B tests/unio-browser-launcher.py
+python3 -B tests/unio-dashboard.py
 python3 -B bridge/tests/capacity_test.py
 python3 -B tests/unio-capacity.py
 python3 -B tests/unio-work-policy.py

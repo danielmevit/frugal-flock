@@ -453,7 +453,12 @@ class Dashboard:
             if child.poll() is not None:
                 return 'exited_before_ready', port, None
             if port is None:
-                raw = directory.read_bounded(LOG, LOG_LIMIT) or b''
+                try:
+                    raw = directory.read_bounded(LOG, LOG_LIMIT) or b''
+                except DashboardError:
+                    raise
+                except OSError:
+                    raw = b''  # Some mounts briefly fail reads during a write; retry until the deadline.
                 match = ORIGIN_LINE.search(raw[:LOG_LIMIT].decode('utf-8', 'replace'))
                 if match and 0 < int(match.group(1)) < 65536:
                     port = int(match.group(1))

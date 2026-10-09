@@ -170,6 +170,59 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(json.loads(body), dict(schema_version=1, error='activity_unavailable'))
         self.assertNotIn(b'observed_at', body)
 
+    def test_foreground_has_no_managed_dashboard_metadata(self):
+        self.assertEqual(self.request(path='/api/dashboard')[0], 404)
+        self.server.dashboard = dict(schema_version=1, managed=True, mode='read-only', version='0.5.6',
+                                     project_hash='a' * 64, launch_nonce='b' * 32)
+        code, _, body = self.request(path='/api/dashboard')
+        self.assertEqual((code, json.loads(body)), (200, self.server.dashboard))
+        for headers in ({'Host': 'evil.example'}, {'Origin': 'https://evil.example'}):
+            with self.subTest(headers=headers):
+                self.assertEqual(self.request(path='/api/dashboard', headers=headers)[0], 403)
+        self.assertEqual(self.request(method='POST', path='/api/dashboard')[0], 405)
+        self.assertEqual(self.observer.calls, 0)
+
+
+class ManagedDashboardTests(unittest.TestCase):
+    def test_metadata_only_for_valid_read_only_managed_launch(self):
+        project = Path('/fixed/workspace with spaces')
+        plain = Mock(plans=None, execution=None, progress=None, files=None)
+        value = server.managed_dashboard('c' * 32, plain, project, '0.5.6')
+        self.assertEqual(set(value), {'schema_version', 'managed', 'mode', 'version', 'project_hash', 'launch_nonce'})
+        self.assertEqual(value['project_hash'], server.hashlib.sha256(str(project).encode()).hexdigest())
+        self.assertNotIn(str(project), json.dumps(value))
+        for launch, version in ((None, '0.5.6'), ('C' * 32, '0.5.6'), ('c' * 31, '0.5.6'), ('c' * 32, None),
+                                ('c' * 32, 'bad version\n')):
+            with self.subTest(launch=launch, version=version):
+                self.assertIsNone(server.managed_dashboard(launch, plain, project, version))
+        for grant in ('plans', 'execution', 'progress', 'files'):
+            with self.subTest(grant=grant):
+                granted = Mock(plans=None, execution=None, progress=None, files=None)
+                setattr(granted, grant, object())
+                self.assertIsNone(server.managed_dashboard('c' * 32, granted, project, '0.5.6'))
+
+    def test_launch_nonce_is_removed_before_observer_children(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory).resolve()
+            for part in ('repo', 'coord', 'wt'):
+                (workspace / part).mkdir()
+            (workspace / 'coord' / 'agents.conf').write_text('')
+            engine = workspace / 'engine'
+            engine.write_text('#!/bin/sh\n')
+            captured = []
+            with patch.dict(server.os.environ, {server.DASHBOARD_LAUNCH: 'd' * 32}), \
+                 patch.object(server, 'serve_preview', side_effect=lambda s, _: captured.append(s)), \
+                 patch('builtins.print'):
+                server.main([], engine_override=engine, project_default=workspace, installed_version='0.5.6')
+                self.assertNotIn(server.DASHBOARD_LAUNCH, server.os.environ)
+            captured[0].server_close()
+            self.assertEqual(captured[0].dashboard['launch_nonce'], 'd' * 32)
+            with patch.dict(server.os.environ, {server.DASHBOARD_LAUNCH: 'd' * 32}), \
+                 patch.object(server, 'serve_preview', side_effect=lambda s, _: captured.append(s)), \
+                 patch('builtins.print'):
+                server.main(['--project', str(workspace), '--engine', str(engine)])
+            captured[1].server_close()
+            self.assertIsNone(captured[1].dashboard)  # Source launches have no installed version.
 
 
 class PreviewLaunchTests(unittest.TestCase):
