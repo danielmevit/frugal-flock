@@ -48,7 +48,7 @@
   let busy = false;
 
   let currentView = window.innerWidth >= 1000 ? "map" : "list";
-  let mapHistoryVisible = false;
+  let mapCategoryFilter = "";
   let mapSearchQuery = "";
   let mapWorkerFilter = "";
   let mapStateFilter = "";
@@ -79,10 +79,25 @@
   if (mapBtn) {
     mapBtn.addEventListener("click", () => { currentView = "map"; updateViewSwitch(); if (lastData) render(lastData); });
     document.getElementById("view-list").addEventListener("click", () => { currentView = "list"; updateViewSwitch(); if (lastData) render(lastData); });
-    document.getElementById("map-history-toggle").addEventListener("change", (e) => { mapHistoryVisible = e.target.checked; mapCurrentPage = 0; if (lastData) render(lastData); });
+
     document.getElementById("map-search").addEventListener("input", (e) => { mapSearchQuery = e.target.value.toLowerCase(); mapCurrentPage = 0; if (lastData) render(lastData); });
     document.getElementById("map-worker-filter").addEventListener("change", (e) => { mapWorkerFilter = e.target.value; mapCurrentPage = 0; if (lastData) render(lastData); else syncWorkerOptions([]); });
     document.getElementById("map-state-filter").addEventListener("change", (e) => { mapStateFilter = e.target.value; mapCurrentPage = 0; if (lastData) render(lastData); });
+    document.getElementById("map-category-filter").addEventListener("change", (e) => { mapCategoryFilter = e.target.value; mapCurrentPage = 0; if (lastData) render(lastData); else syncCategoryOptions([]); });
+
+    document.getElementById("map-reset-filters").addEventListener("click", () => {
+      mapSearchQuery = "";
+      mapWorkerFilter = "";
+      mapStateFilter = "";
+      mapCategoryFilter = "";
+      document.getElementById("map-search").value = "";
+      document.getElementById("map-worker-filter").value = "";
+      document.getElementById("map-state-filter").value = "";
+      document.getElementById("map-category-filter").value = "";
+      mapCurrentPage = 0;
+      if (lastData) render(lastData);
+    });
+
     document.getElementById("map-prev-page").addEventListener("click", () => { mapCurrentPage = Math.max(0, mapCurrentPage - 1); if (lastData) render(lastData); });
     document.getElementById("map-next-page").addEventListener("click", () => { mapCurrentPage++; if (lastData) render(lastData); });
     document.getElementById("map-fit").addEventListener("click", () => { mapFitView = true; applyMapPresentation(); });
@@ -110,14 +125,61 @@
 
   function render(data) {
     lastData = data;
-    if (currentView === "map") { renderMap(data); }
+    const { filtered, categories, tally } = getFilteredTasks(data);
 
-    const tasks = document.getElementById("tasks");
-    tasks.replaceChildren();
-    for (const result of data.results) {
-      const row = text("div", "", "row");
-      const identity = text("div", "");
-      identity.append(text("strong", result.worker + " / " + result.task));
+    filtered.sort((a, b) => {
+      const rank = { active: 0, attention: 1, finished: 2 };
+      const priority = rank[categories.get(a).category] - rank[categories.get(b).category];
+      if (priority) return priority;
+      if (a.worker !== b.worker) return a.worker < b.worker ? -1 : 1;
+      return a.task < b.task ? -1 : a.task > b.task ? 1 : 0;
+    });
+
+    const totalPages = Math.ceil(filtered.length / MAP_PAGE_SIZE);
+    if (mapCurrentPage >= totalPages) mapCurrentPage = Math.max(0, totalPages - 1);
+    const pageTasks = filtered.slice(mapCurrentPage * MAP_PAGE_SIZE, (mapCurrentPage + 1) * MAP_PAGE_SIZE);
+
+    // Update shared controls UI
+    syncWorkerOptions(data.results.map((r) => r.worker));
+    syncCategoryOptions(data.results.map(taskKind));
+
+    let counts = data.results.length + " total tasks (" + tally.attention + " need attention, " + tally.active + " active, " + tally.finished + " finished) · " + filtered.length + " shown";
+    if (mapWorkerFilter && !data.results.some((r) => r.worker === mapWorkerFilter))
+      counts += " · worker " + mapWorkerFilter + " is not in the current observation";
+    if (mapCategoryFilter && !data.results.some((r) => taskKind(r) === mapCategoryFilter))
+      counts += " · category " + mapCategoryFilter + " is not in the current observation";
+    setText(document.getElementById("map-counts"), counts);
+
+    const pagination = document.getElementById("map-pagination");
+    const prevBtn = document.getElementById("map-prev-page");
+    const nextBtn = document.getElementById("map-next-page");
+    const pageInfo = document.getElementById("map-page-info");
+    if (filtered.length > MAP_PAGE_SIZE) {
+      pagination.hidden = false;
+      setText(pageInfo, "Page " + (mapCurrentPage + 1) + " of " + (totalPages || 1));
+      prevBtn.disabled = mapCurrentPage === 0;
+      nextBtn.disabled = mapCurrentPage >= totalPages - 1;
+    } else {
+      pagination.hidden = true;
+      setText(pageInfo, "");
+    }
+
+    setText(document.getElementById("map-activity"), tally.active
+      ? tally.active + " active " + (tally.active === 1 ? "task" : "tasks") + " · Running tasks appear first. Choose Active to focus on them."
+      : "No recorded workers are running. These nodes show task history and outstanding checks or reviews. Lead CLI activity is not shown here.");
+    const empty = document.getElementById("map-empty");
+    empty.hidden = filtered.length !== 0;
+    setText(empty, mapStateFilter === "active" ? "No active tasks match these filters." : "No tasks match these filters.");
+
+    if (currentView === "map") {
+      renderMap(data, pageTasks, categories);
+    } else {
+      const tasks = document.getElementById("tasks");
+      tasks.replaceChildren();
+      for (const result of pageTasks) {
+        const row = text("div", "", "row");
+        const identity = text("div", "");
+        identity.append(text("strong", result.worker + " / " + result.task));
       identity.append(
         text("p", "Recorded at " + (result.recorded_at || "unknown")),
       );
@@ -175,8 +237,9 @@
       row.append(identity, state);
       tasks.append(row);
     }
-    if (!data.results.length)
+    if (!filtered.length)
       tasks.append(text("p", "No structured task evidence yet.", "small"));
+    }
     const limits = document.getElementById("limits");
     limits.replaceChildren();
     for (const agent of data.agents) {
@@ -253,6 +316,36 @@
   function sectionState(r, name) {
     const section = r && r[name];
     return section && typeof section.state === "string" ? section.state : "unavailable";
+  }
+
+  function taskKind(r) {
+    const kind = String(r.kind || "").toLowerCase();
+    const name = String(r.task || "").toLowerCase();
+    if (kind === "implementation" || name.includes("impl") || name.includes("feature") || name.includes("fix") || name.includes("build") || name.includes("work")) return "Implementation";
+    if (kind === "review" || name.includes("review") || name.includes("audit")) return "Review";
+    if (kind === "checks" || kind === "check" || name.includes("check") || name.includes("test") || name.includes("lint") || name.includes("verify") || name.includes("validation")) return "Checks";
+    return "Other";
+  }
+
+  function getFilteredTasks(data) {
+    const filtered = [];
+    const categories = new Map();
+    const tally = { active: 0, attention: 0, finished: 0 };
+    for (const r of data.results) {
+      const verdict = classify(r);
+      categories.set(r, verdict);
+      tally[verdict.category]++;
+      if (mapWorkerFilter && r.worker !== mapWorkerFilter) continue;
+      if (mapStateFilter && verdict.category !== mapStateFilter) continue;
+      if (mapCategoryFilter && taskKind(r) !== mapCategoryFilter) continue;
+      const stateStr = (sectionState(r, "process") + " " + r.activity + " " + sectionState(r, "validation") + " " + sectionState(r, "review") + " " + verdict.category + " " + taskKind(r)).toLowerCase();
+      const searchMatch = !mapSearchQuery ||
+          r.worker.toLowerCase().includes(mapSearchQuery) ||
+          r.task.toLowerCase().includes(mapSearchQuery) ||
+          stateStr.includes(mapSearchQuery);
+      if (searchMatch) filtered.push(r);
+    }
+    return { filtered, categories, tally };
   }
 
   // Process success is not acceptance. Only fully passed and approved records
@@ -454,6 +547,27 @@
     });
     for (const option of existing.values()) option.remove();
     if (select.value !== mapWorkerFilter) select.value = mapWorkerFilter;
+  }
+
+  function syncCategoryOptions(categoriesList) {
+    const select = document.getElementById("map-category-filter");
+    const wanted = Array.from(new Set(categoriesList)).sort();
+    const desired = [{ value: "", text: "All Categories" }].concat(wanted.map((c) => ({ value: c, text: c })));
+    if (mapCategoryFilter && !wanted.includes(mapCategoryFilter))
+      desired.push({ value: mapCategoryFilter, text: mapCategoryFilter + " (not in current observation)" });
+    const existing = new Map(Array.from(select.options).map((option) => [option.value, option]));
+    desired.forEach((want, index) => {
+      let option = existing.get(want.value);
+      existing.delete(want.value);
+      if (!option) {
+        option = document.createElement("option");
+        option.value = want.value;
+      }
+      setText(option, want.text);
+      if (select.options[index] !== option) select.insertBefore(option, select.options[index] || null);
+    });
+    for (const option of existing.values()) option.remove();
+    if (select.value !== mapCategoryFilter) select.value = mapCategoryFilter;
   }
 
   /* Brand paths: Lobe Icons @ c385b2b8d1f9e19aa86e628d4e23c91ee1111a47.
@@ -695,70 +809,8 @@
     }
   }
 
-  function renderMap(data) {
+  function renderMap(data, pageTasks, categories) {
     const svg = document.getElementById("work-map");
-    const countsSpan = document.getElementById("map-counts");
-    const pagination = document.getElementById("map-pagination");
-    const prevBtn = document.getElementById("map-prev-page");
-    const nextBtn = document.getElementById("map-next-page");
-    const pageInfo = document.getElementById("map-page-info");
-
-    syncWorkerOptions(data.results.map((r) => r.worker));
-
-    const filtered = [];
-    const categories = new Map();
-    const tally = { active: 0, attention: 0, finished: 0 };
-
-    for (const r of data.results) {
-      const verdict = classify(r);
-      categories.set(r, verdict);
-      tally[verdict.category]++;
-      const isFinished = verdict.category === "finished";
-      // The Finished filter exposes history without the separate toggle.
-      if (isFinished && !mapHistoryVisible && mapStateFilter !== "finished") continue;
-      if (mapWorkerFilter && r.worker !== mapWorkerFilter) continue;
-      if (mapStateFilter && verdict.category !== mapStateFilter) continue;
-      const stateStr = (sectionState(r, "process") + " " + r.activity + " " + sectionState(r, "validation") + " " + sectionState(r, "review") + " " + verdict.category).toLowerCase();
-      const searchMatch = !mapSearchQuery ||
-          r.worker.toLowerCase().includes(mapSearchQuery) ||
-          r.task.toLowerCase().includes(mapSearchQuery) ||
-          stateStr.includes(mapSearchQuery);
-      if (searchMatch) filtered.push(r);
-    }
-
-    let counts = data.results.length + " total tasks (" + tally.attention + " need attention, " + tally.active + " active, " + tally.finished + " finished) · " + filtered.length + " shown";
-    if (mapWorkerFilter && !data.results.some((r) => r.worker === mapWorkerFilter))
-      counts += " · worker " + mapWorkerFilter + " is not in the current observation";
-    setText(countsSpan, counts);
-    setText(document.getElementById("map-activity"), tally.active
-      ? tally.active + " active " + (tally.active === 1 ? "task" : "tasks") + " · Running tasks appear first. Choose Active to focus on them."
-      : "No recorded workers are running. These nodes show task history and outstanding checks or reviews. Lead CLI activity is not shown here.");
-    const empty = document.getElementById("map-empty");
-    empty.hidden = filtered.length !== 0;
-    setText(empty, mapStateFilter === "active" ? "No active tasks match these filters." : "No tasks match these filters.");
-
-    filtered.sort((a, b) => {
-      const rank = { active: 0, attention: 1, finished: 2 };
-      const priority = rank[categories.get(a).category] - rank[categories.get(b).category];
-      if (priority) return priority;
-      if (a.worker !== b.worker) return a.worker < b.worker ? -1 : 1;
-      return a.task < b.task ? -1 : a.task > b.task ? 1 : 0;
-    });
-
-    const totalPages = Math.ceil(filtered.length / MAP_PAGE_SIZE);
-    if (mapCurrentPage >= totalPages) mapCurrentPage = Math.max(0, totalPages - 1);
-    const pageTasks = filtered.slice(mapCurrentPage * MAP_PAGE_SIZE, (mapCurrentPage + 1) * MAP_PAGE_SIZE);
-
-    if (filtered.length > MAP_PAGE_SIZE) {
-      pagination.hidden = false;
-      setText(pageInfo, "Page " + (mapCurrentPage + 1) + " of " + (totalPages || 1));
-      prevBtn.disabled = mapCurrentPage === 0;
-      nextBtn.disabled = mapCurrentPage >= totalPages - 1;
-    } else {
-      pagination.hidden = true;
-      setText(pageInfo, "");
-    }
-
     // First appearance preserves active-first priority across worker lanes.
     const workers = Array.from(new Set(pageTasks.map((r) => r.worker)));
     const nodes = [];
