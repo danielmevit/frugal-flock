@@ -44,6 +44,7 @@ LOG_LIMIT = 65536
 ENVIRON_LIMIT = 1024 * 1024
 DEADLINE = 30.0       # whole command, including waiting for a concurrent ensure
 READY_SECONDS = 20.0  # one new launch
+LOCK_SECONDS = 12.0   # waiting for a concurrent ensure or stop
 OPEN_SECONDS = 8.0
 STOP_SECONDS = 10.0
 NONCE_ENV = 'UNIO_DASHBOARD_LAUNCH'
@@ -236,9 +237,11 @@ def parse_state(raw, expected_hash):
         elif value['reason'] not in REASONS:
             raise ValueError('reason')
     except (ValueError, UnicodeDecodeError, RecursionError):
-        raise DashboardError('unsafe', 'coord/dashboard/state.json is unreadable or not a dashboard record') from None
+        raise DashboardError('unsafe', 'coord/dashboard/state.json is unreadable or not a dashboard record; '
+                             'inspect it and remove it once no dashboard from it is running') from None
     if value['project_hash'] != expected_hash:
-        raise DashboardError('unsafe', 'coord/dashboard/state.json belongs to another project path')
+        raise DashboardError('unsafe', 'coord/dashboard/state.json belongs to another project path (moved?); '
+                             'inspect it and remove it once no dashboard from it is running')
     return value
 
 
@@ -375,7 +378,7 @@ class Dashboard:
         directory = StateDir(self.project, create=True)
         lock = None
         try:
-            lock = directory.lock(self.start + DEADLINE - READY_SECONDS - 2)
+            lock = directory.lock(self.start + LOCK_SECONDS)
             state, record, document = self.observe(directory)
             if state == 'running':
                 result = dict(action='ensure', state='reused', url=url_for(record['port']),
@@ -450,7 +453,7 @@ class Dashboard:
         deadline = time.monotonic() + max(1.0, min(READY_SECONDS, self.remaining() - 1))
         port = None
         while time.monotonic() < deadline:
-            if child.poll() is not None:
+            if exited_unreaped(child.pid):
                 return 'exited_before_ready', port, None
             if port is None:
                 try:
@@ -510,6 +513,14 @@ class Dashboard:
             if lock is not None:
                 os.close(lock)
             directory.close()
+
+
+def exited_unreaped(pid):
+    """Observe a child's exit without reaping it, so its PID stays ours for cleanup."""
+    try:
+        return os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None
+    except ChildProcessError:
+        return True
 
 
 def exited(pidfd, seconds):
