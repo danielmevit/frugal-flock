@@ -12,31 +12,45 @@ failures and remaining release work](RECOVERY-ACCEPTANCE-2026-10-08.md).
 
 ## Current delivery checkpoint — 2026-10-09
 
-The separate unpublished v0.5.4 candidate
-[`5a839fc`](https://github.com/danielmevit/unio/commit/5a839fc69e942c694b12c926f3eecb076dff2ade)
-passed the complete quality gate in 1,408.12 seconds, including all 65 default
-continuation assertions. Native validation passed 3/3 with scope OK for nine
-paths, followed by exact-material personal lead approval. Source remains
-`not_run` for existing-lead implementation; combined readiness is not inferred.
-No extra AI/reviewer session was started. Earlier failures remain preserved.
+[Unio v0.5.4](https://github.com/danielmevit/unio/releases/tag/v0.5.4) delivers
+manual/automatic recovery saves, one authorized continuation and browser themes
+and the live work map. The complete candidate quality gate passed in 1,408.12
+seconds, including 65 default continuation, 186 manual-saving, 61 automatic-saving
+and 106 offline cooldown assertions. All 14 adversarial probes held. Installer
+upgrades from legacy 0.4.0 and stable 0.5.3 preserved configuration; explicit
+backup restoration and a real Windows-mounted 236-path save/inspect passed.
+No additional AI/reviewer session or independent lab verdict is claimed.
 
-Exact private artifacts/checksums and isolated legacy/stable upgrades with
-explicit backup restoration passed. One actual native worker save on the
-Windows-mounted project passed: 236 paths, five commits and successful
-inspection. Full-gate fixtures used a private workspace-local RAM filesystem;
-do not turn those results into a mounted-filesystem speed claim.
+Lead cooldown restart is **experimental and explicitly enabled**. A genuine
+lead subscription limit followed by an automatic restart remains not_run.
+On 2026-10-09 the owner instructed publication and installation without waiting
+for that naturally occurring event. This supersedes the earlier local hold.
+Worker limit/retry handling is unchanged. Final changes after tested candidate
+`5a839fc69e942c694b12c926f3eecb076dff2ade` are documentation only; exact
+non-Markdown path/blob/mode identity binds the preserved full gate to the release.
+Use official tag/assets and `unio version` to establish actual publication and
+installation; a source checkout alone is not evidence of either.
 
-The remaining release requirement is a genuine subscription-limit-to-restart
-cycle. Current Codex workflows must exit before owner-terminal enablement under
-low tier. Preserve actual waiting, reset, launch and exit evidence; do not burn
-allowance or manufacture a clock/quota signal. Then finish release notes and
-final exact-source validation/assets before publication and verified install.
-v0.5.3 remains the latest public and installed release; do not install a draft.
-Keep the reviewed candidate and its frozen-base receipts intact when main moves
-for this documentation update. A later stale native result is not a new failure
-or permission to call old evidence fresh. Further UI and scan optimization wait
-until recovery is complete. In an existing workspace, read its newest private
-handoff and coordination log for the exact prepared acceptance kit.
+Owner delivery policy for this pre-user project: YOLO uses focused functional
+checks and preserves failures, but does not wait hours to reproduce a real
+subscription cooldown before shipping. Disclose untested behavior; fix concrete
+bugs in follow-up work. Do not introduce production-style release holds without
+discussing the reason with the owner. Preserve existing billing, permissions,
+account limits and opt-in controls. Never call an unrun live test passed.
+
+The packaged `unio browser` launcher is separate later development, excluded
+from v0.5.4. Its branch is preserved; its initial focused verification failed
+one outside-workspace fixture assumption. That fixture was corrected and
+committed, but the corrected revision is not verified or accepted. Finish that
+bounded correction after the release. Later version numbers are unassigned.
+In an existing workspace, read the newest private coordination log, receipts
+and handoff for exact release/source/install identities and remaining work.
+
+## Historical checkpoints
+
+The entries below preserve what was known at their dates. Their earlier
+publication holds and pending-test statements are superseded by the current
+checkpoint and actual release receipts; do not use them to reopen completed work.
 
 ## Previous delivery checkpoint — 2026-10-08
 

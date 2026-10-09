@@ -5,9 +5,11 @@ allowance limit creates a durable wait; when the allowance is available, Unio
 starts a new lead with the saved goal and instructions to reconcile existing
 work. Waiting makes no AI requests. Worker limits and retries are unchanged.
 
-This is **unreleased source for v0.5.4**, with offline acceptance. It is not
-in installed v0.5.3. Real subscription-limit recovery still needs a live
-acceptance run; do not treat mock-clock evidence as a measured provider reset.
+This is **experimental in v0.5.4** and disabled until explicitly enabled.
+All 106 offline assertions and a real metadata-only probe passed. A genuine
+lead subscription limit followed by an automatic restart remains unverified;
+do not treat mock-clock evidence as a measured provider reset. The owner
+approved release with this limitation disclosed. Worker limit handling is unchanged.
 The first adapter requires Linux, Python 3.11+ and **Codex CLI 0.161.0**.
 Other CLI versions and AI labs need separately verified adapters.
 

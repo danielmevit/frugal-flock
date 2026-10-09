@@ -1,0 +1,1 @@
+Finish the packaged browser launcher after v0.5.4, retaining the fixed native engine, explicit access grants and read-only default. Correct the outside-workspace fixture to use a neutral working directory; preserve the original failed verification.

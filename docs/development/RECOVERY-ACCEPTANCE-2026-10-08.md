@@ -1,11 +1,12 @@
 # Recovery validation — 2026-10-08
 
-The v0.5.4 recovery features are implemented in source. Published and installed
-v0.5.3 remains unchanged. Source integration is not release acceptance.
+The v0.5.4 recovery release passed its complete automated quality gate and
+installer upgrade/restore checks. Its optional lead cooldown supervisor is
+experimental: the genuine subscription-limit-to-restart cycle remains unverified.
 
 ## Complete candidate verification — 2026-10-09
 
-The unpublished [v0.5.4 candidate at `5a839fc`](https://github.com/danielmevit/unio/commit/5a839fc69e942c694b12c926f3eecb076dff2ade)
+The tested [v0.5.4 candidate at `5a839fc`](https://github.com/danielmevit/unio/commit/5a839fc69e942c694b12c926f3eecb076dff2ade)
 passed the complete `bash tools/quality-check.sh` against frozen base
 `3a56c444c6fe591f3dda1b84e92be0816baedb7b`. Native verification passed all
 three checks and its nine-path scope in 1,408.12 seconds. This includes the
@@ -32,8 +33,9 @@ The real smoke does not establish timing for every tree or automatic save.
 
 Genuine subscription-limit-to-restart acceptance remains **not run**. Neither
 the offline cooldown checks nor the earlier real metadata probe proves that
-cycle. Publication and global installation are still pending; v0.5.3 remains
-the latest public and installed release. The original failed gates and private
+cycle. On 2026-10-09 the owner explicitly approved publication and installation
+without waiting for a genuine limit. The release discloses that limitation;
+lead cooldown remains disabled until explicitly enabled. The original failed gates and private
 diagnostic outcomes retain their actual results.
 
 ## Results so far
@@ -77,20 +79,25 @@ including interruption cleanup, successful continuation, prompt integrity, clean
 recovery and final source/result preservation. Its output explicitly says partial.
 Every original assertion remains in the default release invocation.
 
-## Remaining release work
+## Release decision and remaining live validation
 
-The separate versioned candidate has passed the complete gate, private artifact
-checks and isolated upgrade/restore checks. Exercise a genuine supported
-subscription limit and restart before publication. Finish release notes and
-bind validation and artifacts to the final exact source if it changes; then
-publish official assets and verify installation. Offline clocks and a
-successful ordinary launch do not establish genuine quota recovery.
+The owner chose YOLO delivery on 2026-10-09: ship the tested pre-user release,
+disclose unverified behavior and fix demonstrated bugs without waiting hours
+for a naturally occurring quota event. This supersedes the earlier local
+requirement to observe a genuine limit before publication. It concerns the
+lead CLI only; existing worker limit handling stays unchanged.
 
-The genuine cycle requires the current Codex workflow to exit before an owner
-enables the supervisor. The first supported adapter is Codex CLI 0.161.0 on
-Linux/Python 3.11+ with an individual first-party ChatGPT subscription. Do not
-manufacture a limit, bypass account admission or infer a worker reset from the
-lead's allowance. See [lead cooldown recovery](../LEAD-COOLDOWN.md).
+Final release documentation is the only change after the passed candidate.
+An exact Git path/blob/mode comparison verifies that every non-Markdown file,
+including installer, runtime helpers, browser assets and all tests, matches the
+complete-gate candidate. Final documentation and artifact checks bind that
+unchanged runtime evidence to the release. Original failed runs remain failures.
+
+The genuine cycle stays not_run until it actually happens. At a future natural
+limit, use an owner terminal after existing Codex workflows exit, preserve real
+wait/reset/restarted-exit evidence and follow the [cooldown guide](../LEAD-COOLDOWN.md).
+Do not burn allowance, bypass admission or present an offline clock as a real reset.
+This follow-up no longer blocks publication or installation.
 
 ## Performance finding
 

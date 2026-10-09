@@ -1,7 +1,7 @@
 # Standalone browser launcher
 
 Frozen 2026-10-09 for `BROWSER-LAUNCHER-1`, the first everyday-launch slice.
-This is separate development after the frozen v0.5.4 recovery candidate.
+This is separate development after the published v0.5.4 recovery release.
 No later version is assigned or published by this contract.
 
 `unio browser` starts the existing local dashboard using packaged files,
@@ -33,5 +33,6 @@ Verify installed standalone bytes, actual loopback HTTP/assets/activity,
 inferred/explicit project paths containing spaces, explicit manual drafts,
 fixed engine/config despite a PATH decoy, startup refusal and preservation.
 Reuse existing server checks, personal review and focused native validation
-under YOLO. Keep the earlier recovery candidate/assets/evidence frozen; this
-feature branch waits for that release boundary before main integration.
+under YOLO. Keep the published recovery tag/assets/evidence unchanged. The
+release boundary is now complete; development integration uses the bounded
+`BROWSER-LAUNCHER-2` correction and fresh focused checks.

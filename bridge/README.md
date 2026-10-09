@@ -1,5 +1,11 @@
 # Unio local project workspace
 
+Included in the [Unio v0.5.4 source archive](https://github.com/danielmevit/unio/releases/tag/v0.5.4):
+Light/Dark themes, the responsive live work map, zoom/pan and every-node details.
+The packaged launcher below is later development and is not part of v0.5.4.
+Historical validation notes later in this guide describe their original revisions
+and versions.
+
 This workspace has three explicit startup modes: read-only
 Activity by default, local manual drafts, and live execution. Default mode
 turns `watch --once --json` into a read-only local browser view. It shows
@@ -18,8 +24,8 @@ Use a disposable source build in workspace `tmp/`, following
 ## Development: one-command launch
 
 The next daily-launch slice packages this existing dashboard in the standalone
-installer. It is separate from the frozen v0.5.4 recovery candidate and is not
-in published v0.5.3. See the [launcher contract](../docs/development/BROWSER-LAUNCHER-CONTRACT.md).
+installer. It follows the published v0.5.4 recovery release and is not
+in that release. See the [launcher contract](../docs/development/BROWSER-LAUNCHER-CONTRACT.md).
 With a build containing that slice, start inside any initialized project:
 
 ```bash

@@ -195,7 +195,7 @@ done
 unio license > "$BRAND_SANDBOX/entry-license"
 cmp "$BRAND_SANDBOX/expected-license" "$BRAND_SANDBOX/entry-license"
 unio version > "$BRAND_SANDBOX/version"
-grep -q '^Unio 0\.5\.3 ' "$BRAND_SANDBOX/version"
+grep -q '^Unio 0\.5\.4 ' "$BRAND_SANDBOX/version"
 grep -Fxq 'Your AIs, in sync.' "$BRAND_SANDBOX/version"
 grep -Fxq "config: $UNIO_CONF_DIR/agents.conf" "$BRAND_SANDBOX/version"
 rc=0

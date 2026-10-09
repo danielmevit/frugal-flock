@@ -44,12 +44,11 @@ session, preserving their work and the agreed checks.
 through WSL, plus a [local browser workspace](bridge/README.md) in the source
 archive. Use it to prepare and run tasks, follow worker output and inspect files.
 
-*Install [Unio 0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3), the latest published release. See the [version plan](docs/VERSION-PLAN.md) for the next milestones.*
+*Install [Unio 0.5.4](https://github.com/danielmevit/unio/releases/tag/v0.5.4), the latest release. It adds recovery saves, authorized continuation and the live work map. [Lead cooldown restart](docs/LEAD-COOLDOWN.md) is experimental and explicitly enabled; its genuine subscription-limit cycle remains unverified.*
 
 **In development:** a [packaged `unio browser` launcher](bridge/README.md#development-one-command-launch)
 starts the dashboard with the same CLI and configuration, read-only by default.
-This later daily-use slice is separate from the frozen recovery candidate and
-is not in the published release.
+This later daily-use slice is not included in the published v0.5.4 release.
 
 [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
 [FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·
@@ -275,17 +274,17 @@ was done, what passed and what is left. The lead then gives the work to
 another AI with that note. The note is context only: unfinished, uncommitted
 changes stay in Codex's copy. [Handoff packets](docs/QUALITY-USAGE.md#handoff-packets)
 explain the details. Unio does not get around limits or share plans;
-each tool keeps its own. The upcoming v0.5.4 source now includes
+each tool keeps its own. Unio v0.5.4 includes
 [automatic recovery saves](docs/WORK-SAVING.md) before, during and after native
 worker runs, plus manual restore. These preserve unfinished files without a
-final AI answer. Source also supports one separately authorized task from an
+final AI answer. It also supports one separately authorized task from an
 exact restored save, with account limits and replay protection. An owner-enabled
-[lead cooldown supervisor](docs/LEAD-COOLDOWN.md) is also implemented in source
-for the supported Codex CLI. Real subscription-limit restart acceptance and
-release checks remain pending. Published v0.5.3 handoffs provide context, without
-recovery snapshots.
+[lead cooldown supervisor](docs/LEAD-COOLDOWN.md) is experimental for the
+supported Codex CLI. Its automated checks passed, but a genuine lead usage
+limit followed by automatic restart remains unverified. It is disabled until
+explicitly enabled. Worker limit handling stays unchanged.
 See the [current recovery validation](docs/development/RECOVERY-ACCEPTANCE-2026-10-08.md)
-for completed checks and remaining release work.
+for completed checks and the remaining live cooldown validation.
 
 </details>
 
@@ -384,12 +383,14 @@ needed to rebuild the Word manuals with `tools/make-docx.sh`.
 
 ## What's next
 
-- **Available, v0.5.3:** the browser workflow, worker output and files,
-  work modes and shared subscription-budget controls. See the
+- **Available, v0.5.4:** the browser workflow, worker output and files,
+  work modes, shared subscription-budget controls, recovery saves, authorized
+  continuation, dark themes and the live work map. See the
   [release notes](CHANGELOG.md) and [browser guide](bridge/README.md).
-- **Next, v0.5.4:** save unfinished work, restore it for continuation and
-  restart an owner-enabled lead after its cooldown. Dark themes and the
-  live work map are accepted in main for this release; recovery is being built.
+- **Experimental in v0.5.4:** restart an owner-enabled lead after its cooldown.
+  The genuine subscription-limit-to-restart cycle still needs live validation.
+- **Next:** simpler daily launch and observation, then remaining-allowance
+  monitoring and reliable delegation. Later version numbers are unassigned.
 - **Later:** remaining-allowance monitoring, more reliable connections and
   smarter delegation, guided by actual project outcomes.
 
