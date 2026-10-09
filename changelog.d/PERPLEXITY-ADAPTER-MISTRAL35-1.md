@@ -1,0 +1,1 @@
+Add Perplexity Pro research adapter with stdlib orchestrator, unit tests, and integration documentation. Uses perplexity-web-mcp-cli 0.16.1 as optional external dependency with manual owner install/login required.
