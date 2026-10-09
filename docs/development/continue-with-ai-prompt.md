@@ -58,6 +58,17 @@ worktrees and refs were preserved and repaired. Historical evidence keeps its
 old paths; resolve them through local `coord/WORKSPACE-PATHS.json`. See the
 [completed relocation record](WORKSPACE-RENAME.md).
 
+## Project website — 2026-10-10
+
+A one-page Astro site lives in `site/` and publishes to
+<https://danielmevit.github.io/unio/> through `.github/workflows/deploy.yml`
+on every push to `main` that touches `site/`, the workflow or `CHANGELOG.md`.
+The page reads its version from the newest `CHANGELOG.md` heading. Colors
+follow the dashboard's dark theme in `bridge/activity.css`. The hero
+screenshot shows stand-in agents only (no provider calls); the capture script
+is local at `tmp/site-demo/showcase.sh`. Preview with
+`cd site && npm install && npx astro build && npx astro preview`.
+
 ## Next functional work
 
 Read the [roadmap](ROADMAP.md), [consolidated backlog](IMPROVEMENT-BACKLOG.md)

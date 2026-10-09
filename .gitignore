@@ -1,3 +1,8 @@
 
 # Word lock files (created while a .docx is open)
 ~$*
+
+# Astro site (published by .github/workflows/deploy.yml)
+site/node_modules/
+site/dist/
+site/.astro/

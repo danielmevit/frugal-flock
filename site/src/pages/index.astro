@@ -1,0 +1,671 @@
+---
+import fs from "node:fs";
+
+// The version has one home: the newest release heading in CHANGELOG.md. Read it
+// at build time rather than restate it here, or the site will eventually
+// advertise a version that isn't the one on the releases page.
+const changelog = fs.readFileSync(
+  new URL("../../../CHANGELOG.md", import.meta.url),
+  "utf8",
+);
+const match = changelog.match(/^## (\d+\.\d+\.\d+)\b/m);
+if (!match) throw new Error("Could not read the latest version from CHANGELOG.md");
+const version = match[1];
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const site = "https://danielmevit.github.io/unio/";
+const title = "Unio — Your AIs, in sync.";
+const description =
+  "Free, open-source tool that brings AI agents from different AI labs into one team. A lead delegates the work, other agents review the changes, and you stay in control. Linux and Windows through WSL.";
+const repo = "https://github.com/danielmevit/unio";
+const doc = (path: string) => `${repo}/blob/main/${path}`;
+const year = 2026;
+
+const tools = ["Claude Code", "Codex", "Grok", "Antigravity", "OpenCode"];
+
+const features = [
+  {
+    title: "Your AI agents, one team",
+    body: "Connect agents from different AI labs through the coding tools you already use, and give them one shared workspace for your project.",
+  },
+  {
+    title: "One agent leads",
+    body: "The lead turns your goal into small tasks, picks a worker for each and hands the work out, within the plan you approved.",
+  },
+  {
+    title: "Several tasks at once",
+    body: "Workers build separate parts in parallel, each in its own copy of the project on its own branch, so their changes never get mixed up.",
+  },
+  {
+    title: "Reviewed by another lab",
+    body: "An agent from a different AI lab checks each change independently. Review rounds catch bugs and security issues before you accept the work.",
+  },
+  {
+    title: "Done means checked",
+    body: "Every task names the files it may change and the checks that must pass. A task counts as finished only when its checks pass and the review approves.",
+  },
+  {
+    title: "Limits don't stop the project",
+    body: "When an agent reaches its usage limit, a written handoff records what was done, what passed and what is left, so another agent can continue.",
+  },
+];
+
+const steps = [
+  {
+    title: "Describe it.",
+    body: "Tell the lead AI what you want, for example “Help people find an article by title.”",
+  },
+  {
+    title: "Approve the plan.",
+    body: "The lead splits the work into small tasks and says who does each one, which files may change and how it will be checked.",
+  },
+  {
+    title: "The workers build.",
+    body: "Each works in a separate copy of the project, so their changes never get mixed up.",
+  },
+  {
+    title: "The work is checked.",
+    body: "Unio runs the agreed checks and keeps the evidence. An agent from another AI lab can review the changes too.",
+  },
+  {
+    title: "You decide.",
+    body: "Keep the changes, ask for fixes, or drop them. A finished AI run is not proof the work is right; the checks and your review are.",
+  },
+];
+
+const install = [
+  "git clone https://github.com/danielmevit/unio.git",
+  "cd unio",
+  "bash unio-install.sh",
+  'export PATH="$HOME/.local/bin:$PATH"',
+  "unio selftest",
+].join("\n");
+
+const next = [
+  { label: "Take the worked-example tour", href: doc("docs/EXAMPLE.md") },
+  { label: "Follow the complete guide", href: doc("docs/GUIDEBOOK.md") },
+  { label: "Use the compact setup reference", href: doc("docs/SETUP.md") },
+];
+
+const notes = [
+  "Unio doesn't get around usage limits or pool subscriptions. Each tool keeps its own plan, limits and terms.",
+  "Agents run commands on your computer, and their separate copies are not a security sandbox. Use a spare Linux machine or virtual machine without important passwords or keys.",
+  "AI tools send your prompts and code to their providers. Keep secrets out of tasks and repositories.",
+  "Switching agents after a limit is supervised today: the next agent gets a written handoff, not the previous one's memory.",
+];
+
+const faqs = [
+  {
+    q: "Does it cost anything?",
+    a: "No. Unio is free and open source under AGPL-3.0. It works with the AI plans you already have, each signed in its own way, so you need no separate API keys. Real tasks use your plans' normal allowance; a second AI reviewing the work uses a little more.",
+  },
+  {
+    q: "Which AI tools do I need?",
+    a: "One is enough to start. Settings are included for Claude Code, Codex, Antigravity, OpenCode (for models such as GLM and Kimi) and Grok. Any command-line AI that can take a task without a chat window can join with one line of configuration.",
+  },
+  {
+    q: "Does it work on Windows or Mac?",
+    a: "Linux, yes. Windows, yes, through WSL (Ubuntu works well). Mac is not supported yet: Unio relies on Linux tools such as flock.",
+  },
+  {
+    q: "How is this different from using the AI tools myself?",
+    a: "For a quick question, call them directly. Once AIs change your code, Unio gives each one its own copy and branch, counts a task as done only when its checks pass and only allowed files changed, records failures, ties reviews to the exact version, and keeps notes any AI or person can continue from.",
+  },
+  {
+    q: "Do the AIs talk to each other?",
+    a: "Not directly, and they share no memory. They coordinate through files in your project: task orders, reports, results and handoff notes. Each AI starts fresh, reads what the others left, and writes down what it did.",
+  },
+  {
+    q: "Is there an app to watch the work?",
+    a: "Yes, a local dashboard in your browser. Run unio dashboard and open the link it prints. It shows every task, the worker that did it and whether its checks and review passed. It is read-only by default and never asks a provider for anything.",
+  },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="author" content="Daniel Mevit" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#1c1c1c" />
+    <link rel="canonical" href={site} />
+    <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={site} />
+    <meta property="og:image" content={`${site}assets/og.png`} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "Unio",
+      description,
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Linux, Windows (WSL)",
+      softwareVersion: version,
+      license: "https://www.gnu.org/licenses/agpl-3.0.html",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      url: site,
+      codeRepository: repo,
+      author: { "@type": "Person", name: "Daniel Mevit" },
+    })} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="topbar">
+      <div class="wrap topbar-inner">
+        <a class="brand" href={`${base}/`} aria-label="Unio home">
+          <span class="brand-name">Unio</span>
+          <span class="brand-tag">Your AIs, in sync.</span>
+        </a>
+        <nav aria-label="Main">
+          <a class="nav-link" href="#how">How it works</a>
+          <a class="nav-link" href="#faq">FAQ</a>
+          <a class="nav-link" href={repo}>GitHub</a>
+          <a class="btn btn-primary btn-small" href="#install">Install</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <section class="hero wrap" aria-labelledby="hero-title">
+        <p class="eyebrow">Free and open source</p>
+        <h1 id="hero-title">Your AIs, in sync.</h1>
+        <p class="lead">
+          Unio brings AI agents from different AI labs together to build and
+          improve your project. A lead delegates the work, other agents review
+          the changes, and you stay in control.
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="#install">Install Unio</a>
+          <a class="btn" href={repo}>View on GitHub</a>
+        </div>
+        <p class="meta">
+          v{version} · Linux, or Windows through WSL · AGPL-3.0 · runs on your
+          computer with the AI plans you already have
+        </p>
+      </section>
+
+      <figure class="shot wrap">
+        <a class="shot-frame" href={`${base}/assets/dashboard.webp`} aria-label="Open the dashboard screenshot at full size">
+          <img
+            src={`${base}/assets/dashboard.webp`}
+            srcset={`${base}/assets/dashboard-1440.webp 1440w, ${base}/assets/dashboard.webp 2880w`}
+            sizes="(max-width: 1112px) calc(100vw - 32px), 1080px"
+            width="2880"
+            height="2322"
+            alt="The Unio dashboard in dark theme: a work map of five tasks across three workers. Four are finished with checks passed and review approved; one passed its checks and waits for review."
+          />
+        </a>
+        <figcaption>
+          The local dashboard. Each task shows its worker, and green means its
+          checks passed and the review approved. Shown with stand-in agents from
+          the built-in demo.
+        </figcaption>
+      </figure>
+
+      <section class="works wrap" aria-label="Works with">
+        <span class="works-label">Works with</span>
+        <ul class="chips">
+          {tools.map((t) => <li class="chip">{t}</li>)}
+          <li class="chip chip-quiet">any command-line AI</li>
+        </ul>
+      </section>
+
+      <section class="section wrap" id="features" aria-labelledby="features-title">
+        <div class="section-head">
+          <p class="eyebrow">What Unio does</p>
+          <h2 id="features-title">One team, from different AI labs</h2>
+        </div>
+        <div class="grid">
+          {features.map((f) => (
+            <article class="card">
+              <h3>{f.title}</h3>
+              <p>{f.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section class="section wrap" id="how" aria-labelledby="how-title">
+        <div class="section-head">
+          <p class="eyebrow">How it works</p>
+          <h2 id="how-title">A task, step by step</h2>
+        </div>
+        <ol class="steps">
+          {steps.map((s, i) => (
+            <li class="step">
+              <span class="step-num" aria-hidden="true">{i + 1}</span>
+              <p><strong>{s.title}</strong> {s.body}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section class="section wrap" id="install" aria-labelledby="install-title">
+        <div class="section-head">
+          <p class="eyebrow">Install</p>
+          <h2 id="install-title">Try it free, with no AI calls</h2>
+          <p class="section-sub">
+            You need Linux or Windows with WSL, plus Bash, Git, Python 3 and
+            standard tools such as <code>flock</code>. The rehearsal runs the
+            whole workflow with stand-in AIs, so it needs no AI account and uses
+            no allowance.
+          </p>
+        </div>
+        <div class="code">
+          <div class="code-bar">
+            <span>Terminal</span>
+            <button class="copy" type="button" data-copy={install}>Copy</button>
+          </div>
+          <pre><code>{install}</code></pre>
+        </div>
+        <p class="after-code">
+          Then run <code>unio dashboard</code> to open the dashboard in your
+          browser. Next:
+        </p>
+        <ul class="next">
+          {next.map((n) => <li><a href={n.href}>{n.label}</a></li>)}
+        </ul>
+      </section>
+
+      <section class="section wrap" id="notes" aria-labelledby="notes-title">
+        <div class="section-head">
+          <p class="eyebrow">Good to know</p>
+          <h2 id="notes-title">What Unio doesn't do</h2>
+        </div>
+        <ul class="notes">
+          {notes.map((n) => <li>{n}</li>)}
+        </ul>
+      </section>
+
+      <section class="section wrap" id="faq" aria-labelledby="faq-title">
+        <div class="section-head">
+          <p class="eyebrow">FAQ</p>
+          <h2 id="faq-title">Questions</h2>
+        </div>
+        <div class="faq">
+          {faqs.map((f) => (
+            <details>
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-inner">
+        <p>
+          © {year} Daniel Mevit · Made by <a href="https://damt.xyz">damt.xyz</a>
+        </p>
+        <nav aria-label="Project links">
+          <a href={repo}>GitHub</a>
+          <a href={`${repo}/releases`}>Releases</a>
+          <a href={doc("CHANGELOG.md")}>Changelog</a>
+          <a href={doc("LICENSE")}>AGPL-3.0</a>
+        </nav>
+      </div>
+    </footer>
+
+    <script>
+      for (const button of document.querySelectorAll<HTMLButtonElement>("button.copy")) {
+        button.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(button.dataset.copy ?? "");
+            button.textContent = "Copied";
+          } catch {
+            button.textContent = "Select and copy";
+          }
+          setTimeout(() => (button.textContent = "Copy"), 2000);
+        });
+      }
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  /* Colors come from the dashboard's dark theme (bridge/activity.css), so the
+     site and the app read as one product. */
+  :root {
+    --bg: #1c1c1c;
+    --paper: #252525;
+    --raised: #2b2b2b;
+    --pre: #222222;
+    --line: #3d3d3d;
+    --line-alt: #555555;
+    --text: #e8e8e8;
+    --muted: #a6a6a6;
+    --label: #c4c4c4;
+    --chip: #333333;
+    --accent: #d2d2d2;
+    --accent-hover: #eeeeee;
+    --on-accent: #1c1c1c;
+    --btn-border: #686868;
+    --btn-hover-bg: #3d3d3d;
+    --focus: #e2e2e2;
+    --passed: #3fb950;
+    color-scheme: dark;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-synthesis: none;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  *,
+  *::before,
+  *::after { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    font-size: 16px;
+  }
+
+  a { color: var(--text); }
+  a:hover { color: var(--accent-hover); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+
+  code {
+    font-family: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    background: var(--chip);
+    color: var(--label);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  h1, h2, h3 { margin: 0; line-height: 1.15; font-weight: 700; }
+
+  .wrap { width: min(1080px, calc(100% - 32px)); margin-inline: auto; }
+
+  .skip-link {
+    position: absolute;
+    left: 16px;
+    top: -48px;
+    background: var(--accent);
+    color: var(--on-accent);
+    padding: 8px 12px;
+    border-radius: 6px;
+    z-index: 10;
+  }
+  .skip-link:focus { top: 12px; }
+
+  /* Header — mirrors the dashboard's "Unio | Project workspace" bar */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: rgba(28, 28, 28, 0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 60px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+  }
+  .brand-name { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
+  .brand-tag {
+    padding-left: 14px;
+    border-left: 1px solid var(--line-alt);
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  nav { display: flex; align-items: center; gap: 4px; }
+  .nav-link {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.92rem;
+    font-weight: 600;
+    padding: 8px 10px;
+    border-radius: 6px;
+  }
+  .nav-link:hover { color: var(--text); background: var(--raised); }
+
+  /* Buttons — same shapes as the dashboard */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 18px;
+    border: 1px solid var(--btn-border);
+    border-radius: 6px;
+    color: var(--text);
+    background: transparent;
+    font: inherit;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .btn:hover { background: var(--btn-hover-bg); color: var(--text); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
+  .btn-small { min-height: 36px; padding: 0 14px; margin-left: 6px; }
+
+  .eyebrow {
+    margin: 0 0 4px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Hero */
+  .hero { padding: 72px 0 36px; }
+  .hero h1 {
+    font-size: clamp(2.4rem, 7vw, 4.25rem);
+    letter-spacing: -0.03em;
+  }
+  .lead {
+    max-width: 640px;
+    margin: 16px 0 0;
+    color: var(--label);
+    font-size: clamp(1.05rem, 2.2vw, 1.2rem);
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+  .meta { margin: 14px 0 0; color: var(--muted); font-size: 0.85rem; }
+
+  /* Screenshot */
+  .shot { margin-block: 12px 0; }
+  .shot-frame {
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--paper);
+  }
+  .shot img { display: block; width: 100%; height: auto; }
+  .shot figcaption { margin-top: 10px; color: var(--muted); font-size: 0.85rem; }
+
+  /* Works with */
+  .works {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+    padding: 28px 0 0;
+  }
+  .works-label { color: var(--muted); font-size: 0.85rem; font-weight: 700; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .chip {
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: var(--chip);
+    color: var(--label);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .chip-quiet { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+
+  /* Sections */
+  .section { padding: 56px 0 0; scroll-margin-top: 72px; }
+  .section-head { margin-bottom: 18px; }
+  .section-head h2 { font-size: clamp(1.5rem, 3.5vw, 1.9rem); letter-spacing: -0.015em; }
+  .section-sub { max-width: 680px; margin: 8px 0 0; color: var(--muted); }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .card {
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+  }
+  .card h3 { font-size: 1rem; }
+  .card p { margin: 6px 0 0; color: var(--muted); font-size: 0.93rem; }
+
+  .steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; max-width: 760px; }
+  .step {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+  }
+  .step p { margin: 0; color: var(--muted); }
+  .step strong { color: var(--text); }
+  .step-num {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px solid var(--line-alt);
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  /* Install */
+  .code {
+    max-width: 760px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--pre);
+    overflow: hidden;
+  }
+  .code-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px 6px 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+  .copy {
+    min-height: 30px;
+    padding: 0 12px;
+    border: 1px solid var(--btn-border);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .copy:hover { background: var(--btn-hover-bg); }
+  .code pre { margin: 0; padding: 14px; overflow-x: auto; }
+  .code pre code { background: none; padding: 0; color: var(--text); font-size: 0.88rem; line-height: 1.7; }
+  .after-code { margin: 14px 0 6px; color: var(--muted); }
+  .next { margin: 0; padding-left: 20px; }
+  .next li { margin: 2px 0; }
+
+  .notes {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .notes li {
+    padding: 14px 16px;
+    border-left: 2px solid var(--line-alt);
+    background: var(--paper);
+    border-radius: 0 6px 6px 0;
+    color: var(--muted);
+    font-size: 0.93rem;
+  }
+
+  /* FAQ */
+  .faq { max-width: 760px; border-top: 1px solid var(--line); }
+  .faq details { border-bottom: 1px solid var(--line); }
+  .faq summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 2px;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; color: var(--muted); font-weight: 400; }
+  .faq details[open] summary::after { content: "−"; }
+  .faq details p { margin: 0 2px 16px; color: var(--muted); max-width: 680px; }
+
+  /* Footer */
+  .footer { margin-top: 72px; border-top: 1px solid var(--line); }
+  .footer-inner {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px 24px;
+    padding: 20px 0 28px;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .footer-inner p { margin: 0; }
+  .footer a { color: var(--muted); }
+  .footer a:hover { color: var(--text); }
+  .footer nav { gap: 16px; flex-wrap: wrap; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 720px) {
+    .brand-tag { display: none; }
+    .nav-link:not([href^="http"]) { display: none; }
+    .hero { padding: 44px 0 28px; }
+    .section { padding-top: 44px; }
+    .notes { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: 1fr; }
+    .actions .btn { flex: 1 1 100%; }
+    .code pre code { font-size: 0.8rem; }
+    .footer-inner { flex-direction: column; align-items: flex-start; }
+  }
+</style>

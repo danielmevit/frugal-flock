@@ -1,0 +1,48 @@
+name: Deploy Unio site to Pages
+
+# Builds the Astro site in site/ and publishes it to
+# https://danielmevit.github.io/unio
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "site/**"
+      - ".github/workflows/deploy.yml"
+      # The site reads the version from the newest CHANGELOG heading at build
+      # time; without this the page keeps advertising the previous release.
+      - "CHANGELOG.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build the site
+        uses: withastro/action@v3
+        with:
+          package-manager: npm
+          path: ./site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
