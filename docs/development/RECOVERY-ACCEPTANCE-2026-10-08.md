@@ -90,3 +90,23 @@ receipts, while preserving published history and attribution to other workers.
 GitHub links contributor credit through account-associated commit email; do not
 invent an agent email or promise that a text credit creates a sidebar entry.
 See [GitHub’s coauthor guidance](https://docs.github.com/en/pull-requests/how-tos/commit-changes/creating-a-commit-with-multiple-authors).
+
+## Further fixture findings — 2026-10-09
+
+The first versioned candidate stopped on the short interruption-fixture startup
+wait. Its corrected full loop suite passed all 22 checks. The second candidate
+then passed that correction, but its guard fixture reused a task that already
+had two failed attempts. The retry brake correctly rejected the later probe;
+that did not establish a leaked account slot. Separate lifecycle task IDs and
+explicit low-tier restoration corrected the probe. All 32 guard checks passed,
+with the deliberate timeout still inside its original 9-second provider and
+40-second outer bounds. Production retry and admission behavior is unchanged.
+Both original complete-gate failures remain recorded as failures.
+
+A small local Git exercise took 6.280 seconds on the Windows-mounted filesystem
+and 0.345 seconds in a private workspace-local temporary RAM filesystem. This
+is a local storage observation, not an application-speed or model benchmark.
+The corrected candidate uses that temporary filesystem for the same complete
+quality gate, retaining every command, assertion and deadline. Its actual full
+result is recorded separately; preparing this environment is not acceptance.
+The original remaining-suite diagnostic continues against its frozen source.
