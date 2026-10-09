@@ -15507,9 +15507,15 @@ cmd_integrations() {
   fi
   local json=no
   if [ "$#" -eq 1 ]; then json=yes; fi
+  if [ "$json" = yes ]; then
+    command -v python3 >/dev/null || die "integrations --json requires Python 3 (isolated standard-library json only)"
+  fi
   local adapters_dir="$CONF_DIR/lib/adapters"
+  local guides="https://github.com/danielmevit/unio/blob/main/docs/integrations"
   local vibe_file="$adapters_dir/vibe-worker.py"
   local pplx_file="$adapters_dir/perplexity-worker.py"
+  local vibe_role="implementation worker (Mistral Vibe 2.26.1; pinned GLM 5.3 / Mistral Medium 3.5, high effort)"
+  local pplx_role="research and code-proposal adapter (Perplexity Pro web; proposals need a separate implementation agent)"
   local vibe_installed=false pplx_installed=false
   if [ -f "$vibe_file" ] && [ ! -L "$vibe_file" ]; then vibe_installed=true; fi
   if [ -f "$pplx_file" ] && [ ! -L "$pplx_file" ]; then pplx_installed=true; fi
@@ -15517,25 +15523,30 @@ cmd_integrations() {
     echo "Local filesystem metadata only: no adapter, dependency or provider is loaded or run."
     echo "Manual external installation and sign-in remain required; authentication/capacity Unknown."
     echo "Development addition: the released v0.5.7 standalone installer does not package these adapters."
-    echo "vibe-worker — implementation worker (Mistral Vibe 2.26.1; pinned GLM 5.3 / Mistral Medium 3.5, high effort)"
+    echo "To use one, add an explicit agents.conf alias, map it with 'unio account', then 'unio run' (see guide)."
+    echo "vibe-worker — $vibe_role"
     echo "  installed: $vibe_installed"
     echo "  path: $vibe_file"
-    echo "  setup guide: https://github.com/danielmevit/unio/blob/main/docs/integrations/MISTRAL-VIBE.md"
-    echo "perplexity-worker — research and code-proposal adapter (Perplexity Pro web; a separate agent implements)"
+    echo "  setup guide: $guides/MISTRAL-VIBE.md"
+    echo "perplexity-worker — $pplx_role"
     echo "  installed: $pplx_installed"
     echo "  path: $pplx_file"
-    echo "  setup guide: https://github.com/danielmevit/unio/blob/main/docs/integrations/PERPLEXITY-WEB.md"
+    echo "  setup guide: $guides/PERPLEXITY-WEB.md"
   else
-    local vibe_json pplx_json
-    vibe_json=${vibe_file//\\/\\\\}; vibe_json=${vibe_json//\"/\\\"}
-    pplx_json=${pplx_file//\\/\\\\}; pplx_json=${pplx_json//\"/\\\"}
-    printf '{\n'
-    printf '  "schema_version": 1,\n'
-    printf '  "note": "local filesystem metadata only; no adapter, dependency or provider is loaded or run; manual external installation and sign-in required; development addition not in the released v0.5.7 installer",\n'
-    printf '  "adapters": [\n'
-    printf '    {"name": "vibe-worker", "role": "implementation worker (Mistral Vibe 2.26.1; pinned GLM 5.3 / Mistral Medium 3.5, high effort)", "path": "%s", "installed": %s, "setup_guide": "https://github.com/danielmevit/unio/blob/main/docs/integrations/MISTRAL-VIBE.md", "external_install_required": true, "authentication": "unknown", "capacity": "unknown"},\n' "$vibe_json" "$vibe_installed"
-    printf '    {"name": "perplexity-worker", "role": "research and code-proposal adapter (Perplexity Pro web; proposals need a separate implementation agent)", "path": "%s", "installed": %s, "setup_guide": "https://github.com/danielmevit/unio/blob/main/docs/integrations/PERPLEXITY-WEB.md", "external_install_required": true, "authentication": "unknown", "capacity": "unknown"}\n' "$pplx_json" "$pplx_installed"
-    printf '  ]\n}\n'
+    # Isolated stdlib json (-I -S): every path character, including quotes,
+    # backslashes, newlines and other control characters, is escaped.
+    python3 -I -S -B -c 'import json, sys
+def entry(name, path, installed, role, guide):
+    return {"name": name, "role": role, "path": path, "installed": installed == "true",
+            "setup_guide": guide, "external_install_required": True,
+            "authentication": "unknown", "capacity": "unknown"}
+a = sys.argv[1:]
+print(json.dumps({"schema_version": 1,
+                  "note": "local filesystem metadata only; no adapter, dependency or provider is loaded or run; "
+                          "manual external installation and sign-in required; development addition not in the released v0.5.7 installer",
+                  "adapters": [entry("vibe-worker", *a[0:4]), entry("perplexity-worker", *a[4:8])]}, indent=2))' \
+      "$vibe_file" "$vibe_installed" "$vibe_role" "$guides/MISTRAL-VIBE.md" \
+      "$pplx_file" "$pplx_installed" "$pplx_role" "$guides/PERPLEXITY-WEB.md"
   fi
 }
 
@@ -16648,8 +16659,13 @@ setup / health
                                      only: no adapter, dependency or provider
                                      is loaded or run, no sign-in, no write;
                                      works outside a project and while STOP
-                                     is set; authentication/capacity "unknown"
-  unio smoke                    one tiny live call per agent, from a
+                                     is set; authentication/capacity "unknown".
+                                     --json needs python3 (run isolated, -I -S,
+                                     standard-library json only) so every path
+                                     character is escaped. It never launches an
+                                     adapter: add an agents.conf alias and use
+                                     unio account + unio run (guides)
+  unio smoke                   one tiny live call per agent, from a
                                      neutral dir — run after every CLI update
   unio selftest                 rehearse the whole loop with mock agents
                                      in a throwaway sandbox — zero quota
