@@ -1,1 +1,1 @@
-VIBE-WORKER-GEMINI-1: Implement optional Mistral Vibe worker adapter
+Preserve Gemini's initial optional Vibe adapter candidate. Its three native checks passed, but personal review reproduced an actual configuration failure before inference; it was not accepted. The bounded existing-lead correction supplies the verified implementation and accurate native configuration guide.

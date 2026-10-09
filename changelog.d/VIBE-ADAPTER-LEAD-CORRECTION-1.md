@@ -1,0 +1,1 @@
+Correct the optional source-tree Vibe adapter against installed 2.26.1: complete model pins and prices, native configuration/flags/export fields, larger task budgets, bounded owned processes and private non-overwriting receipts. Original Gemini candidate and trial-cap exits remain preserved; no live provider call or model-quality ranking is claimed.

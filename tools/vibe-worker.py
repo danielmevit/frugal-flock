@@ -69,7 +69,7 @@ def model_environment(label, inherited=None):
                  thinking_levels=["high"], input_price=inp,
                  cached_input_price=cache, output_price=out)
     env = {k: v for k, v in (os.environ if inherited is None else inherited).items()
-           if not k.startswith("VIBE_")}
+           if not k.startswith("VIBE_") or k == "VIBE_HOME"}
     env.update(VIBE_ACTIVE_MODEL=label, VIBE_MODELS=json.dumps({label: model}),
                VIBE_ALLOWED_MODELS=json.dumps([wire]), VIBE_COMPACTION_MODEL=json.dumps(model),
                VIBE_UTILITY_MODELS=json.dumps({"title": "active", "smart_approve": "active"}),
@@ -132,28 +132,35 @@ def export_summary(path, actual_exit):
         raise Refusal("invalid_export")
     if value.get("vibe_version") != VERSION or type(value.get("exit_code")) is not int or value["exit_code"] != actual_exit:
         raise Refusal("invalid_export")
-    allowed = {"success", "token_limit", "price_limit", "turn_limit", "time_limit", "error", "interrupted"}
-    if value.get("outcome") not in allowed:
+    outcomes = {"finished": 0, "usage_error": 1, "config_error": 1,
+                "infrastructure_failure": 2, "token_limit": 3, "price_limit": 3,
+                "turn_limit": 3, "deadline": 3, "terminated": 3,
+                "length": 3, "refusal": 3, "aborted": 4}
+    if not isinstance(value.get("outcome"), str) or value["outcome"] not in outcomes or outcomes[value["outcome"]] != actual_exit:
         raise Refusal("invalid_export")
     stop = value.get("stop_reason")
-    if stop is not None and (not isinstance(stop, str) or len(stop) > 100 or not stop.isascii()):
+    if stop not in (None, "interrupted", "limit", "length"):
         raise Refusal("invalid_export")
     usage = value.get("usage")
-    if not isinstance(usage, dict):
+    if usage is not None and not isinstance(usage, dict):
         raise Refusal("invalid_export")
     fields = ("input_tokens", "output_tokens", "cached_input_tokens", "total_tokens")
-    if any(type(usage.get(k)) is not int or not 0 <= usage[k] <= 10**12 for k in fields):
+    if usage is not None and any(type(usage.get(k)) is not int or not 0 <= usage[k] <= 10**12 for k in fields):
         raise Refusal("invalid_export")
-    if usage["total_tokens"] != usage["input_tokens"] + usage["output_tokens"] or usage["cached_input_tokens"] > usage["input_tokens"]:
+    if usage is not None and (usage["total_tokens"] != usage["input_tokens"] + usage["output_tokens"] or usage["cached_input_tokens"] > usage["input_tokens"]):
         raise Refusal("invalid_export")
     cost = value.get("cost_usd")
-    if type(cost) not in (int, float) or not math.isfinite(cost) or not 0 <= cost <= 10**6:
+    if cost is not None and (type(cost) not in (int, float) or not 0 <= cost <= 10**6 or not math.isfinite(cost)):
         raise Refusal("invalid_export")
     return dict(schema_version=1, outcome=value["outcome"], stop_reason=stop,
-                usage={k: usage[k] for k in fields}, estimated_cost_usd=cost)
+                usage={k: usage[k] for k in fields} if usage is not None else None,
+                estimated_cost_usd=cost)
 
 
 def main():
+    def interrupted(_signum, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupted)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", required=True, choices=MODELS)
     parser.add_argument("--prompt-file", help="Regular UTF-8 task; otherwise TASKFILE")
@@ -216,13 +223,13 @@ def main():
             code, _ = owned_call(argv, env, args.time_limit + 20, log)
         record["process_exit"] = code
         record["outcome"] = "process_finished"
-        exit_code = code if code in (0, 1, 2, 3) else 2
+        exit_code = code if code in (0, 1, 2, 3, 4) else 2
         try:
             record["export"] = export_summary(export / "export.json", code)
-            if code == 0 and record["export"]["outcome"] != "success":
+            if code == 0 and record["export"]["outcome"] != "finished":
                 raise Refusal("inconsistent_export")
             record["export_state"] = "valid"
-        except (OSError, ValueError, UnicodeError, Refusal):
+        except (OSError, ValueError, UnicodeError, Refusal, TypeError, OverflowError, RecursionError):
             record["export_state"] = "invalid_or_missing"
             if code == 0:
                 exit_code = 2
