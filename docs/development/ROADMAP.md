@@ -530,3 +530,7 @@ journey is useful and understandable.
   proprietary licensing is planned; AGPL alone does not grant relicensing rights.
 - Collect onboarding feedback from both new builders and experienced
   users; keep the README's basic path separate from optional deep dives.
+
+## Improvement Backlog
+
+For a detailed, consolidated inventory of all pending, accepted, and planned functional improvements (including mobile session pairing, allowance monitoring, and scheduling), see the [Improvement Backlog](IMPROVEMENT-BACKLOG.md).
