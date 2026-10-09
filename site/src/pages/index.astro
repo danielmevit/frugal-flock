@@ -1,5 +1,11 @@
 ---
 import fs from "node:fs";
+import "@fontsource/instrument-serif/400.css";
+import "@fontsource-variable/archivo/wdth.css";
+import "@fontsource/ibm-plex-mono/400.css";
+import "@fontsource/ibm-plex-mono/500.css";
+import "@fontsource/ibm-plex-mono/600.css";
+import { marks } from "../marks";
 
 // The version has one home: the newest release heading in CHANGELOG.md. Read it
 // at build time rather than restate it here, or the site will eventually
@@ -20,31 +26,73 @@ const description =
 const repo = "https://github.com/danielmevit/unio";
 const doc = (path: string) => `${repo}/blob/main/${path}`;
 const year = 2026;
+const pad = (n: number) => String(n).padStart(2, "0");
 
-const tools = ["Claude Code", "Codex", "Grok", "Antigravity", "OpenCode"];
+const readouts = [
+  { label: "Version", value: version },
+  { label: "Platform", value: "Linux · WSL" },
+  { label: "License", value: "AGPL-3.0" },
+  { label: "Cost", value: "Free" },
+];
+
+// The numbers match the screenshot below (an example project).
+const mapStats = [
+  { label: "Tasks", value: 10 },
+  { label: "Finished", value: 7 },
+  { label: "Active", value: 1 },
+  { label: "Need attention", value: 2 },
+];
+
+const legend = [
+  { label: "Finished", tone: "passed" },
+  { label: "Recorded failure", tone: "failed" },
+  { label: "Needs attention", tone: "attention" },
+  { label: "Active", tone: "active" },
+];
+
+const tools = [
+  { name: "Claude Code", mark: "claude" },
+  { name: "Codex", mark: "openai" },
+  { name: "Grok", mark: "grok" },
+  { name: "Antigravity", mark: "antigravity" },
+  { name: "OpenCode", mark: "opencode" },
+];
+const models = [
+  { name: "GLM", mark: "zai" },
+  { name: "Kimi", mark: "kimi" },
+  { name: "DeepSeek", mark: "deepseek" },
+  { name: "Qwen", mark: "qwen" },
+  { name: "MiniMax", mark: "minimax" },
+];
 
 const features = [
   {
+    tag: "Team",
     title: "Your AI agents, one team",
     body: "Connect agents from different AI labs through the coding tools you already use, and give them one shared workspace for your project.",
   },
   {
+    tag: "Lead",
     title: "One agent leads",
     body: "The lead turns your goal into small tasks, picks a worker for each and hands the work out, within the plan you approved.",
   },
   {
+    tag: "Parallel",
     title: "Several tasks at once",
     body: "Workers build separate parts in parallel, each in its own copy of the project on its own branch, so their changes never get mixed up.",
   },
   {
+    tag: "Review",
     title: "Reviewed by another lab",
     body: "An agent from a different AI lab checks each change independently. Review rounds catch bugs and security issues before you accept the work.",
   },
   {
+    tag: "Checks",
     title: "Done means checked",
     body: "Every task names the files it may change and the checks that must pass. A task counts as finished only when its checks pass and the review approves.",
   },
   {
+    tag: "Handoff",
     title: "Limits don't stop the project",
     body: "When an agent reaches its usage limit, a written handoff records what was done, what passed and what is left, so another agent can continue.",
   },
@@ -52,46 +100,51 @@ const features = [
 
 const steps = [
   {
-    title: "Describe it.",
+    title: "Describe it",
     body: "Tell the lead AI what you want, for example “Help people find an article by title.”",
+    who: "You",
   },
   {
-    title: "Approve the plan.",
+    title: "Approve the plan",
     body: "The lead splits the work into small tasks and says who does each one, which files may change and how it will be checked.",
+    who: "Lead + you",
   },
   {
-    title: "The workers build.",
+    title: "The workers build",
     body: "Each works in a separate copy of the project, so their changes never get mixed up.",
+    who: "Workers",
   },
   {
-    title: "The work is checked.",
+    title: "The work is checked",
     body: "Unio runs the agreed checks and keeps the evidence. An agent from another AI lab can review the changes too.",
+    who: "Unio + reviewer",
   },
   {
-    title: "You decide.",
+    title: "You decide",
     body: "Keep the changes, ask for fixes, or drop them. A finished AI run is not proof the work is right; the checks and your review are.",
+    who: "You",
   },
 ];
 
-const install = [
+const commands = [
   "git clone https://github.com/danielmevit/unio.git",
   "cd unio",
   "bash unio-install.sh",
   'export PATH="$HOME/.local/bin:$PATH"',
   "unio selftest",
-].join("\n");
+];
 
 const next = [
-  { label: "Take the worked-example tour", href: doc("docs/EXAMPLE.md") },
-  { label: "Follow the complete guide", href: doc("docs/GUIDEBOOK.md") },
-  { label: "Use the compact setup reference", href: doc("docs/SETUP.md") },
+  { label: "Worked-example tour", href: doc("docs/EXAMPLE.md") },
+  { label: "Complete guide", href: doc("docs/GUIDEBOOK.md") },
+  { label: "Setup reference", href: doc("docs/SETUP.md") },
 ];
 
 const notes = [
-  "Unio doesn't get around usage limits or pool subscriptions. Each tool keeps its own plan, limits and terms.",
-  "Agents run commands on your computer, and their separate copies are not a security sandbox. Use a spare Linux machine or virtual machine without important passwords or keys.",
-  "AI tools send your prompts and code to their providers. Keep secrets out of tasks and repositories.",
-  "Switching agents after a limit is supervised today: the next agent gets a written handoff, not the previous one's memory.",
+  { tag: "Limits", body: "Unio doesn't get around usage limits or pool subscriptions. Each tool keeps its own plan, limits and terms." },
+  { tag: "Safety", body: "Agents run commands on your computer, and their separate copies are not a security sandbox. Use a spare Linux machine or virtual machine without important passwords or keys." },
+  { tag: "Privacy", body: "AI tools send your prompts and code to their providers. Keep secrets out of tasks and repositories." },
+  { tag: "Handoff", body: "Switching agents after a limit is supervised today: the next agent gets a written handoff, not the previous one's memory." },
 ];
 
 const faqs = [
@@ -117,7 +170,7 @@ const faqs = [
   },
   {
     q: "Is there an app to watch the work?",
-    a: "Yes, a local dashboard in your browser. Run unio dashboard and open the link it prints. It shows every task, the worker that did it and whether its checks and review passed. It is read-only by default and never asks a provider for anything.",
+    a: "Yes, a local dashboard in your browser. Run unio dashboard and open the link it prints. It shows every task, the AI that did it and whether its checks and review passed. It is read-only by default and never asks a provider for anything.",
   },
 ];
 ---
@@ -158,76 +211,129 @@ const faqs = [
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
 
-    <header class="topbar">
-      <div class="wrap topbar-inner">
-        <a class="brand" href={`${base}/`} aria-label="Unio home">
-          <span class="brand-name">Unio</span>
-          <span class="brand-tag">Your AIs, in sync.</span>
+    <header class="hud">
+      <div class="wrap hud-inner">
+        <a class="badge" href={`${base}/`} aria-label="Unio home">
+          <span class="badge-name">Unio</span>
+          <span class="badge-ver">v{version}</span>
         </a>
-        <nav aria-label="Main">
-          <a class="nav-link" href="#how">How it works</a>
-          <a class="nav-link" href="#faq">FAQ</a>
-          <a class="nav-link" href={repo}>GitHub</a>
-          <a class="btn btn-primary btn-small" href="#install">Install</a>
+        <p class="hud-readout">
+          <span>AGPL-3.0</span><span>Linux · WSL</span><span>Free</span>
+        </p>
+        <nav class="tabs" aria-label="Main">
+          <a class="tab tab-wide" href="#how">How it works</a>
+          <a class="tab tab-wide" href="#faq">FAQ</a>
+          <a class="tab" href={repo}>GitHub <span aria-hidden="true">↗</span></a>
+          <a class="tab tab-on" href="#install">Install</a>
         </nav>
       </div>
     </header>
 
     <main id="main" tabindex="-1">
       <section class="hero wrap" aria-labelledby="hero-title">
-        <p class="eyebrow">Free and open source</p>
-        <h1 id="hero-title">Your AIs, in sync.</h1>
-        <p class="lead">
-          Unio brings AI agents from different AI labs together to build and
-          improve your project. A lead delegates the work, other agents review
-          the changes, and you stay in control.
-        </p>
-        <div class="actions">
-          <a class="btn btn-primary" href="#install">Install Unio</a>
-          <a class="btn" href={repo}>View on GitHub</a>
+        <div class="hero-copy">
+          <p class="micro">Free and open source</p>
+          <h1 id="hero-title">YOUR AIs, <br />IN SYNC.</h1>
+          <p class="lead">
+            Unio brings AI agents from different AI labs together to build and
+            improve your project. A lead delegates the work, other agents review
+            the changes, and you stay in control.
+          </p>
+          <div class="actions">
+            <a class="btn btn-on" href="#install">Install Unio</a>
+            <a class="btn" href={repo}>View on GitHub <span aria-hidden="true">↗</span></a>
+          </div>
+          <dl class="readouts">
+            {readouts.map((r) => (
+              <div class="readout">
+                <dt>{r.label}</dt>
+                <dd>{r.value}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
-        <p class="meta">
-          v{version} · Linux, or Windows through WSL · AGPL-3.0 · runs on your
-          computer with the AI plans you already have
-        </p>
+
+        <figure class="map-panel brackets">
+          <div class="panel-bar">
+            <span class="panel-title">Work map</span>
+            <ul class="stats" aria-label="Tasks in this example">
+              {mapStats.map((s) => <li><b>{pad(s.value)}</b> {s.label}</li>)}
+            </ul>
+          </div>
+          <a class="map-shot" href={`${base}/assets/dashboard.webp`} aria-label="Open the full dashboard screenshot">
+            <img
+              src={`${base}/assets/work-map.webp`}
+              srcset={`${base}/assets/work-map-1x.webp 1021w, ${base}/assets/work-map.webp 2042w`}
+              sizes="(max-width: 980px) calc(100vw - 34px), 720px"
+              width="2042"
+              height="1498"
+              alt="The Unio dashboard's work map: a project hub linked to seven AI workers (Codex, Antigravity, DeepSeek, Claude, GLM, Grok and Kimi), each node marked with its lab's logo. Seven tasks are finished, one Codex task is running, one Antigravity task waits for review and one DeepSeek task recorded a failure."
+            />
+          </a>
+          <figcaption class="panel-foot">
+            <ul class="legend" aria-label="Legend">
+              {legend.map((l) => <li><span class={`key key-${l.tone}`} aria-hidden="true"></span>{l.label}</li>)}
+            </ul>
+            <span class="foot-note">Example project · local dashboard</span>
+          </figcaption>
+        </figure>
       </section>
 
-      <figure class="shot wrap">
-        <a class="shot-frame" href={`${base}/assets/dashboard.webp`} aria-label="Open the dashboard screenshot at full size">
-          <img
-            src={`${base}/assets/dashboard.webp`}
-            srcset={`${base}/assets/dashboard-1440.webp 1440w, ${base}/assets/dashboard.webp 2880w`}
-            sizes="(max-width: 1112px) calc(100vw - 32px), 1080px"
-            width="2880"
-            height="2322"
-            alt="The Unio dashboard in dark theme: a work map of five tasks across three workers. Four are finished with checks passed and review approved; one passed its checks and waits for review."
-          />
-        </a>
-        <figcaption>
-          The local dashboard. Each task shows its worker, and green means its
-          checks passed and the review approved. Shown with stand-in agents from
-          the built-in demo.
-        </figcaption>
-      </figure>
+      <div class="checker" aria-hidden="true"></div>
 
-      <section class="works wrap" aria-label="Works with">
-        <span class="works-label">Works with</span>
-        <ul class="chips">
-          {tools.map((t) => <li class="chip">{t}</li>)}
-          <li class="chip chip-quiet">any command-line AI</li>
-        </ul>
+      <section class="section wrap" id="works" aria-labelledby="works-title">
+        <div class="section-head">
+          <span class="index">01</span>
+          <h2 id="works-title">Works with</h2>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="count">{pad(tools.length + models.length)} agents</span>
+        </div>
+        <div class="roster">
+          <div class="roster-group">
+            <p class="micro">Coding tools</p>
+            <ul class="slots">
+              {tools.map((t) => (
+                <li class="slot">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">{marks[t.mark].map((d) => <path d={d} />)}</svg>
+                  <span>{t.name}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div class="roster-group">
+            <p class="micro">Models through OpenCode</p>
+            <ul class="slots">
+              {models.map((m) => (
+                <li class="slot">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">{marks[m.mark].map((d) => <path d={d} />)}</svg>
+                  <span>{m.name}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div class="slot slot-empty">
+            <span class="slot-plus" aria-hidden="true">+</span>
+            <span>Open slot</span>
+            <p>Any command-line AI joins with one line of configuration.</p>
+          </div>
+        </div>
       </section>
 
       <section class="section wrap" id="features" aria-labelledby="features-title">
         <div class="section-head">
-          <p class="eyebrow">What Unio does</p>
+          <span class="index">02</span>
           <h2 id="features-title">One team, from different AI labs</h2>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="count">{pad(features.length)}</span>
         </div>
         <div class="grid">
-          {features.map((f) => (
+          {features.map((f, i) => (
             <article class="card">
-              <h3>{f.title}</h3>
-              <p>{f.body}</p>
+              <p class="card-bar"><span>{pad(i + 1)}</span><span>{f.tag}</span></p>
+              <div class="card-body">
+                <h3>{f.title}</h3>
+                <p>{f.body}</p>
+              </div>
             </article>
           ))}
         </div>
@@ -235,14 +341,18 @@ const faqs = [
 
       <section class="section wrap" id="how" aria-labelledby="how-title">
         <div class="section-head">
-          <p class="eyebrow">How it works</p>
+          <span class="index">03</span>
           <h2 id="how-title">A task, step by step</h2>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="count">{pad(steps.length)} steps</span>
         </div>
-        <ol class="steps">
+        <ol class="rows">
           {steps.map((s, i) => (
-            <li class="step">
-              <span class="step-num" aria-hidden="true">{i + 1}</span>
-              <p><strong>{s.title}</strong> {s.body}</p>
+            <li class={i === steps.length - 1 ? "row row-on" : "row"}>
+              <span class="row-num">{pad(i + 1)}</span>
+              <h3 class="row-title">{s.title}</h3>
+              <p class="row-body">{s.body}</p>
+              <span class="row-who">{s.who}</span>
             </li>
           ))}
         </ol>
@@ -250,45 +360,53 @@ const faqs = [
 
       <section class="section wrap" id="install" aria-labelledby="install-title">
         <div class="section-head">
-          <p class="eyebrow">Install</p>
+          <span class="index">04</span>
           <h2 id="install-title">Try it free, with no AI calls</h2>
-          <p class="section-sub">
-            You need Linux or Windows with WSL, plus Bash, Git, Python 3 and
-            standard tools such as <code>flock</code>. The rehearsal runs the
-            whole workflow with stand-in AIs, so it needs no AI account and uses
-            no allowance.
-          </p>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="count">0 AI calls</span>
         </div>
-        <div class="code">
-          <div class="code-bar">
-            <span>Terminal</span>
-            <button class="copy" type="button" data-copy={install}>Copy</button>
+        <div class="install">
+          <div class="install-copy">
+            <p>
+              You need Linux or Windows with WSL, plus Bash, Git, Python 3 and
+              standard tools such as <code>flock</code>. The rehearsal runs the
+              whole workflow with stand-in AIs, so it needs no AI account and
+              uses no allowance.
+            </p>
+            <p>Then run <code>unio dashboard</code> to open the dashboard in your browser.</p>
+            <p class="micro">Next</p>
+            <ul class="menu">
+              {next.map((n) => <li><a href={n.href}>{n.label} <span aria-hidden="true">↗</span></a></li>)}
+            </ul>
           </div>
-          <pre><code>{install}</code></pre>
+          <div class="console brackets">
+            <div class="panel-bar">
+              <span class="panel-title">Terminal</span>
+              <button class="tab copy" type="button" data-copy={commands.join("\n")}>Copy</button>
+            </div>
+            <pre><code>{commands.map((c) => <span class="line"><span class="prompt" aria-hidden="true">$ </span>{c}</span>)}</code></pre>
+          </div>
         </div>
-        <p class="after-code">
-          Then run <code>unio dashboard</code> to open the dashboard in your
-          browser. Next:
-        </p>
-        <ul class="next">
-          {next.map((n) => <li><a href={n.href}>{n.label}</a></li>)}
-        </ul>
       </section>
 
       <section class="section wrap" id="notes" aria-labelledby="notes-title">
         <div class="section-head">
-          <p class="eyebrow">Good to know</p>
+          <span class="index">05</span>
           <h2 id="notes-title">What Unio doesn't do</h2>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="count">{pad(notes.length)}</span>
         </div>
-        <ul class="notes">
-          {notes.map((n) => <li>{n}</li>)}
+        <ul class="intel">
+          {notes.map((n) => <li><span class="tag">{n.tag}</span><p>{n.body}</p></li>)}
         </ul>
       </section>
 
       <section class="section wrap" id="faq" aria-labelledby="faq-title">
         <div class="section-head">
-          <p class="eyebrow">FAQ</p>
+          <span class="index">06</span>
           <h2 id="faq-title">Questions</h2>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="count">{pad(faqs.length)}</span>
         </div>
         <div class="faq">
           {faqs.map((f) => (
@@ -301,16 +419,14 @@ const faqs = [
       </section>
     </main>
 
-    <footer class="footer">
-      <div class="wrap footer-inner">
-        <p>
-          © {year} Daniel Mevit · Made by <a href="https://damt.xyz">damt.xyz</a>
-        </p>
-        <nav aria-label="Project links">
-          <a href={repo}>GitHub</a>
-          <a href={`${repo}/releases`}>Releases</a>
-          <a href={doc("CHANGELOG.md")}>Changelog</a>
-          <a href={doc("LICENSE")}>AGPL-3.0</a>
+    <footer class="foot-hud">
+      <div class="wrap foot-inner">
+        <p>© {year} Daniel Mevit · Made by <a href="https://damt.xyz">damt.xyz</a></p>
+        <nav class="tabs" aria-label="Project links">
+          <a class="tab" href={repo}>GitHub</a>
+          <a class="tab" href={`${repo}/releases`}>Releases</a>
+          <a class="tab" href={doc("CHANGELOG.md")}>Changelog</a>
+          <a class="tab" href={doc("LICENSE")}>AGPL-3.0</a>
         </nav>
       </div>
     </footer>
@@ -332,340 +448,362 @@ const faqs = [
 </html>
 
 <style is:global>
-  /* Colors come from the dashboard's dark theme (bridge/activity.css), so the
-     site and the app read as one product. */
+  /* Colors are the dashboard's dark theme (bridge/activity.css) so the site and
+     the app read as one product. The structure — HUD bars, readouts, inverted
+     selections, bracketed panels, settings rows, slot rosters — follows a
+     game-UI logic, in Unio's own grays only. */
   :root {
     --bg: #1c1c1c;
+    --deep: #171717;
     --paper: #252525;
     --raised: #2b2b2b;
-    --pre: #222222;
     --line: #3d3d3d;
     --line-alt: #555555;
     --text: #e8e8e8;
     --muted: #a6a6a6;
     --label: #c4c4c4;
     --chip: #333333;
-    --accent: #d2d2d2;
-    --accent-hover: #eeeeee;
-    --on-accent: #1c1c1c;
-    --btn-border: #686868;
-    --btn-hover-bg: #3d3d3d;
+    --on: #d2d2d2;
+    --on-hover: #eeeeee;
+    --on-text: #1c1c1c;
     --focus: #e2e2e2;
     --passed: #3fb950;
+    --failed: #f85149;
+    --attention: #d29922;
+    --mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+    --serif: "Instrument Serif", "Times New Roman", serif;
+    --wide: "Archivo Variable", "Arial Black", system-ui, sans-serif;
     color-scheme: dark;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-synthesis: none;
     -webkit-text-size-adjust: 100%;
   }
 
-  *,
-  *::before,
-  *::after { box-sizing: border-box; }
-
+  *, *::before, *::after { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
-  @media (prefers-reduced-motion: reduce) {
-    html { scroll-behavior: auto; }
-  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
   body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    line-height: 1.55;
-    font-size: 16px;
+    font-family: var(--mono);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  /* Film grain over everything, like a screen with texture. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0.045;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
   a { color: var(--text); }
-  a:hover { color: var(--accent-hover); }
-  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+  a:hover { color: var(--on-hover); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  h1, h2, h3 { margin: 0; font-weight: 400; }
+  p { margin: 0; }
 
   code {
-    font-family: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, monospace;
-    font-size: 0.9em;
+    font-family: var(--mono);
+    font-size: 0.92em;
     background: var(--chip);
     color: var(--label);
     padding: 1px 5px;
-    border-radius: 4px;
   }
 
-  h1, h2, h3 { margin: 0; line-height: 1.15; font-weight: 700; }
-
-  .wrap { width: min(1080px, calc(100% - 32px)); margin-inline: auto; }
+  .wrap { width: min(1240px, calc(100% - 32px)); margin-inline: auto; }
 
   .skip-link {
-    position: absolute;
-    left: 16px;
-    top: -48px;
-    background: var(--accent);
-    color: var(--on-accent);
-    padding: 8px 12px;
-    border-radius: 6px;
-    z-index: 10;
+    position: absolute; left: 16px; top: -48px; z-index: 60;
+    background: var(--on); color: var(--on-text); padding: 8px 12px;
   }
   .skip-link:focus { top: 12px; }
 
-  /* Header — mirrors the dashboard's "Unio | Project workspace" bar */
-  .topbar {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: rgba(28, 28, 28, 0.92);
+  /* Micro labels — small uppercase mono, the UI's smallest voice */
+  .micro, .index, .count, .tag, .panel-title, .stats, .legend, .foot-note,
+  .readout dt, .card-bar, .row-who, .hud-readout {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .micro { color: var(--muted); margin-bottom: 10px; }
+
+  /* Wide display — menus, buttons, titles of things */
+  .tab, .btn, .card h3, .row-title, .slot span, .menu a, .badge {
+    font-family: var(--wide);
+    font-stretch: 125%;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  /* HUD — top bar */
+  .hud {
+    position: sticky; top: 0; z-index: 40;
+    background: rgba(23, 23, 23, 0.94);
     backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--line);
   }
-  .topbar-inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    min-height: 60px;
+  .hud-inner { display: flex; align-items: center; gap: 18px; min-height: 56px; }
+  .badge {
+    display: inline-flex; align-items: stretch;
+    height: 28px; border-radius: 14px; overflow: hidden;
+    text-decoration: none; font-size: 0.78rem;
   }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    text-decoration: none;
+  .badge-name { display: grid; place-items: center; padding: 0 12px 0 14px; background: var(--on); color: var(--on-text); }
+  .badge-ver {
+    display: grid; place-items: center; padding: 0 12px 0 10px;
+    background: var(--chip); color: var(--label);
+    font-family: var(--mono); font-stretch: normal; font-weight: 600; text-transform: none;
   }
-  .brand-name { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
-  .brand-tag {
-    padding-left: 14px;
-    border-left: 1px solid var(--line-alt);
-    color: var(--muted);
-    font-size: 0.9rem;
-    font-weight: 600;
+  .hud-readout { display: flex; gap: 16px; color: var(--muted); }
+  .hud-readout span + span::before { content: "/"; margin-right: 16px; color: var(--line-alt); }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+  .tab {
+    display: inline-flex; align-items: center; gap: 6px;
+    min-height: 30px; padding: 0 10px;
+    border: 1px solid var(--line-alt);
+    background: transparent; color: var(--label);
+    font-size: 0.66rem; text-decoration: none; cursor: pointer;
   }
-  nav { display: flex; align-items: center; gap: 4px; }
-  .nav-link {
-    color: var(--muted);
-    text-decoration: none;
-    font-size: 0.92rem;
-    font-weight: 600;
-    padding: 8px 10px;
-    border-radius: 6px;
-  }
-  .nav-link:hover { color: var(--text); background: var(--raised); }
+  .tab:hover { background: var(--raised); color: var(--text); }
+  .tab-on { background: var(--on); border-color: var(--on); color: var(--on-text); }
+  .tab-on:hover { background: var(--on-hover); color: var(--on-text); }
 
-  /* Buttons — same shapes as the dashboard */
+  /* Buttons */
   .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 44px;
-    padding: 0 18px;
-    border: 1px solid var(--btn-border);
-    border-radius: 6px;
-    color: var(--text);
-    background: transparent;
-    font: inherit;
-    font-weight: 700;
-    font-size: 0.95rem;
-    text-decoration: none;
-    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 46px; padding: 0 20px;
+    border: 1px solid var(--line-alt);
+    background: var(--paper); color: var(--text);
+    font-size: 0.8rem; text-decoration: none;
   }
-  .btn:hover { background: var(--btn-hover-bg); color: var(--text); }
-  .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
-  .btn-small { min-height: 36px; padding: 0 14px; margin-left: 6px; }
+  .btn:hover { background: var(--raised); color: var(--text); }
+  .btn-on { background: var(--on); border-color: var(--on); color: var(--on-text); }
+  .btn-on:hover { background: var(--on-hover); color: var(--on-text); }
 
-  .eyebrow {
-    margin: 0 0 4px;
-    color: var(--muted);
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+  /* Corner brackets around a panel */
+  .brackets { position: relative; }
+  .brackets::before {
+    content: ""; position: absolute; inset: -7px; pointer-events: none;
+    --c: var(--line-alt);
+    background:
+      linear-gradient(var(--c), var(--c)) top left / 14px 1px,
+      linear-gradient(var(--c), var(--c)) top left / 1px 14px,
+      linear-gradient(var(--c), var(--c)) top right / 14px 1px,
+      linear-gradient(var(--c), var(--c)) top right / 1px 14px,
+      linear-gradient(var(--c), var(--c)) bottom left / 14px 1px,
+      linear-gradient(var(--c), var(--c)) bottom left / 1px 14px,
+      linear-gradient(var(--c), var(--c)) bottom right / 14px 1px,
+      linear-gradient(var(--c), var(--c)) bottom right / 1px 14px;
+    background-repeat: no-repeat;
   }
 
   /* Hero */
-  .hero { padding: 72px 0 36px; }
-  .hero h1 {
-    font-size: clamp(2.4rem, 7vw, 4.25rem);
-    letter-spacing: -0.03em;
-  }
-  .lead {
-    max-width: 640px;
-    margin: 16px 0 0;
-    color: var(--label);
-    font-size: clamp(1.05rem, 2.2vw, 1.2rem);
-  }
-  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
-  .meta { margin: 14px 0 0; color: var(--muted); font-size: 0.85rem; }
-
-  /* Screenshot */
-  .shot { margin-block: 12px 0; }
-  .shot-frame {
-    display: block;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    overflow: hidden;
-    background: var(--paper);
-  }
-  .shot img { display: block; width: 100%; height: auto; }
-  .shot figcaption { margin-top: 10px; color: var(--muted); font-size: 0.85rem; }
-
-  /* Works with */
-  .works {
-    display: flex;
-    flex-wrap: wrap;
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 48px;
     align-items: center;
-    gap: 10px 14px;
-    padding: 28px 0 0;
+    padding: 64px 0 56px;
   }
-  .works-label { color: var(--muted); font-size: 0.85rem; font-weight: 700; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
-  .chip {
-    padding: 3px 10px;
-    border-radius: 4px;
-    background: var(--chip);
-    color: var(--label);
-    font-size: 0.85rem;
-    font-weight: 600;
+  .hero h1 {
+    font-family: var(--serif);
+    font-size: clamp(3.4rem, 8vw, 6.6rem);
+    line-height: 0.9;
+    letter-spacing: -0.01em;
   }
-  .chip-quiet { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+  .lead { margin-top: 20px; color: var(--label); max-width: 46ch; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+  .readouts {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 30px 0 0; border-top: 1px solid var(--line);
+  }
+  .readout { padding: 10px 12px 0; border-left: 1px solid var(--line); }
+  .readout:first-child { border-left: 0; padding-left: 0; }
+  .readout dt { color: var(--muted); }
+  .readout dd { margin: 2px 0 0; font-weight: 600; font-size: 0.9rem; }
+
+  .map-panel { margin: 0; background: var(--paper); border: 1px solid var(--line); }
+  .panel-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 8px 12px; min-height: 40px;
+    border-bottom: 1px solid var(--line); background: var(--deep);
+  }
+  .panel-title { color: var(--text); }
+  .stats { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; color: var(--muted); }
+  .stats b { color: var(--text); font-weight: 600; }
+  .map-shot { display: block; background: var(--bg); }
+  .map-shot img { display: block; width: 100%; height: auto; }
+  .panel-foot {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px;
+    padding: 9px 12px; border-top: 1px solid var(--line); background: var(--deep);
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; color: var(--muted); }
+  .legend li { display: inline-flex; align-items: center; gap: 6px; }
+  .key { width: 3px; height: 12px; background: var(--muted); }
+  .key-passed { background: var(--passed); }
+  .key-failed { background: var(--failed); }
+  .key-attention { background: var(--attention); }
+  .key-active { width: 10px; background: none; border: 2px solid var(--text); }
+  .foot-note { color: var(--muted); }
+
+  /* Checkerboard strip divider */
+  .checker {
+    height: 10px;
+    background: repeating-conic-gradient(var(--paper) 0 25%, transparent 0 50%) 0 0 / 10px 10px;
+    border-block: 1px solid var(--line);
+  }
 
   /* Sections */
-  .section { padding: 56px 0 0; scroll-margin-top: 72px; }
-  .section-head { margin-bottom: 18px; }
-  .section-head h2 { font-size: clamp(1.5rem, 3.5vw, 1.9rem); letter-spacing: -0.015em; }
-  .section-sub { max-width: 680px; margin: 8px 0 0; color: var(--muted); }
-
-  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-  .card {
-    padding: 18px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--paper);
+  .section { padding-top: 76px; scroll-margin-top: 64px; }
+  .section-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 22px; }
+  .index { color: var(--muted); }
+  .section-head h2 {
+    font-family: var(--serif);
+    font-size: clamp(2rem, 4.4vw, 3.1rem);
+    line-height: 1;
+    text-transform: uppercase;
   }
-  .card h3 { font-size: 1rem; }
-  .card p { margin: 6px 0 0; color: var(--muted); font-size: 0.93rem; }
+  .rule { flex: 1; min-width: 24px; height: 1px; background: var(--line); align-self: center; }
+  .count { color: var(--muted); white-space: nowrap; }
 
-  .steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; max-width: 760px; }
-  .step {
-    display: flex;
-    gap: 14px;
-    align-items: flex-start;
-    padding: 14px 16px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--paper);
+  /* Roster of agents */
+  .roster { display: grid; grid-template-columns: 1fr 1fr auto; gap: 24px; align-items: end; }
+  .slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .slot {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    aspect-ratio: 1 / 1.08; padding: 12px 6px;
+    background: var(--paper); border: 1px solid var(--line);
+    color: var(--label);
   }
-  .step p { margin: 0; color: var(--muted); }
-  .step strong { color: var(--text); }
-  .step-num {
-    flex: none;
+  .slot svg { width: 34%; max-width: 40px; height: auto; fill: currentColor; }
+  .slot span { font-size: 0.6rem; text-align: center; line-height: 1.2; color: var(--text); }
+  .slot:hover { background: var(--raised); color: var(--text); }
+  .slot-empty {
+    width: 172px; aspect-ratio: auto; height: 100%; min-height: 150px; padding: 14px; gap: 8px;
+    border-style: dashed; border-color: var(--line-alt);
+    background: repeating-linear-gradient(135deg, transparent 0 7px, rgba(255, 255, 255, 0.03) 7px 8px);
+    align-items: flex-start; justify-content: flex-end;
+  }
+  .slot-empty:hover { background-color: transparent; }
+  .slot-plus { font-family: var(--mono); font-size: 1.6rem; line-height: 1; color: var(--muted); }
+  .slot-empty p { color: var(--muted); font-size: 0.76rem; line-height: 1.45; }
+
+  /* Feature cards */
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .card { background: var(--paper); border: 1px solid var(--line); }
+  .card-bar {
+    display: flex; justify-content: space-between;
+    padding: 8px 14px; background: var(--deep); border-bottom: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .card-body { padding: 16px 14px 18px; }
+  .card h3 { font-size: 0.86rem; line-height: 1.3; }
+  .card-body p { margin-top: 8px; color: var(--muted); font-size: 0.86rem; }
+
+  /* Settings-style rows */
+  .rows { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .row {
     display: grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    border: 1px solid var(--line-alt);
-    color: var(--text);
-    font-size: 0.85rem;
-    font-weight: 700;
+    grid-template-columns: 44px minmax(170px, 0.9fr) minmax(0, 2.4fr) 150px;
+    gap: 16px; align-items: center;
+    padding: 14px 16px;
+    background: var(--paper); border: 1px solid var(--line);
   }
+  .row-num { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
+  .row-title { font-size: 0.82rem; }
+  .row-body { color: var(--muted); font-size: 0.88rem; }
+  .row-who { justify-self: end; color: var(--label); }
+  .row-on { background: var(--on); border-color: var(--on); }
+  .row-on .row-num, .row-on .row-body, .row-on .row-who, .row-on .row-title { color: var(--on-text); }
 
   /* Install */
-  .code {
-    max-width: 760px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--pre);
-    overflow: hidden;
+  .install { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 40px; align-items: start; }
+  .install-copy p + p { margin-top: 12px; }
+  .install-copy { color: var(--label); }
+  .install-copy .micro { margin-top: 28px; }
+  .menu { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+  .menu li { border-bottom: 1px solid var(--line); }
+  .menu a {
+    display: flex; justify-content: space-between; padding: 12px 2px;
+    font-size: 0.82rem; text-decoration: none;
   }
-  .code-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 8px 6px 14px;
-    border-bottom: 1px solid var(--line);
-    background: var(--paper);
-    color: var(--muted);
-    font-size: 0.8rem;
-    font-weight: 700;
-  }
-  .copy {
-    min-height: 30px;
-    padding: 0 12px;
-    border: 1px solid var(--btn-border);
-    border-radius: 5px;
-    background: transparent;
-    color: var(--text);
-    font: inherit;
-    cursor: pointer;
-  }
-  .copy:hover { background: var(--btn-hover-bg); }
-  .code pre { margin: 0; padding: 14px; overflow-x: auto; }
-  .code pre code { background: none; padding: 0; color: var(--text); font-size: 0.88rem; line-height: 1.7; }
-  .after-code { margin: 14px 0 6px; color: var(--muted); }
-  .next { margin: 0; padding-left: 20px; }
-  .next li { margin: 2px 0; }
+  .menu a:hover { background: var(--paper); padding-inline: 10px; }
+  .console { background: var(--deep); border: 1px solid var(--line); }
+  .console .panel-bar { background: var(--paper); }
+  .console pre { margin: 0; padding: 16px; overflow-x: auto; }
+  .console code { display: grid; background: none; padding: 0; color: var(--text); font-size: 0.86rem; line-height: 1.85; }
+  .line { white-space: pre; }
+  .prompt { color: var(--muted); user-select: none; }
 
-  .notes {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .notes li {
-    padding: 14px 16px;
-    border-left: 2px solid var(--line-alt);
-    background: var(--paper);
-    border-radius: 0 6px 6px 0;
-    color: var(--muted);
-    font-size: 0.93rem;
-  }
+  /* Intel rows */
+  .intel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .intel li { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; background: var(--paper); border: 1px solid var(--line); }
+  .tag { flex: none; padding: 2px 7px; background: var(--chip); color: var(--label); }
+  .intel p { color: var(--muted); font-size: 0.88rem; }
 
   /* FAQ */
-  .faq { max-width: 760px; border-top: 1px solid var(--line); }
-  .faq details { border-bottom: 1px solid var(--line); }
+  .faq { display: grid; gap: 6px; max-width: 900px; }
+  .faq details { background: var(--paper); border: 1px solid var(--line); }
   .faq summary {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 14px 2px;
-    font-weight: 700;
-    cursor: pointer;
-    list-style: none;
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    padding: 13px 16px; cursor: pointer; list-style: none; font-weight: 500;
   }
   .faq summary::-webkit-details-marker { display: none; }
-  .faq summary::after { content: "+"; color: var(--muted); font-weight: 400; }
-  .faq details[open] summary::after { content: "−"; }
-  .faq details p { margin: 0 2px 16px; color: var(--muted); max-width: 680px; }
+  .faq summary::after { content: "▾"; color: var(--muted); transition: transform 0.15s; }
+  .faq details[open] summary { background: var(--on); color: var(--on-text); }
+  .faq details[open] summary::after { color: var(--on-text); transform: rotate(180deg); }
+  .faq details p { padding: 14px 16px 16px; color: var(--muted); font-size: 0.9rem; }
+  @media (prefers-reduced-motion: reduce) { .faq summary::after { transition: none; } }
 
-  /* Footer */
-  .footer { margin-top: 72px; border-top: 1px solid var(--line); }
-  .footer-inner {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px 24px;
-    padding: 20px 0 28px;
-    color: var(--muted);
-    font-size: 0.85rem;
+  /* Footer HUD */
+  .foot-hud { margin-top: 96px; border-top: 1px solid var(--line); background: var(--deep); }
+  .foot-inner {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+    gap: 12px 24px; padding: 14px 0; color: var(--muted); font-size: 0.8rem;
   }
-  .footer-inner p { margin: 0; }
-  .footer a { color: var(--muted); }
-  .footer a:hover { color: var(--text); }
-  .footer nav { gap: 16px; flex-wrap: wrap; }
+  .foot-inner a { color: var(--label); }
+  .foot-hud .tabs { margin-left: 0; }
 
   /* Responsive */
-  @media (max-width: 900px) {
-    .grid { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 1100px) {
+    .roster { grid-template-columns: 1fr 1fr; }
+    .slot-empty { grid-column: 1 / -1; width: auto; min-height: 0; flex-direction: row; align-items: center; justify-content: flex-start; }
+    .hud-readout { display: none; }
   }
-  @media (max-width: 720px) {
-    .brand-tag { display: none; }
-    .nav-link:not([href^="http"]) { display: none; }
-    .hero { padding: 44px 0 28px; }
-    .section { padding-top: 44px; }
-    .notes { grid-template-columns: 1fr; }
+  @media (max-width: 980px) {
+    .hero { grid-template-columns: minmax(0, 1fr); gap: 40px; padding-top: 48px; }
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .install { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .row { grid-template-columns: 36px minmax(0, 1fr) auto; }
+    .row-body { grid-column: 2 / -1; grid-row: 2; }
+  }
+  @media (max-width: 760px) {
+    .roster { grid-template-columns: minmax(0, 1fr); }
+    .tab-wide { display: none; }
+    .intel { grid-template-columns: 1fr; }
+    .section { padding-top: 60px; }
+    .count { display: none; }
   }
   @media (max-width: 560px) {
+    body { font-size: 14px; }
     .grid { grid-template-columns: 1fr; }
+    .slots { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .readout:nth-child(3) { border-left: 0; padding-left: 0; }
     .actions .btn { flex: 1 1 100%; }
-    .code pre code { font-size: 0.8rem; }
-    .footer-inner { flex-direction: column; align-items: flex-start; }
+    .row { grid-template-columns: 30px minmax(0, 1fr); }
+    .row-who { grid-column: 2; justify-self: start; }
+    .panel-bar { flex-wrap: wrap; }
+    .console code { font-size: 0.78rem; }
+    .intel li { flex-direction: column; gap: 8px; }
+    .foot-inner { flex-direction: column; align-items: flex-start; }
   }
 </style>

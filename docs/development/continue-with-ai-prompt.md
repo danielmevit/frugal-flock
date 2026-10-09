@@ -63,10 +63,16 @@ old paths; resolve them through local `coord/WORKSPACE-PATHS.json`. See the
 A one-page Astro site lives in `site/` and publishes to
 <https://danielmevit.github.io/unio/> through `.github/workflows/deploy.yml`
 on every push to `main` that touches `site/`, the workflow or `CHANGELOG.md`.
-The page reads its version from the newest `CHANGELOG.md` heading. Colors
-follow the dashboard's dark theme in `bridge/activity.css`. The hero
-screenshot shows stand-in agents only (no provider calls); the capture script
-is local at `tmp/site-demo/showcase.sh`. Preview with
+The workflow pins its actions to commit SHAs, and only the deploy job may
+write to Pages. The page reads its version from the newest `CHANGELOG.md`
+heading. Colors are the dashboard's dark theme in `bridge/activity.css`; the
+layout follows the owner's game-UI reference (HUD bars, readouts, inverted
+selections, bracketed panels) without its accent colors. Fonts are
+self-hosted through Fontsource. Lab logos in `site/src/marks.ts` are copied
+from the dashboard's MIT-licensed Lobe Icons paths. The hero screenshot shows
+stand-in agents named after real tools, so the dashboard draws their logos;
+no provider is called. The capture script is local at
+`tmp/site-demo/showcase2.sh`. Preview with
 `cd site && npm install && npx astro build && npx astro preview`.
 
 ## Next functional work
