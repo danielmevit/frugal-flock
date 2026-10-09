@@ -491,6 +491,7 @@ implemented. Schedule this after the current approved milestones.
 Preserve this design for a later milestone: periodic supported readings or
 manual input, conservative scheduling, and tested recovery checkpoints.
 M1's context packet is not a backup of uncommitted files.
+The owner also explicitly requested documentation for a future [temporary lead capacity handover](LEAD-CAPACITY-HANDOVER.md) when the primary lead's allowance is exhausted.
 
 After a run stops, capture committed and uncommitted work, task context,
 completed checks, and unfinished work. Let the user select another
