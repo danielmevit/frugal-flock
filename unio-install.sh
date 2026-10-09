@@ -19119,6 +19119,7 @@ echo "  command   : $BIN_DIR/unio   (ensure that dir is on PATH)"
 echo "  overrides : UNIO_* environment variables"
 echo "  config    : $CONF_DIR/agents.conf   <- EDIT: enable/tune your agents"
 echo "  license   : $CONF_DIR/legal/   (unio license)"
+echo "  adapters  : $CONF_DIR/lib/adapters/   (optional; unio integrations)"
 echo "  quota     : unio off <agent> 5h|7d   /   unio on <agent>"
 echo
 echo "Next: unio selftest        (mock-agent rehearsal, zero quota)"
