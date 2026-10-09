@@ -1,151 +1,249 @@
-import os
-import sys
+#!/usr/bin/env python3
+# Unio — Copyright (C) 2026 Daniel Mitev
+# SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE.
+"""Optional, explicitly pinned Vibe 2.26.1 worker. No dependency installation."""
 import argparse
-import subprocess
-import json
-import time
 import hashlib
-from datetime import datetime
+import json
+import math
+import os
+from pathlib import Path
+import selectors
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+
+VERSION = "2.26.1"
+MODELS = {
+    "glm-5-3": ("zai-glm-5-3", "Z.ai", 1.4, .14, 4.4),
+    "mistral-medium-3-5": ("mistral-medium-3-5", "Mistral", 1.5, .15, 7.5),
+}
+PROMPT_BYTES = 1048576
+OUTPUT_BYTES = 16777216
+EXPORT_BYTES = 8388608
+
+
+class Refusal(Exception):
+    pass
+
+
+def date():
+    return subprocess.check_output(["date", "-Is"], text=True, timeout=5).strip()
+
+
+def read_regular(path, limit):
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    with os.fdopen(fd, "rb") as source:
+        info = os.fstat(source.fileno())
+        if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= limit:
+            raise Refusal("invalid_or_oversized_file")
+        data = source.read(limit + 1)
+        if len(data) > limit:
+            raise Refusal("invalid_or_oversized_file")
+    data.decode("utf-8", errors="strict")
+    if b"\0" in data:
+        raise Refusal("invalid_utf8_task")
+    return data
+
+
+def strict_json(data):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError("duplicate key")
+            result[key] = value
+        return result
+    def constant(_):
+        raise ValueError("nonfinite JSON")
+    return json.loads(data, object_pairs_hook=pairs, parse_constant=constant)
+
+
+def model_environment(label, inherited=None):
+    wire, lab, inp, cache, out = MODELS[label]
+    model = dict(name=wire, alias=label, provider="mistral", thinking="high",
+                 thinking_levels=["high"], input_price=inp,
+                 cached_input_price=cache, output_price=out)
+    env = {k: v for k, v in (os.environ if inherited is None else inherited).items()
+           if not k.startswith("VIBE_")}
+    env.update(VIBE_ACTIVE_MODEL=label, VIBE_MODELS=json.dumps({label: model}),
+               VIBE_ALLOWED_MODELS=json.dumps([wire]), VIBE_COMPACTION_MODEL=json.dumps(model),
+               VIBE_UTILITY_MODELS=json.dumps({"title": "active", "smart_approve": "active"}),
+               VIBE_SESSION_LOGGING__GENERATE_TITLES="false", VIBE_ENABLE_UPDATE_CHECKS="false",
+               VIBE_ENABLE_AUTO_UPDATE="false", VIBE_EXPERIMENTS__ENABLE="false",
+               VIBE_MCP_SERVERS="[]", VIBE_ENABLE_SUBAGENTS="false", VIBE_ENABLE_CONNECTORS="false",
+               VIBE_API_RETRY_MAX_ELAPSED_TIME="0", PYTHONDONTWRITEBYTECODE="1")
+    return env, wire, lab
+
+
+def owned_call(argv, env, seconds, log=None, output_limit=OUTPUT_BYTES):
+    """Bound owned process-group lifetime and output, including preflight output."""
+    child = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+    poll = selectors.DefaultSelector()
+    poll.register(child.stdout, selectors.EVENT_READ)
+    deadline = time.monotonic() + seconds
+    seen = 0
+    capture = bytearray()
+    try:
+        while poll.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise Refusal("timeout")
+            for key, _ in poll.select(min(remaining, .2)):
+                chunk = os.read(key.fileobj.fileno(), 65536)
+                if not chunk:
+                    poll.unregister(key.fileobj)
+                    continue
+                seen += len(chunk)
+                if seen > output_limit:
+                    raise Refusal("output_limit")
+                if log is None:
+                    capture.extend(chunk)
+                else:
+                    log.write(chunk)
+        try:
+            code = child.wait(timeout=max(.001, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            raise Refusal("timeout") from None
+        return code, bytes(capture)
+    finally:
+        poll.close()
+        child.stdout.close()
+        # Reap only this invocation's own new process group, including descendants.
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(child.pid, sig)
+            except ProcessLookupError:
+                break
+            if sig == signal.SIGTERM:
+                time.sleep(.1)
+        child.wait(timeout=5)
+
+
+def export_summary(path, actual_exit):
+    value = strict_json(read_regular(path, EXPORT_BYTES))
+    if not isinstance(value, dict) or type(value.get("schema_version")) is not int or value["schema_version"] != 1:
+        raise Refusal("invalid_export")
+    if value.get("vibe_version") != VERSION or type(value.get("exit_code")) is not int or value["exit_code"] != actual_exit:
+        raise Refusal("invalid_export")
+    allowed = {"success", "token_limit", "price_limit", "turn_limit", "time_limit", "error", "interrupted"}
+    if value.get("outcome") not in allowed:
+        raise Refusal("invalid_export")
+    stop = value.get("stop_reason")
+    if stop is not None and (not isinstance(stop, str) or len(stop) > 100 or not stop.isascii()):
+        raise Refusal("invalid_export")
+    usage = value.get("usage")
+    if not isinstance(usage, dict):
+        raise Refusal("invalid_export")
+    fields = ("input_tokens", "output_tokens", "cached_input_tokens", "total_tokens")
+    if any(type(usage.get(k)) is not int or not 0 <= usage[k] <= 10**12 for k in fields):
+        raise Refusal("invalid_export")
+    if usage["total_tokens"] != usage["input_tokens"] + usage["output_tokens"] or usage["cached_input_tokens"] > usage["input_tokens"]:
+        raise Refusal("invalid_export")
+    cost = value.get("cost_usd")
+    if type(cost) not in (int, float) or not math.isfinite(cost) or not 0 <= cost <= 10**6:
+        raise Refusal("invalid_export")
+    return dict(schema_version=1, outcome=value["outcome"], stop_reason=stop,
+                usage={k: usage[k] for k in fields}, estimated_cost_usd=cost)
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Vibe worker adapter")
-    parser.add_argument("--model", required=True, choices=["glm-5-3", "mistral-medium-3-5"])
-    parser.add_argument("--prompt-file", help="Path to prompt file (or use TASKFILE env var)")
-    parser.add_argument("--receipt-dir", required=True, help="Directory for receipt")
-    parser.add_argument("--max-price", type=float, default=0.2, help="Max price in dollars")
-    parser.add_argument("--max-tokens", type=int, default=600000, help="Max tokens")
-    parser.add_argument("--time-limit", type=int, default=3600, help="Time limit in seconds")
-    parser.add_argument("--max-turns", type=int, default=50, help="Max turns")
-    
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--model", required=True, choices=MODELS)
+    parser.add_argument("--prompt-file", help="Regular UTF-8 task; otherwise TASKFILE")
+    parser.add_argument("--receipt-dir", required=True, help="Existing private parent; each invocation creates a new run")
+    parser.add_argument("--max-price", type=float, default=5.0)
+    parser.add_argument("--max-tokens", type=int, default=2000000)
+    parser.add_argument("--time-limit", type=float, default=5400)
+    parser.add_argument("--max-turns", type=int, default=120)
     args = parser.parse_args()
-
-    if args.max_price <= 0:
-        sys.exit("Error: max-price must be positive")
-    if args.max_tokens <= 0:
-        sys.exit("Error: max-tokens must be positive")
-    if args.time_limit <= 0:
-        sys.exit("Error: time-limit must be positive")
-    
-    prompt_file = args.prompt_file or os.environ.get("TASKFILE")
-    if not prompt_file:
-        sys.exit("Error: --prompt-file or TASKFILE must be provided")
-    
-    if not os.path.isdir(args.receipt_dir):
-        sys.exit("Error: --receipt-dir must preexist")
-        
+    record = None
+    receipt = None
+    started = time.monotonic()
+    exit_code = 2
     try:
-        with open(prompt_file, "r", encoding="utf-8") as f:
-            f.read()
-    except Exception as e:
-        sys.exit(f"Error: Prompt file is not a readable regular UTF-8 task: {e}")
-    
-    try:
-        vibe_version_proc = subprocess.run(["vibe", "--version"], capture_output=True, text=True, check=True)
-        cli_version = vibe_version_proc.stdout.strip()
-    except Exception as e:
-        sys.exit(f"Error: Missing or unsupported Vibe CLI: {e}")
-
-    wire_model = "zai-glm-5-3" if args.model == "glm-5-3" else "mistral-medium-3-5"
-
-    env = os.environ.copy()
-    env["VIBE_ACTIVE_MODEL"] = wire_model
-    env["VIBE_MODELS"] = json.dumps({wire_model: {"thinking": "high"}})
-    env["VIBE_ALLOWED_MODELS"] = wire_model # The prompt says "VIBE_ALLOWED_MODELS matches WIRE model names, not aliases". If it's a string maybe? Or json? Let's use string.
-    env["VIBE_COMPACTION_MODEL"] = wire_model
-    env["VIBE_UTILITY_MODEL"] = wire_model
-    env["VIBE_GENERATE_TITLE"] = "false"
-    env["VIBE_EXPERIMENTS_ENABLED"] = "false"
-    env["VIBE_AUTO_UPDATE"] = "false"
-    env["VIBE_MCP_ENABLED"] = "false"
-    env["VIBE_ENABLE_SUBAGENTS"] = "false"
-    env["VIBE_ENABLE_CONNECTORS"] = "false"
-    env["VIBE_API_RETRY_MAX_ELAPSED_TIME"] = "0"
-    
-    vibe_cmd = [
-        "vibe", "-p",
-        "--prompt-file", prompt_file,
-        "--output-dir", args.receipt_dir,
-        "--agent", "auto-approve",
-        "--auto-approve",
-        "--max-price", str(args.max_price),
-        "--max-tokens", str(args.max_tokens),
-        "--time-limit", str(args.time_limit),
-        "--max-turns", str(args.max_turns),
-    ]
-    
-    for tool in ["bash", "read_file", "write_file", "edit", "grep"]:
-        vibe_cmd.extend(["--enabled-tools", tool])
-    
-    with open(prompt_file, "rb") as f:
-        task_hash = hashlib.sha256(f.read()).hexdigest()
-        
-    start_time = time.time()
-    
-    try:
-        proc = subprocess.run(vibe_cmd, env=env)
-        exit_code = proc.returncode
-    except Exception as e:
-        print(f"Failed to run Vibe: {e}")
-        exit_code = 3
-        
-    elapsed = time.time() - start_time
-    
-    export_path = os.path.join(args.receipt_dir, "export.json")
-    receipt_path = os.path.join(args.receipt_dir, "receipt.json")
-    
-    receipt = {
-        "date": datetime.utcnow().isoformat() + "Z",
-        "cli_version": cli_version,
-        "requested_model": args.model,
-        "requested_effort": "high",
-        "wire_model": wire_model,
-        "process_exit": exit_code,
-        "elapsed_seconds": elapsed,
-        "task_hash": task_hash,
-        "native_limits": {
-            "max_price": args.max_price,
-            "max_tokens": args.max_tokens,
-            "time_limit": args.time_limit,
-            "max_turns": args.max_turns
-        }
-    }
-    
-    if os.path.exists(export_path):
+        if not math.isfinite(args.max_price) or not 0 < args.max_price <= 10:
+            raise Refusal("invalid_bounds")
+        if not 0 < args.max_tokens <= 4000000 or not 0 < args.max_turns <= 180:
+            raise Refusal("invalid_bounds")
+        if not math.isfinite(args.time_limit) or not 0 < args.time_limit <= 7200:
+            raise Refusal("invalid_bounds")
+        prompt = args.prompt_file or os.environ.get("TASKFILE")
+        if not prompt:
+            raise Refusal("missing_task")
+        data = read_regular(prompt, PROMPT_BYTES)
+        parent = Path(args.receipt_dir).absolute()
+        info = parent.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+            raise Refusal("receipt_parent_must_be_private")
+        cli = shutil.which("vibe")
+        if not cli:
+            raise Refusal("missing_cli")
+        env, wire, lab = model_environment(args.model)
+        code, version = owned_call([cli, "--version"], env, 15, output_limit=4096)
+        if code or version.decode("ascii").strip() != "vibe " + VERSION:
+            raise Refusal("unsupported_cli")
+        directory = Path(tempfile.mkdtemp(prefix="vibe-run-", dir=parent))
+        receipt = directory / "receipt.json"
+        task = directory / "task.md"
+        with task.open("xb") as out:
+            os.chmod(task, 0o600)
+            out.write(data)
+        export = directory / "native"
+        export.mkdir(mode=0o700)
+        record = dict(schema_version=1, started_at=date(), cli_version=VERSION,
+                      requested_model=args.model, configured_wire_model=wire, ai_lab=lab,
+                      transport="Mistral Vibe", budget_group="mistral", requested_effort="high",
+                      configured_wire_effort="high", effective_model="unknown", effective_effort="unknown",
+                      remaining_allowance="unknown", task_sha256=hashlib.sha256(data).hexdigest(),
+                      native_limits=dict(max_price=args.max_price, max_tokens=args.max_tokens,
+                                         time_limit=args.time_limit, max_turns=args.max_turns),
+                      invocations=1, invocation_retries=0, process_exit=None, outcome="starting")
+        receipt.write_text(json.dumps(record, indent=2) + "\n")
+        argv = [cli, "--prompt-file", str(task), "--workdir", str(Path.cwd()), "--trust",
+                "--agent", "auto-approve", "--max-price", str(args.max_price),
+                "--max-tokens", str(args.max_tokens), "--time-limit", str(args.time_limit),
+                "--max-turns", str(args.max_turns), "--output-dir", str(export), "--output", "text"]
+        for name in ("bash", "read_file", "write_file", "edit", "grep"):
+            argv.extend(["--enabled-tools", name])
+        with (directory / "native-stdout.log").open("xb") as log:
+            code, _ = owned_call(argv, env, args.time_limit + 20, log)
+        record["process_exit"] = code
+        record["outcome"] = "process_finished"
+        exit_code = code if code in (0, 1, 2, 3) else 2
         try:
-            with open(export_path, "r") as f:
-                export_data = json.load(f)
-            
-            receipt["export"] = {
-                "schema_version": export_data.get("schema_version", "unknown"),
-                "outcome": export_data.get("outcome", "unknown"),
-                "stop_reason": export_data.get("stop_reason", "unknown")
-            }
-            
-            usage = export_data.get("usage", {})
-            cost = export_data.get("cost", {})
-            
-            receipt["usage"] = {
-                "prompt_tokens": int(usage.get("prompt_tokens", 0)),
-                "completion_tokens": int(usage.get("completion_tokens", 0)),
-                "total_tokens": int(usage.get("total_tokens", 0))
-            }
-            
-            if isinstance(cost, dict) and "total" in cost:
-                 receipt["cost"] = float(cost.get("total", 0.0))
-            elif isinstance(cost, (int, float)):
-                 receipt["cost"] = float(cost)
-            else:
-                 receipt["cost"] = 0.0
-                 
-        except Exception as e:
-            receipt["export_error"] = f"Failed to parse export.json: {e}"
-    else:
-        receipt["export_error"] = "export.json missing"
-        
-    with open(receipt_path, "w") as f:
-        json.dump(receipt, f, indent=2)
-        
-    sys.exit(exit_code)
+            record["export"] = export_summary(export / "export.json", code)
+            if code == 0 and record["export"]["outcome"] != "success":
+                raise Refusal("inconsistent_export")
+            record["export_state"] = "valid"
+        except (OSError, ValueError, UnicodeError, Refusal):
+            record["export_state"] = "invalid_or_missing"
+            if code == 0:
+                exit_code = 2
+    except KeyboardInterrupt:
+        exit_code = 130
+        if record is not None:
+            record["outcome"] = "interrupted"
+    except (Refusal, OSError, ValueError, UnicodeError, subprocess.SubprocessError) as error:
+        state = str(error) if isinstance(error, Refusal) else "local_failure"
+        if record is not None:
+            record["outcome"] = state
+        print("Vibe adapter: " + state, file=sys.stderr)
+        exit_code = 124 if state == "timeout" else 2
+    finally:
+        if record is not None:
+            record.update(adapter_exit=exit_code, elapsed_seconds=round(time.monotonic() - started, 3), finished_at=date())
+            receipt.write_text(json.dumps(record, indent=2) + "\n")
+            print(json.dumps({"receipt": str(receipt), "adapter_exit": exit_code,
+                              "process_exit": record["process_exit"], "export_state": record.get("export_state", "unknown")}))
+    return exit_code
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
