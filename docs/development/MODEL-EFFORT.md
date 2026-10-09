@@ -6,7 +6,7 @@ the lead's own next session when that session's settings are controllable.
 Owner instructions and the project's run, retry and spending rules take
 precedence. This guide does not authorize another invocation.
 
-Read [lead routing and spending](LEAD-ROUTING.md) alongside this guide.
+Read [lead routing and spending](LEAD-ROUTING.md) and [task budgets](TASK-TIME-BUDGETS.md) alongside this guide.
 A listed model is an inventory entry, not authorization to use a paid route.
 
 ## Default and escalation
@@ -26,12 +26,16 @@ Do not increase effort or retry indefinitely: follow
 [bounded worker escalation and direct lead takeover](../ai/LEAD-ESCALATION.md)
 when one worker and one suitable replacement cannot finish the correction.
 
-Use the next **effective, supported** level. On supported Codex and Claude Code routes this can be
-high → xhigh → max. Other routes have different scales. Reserve max for an
-occasional, tightly scoped problem whose importance justifies extra tokens
-and time. Record the reason, scope, time limit and known allowance before
-dispatch. Return the next ordinary task to its default; escalation is not
-a permanent fleet setting.
+Use the next **effective, supported** level, with **xhigh as the ceiling**.
+The owner updated this standing policy on 2026-10-09: do not request max or
+ultra for any lead, worker or reviewer. High remains the ordinary starting
+choice. Routes without xhigh stay at high; do not invent a variant or silently
+translate xhigh into max. A route exposing only max is ineligible under this
+policy unless another supported non-max setting is verified. Do not omit a
+variant to hide a known maximum default. Unknown effective effort stays Unknown.
+The capability inventory below may describe levels that this policy forbids.
+Record the reason, scope, time limit and known allowance before escalation.
+Return the next ordinary task to its default; escalation is not permanent.
 
 Authentication failures, usage limits, database locks, network errors,
 prompt-size failures and missing tools are operational problems. Increasing
@@ -54,14 +58,14 @@ come from `opencode models opencode-go --verbose` and
 
 | Agent / exact route | Exposed controls | Starting choice | Escalation and limits |
 | --- | --- | --- | --- |
-| Codex / `gpt-6.1-sol` | Model: low, medium, high, xhigh, max; CLI configuration `model_reasoning_effort` | high; medium for routine work | xhigh, then exceptional max. Do not infer ultra support from another model or client. |
-| Claude / `claude-opus-5-5` | low, medium, high, xhigh, max; installed Claude Code accepts `--effort` | high; medium for routine coordination or writing | xhigh, then exceptional max. The model's API default is medium; pin the chosen level explicitly. |
+| Codex / `gpt-6.1-sol` | Model: low, medium, high, xhigh, max; CLI configuration `model_reasoning_effort` | high; medium for routine work | xhigh ceiling; max is forbidden by owner policy. Do not infer ultra support from another model or client. |
+| Claude / `claude-opus-5-5` | low, medium, high, xhigh, max; installed Claude Code accepts `--effort` | high; medium for routine coordination or writing | xhigh ceiling; max is forbidden by owner policy. The model's API default is medium; pin the chosen level explicitly. |
 | Antigravity / `gemini-3.1-pro-high`, `gemini-3.1-pro-low` | Native `agy models` exposes High and Low for Gemini 3.1 Pro | `gemini-3.1-pro-high --effort high` | High is the top exposed level. Match the low model with low only when deliberately chosen. Generic CLI medium/xhigh/max flags do not create Pro variants; high/xhigh was rejected before inference. |
 | Antigravity / `claude-opus-4-6-thinking` | Native catalog lists the Thinking model; `--effort high` was rejected before inference on2026-10-07 | Exact model default; omit `--effort` | Effective reasoning level remains Unknown. This route is separate from Claude Code Opus5.5 and does not expose its effort scale. |
 | Grok / `grok-4.7` | low, medium, high, xhigh; installed Grok Build uses `--reasoning-effort` / `--effort` | high; medium for routine work | xhigh is the highest documented level. No documented max on this model. |
-| GLM / `opencode-go/glm-5.3` | Installed variants: low, high, max; `reasoningEffort` | high, the middle of this scale | max only for a justified hard task. No medium/xhigh variant. Native Z.ai default is max, so pin high rather than omit it. |
-| DeepSeek / `opencode-go/deepseek-v4-pro` | Installed variants: high, max; `reasoningEffort` | high | Exceptional max. Direct DeepSeek also documents low, but this installed route does not expose a low variant. Direct API xhigh maps to high, so it is not an escalation. |
-| Kimi / `opencode-go/kimi-k3` | Installed variant: max only; `reasoningEffort` | No adjustable high/middle exposed; omit variant only if inherited gateway effort is acceptable and recorded as unknown | Explicit max is the only catalogued override. Do not manufacture high. Moonshot's direct K3 API offers low/high/max, but that is a different route. Prefer an already configured adjustable agent when budget control matters. |
+| GLM / `opencode-go/glm-5.3` | Installed variants: low, high, max; `reasoningEffort` | high, the middle of this scale | Stay at high; max is forbidden. No medium/xhigh variant. Native Z.ai default is max, so pin high rather than omit it. |
+| DeepSeek / `opencode-go/deepseek-v4-pro` | Installed variants: high, max; `reasoningEffort` | high | Stay at high; max is forbidden. Direct DeepSeek also documents low, but this installed route does not expose a low variant. Direct API xhigh maps to high, so it is not an escalation. |
+| Kimi / `opencode-go/kimi-k3` | Installed variant: max only; `reasoningEffort` | No eligible setting verified under the no-max policy | Only max is catalogued: choose another eligible route rather than silently inherit it. Do not manufacture high. Moonshot's direct K3 API offers low/high/max, but that is a different route. Prefer an already configured adjustable agent when budget control matters. |
 | Qwen / `opencode-go/qwen3.8-max` | Installed variants: low, medium, xhigh; route option `effort` | medium, the middle of this scale | xhigh for harder work. Direct Alibaba API maps high/max to xhigh; those labels do not create extra levels. The word max in the model name is not the selected effort. |
 | MiniMax / `opencode-go/minimax-m3` | Installed variants: none (thinking disabled), thinking (adaptive thinking) | thinking | A thinking toggle, not a graduated high/xhigh/max scale. M3.1 effort documentation must not be applied to this M3 pin. |
 | NVIDIA / `opencode/nemotron-3-ultra-free` | Reasoning capability true; installed variants empty | Inherited route default; requested/effective effort unknown | No exposed effort override on this route. NVIDIA's self-hosted thinking controls do not prove Zen support. |
@@ -110,7 +114,7 @@ For every new assignment, record:
 - Exact model ID, AI lab, CLI version and gateway route.
 - Requested effort, its actual flag/variant and the evidence supporting it.
 - Effective effort if the response proves it; otherwise **unknown**.
-- Why this level fits the task, especially any escalation or max exception.
+- Why this level fits the task, especially any escalation to xhigh.
 - Time/spending bounds, observed capacity and the age of that observation.
 - Task ID and any relationship to an earlier failed or corrected task.
 

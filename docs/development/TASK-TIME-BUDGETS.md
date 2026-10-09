@@ -19,6 +19,38 @@ Record the chosen limit in the task and per-run configuration. A short task
 does not need the full allocation. A larger allocation is permission to
 finish the assigned work, not permission to expand it.
 
+## Give cumulative token budgets room for implementation
+
+Owner update, 2026-10-09: loosen the initial trial caps. For a Vibe implementation
+task, use **2,000,000 cumulative tokens** ordinarily, or **4,000,000** for substantial
+work with a justified scope. Use estimated per-task price ceilings of **$5** and
+**$10** respectively, within the owner's existing included monthly subscription.
+These are planning defaults for new authorized runs, not permission for overage,
+paid fallback or expanding scope. A smaller research or routine task can use less.
+If a CLI does not expose a cumulative token control, record that limitation;
+do not invent a flag. The Vibe adapter must expose its selected bounds explicitly.
+
+Cumulative input includes context sent again on subsequent steps. It is different
+from the model's per-request context window, per-response output limit, reasoning
+effort and remaining subscription allowance. Pin actual model prices when using
+Vibe's estimated max-price control; a zero-price default can make it ineffective.
+A call can overshoot a cumulative/price check by its final response. An estimate
+does not prove remaining included funds or prevent subscription overage by itself.
+Never interpret a local token, price or time stop as provider exhaustion.
+
+The first GLM trial reached 201,286 tokens under a 200,000-token cap, mainly
+198,950 input tokens. The Medium 3.5 trial reached 601,926 under a 600,000-token
+cap. Both original exit-3 results and their work are preserved. Those local stops
+do not establish a model-quality ranking. New budget defaults do not authorize
+replaying those frozen tasks; honor the invocation and correction policy.
+
+Reduce avoidable context: read the newest coordination entries, then targeted
+source and receipts; do not send the entire historical log on every step. Ask for
+early commits, keep progress summaries compact and preserve raw evidence privately.
+Use high by default and xhigh only where supported and justified. Max and ultra
+effort are forbidden by the current owner policy. Larger task budgets do not
+increase reasoning effort or change the low-tier one-workflow-per-budget rule.
+
 ## Keep the timeout layers consistent
 
 Unio's `UNIO_TIMEOUT`, an outer wrapper such as `timeout`, and the selected

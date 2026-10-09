@@ -11,6 +11,8 @@ ordinary use, start with the [project README](../../README.md) or the
 | [Dark theme and live work map](LIVE-WORKSPACE-VIEW.md) | Planned browser themes and a focused, connected overview of agents and tasks |
 | [Recovery validation, 2026-10-08](RECOVERY-ACCEPTANCE-2026-10-08.md) | Completed components, preserved gate failures, remaining acceptance and performance findings |
 | [Continue with another AI](continue-with-ai-prompt.md) | Current handoff, evidence and next actions |
+| [Workspace rename](WORKSPACE-RENAME.md) | Owner-approved local relocation after the active release and integration batch |
+| [Task budgets](TASK-TIME-BUDGETS.md) | Work deadlines and cumulative token/estimated price defaults |
 | [Workspace rules](WORKSPACE-RULES.md) | Standing instructions for contributors and AI workers |
 | [AI session startup](../ai/START_HERE.md) | Public entry point for lead and worker reading instructions |
 | [Lead routing and spending](LEAD-ROUTING.md) | Agent roles, verified-free chores, subscription limits and startup rules |

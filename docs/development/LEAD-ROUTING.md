@@ -89,8 +89,10 @@ routine work; MiMo V2.6 Flash exposes no effort variant on this route, so
 record the inherited/effective setting as unknown rather than inventing one.
 
 Raise effort only when evidence shows reasoning difficulty. Use a supported
-next level, such as high to xhigh, and reserve max for an occasional narrow,
-important problem. Record the reason, time bound and current allowance.
+next level, such as high to xhigh. Xhigh is the owner-selected ceiling;
+do not request max or ultra on any model. Routes exposing only high remain at
+high; routes with only max need another eligible model. Record the reason,
+time bound and current allowance.
 Return ordinary later tasks to the default. Authentication, quota, transport
 and missing-tool failures need their actual causes resolved; more reasoning
 will not fix them. Read the model effort guide for route-specific exceptions.

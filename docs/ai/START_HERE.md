@@ -37,7 +37,9 @@ models use Go; free routes require current zero prices and pinned free helper
 models. No paid fallback, extra token charges, purchases or billing/auth changes.
 
 Start reasoning at high or the supported middle; only escalate supported
-levels for demonstrated difficulty, with max occasional and bounded. An
+levels for demonstrated difficulty, up to xhigh. Never request max or ultra;
+use high when xhigh is unavailable. Read [task budgets](../development/TASK-TIME-BUDGETS.md)
+before setting token, price and time limits. An
 installed model or an elapsed reset estimate does not establish quota.
 Preserve frozen tasks, one-invocation rules, early commits, actual checks,
 independent reviews and owner control. Read the complete guides for exceptions.
