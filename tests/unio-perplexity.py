@@ -175,6 +175,7 @@ class Conversation:
         self._search_results = [SearchResultItem(title='Doc', url='https://example.invalid/a'),
                                 SearchResultItem(title='Doc again', url='https://example.invalid/a'),
                                 SearchResultItem(title='No link', url=None),
+                                SearchResultItem(title='Spaced', url='https://example.invalid/a b'),
                                 SearchResultItem(title=None, url='https://example.invalid/b')]
         return self
 ''',
@@ -377,7 +378,7 @@ class PerplexityWorker(unittest.TestCase):
                     b'{"state": "ok", "answer": "A", "citations": [], "raw_data": {}}\n',
                     b'{"state": "ok", "answer": "A", "citations": [{"title": "t", "url": "file:///etc/passwd"}]}\n',
                     b'{"state": "ok", "answer": " ", "citations": []}\n',
-                    b'{"state": "fine"}\n', b'{"state": "ok", "answer": "A", "citations": []}',
+                    b'{"state": "fine"}\n', b'{"state": []}\n', b'{"state": {"ok": 1}}\n', b'{"state": "ok", "answer": "A", "citations": []}',
                     b'{"state": "auth_missing"}\n{"state": "ok"}\n', b'[]\n', b''):
             with self.assertRaises((ValueError, UnicodeDecodeError), msg=raw):
                 worker.parse_transport(raw, 4096)

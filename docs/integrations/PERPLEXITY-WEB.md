@@ -210,6 +210,7 @@ upstream payloads and tokens are never printed.
 | 8 | `output_overflow` |
 | 9 | `invalid_output` |
 | 10 | `internal_error` |
+| 11 | `receipt_failed`: no answer is printed without its receipt |
 
 ### What a receipt contains
 

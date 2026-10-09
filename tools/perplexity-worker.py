@@ -67,6 +67,7 @@ STATES = {
     'output_overflow': (8, 'answer exceeded --max-output; owned child process group killed'),
     'invalid_output': (9, 'child returned no valid answer transport'),
     'internal_error': (10, 'adapter child failed unexpectedly'),
+    'receipt_failed': (11, 'the receipt could not be written; no answer printed'),
 }
 
 
@@ -142,7 +143,7 @@ def parse_transport(raw, max_output):
     if not isinstance(data, dict):
         raise ValueError
     if data.get('state') != 'ok':
-        if set(data) != {'state'} or data['state'] not in STATES or data['state'] == 'ok':
+        if set(data) != {'state'} or not isinstance(data['state'], str) or data['state'] not in STATES:
             raise ValueError
         return data['state'], None, []
     if set(data) != {'state', 'answer', 'citations'} or not isinstance(data['citations'], list):
@@ -267,9 +268,10 @@ def child_main(args):
             model=model, source_focus=[SourceFocus.WEB] if args.source == 'web' else [],
             save_to_library=False))
         conversation.ask(prompt.decode('utf-8'))
-        citations = [{'title': item.title, 'url': item.url}
+        citations = [{'title': item.title[:300] if isinstance(item.title, str) else None, 'url': item.url}
                      for item in conversation.search_results[:MAX_CITATIONS]
-                     if isinstance(item.url, str) and item.url.startswith(('https://', 'http://'))]
+                     if isinstance(item.url, str) and item.url.startswith(('https://', 'http://'))
+                     and len(item.url) <= MAX_FIELD and not any(c.isspace() for c in item.url)]
         answer = conversation.answer
     except exceptions.AuthenticationError:
         return emit({'state': 'auth_denied'}, 1)
@@ -358,21 +360,24 @@ def main(argv=None):
         state, answer, citations, asked = run_child(args, prompt, workdir)
     code = STATES[state][0]
     if run:
-        write_receipt(run, {
-            'schema': 'unio-perplexity-receipt-1', 'task_sha256': hashlib.sha256(prompt).hexdigest(),
-            'task_bytes': len(prompt), 'started_at': started,
-            'finished_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-            'elapsed_seconds': round(time.monotonic() - clock, 3),
-            'requested_model': args.model, 'requested_lab': lab, 'configured_identifier': identifier,
-            'thinking': True, 'thinking_depth': 'unknown', 'source_focus': args.source,
-            'transport': 'Perplexity Pro web session', 'library': f'{DIST} {PINNED}',
-            'budget_group': 'perplexity', 'effective_model': 'unknown', 'effective_lab': 'unknown',
-            'max_retries': 0, 'ask_may_have_run': asked, 'outcome': state, 'exit_code': code,
-            'bounds': {'timeout_seconds': args.timeout, 'max_output_bytes': args.max_output,
-                       'max_prompt_bytes': MAX_PROMPT},
-            'claims': ('Local unsigned receipt of one research answer. Exit 0 is not an accepted '
-                       'result or review; the effective model and lab are unverified, so this is '
-                       'no cross-lab review evidence. Unio verified this adapter offline only.')})
+        try:
+            write_receipt(run, {
+                'schema': 'unio-perplexity-receipt-1', 'task_sha256': hashlib.sha256(prompt).hexdigest(),
+                'task_bytes': len(prompt), 'started_at': started,
+                'finished_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                'elapsed_seconds': round(time.monotonic() - clock, 3),
+                'requested_model': args.model, 'requested_lab': lab, 'configured_identifier': identifier,
+                'thinking': True, 'thinking_depth': 'unknown', 'source_focus': args.source,
+                'transport': 'Perplexity Pro web session', 'library': f'{DIST} {PINNED}',
+                'budget_group': 'perplexity', 'effective_model': 'unknown', 'effective_lab': 'unknown',
+                'max_retries': 0, 'ask_may_have_run': asked, 'outcome': state, 'exit_code': code,
+                'bounds': {'timeout_seconds': args.timeout, 'max_output_bytes': args.max_output,
+                           'max_prompt_bytes': MAX_PROMPT},
+                'claims': ('Local unsigned receipt of one research answer. Exit 0 is not an accepted '
+                           'result or review; the effective model and lab are unverified, so this is '
+                           'no cross-lab review evidence. Unio verified this adapter offline only.')})
+        except OSError:
+            return fail('receipt_failed')
     if state != 'ok':
         return fail(state)
     if args.json:
