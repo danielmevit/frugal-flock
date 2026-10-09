@@ -237,6 +237,20 @@
           <button id="map-next-page" type="button" disabled>Later</button>
         </div>
       </section>
+      <section class="activity-section limits-section" aria-labelledby="limits-title">
+        <div class="activity-heading">
+          <div>
+            <p class="eyebrow">Configured routes</p>
+            <h2 id="limits-title">Designated AI agents &amp; limits</h2>
+          </div>
+          <p id="limits-status" class="small" role="status" aria-live="polite">Loading local allowance observations…</p>
+        </div>
+        <p class="small">Recorded observations only: this page never refreshes a provider, signs in or changes policy. Missing, stale or expired readings are Unknown, and a passed reset is not recovered allowance.</p>
+        <p id="limits-lead" class="limits-lead"></p>
+        <div id="limits-routes" class="limits-routes"></div>
+        <h3 class="limits-subtitle">Shared budget allowance windows</h3>
+        <div id="limits-groups" class="limits-groups"></div>
+      </section>
       <div class="observer-details">
         <details>
           <summary>Tools and operator limits</summary>

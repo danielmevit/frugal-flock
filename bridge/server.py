@@ -10,10 +10,13 @@ import argparse
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 import secrets
+import selectors
 import shutil
+import signal
 from pathlib import Path
 import subprocess
 import threading
@@ -77,11 +80,249 @@ class Observer:
             return self.cached
 
 
+# ---------------------------------------------------------------- limits
+# Read-only allowance overview. Only these fixed installed native reads run,
+# with the server-selected project; the requester chooses nothing. No provider
+# refresh, model, auth, policy, bench or execution command is ever started.
+LIMITS_TTL = 5.0
+LIMITS_TIMEOUT = 10.0
+LIMITS_MAX_OUTPUT = 262144
+LIMIT_LABEL = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,63}')
+LIMIT_BUCKET = re.compile(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,63}')
+LIMIT_TIME = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]{8,15}(?:Z|[+-][0-9]{2}:[0-9]{2})')
+LIMIT_MODES = ('yolo', 'medium', 'safe')
+LIMIT_TIERS = ('low', 'medium', 'high')
+WINDOW_STATUSES = ('fresh', 'stale', 'expired', 'unknown', 'historical')
+CODEX_REASONS = frozenset((
+    'binary_missing', 'start_failed', 'timeout', 'exited', 'output_limit', 'invalid_message',
+    'unexpected_request', 'request_failed', 'not_signed_in', 'unsupported_account',
+    'invalid_account', 'invalid_rate_limits', 'no_valid_window', 'internal_error',
+    'invalid_bucket', 'invalid_window', 'implausible_reset', 'not_refreshed'))
+MAX_LIMIT_ENTRIES = 32
+
+
+class LimitsRefused(ValueError):
+    """A native document outside the strict contract: shown as Unknown."""
+
+
+def bounded_run(argv, cwd, timeout=LIMITS_TIMEOUT, limit=LIMITS_MAX_OUTPUT):
+    """Fixed argv, no shell; stdout capped and stderr discarded unread."""
+    process = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
+    chunks, size, deadline = [], 0, time.monotonic() + timeout
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise LimitsRefused('deadline')
+                if not selector.select(min(0.2, remaining)):
+                    continue
+                chunk = os.read(process.stdout.fileno(), 65536)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > limit:
+                    raise LimitsRefused('output limit')
+                chunks.append(chunk)
+        code = process.wait(timeout=max(0.1, deadline - time.monotonic()))
+    except (LimitsRefused, subprocess.TimeoutExpired):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        process.wait()
+        raise LimitsRefused('bounded read failed') from None
+    finally:
+        process.stdout.close()
+    if code:
+        raise LimitsRefused('unsupported command')
+    try:
+        return json.loads(b''.join(chunks).decode('utf-8'), object_pairs_hook=unique_object)
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        raise LimitsRefused('not JSON') from None
+
+
+def _limit_expect(condition):
+    if not condition:
+        raise LimitsRefused('outside the limits contract')
+
+
+def _limit_label(value, pattern=LIMIT_LABEL):
+    _limit_expect(isinstance(value, str) and pattern.fullmatch(value) is not None)
+    return value
+
+
+def _limit_time(value, nullable=True):
+    if value is None and nullable:
+        return None
+    _limit_expect(isinstance(value, str) and LIMIT_TIME.fullmatch(value) is not None)
+    return value
+
+
+def _limit_number(value, low=None, high=None):
+    _limit_expect(type(value) in (int, float) and math.isfinite(value))
+    _limit_expect((low is None or value >= low) and (high is None or value <= high))
+    return value
+
+
+def _limit_count_map(value):
+    _limit_expect(isinstance(value, dict) and len(value) <= MAX_LIMIT_ENTRIES)
+    result = {}
+    for key, count in value.items():
+        _limit_expect(type(count) is int and 0 <= count <= 1000)
+        result[_limit_label(key)] = count
+    return result
+
+
+def limits_policy(doc):
+    _limit_expect(isinstance(doc, dict) and doc.get('schema_version') == 1)
+    _limit_expect(doc.get('mode') in LIMIT_MODES and doc.get('tier') in LIMIT_TIERS)
+    _limit_expect(doc.get('workflow_enforcement') == 'native_workflows')
+    limit = doc.get('workflow_limit_per_group')
+    _limit_expect(type(limit) is int and 1 <= limit <= 64)
+    accounts = doc.get('accounts')
+    _limit_expect(isinstance(accounts, dict) and len(accounts) <= MAX_LIMIT_ENTRIES)
+    lead, group = doc.get('lead_agent'), doc.get('lead_group')
+    return {'state': 'ok', 'mode': doc['mode'], 'tier': doc['tier'],
+            'lead_agent': None if lead is None else _limit_label(lead),
+            'lead_group': None if group is None else _limit_label(group),
+            'accounts': {_limit_label(a): _limit_label(g) for a, g in accounts.items()},
+            'workflow_limit_per_group': limit,
+            'active_native_workflows': _limit_count_map(doc.get('active_native_workflows')),
+            'active_with_lead': _limit_count_map(doc.get('active_with_lead'))}
+
+
+def _limit_window(window, source):
+    """One window; malformed numbers become an explicit invalid entry, never valid-looking."""
+    _limit_expect(isinstance(window, dict))
+    status = window.get('status')
+    if status not in WINDOW_STATUSES:
+        return {'status': 'invalid', 'source': source}
+    try:
+        minutes = window.get('window_minutes')
+        _limit_expect(type(minutes) is int and 1 <= minutes <= 527040)
+        last = _limit_number(window.get('last_reading_remaining_percent'), 0, 100)
+        usable = window.get('usable_remaining_percent')
+        if usable is not None:
+            _limit_expect(status == 'fresh' and _limit_number(usable, 0, 100) == last)
+        age = window.get('age_seconds')
+        return {'status': status, 'source': source, 'window_minutes': minutes,
+                'remaining_percent': last, 'usable_remaining_percent': usable,
+                'reset_at': _limit_time(window.get('reset_at')),
+                'observed_at': _limit_time(window.get('observed_at')),
+                'age_seconds': None if age is None else _limit_number(age)}
+    except LimitsRefused:
+        return {'status': 'invalid', 'source': source}
+
+
+def limits_manual(doc):
+    _limit_expect(isinstance(doc, dict) and doc.get('schema_version') == 1)
+    state = doc.get('state')
+    _limit_expect(state in ('ok', 'missing', 'invalid'))
+    groups = doc.get('groups')
+    _limit_expect(isinstance(groups, dict) and len(groups) <= MAX_LIMIT_ENTRIES)
+    result = {}
+    for name, group in groups.items():
+        _limit_expect(isinstance(group, dict) and isinstance(group.get('windows'), dict))
+        windows = {}
+        for label, window in list(group['windows'].items())[:MAX_LIMIT_ENTRIES]:
+            entry = _limit_window(window, 'manual')
+            if entry['status'] != 'invalid':
+                _limit_expect(window.get('source') == 'manual')
+            windows[_limit_label(label)] = entry
+        result[_limit_label(name)] = {'windows': windows}
+    return {'state': state, 'checked_at': _limit_time(doc.get('checked_at'), False),
+            'max_age_seconds': _limit_number(doc.get('max_age_seconds'), 1), 'groups': result}
+
+
+def _limit_buckets(buckets, observed_at, age):
+    _limit_expect(isinstance(buckets, dict) and len(buckets) <= 16)
+    result = {}
+    for key, bucket in buckets.items():
+        _limit_expect(isinstance(bucket, dict) and isinstance(bucket.get('windows'), dict))
+        windows = {}
+        for name in ('primary', 'secondary'):
+            window = bucket['windows'].get(name)
+            if window is None:
+                windows[name] = None
+            elif isinstance(window, dict) and window.get('status') == 'unknown' and 'window_minutes' not in window:
+                windows[name] = {'status': 'unknown', 'source': 'codex'}
+            else:
+                windows[name] = _limit_window(dict(window, observed_at=observed_at, age_seconds=age), 'codex')
+        result[_limit_label(key, LIMIT_BUCKET)] = {'windows': windows}
+    return result
+
+
+def limits_codex(doc):
+    _limit_expect(isinstance(doc, dict) and doc.get('schema_version') == 1 and doc.get('provider') == 'codex')
+    state = doc.get('state')
+    _limit_expect(state in ('ok', 'missing', 'invalid'))
+    groups = doc.get('groups')
+    _limit_expect(isinstance(groups, dict) and len(groups) <= MAX_LIMIT_ENTRIES)
+    result = {}
+    for name, entry in groups.items():
+        _limit_expect(isinstance(entry, dict) and entry.get('source') == 'codex')
+        _limit_expect(entry.get('state') in ('ok', 'unknown'))
+        reason = entry.get('reason')
+        _limit_expect(reason is None or reason in CODEX_REASONS)
+        observed = _limit_time(entry.get('observed_at'))
+        age = entry.get('age_seconds')
+        age = None if age is None else _limit_number(age)
+        view = {'state': entry['state'], 'reason': reason, 'attempted_at': _limit_time(entry.get('attempted_at')),
+                'observed_at': observed, 'age_seconds': age,
+                'buckets': _limit_buckets(entry.get('buckets') or {}, observed, age), 'last_good': None}
+        last = entry.get('last_good')
+        if last is not None:
+            _limit_expect(isinstance(last, dict) and last.get('historical') is True)
+            last_age = _limit_number(last.get('age_seconds'))
+            last_observed = _limit_time(last.get('observed_at'), False)
+            view['last_good'] = {'observed_at': last_observed, 'age_seconds': last_age,
+                                 'buckets': _limit_buckets(last.get('buckets'), last_observed, last_age)}
+        result[_limit_label(name)] = view
+    return {'state': state, 'checked_at': _limit_time(doc.get('checked_at'), False), 'groups': result}
+
+
+class LimitsObserver:
+    SECTIONS = (('policy', limits_policy), ('manual', limits_manual), ('codex', limits_codex))
+
+    def __init__(self, project, engine, ttl=LIMITS_TTL, timeout=LIMITS_TIMEOUT):
+        self.project, self.engine = project, engine
+        self.ttl, self.timeout = max(LIMITS_TTL, ttl), timeout
+        self.lock = threading.Lock()
+        self.cached = None
+        self.expires = 0
+
+    def commands(self):
+        """The only argv ever run, all fixed; the project is chosen at startup."""
+        project = str(self.project)
+        return {'policy': [str(self.engine), 'policy', '--json'],
+                'manual': [str(self.engine), 'capacity', '--project', project, 'show', '--json'],
+                'codex': [str(self.engine), 'capacity', '--project', project, 'show', '--provider', 'codex', '--json']}
+
+    def read(self):
+        with self.lock:
+            if self.cached is not None and time.monotonic() < self.expires:
+                return self.cached
+            view = {'schema_version': 1, 'source': 'installed native reads; no provider call'}
+            commands = self.commands()
+            for name, sanitize in self.SECTIONS:
+                try:
+                    view[name] = sanitize(bounded_run(commands[name], self.project / 'repo', self.timeout))
+                except (LimitsRefused, OSError, subprocess.SubprocessError):
+                    view[name] = {'state': 'unknown'}
+            self.cached = view
+            self.expires = time.monotonic() + self.ttl
+            return view
+
+
 class ActivityServer(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, port, observer, plans=None, execution=None, progress=None, files=None):
+    def __init__(self, port, observer, plans=None, execution=None, progress=None, files=None, limits=None):
         super().__init__(('127.0.0.1',port), ActivityHandler)
         self.observer = observer
+        self.limits = limits
         self.plans = plans
         self.execution = execution
         self.progress = progress
@@ -269,6 +510,16 @@ class ActivityHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.execution_error_response(e)
 
+        if self.path == '/api/limits':
+            # Read-only and cached; a missing observer or old native command is Unknown.
+            if self.headers.get_all('Transfer-Encoding') or self.headers.get_all('Content-Length'):
+                return self.error_response(400, 'invalid_request')
+            if self.server.limits is None:
+                view = {'schema_version': 1, 'policy': {'state': 'unknown'}, 'manual': {'state': 'unknown'},
+                        'codex': {'state': 'unknown'}}
+            else:
+                view = self.server.limits.read()
+            return self.respond(200, json.dumps(view, ensure_ascii=True, allow_nan=False).encode())
         if self.path == '/api/activity':
             snapshot = self.server.observer.read()
             if snapshot is None: return self.error_response(503,'activity_unavailable')
@@ -527,7 +778,8 @@ def main(argv=None, *, engine_override=None, project_default=None, installed_ver
                 files = WorkerFilesService(project, options.files_worker)
             except (ValueError, OSError):
                 parser.error('invalid worker files startup configuration')
-        server = ActivityServer(options.port, Observer(project, engine, timeout=options.observer_timeout), plans=plans, execution=execution, progress=progress, files=files)
+        server = ActivityServer(options.port, Observer(project, engine, timeout=options.observer_timeout), plans=plans,
+                                execution=execution, progress=progress, files=files, limits=LimitsObserver(project, engine))
         server.dashboard = managed_dashboard(launch, server, project, installed_version)
         if engine_override is not None:
             print('Unio ' + installed_version + ' browser', flush=True)

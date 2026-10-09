@@ -59,10 +59,13 @@ import argparse
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 import secrets
+import selectors
 import shutil
+import signal
 from pathlib import Path
 import subprocess
 import threading
@@ -126,11 +129,249 @@ class Observer:
             return self.cached
 
 
+# ---------------------------------------------------------------- limits
+# Read-only allowance overview. Only these fixed installed native reads run,
+# with the server-selected project; the requester chooses nothing. No provider
+# refresh, model, auth, policy, bench or execution command is ever started.
+LIMITS_TTL = 5.0
+LIMITS_TIMEOUT = 10.0
+LIMITS_MAX_OUTPUT = 262144
+LIMIT_LABEL = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,63}')
+LIMIT_BUCKET = re.compile(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,63}')
+LIMIT_TIME = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]{8,15}(?:Z|[+-][0-9]{2}:[0-9]{2})')
+LIMIT_MODES = ('yolo', 'medium', 'safe')
+LIMIT_TIERS = ('low', 'medium', 'high')
+WINDOW_STATUSES = ('fresh', 'stale', 'expired', 'unknown', 'historical')
+CODEX_REASONS = frozenset((
+    'binary_missing', 'start_failed', 'timeout', 'exited', 'output_limit', 'invalid_message',
+    'unexpected_request', 'request_failed', 'not_signed_in', 'unsupported_account',
+    'invalid_account', 'invalid_rate_limits', 'no_valid_window', 'internal_error',
+    'invalid_bucket', 'invalid_window', 'implausible_reset', 'not_refreshed'))
+MAX_LIMIT_ENTRIES = 32
+
+
+class LimitsRefused(ValueError):
+    """A native document outside the strict contract: shown as Unknown."""
+
+
+def bounded_run(argv, cwd, timeout=LIMITS_TIMEOUT, limit=LIMITS_MAX_OUTPUT):
+    """Fixed argv, no shell; stdout capped and stderr discarded unread."""
+    process = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
+    chunks, size, deadline = [], 0, time.monotonic() + timeout
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise LimitsRefused('deadline')
+                if not selector.select(min(0.2, remaining)):
+                    continue
+                chunk = os.read(process.stdout.fileno(), 65536)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > limit:
+                    raise LimitsRefused('output limit')
+                chunks.append(chunk)
+        code = process.wait(timeout=max(0.1, deadline - time.monotonic()))
+    except (LimitsRefused, subprocess.TimeoutExpired):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        process.wait()
+        raise LimitsRefused('bounded read failed') from None
+    finally:
+        process.stdout.close()
+    if code:
+        raise LimitsRefused('unsupported command')
+    try:
+        return json.loads(b''.join(chunks).decode('utf-8'), object_pairs_hook=unique_object)
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        raise LimitsRefused('not JSON') from None
+
+
+def _limit_expect(condition):
+    if not condition:
+        raise LimitsRefused('outside the limits contract')
+
+
+def _limit_label(value, pattern=LIMIT_LABEL):
+    _limit_expect(isinstance(value, str) and pattern.fullmatch(value) is not None)
+    return value
+
+
+def _limit_time(value, nullable=True):
+    if value is None and nullable:
+        return None
+    _limit_expect(isinstance(value, str) and LIMIT_TIME.fullmatch(value) is not None)
+    return value
+
+
+def _limit_number(value, low=None, high=None):
+    _limit_expect(type(value) in (int, float) and math.isfinite(value))
+    _limit_expect((low is None or value >= low) and (high is None or value <= high))
+    return value
+
+
+def _limit_count_map(value):
+    _limit_expect(isinstance(value, dict) and len(value) <= MAX_LIMIT_ENTRIES)
+    result = {}
+    for key, count in value.items():
+        _limit_expect(type(count) is int and 0 <= count <= 1000)
+        result[_limit_label(key)] = count
+    return result
+
+
+def limits_policy(doc):
+    _limit_expect(isinstance(doc, dict) and doc.get('schema_version') == 1)
+    _limit_expect(doc.get('mode') in LIMIT_MODES and doc.get('tier') in LIMIT_TIERS)
+    _limit_expect(doc.get('workflow_enforcement') == 'native_workflows')
+    limit = doc.get('workflow_limit_per_group')
+    _limit_expect(type(limit) is int and 1 <= limit <= 64)
+    accounts = doc.get('accounts')
+    _limit_expect(isinstance(accounts, dict) and len(accounts) <= MAX_LIMIT_ENTRIES)
+    lead, group = doc.get('lead_agent'), doc.get('lead_group')
+    return {'state': 'ok', 'mode': doc['mode'], 'tier': doc['tier'],
+            'lead_agent': None if lead is None else _limit_label(lead),
+            'lead_group': None if group is None else _limit_label(group),
+            'accounts': {_limit_label(a): _limit_label(g) for a, g in accounts.items()},
+            'workflow_limit_per_group': limit,
+            'active_native_workflows': _limit_count_map(doc.get('active_native_workflows')),
+            'active_with_lead': _limit_count_map(doc.get('active_with_lead'))}
+
+
+def _limit_window(window, source):
+    """One window; malformed numbers become an explicit invalid entry, never valid-looking."""
+    _limit_expect(isinstance(window, dict))
+    status = window.get('status')
+    if status not in WINDOW_STATUSES:
+        return {'status': 'invalid', 'source': source}
+    try:
+        minutes = window.get('window_minutes')
+        _limit_expect(type(minutes) is int and 1 <= minutes <= 527040)
+        last = _limit_number(window.get('last_reading_remaining_percent'), 0, 100)
+        usable = window.get('usable_remaining_percent')
+        if usable is not None:
+            _limit_expect(status == 'fresh' and _limit_number(usable, 0, 100) == last)
+        age = window.get('age_seconds')
+        return {'status': status, 'source': source, 'window_minutes': minutes,
+                'remaining_percent': last, 'usable_remaining_percent': usable,
+                'reset_at': _limit_time(window.get('reset_at')),
+                'observed_at': _limit_time(window.get('observed_at')),
+                'age_seconds': None if age is None else _limit_number(age)}
+    except LimitsRefused:
+        return {'status': 'invalid', 'source': source}
+
+
+def limits_manual(doc):
+    _limit_expect(isinstance(doc, dict) and doc.get('schema_version') == 1)
+    state = doc.get('state')
+    _limit_expect(state in ('ok', 'missing', 'invalid'))
+    groups = doc.get('groups')
+    _limit_expect(isinstance(groups, dict) and len(groups) <= MAX_LIMIT_ENTRIES)
+    result = {}
+    for name, group in groups.items():
+        _limit_expect(isinstance(group, dict) and isinstance(group.get('windows'), dict))
+        windows = {}
+        for label, window in list(group['windows'].items())[:MAX_LIMIT_ENTRIES]:
+            entry = _limit_window(window, 'manual')
+            if entry['status'] != 'invalid':
+                _limit_expect(window.get('source') == 'manual')
+            windows[_limit_label(label)] = entry
+        result[_limit_label(name)] = {'windows': windows}
+    return {'state': state, 'checked_at': _limit_time(doc.get('checked_at'), False),
+            'max_age_seconds': _limit_number(doc.get('max_age_seconds'), 1), 'groups': result}
+
+
+def _limit_buckets(buckets, observed_at, age):
+    _limit_expect(isinstance(buckets, dict) and len(buckets) <= 16)
+    result = {}
+    for key, bucket in buckets.items():
+        _limit_expect(isinstance(bucket, dict) and isinstance(bucket.get('windows'), dict))
+        windows = {}
+        for name in ('primary', 'secondary'):
+            window = bucket['windows'].get(name)
+            if window is None:
+                windows[name] = None
+            elif isinstance(window, dict) and window.get('status') == 'unknown' and 'window_minutes' not in window:
+                windows[name] = {'status': 'unknown', 'source': 'codex'}
+            else:
+                windows[name] = _limit_window(dict(window, observed_at=observed_at, age_seconds=age), 'codex')
+        result[_limit_label(key, LIMIT_BUCKET)] = {'windows': windows}
+    return result
+
+
+def limits_codex(doc):
+    _limit_expect(isinstance(doc, dict) and doc.get('schema_version') == 1 and doc.get('provider') == 'codex')
+    state = doc.get('state')
+    _limit_expect(state in ('ok', 'missing', 'invalid'))
+    groups = doc.get('groups')
+    _limit_expect(isinstance(groups, dict) and len(groups) <= MAX_LIMIT_ENTRIES)
+    result = {}
+    for name, entry in groups.items():
+        _limit_expect(isinstance(entry, dict) and entry.get('source') == 'codex')
+        _limit_expect(entry.get('state') in ('ok', 'unknown'))
+        reason = entry.get('reason')
+        _limit_expect(reason is None or reason in CODEX_REASONS)
+        observed = _limit_time(entry.get('observed_at'))
+        age = entry.get('age_seconds')
+        age = None if age is None else _limit_number(age)
+        view = {'state': entry['state'], 'reason': reason, 'attempted_at': _limit_time(entry.get('attempted_at')),
+                'observed_at': observed, 'age_seconds': age,
+                'buckets': _limit_buckets(entry.get('buckets') or {}, observed, age), 'last_good': None}
+        last = entry.get('last_good')
+        if last is not None:
+            _limit_expect(isinstance(last, dict) and last.get('historical') is True)
+            last_age = _limit_number(last.get('age_seconds'))
+            last_observed = _limit_time(last.get('observed_at'), False)
+            view['last_good'] = {'observed_at': last_observed, 'age_seconds': last_age,
+                                 'buckets': _limit_buckets(last.get('buckets'), last_observed, last_age)}
+        result[_limit_label(name)] = view
+    return {'state': state, 'checked_at': _limit_time(doc.get('checked_at'), False), 'groups': result}
+
+
+class LimitsObserver:
+    SECTIONS = (('policy', limits_policy), ('manual', limits_manual), ('codex', limits_codex))
+
+    def __init__(self, project, engine, ttl=LIMITS_TTL, timeout=LIMITS_TIMEOUT):
+        self.project, self.engine = project, engine
+        self.ttl, self.timeout = max(LIMITS_TTL, ttl), timeout
+        self.lock = threading.Lock()
+        self.cached = None
+        self.expires = 0
+
+    def commands(self):
+        """The only argv ever run, all fixed; the project is chosen at startup."""
+        project = str(self.project)
+        return {'policy': [str(self.engine), 'policy', '--json'],
+                'manual': [str(self.engine), 'capacity', '--project', project, 'show', '--json'],
+                'codex': [str(self.engine), 'capacity', '--project', project, 'show', '--provider', 'codex', '--json']}
+
+    def read(self):
+        with self.lock:
+            if self.cached is not None and time.monotonic() < self.expires:
+                return self.cached
+            view = {'schema_version': 1, 'source': 'installed native reads; no provider call'}
+            commands = self.commands()
+            for name, sanitize in self.SECTIONS:
+                try:
+                    view[name] = sanitize(bounded_run(commands[name], self.project / 'repo', self.timeout))
+                except (LimitsRefused, OSError, subprocess.SubprocessError):
+                    view[name] = {'state': 'unknown'}
+            self.cached = view
+            self.expires = time.monotonic() + self.ttl
+            return view
+
+
 class ActivityServer(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, port, observer, plans=None, execution=None, progress=None, files=None):
+    def __init__(self, port, observer, plans=None, execution=None, progress=None, files=None, limits=None):
         super().__init__(('127.0.0.1',port), ActivityHandler)
         self.observer = observer
+        self.limits = limits
         self.plans = plans
         self.execution = execution
         self.progress = progress
@@ -318,6 +559,16 @@ class ActivityHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.execution_error_response(e)
 
+        if self.path == '/api/limits':
+            # Read-only and cached; a missing observer or old native command is Unknown.
+            if self.headers.get_all('Transfer-Encoding') or self.headers.get_all('Content-Length'):
+                return self.error_response(400, 'invalid_request')
+            if self.server.limits is None:
+                view = {'schema_version': 1, 'policy': {'state': 'unknown'}, 'manual': {'state': 'unknown'},
+                        'codex': {'state': 'unknown'}}
+            else:
+                view = self.server.limits.read()
+            return self.respond(200, json.dumps(view, ensure_ascii=True, allow_nan=False).encode())
         if self.path == '/api/activity':
             snapshot = self.server.observer.read()
             if snapshot is None: return self.error_response(503,'activity_unavailable')
@@ -576,7 +827,8 @@ def main(argv=None, *, engine_override=None, project_default=None, installed_ver
                 files = WorkerFilesService(project, options.files_worker)
             except (ValueError, OSError):
                 parser.error('invalid worker files startup configuration')
-        server = ActivityServer(options.port, Observer(project, engine, timeout=options.observer_timeout), plans=plans, execution=execution, progress=progress, files=files)
+        server = ActivityServer(options.port, Observer(project, engine, timeout=options.observer_timeout), plans=plans,
+                                execution=execution, progress=progress, files=files, limits=LimitsObserver(project, engine))
         server.dashboard = managed_dashboard(launch, server, project, installed_version)
         if engine_override is not None:
             print('Unio ' + installed_version + ' browser', flush=True)
@@ -3732,6 +3984,20 @@ cat > "$CONF_DIR/lib/browser/index.html" <<'UNIO_BROWSER_INDEX_HTML'
           <button id="map-next-page" type="button" disabled>Later</button>
         </div>
       </section>
+      <section class="activity-section limits-section" aria-labelledby="limits-title">
+        <div class="activity-heading">
+          <div>
+            <p class="eyebrow">Configured routes</p>
+            <h2 id="limits-title">Designated AI agents &amp; limits</h2>
+          </div>
+          <p id="limits-status" class="small" role="status" aria-live="polite">Loading local allowance observations…</p>
+        </div>
+        <p class="small">Recorded observations only: this page never refreshes a provider, signs in or changes policy. Missing, stale or expired readings are Unknown, and a passed reset is not recovered allowance.</p>
+        <p id="limits-lead" class="limits-lead"></p>
+        <div id="limits-routes" class="limits-routes"></div>
+        <h3 class="limits-subtitle">Shared budget allowance windows</h3>
+        <div id="limits-groups" class="limits-groups"></div>
+      </section>
       <div class="observer-details">
         <details>
           <summary>Tools and operator limits</summary>
@@ -4949,6 +5215,183 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
     syncWorkerOptions([]);
   }
 
+  // ---------------------------------------------------------- limits
+  // Designated AI agents & limits. /api/limits is a cached read-only view of
+  // fixed native reads; every label is set through textContent. Missing,
+  // stale, expired or invalid readings stay Unknown; nothing is summed across
+  // windows and a shared budget group is shown once.
+  let lastLimits = null;
+  let limitsBusy = false;
+
+  function windowName(minutes) {
+    if (minutes === 300) return "5h";
+    if (minutes === 10080) return "weekly";
+    if (minutes % 1440 === 0) return minutes / 1440 + "d";
+    if (minutes % 60 === 0) return minutes / 60 + "h";
+    return minutes + " min";
+  }
+
+  function span(seconds) {
+    const total = Math.max(0, Math.round(seconds));
+    const days = Math.floor(total / 86400), hours = Math.floor(total % 86400 / 3600);
+    const minutes = Math.floor(total % 3600 / 60);
+    if (days) return days + "d " + hours + "h";
+    if (hours) return hours + "h " + String(minutes).padStart(2, "0") + "m";
+    if (minutes) return minutes + "m";
+    return total + "s";
+  }
+
+  function section(view, name) {
+    const value = view && view[name];
+    return value && typeof value === "object" && value.state !== "unknown" ? value : null;
+  }
+
+  function limitsWindow(label, w) {
+    const box = text("div", "", "limits-window");
+    const source = w.source === "codex" ? "Automatic Codex" : w.source === "manual" ? "Manual" : "Unknown source";
+    box.dataset.status = w.status;
+    box.dataset.source = w.source || "unknown";
+    if (w.status === "invalid" || typeof w.remaining_percent !== "number") {
+      box.dataset.status = w.status === "invalid" ? "invalid" : "unknown";
+      box.append(text("strong", label + " · " + (w.status === "invalid" ? "invalid reading · remaining Unknown" : "remaining Unknown")));
+      box.append(text("p", "Source " + source + ". No usable value is shown for this reading."));
+      return box;
+    }
+    const duration = windowName(w.window_minutes);
+    const usable = w.status === "fresh" && typeof w.usable_remaining_percent === "number";
+    box.append(text("strong", label + " · " + duration + " · " + (usable
+      ? w.remaining_percent + "% remaining"
+      : "last reading " + w.remaining_percent + "% · usable Unknown (" + w.status + ")")));
+    const meter = text("div", "", "limits-meter");
+    meter.setAttribute("aria-hidden", "true");
+    const fill = document.createElement("span");
+    // Only the visual geometry is clamped; the text above shows the value.
+    fill.style.width = Math.min(100, Math.max(0, w.remaining_percent)) + "%";
+    meter.append(fill);
+    box.append(meter);
+    let reset = "Reset time Unknown";
+    if (w.reset_at) {
+      const at = Date.parse(w.reset_at);
+      if (Number.isNaN(at)) reset = "Reset time Unknown";
+      else if (at <= Date.now()) reset = "Reset " + w.reset_at + " has passed · remaining Unknown until a fresh reading";
+      else reset = "Resets " + w.reset_at + " · in " + span((at - Date.now()) / 1000);
+    }
+    box.append(text("p", reset));
+    const age = typeof w.age_seconds === "number" ? "observed " + span(w.age_seconds) + " before check" : "observation age Unknown";
+    box.append(text("p", "Source " + source + " · " + age + " · " + w.status));
+    return box;
+  }
+
+  function renderLimits() {
+    const view = lastLimits;
+    const policy = section(view, "policy");
+    const manual = section(view, "manual");
+    const codex = section(view, "codex");
+    const agents = lastData && Array.isArray(lastData.agents) ? lastData.agents : [];
+    const statusLine = document.getElementById("limits-status");
+    if (!statusLine) return;
+    setText(statusLine, view
+      ? "Checked " + ((manual && manual.checked_at) || (codex && codex.checked_at) || "at an unknown time") + " · cached local reads"
+      : "Allowance overview unavailable. Everything below is Unknown.");
+
+    const lead = document.getElementById("limits-lead");
+    lead.replaceChildren();
+    if (policy) {
+      lead.append(text("strong", "Registered lead: " + (policy.lead_agent || "none") + (policy.lead_group ? " (group " + policy.lead_group + ")" : "")));
+      lead.append(document.createTextNode(" · mode " + policy.mode + " · tier " + policy.tier + " · up to "
+        + policy.workflow_limit_per_group + " workflow" + (policy.workflow_limit_per_group === 1 ? "" : "s")
+        + " per shared budget, including the lead. A registered lead is a reservation, not an attached live conversation; your external lead CLI session is not captured here."));
+    } else {
+      lead.append(text("strong", "Registered lead, mode and tier: Unknown"));
+      lead.append(document.createTextNode(" · the installed policy read is unavailable or unsupported."));
+    }
+
+    const accounts = policy ? policy.accounts : {};
+    const groupOf = (name) => Object.prototype.hasOwnProperty.call(accounts, name) ? accounts[name] : name;
+    const names = new Set(agents.map((a) => a.name).filter((n) => typeof n === "string"));
+    if (policy) {
+      Object.keys(accounts).forEach((n) => names.add(n));
+      if (policy.lead_agent) names.add(policy.lead_agent);
+    }
+    const active = (group) => {
+      if (!policy) return "Native active workflows Unknown";
+      const native = policy.active_native_workflows[group] || 0;
+      const withLead = native + (policy.lead_group === group ? 1 : 0);
+      return "Native active workflows " + native + (policy.lead_group === group ? " + registered lead" : "")
+        + " = " + withLead + " of " + policy.workflow_limit_per_group;
+    };
+
+    const routes = document.getElementById("limits-routes");
+    routes.replaceChildren();
+    for (const name of Array.from(names).sort()) {
+      const agent = agents.find((a) => a.name === name);
+      const card = text("div", "", "limits-card");
+      card.dataset.route = name;
+      card.append(text("h4", name));
+      if (policy && policy.lead_agent === name) card.append(text("span", "Registered lead (reservation)", "chip"));
+      card.append(text("span", agent ? (agent.bench && agent.bench.off ? "Benched OFF" : "ON") : "ON/OFF Unknown", "chip" + (agent && agent.bench && agent.bench.off ? " warn" : "")));
+      const binary = agent && agent.binary ? agent.binary.present : null;
+      card.append(text("p", "Shared budget group " + (policy ? groupOf(name) : "Unknown") + " · binary "
+        + (binary === true ? "installed" : binary === false ? "missing" : "Unknown")));
+      card.append(text("p", policy ? active(groupOf(name)) : "Native active workflows Unknown"));
+      card.append(text("p", "Authentication Unknown · ON, an installed binary or a sign-in is not readiness."));
+      routes.append(card);
+    }
+    if (!names.size) routes.append(text("p", "No configured routes observed. Routes and their limits are Unknown.", "small"));
+
+    const groups = new Set();
+    for (const name of names) if (policy) groups.add(groupOf(name));
+    if (policy && policy.lead_group) groups.add(policy.lead_group);
+    if (manual) Object.keys(manual.groups).forEach((g) => groups.add(g));
+    if (codex) Object.keys(codex.groups).forEach((g) => groups.add(g));
+    const list = document.getElementById("limits-groups");
+    list.replaceChildren();
+    for (const group of Array.from(groups).sort()) {
+      const card = text("div", "", "limits-card");
+      card.dataset.group = group;
+      card.append(text("h4", "Group " + group));
+      const members = Array.from(names).filter((n) => policy && groupOf(n) === group).sort();
+      card.append(text("p", members.length ? "Shared by " + members.join(", ") : "No configured route maps to this group"));
+      card.append(text("p", active(group)));
+      let windows = 0;
+      const provider = codex && codex.groups[group];
+      if (provider) {
+        if (provider.state !== "ok")
+          card.append(text("p", "Automatic Codex: Unknown (" + (provider.reason || "unknown").replaceAll("_", " ") + ")"));
+        for (const [bucket, entry] of Object.entries(provider.buckets || {}))
+          for (const slot of ["primary", "secondary"])
+            if (entry.windows[slot]) { card.append(limitsWindow(bucket, entry.windows[slot])); windows++; }
+        if (provider.last_good)
+          for (const [bucket, entry] of Object.entries(provider.last_good.buckets || {}))
+            for (const slot of ["primary", "secondary"])
+              if (entry.windows[slot]) card.append(limitsWindow(bucket + " (historical)", entry.windows[slot]));
+      }
+      const recorded = manual && manual.groups[group];
+      if (recorded)
+        for (const [label, w] of Object.entries(recorded.windows)) { card.append(limitsWindow(label, w)); windows++; }
+      if (!windows) card.append(text("p", "No current allowance reading · remaining Unknown"));
+      list.append(card);
+    }
+    if (!groups.size) list.append(text("p", "No shared budget groups or readings observed. Allowance is Unknown.", "small"));
+    if (!manual || !codex)
+      list.append(text("p", (!manual && !codex ? "Manual and automatic Codex readings are" : !manual ? "Manual readings are" : "Automatic Codex readings are")
+        + " unavailable from the installed CLI and stay Unknown.", "small limits-unsupported"));
+  }
+
+  async function refreshLimits() {
+    if (limitsBusy) return;
+    limitsBusy = true;
+    try {
+      const response = await fetch("/api/limits", { cache: "no-store" });
+      lastLimits = response.ok ? await response.json() : null;
+    } catch (_) {
+      lastLimits = null;
+    } finally {
+      limitsBusy = false;
+    }
+    renderLimits();
+  }
+
   async function refresh() {
     if (busy) return;
     busy = true;
@@ -4971,6 +5414,9 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
       busy = false;
       document.getElementById("tasks").setAttribute("aria-busy", "false");
     }
+    // Allowance metadata never blocks the activity render above.
+    renderLimits();
+    refreshLimits();
   }
   document.getElementById("refresh").addEventListener("click", refresh);
   refresh();
@@ -5356,6 +5802,25 @@ footer a { display: inline-flex; align-items: center; min-height: 44px; color: v
   .map-controls select, .map-controls input[type="search"] { flex-basis: 100%; }
   .map-counts { margin-left: 0; }
 }
+
+/* Designated AI agents & limits: neutral surfaces, status accents only. */
+.limits-lead { margin: 14px 0; padding: 12px 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 4px; font-size: 13px; overflow-wrap: anywhere; }
+.limits-lead strong { font-weight: 650; }
+.limits-subtitle { font-size: 14px; margin: 22px 0 6px; }
+.limits-routes, .limits-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.limits-card { border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px; background: var(--paper); min-width: 0; overflow-wrap: anywhere; }
+.limits-card h4 { margin: 0 0 6px; font-size: 13px; font-weight: 650; }
+.limits-card p { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.limits-card .chip { margin: 0 4px 4px 0; }
+.limits-window { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; }
+.limits-window strong { font-size: 12px; }
+.limits-meter { height: 6px; margin: 6px 0 2px; background: var(--bg-label); border-radius: 3px; overflow: hidden; }
+.limits-meter span { display: block; height: 100%; background: var(--accent); }
+.limits-window[data-status="fresh"] .limits-meter span { background: var(--map-passed); }
+.limits-window[data-status="stale"] .limits-meter span,
+.limits-window[data-status="expired"] .limits-meter span,
+.limits-window[data-status="historical"] .limits-meter span { background: var(--line-alt); }
+.limits-window[data-status="invalid"] strong, .limits-window[data-status="unknown"] strong { color: var(--map-attention); }
 UNIO_BROWSER_ACTIVITY_CSS
 cat > "$CONF_DIR/lib/browser/drafts.js" <<'UNIO_BROWSER_DRAFTS_JS'
 /* Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).

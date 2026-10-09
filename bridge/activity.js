@@ -1189,6 +1189,183 @@
     syncWorkerOptions([]);
   }
 
+  // ---------------------------------------------------------- limits
+  // Designated AI agents & limits. /api/limits is a cached read-only view of
+  // fixed native reads; every label is set through textContent. Missing,
+  // stale, expired or invalid readings stay Unknown; nothing is summed across
+  // windows and a shared budget group is shown once.
+  let lastLimits = null;
+  let limitsBusy = false;
+
+  function windowName(minutes) {
+    if (minutes === 300) return "5h";
+    if (minutes === 10080) return "weekly";
+    if (minutes % 1440 === 0) return minutes / 1440 + "d";
+    if (minutes % 60 === 0) return minutes / 60 + "h";
+    return minutes + " min";
+  }
+
+  function span(seconds) {
+    const total = Math.max(0, Math.round(seconds));
+    const days = Math.floor(total / 86400), hours = Math.floor(total % 86400 / 3600);
+    const minutes = Math.floor(total % 3600 / 60);
+    if (days) return days + "d " + hours + "h";
+    if (hours) return hours + "h " + String(minutes).padStart(2, "0") + "m";
+    if (minutes) return minutes + "m";
+    return total + "s";
+  }
+
+  function section(view, name) {
+    const value = view && view[name];
+    return value && typeof value === "object" && value.state !== "unknown" ? value : null;
+  }
+
+  function limitsWindow(label, w) {
+    const box = text("div", "", "limits-window");
+    const source = w.source === "codex" ? "Automatic Codex" : w.source === "manual" ? "Manual" : "Unknown source";
+    box.dataset.status = w.status;
+    box.dataset.source = w.source || "unknown";
+    if (w.status === "invalid" || typeof w.remaining_percent !== "number") {
+      box.dataset.status = w.status === "invalid" ? "invalid" : "unknown";
+      box.append(text("strong", label + " · " + (w.status === "invalid" ? "invalid reading · remaining Unknown" : "remaining Unknown")));
+      box.append(text("p", "Source " + source + ". No usable value is shown for this reading."));
+      return box;
+    }
+    const duration = windowName(w.window_minutes);
+    const usable = w.status === "fresh" && typeof w.usable_remaining_percent === "number";
+    box.append(text("strong", label + " · " + duration + " · " + (usable
+      ? w.remaining_percent + "% remaining"
+      : "last reading " + w.remaining_percent + "% · usable Unknown (" + w.status + ")")));
+    const meter = text("div", "", "limits-meter");
+    meter.setAttribute("aria-hidden", "true");
+    const fill = document.createElement("span");
+    // Only the visual geometry is clamped; the text above shows the value.
+    fill.style.width = Math.min(100, Math.max(0, w.remaining_percent)) + "%";
+    meter.append(fill);
+    box.append(meter);
+    let reset = "Reset time Unknown";
+    if (w.reset_at) {
+      const at = Date.parse(w.reset_at);
+      if (Number.isNaN(at)) reset = "Reset time Unknown";
+      else if (at <= Date.now()) reset = "Reset " + w.reset_at + " has passed · remaining Unknown until a fresh reading";
+      else reset = "Resets " + w.reset_at + " · in " + span((at - Date.now()) / 1000);
+    }
+    box.append(text("p", reset));
+    const age = typeof w.age_seconds === "number" ? "observed " + span(w.age_seconds) + " before check" : "observation age Unknown";
+    box.append(text("p", "Source " + source + " · " + age + " · " + w.status));
+    return box;
+  }
+
+  function renderLimits() {
+    const view = lastLimits;
+    const policy = section(view, "policy");
+    const manual = section(view, "manual");
+    const codex = section(view, "codex");
+    const agents = lastData && Array.isArray(lastData.agents) ? lastData.agents : [];
+    const statusLine = document.getElementById("limits-status");
+    if (!statusLine) return;
+    setText(statusLine, view
+      ? "Checked " + ((manual && manual.checked_at) || (codex && codex.checked_at) || "at an unknown time") + " · cached local reads"
+      : "Allowance overview unavailable. Everything below is Unknown.");
+
+    const lead = document.getElementById("limits-lead");
+    lead.replaceChildren();
+    if (policy) {
+      lead.append(text("strong", "Registered lead: " + (policy.lead_agent || "none") + (policy.lead_group ? " (group " + policy.lead_group + ")" : "")));
+      lead.append(document.createTextNode(" · mode " + policy.mode + " · tier " + policy.tier + " · up to "
+        + policy.workflow_limit_per_group + " workflow" + (policy.workflow_limit_per_group === 1 ? "" : "s")
+        + " per shared budget, including the lead. A registered lead is a reservation, not an attached live conversation; your external lead CLI session is not captured here."));
+    } else {
+      lead.append(text("strong", "Registered lead, mode and tier: Unknown"));
+      lead.append(document.createTextNode(" · the installed policy read is unavailable or unsupported."));
+    }
+
+    const accounts = policy ? policy.accounts : {};
+    const groupOf = (name) => Object.prototype.hasOwnProperty.call(accounts, name) ? accounts[name] : name;
+    const names = new Set(agents.map((a) => a.name).filter((n) => typeof n === "string"));
+    if (policy) {
+      Object.keys(accounts).forEach((n) => names.add(n));
+      if (policy.lead_agent) names.add(policy.lead_agent);
+    }
+    const active = (group) => {
+      if (!policy) return "Native active workflows Unknown";
+      const native = policy.active_native_workflows[group] || 0;
+      const withLead = native + (policy.lead_group === group ? 1 : 0);
+      return "Native active workflows " + native + (policy.lead_group === group ? " + registered lead" : "")
+        + " = " + withLead + " of " + policy.workflow_limit_per_group;
+    };
+
+    const routes = document.getElementById("limits-routes");
+    routes.replaceChildren();
+    for (const name of Array.from(names).sort()) {
+      const agent = agents.find((a) => a.name === name);
+      const card = text("div", "", "limits-card");
+      card.dataset.route = name;
+      card.append(text("h4", name));
+      if (policy && policy.lead_agent === name) card.append(text("span", "Registered lead (reservation)", "chip"));
+      card.append(text("span", agent ? (agent.bench && agent.bench.off ? "Benched OFF" : "ON") : "ON/OFF Unknown", "chip" + (agent && agent.bench && agent.bench.off ? " warn" : "")));
+      const binary = agent && agent.binary ? agent.binary.present : null;
+      card.append(text("p", "Shared budget group " + (policy ? groupOf(name) : "Unknown") + " · binary "
+        + (binary === true ? "installed" : binary === false ? "missing" : "Unknown")));
+      card.append(text("p", policy ? active(groupOf(name)) : "Native active workflows Unknown"));
+      card.append(text("p", "Authentication Unknown · ON, an installed binary or a sign-in is not readiness."));
+      routes.append(card);
+    }
+    if (!names.size) routes.append(text("p", "No configured routes observed. Routes and their limits are Unknown.", "small"));
+
+    const groups = new Set();
+    for (const name of names) if (policy) groups.add(groupOf(name));
+    if (policy && policy.lead_group) groups.add(policy.lead_group);
+    if (manual) Object.keys(manual.groups).forEach((g) => groups.add(g));
+    if (codex) Object.keys(codex.groups).forEach((g) => groups.add(g));
+    const list = document.getElementById("limits-groups");
+    list.replaceChildren();
+    for (const group of Array.from(groups).sort()) {
+      const card = text("div", "", "limits-card");
+      card.dataset.group = group;
+      card.append(text("h4", "Group " + group));
+      const members = Array.from(names).filter((n) => policy && groupOf(n) === group).sort();
+      card.append(text("p", members.length ? "Shared by " + members.join(", ") : "No configured route maps to this group"));
+      card.append(text("p", active(group)));
+      let windows = 0;
+      const provider = codex && codex.groups[group];
+      if (provider) {
+        if (provider.state !== "ok")
+          card.append(text("p", "Automatic Codex: Unknown (" + (provider.reason || "unknown").replaceAll("_", " ") + ")"));
+        for (const [bucket, entry] of Object.entries(provider.buckets || {}))
+          for (const slot of ["primary", "secondary"])
+            if (entry.windows[slot]) { card.append(limitsWindow(bucket, entry.windows[slot])); windows++; }
+        if (provider.last_good)
+          for (const [bucket, entry] of Object.entries(provider.last_good.buckets || {}))
+            for (const slot of ["primary", "secondary"])
+              if (entry.windows[slot]) card.append(limitsWindow(bucket + " (historical)", entry.windows[slot]));
+      }
+      const recorded = manual && manual.groups[group];
+      if (recorded)
+        for (const [label, w] of Object.entries(recorded.windows)) { card.append(limitsWindow(label, w)); windows++; }
+      if (!windows) card.append(text("p", "No current allowance reading · remaining Unknown"));
+      list.append(card);
+    }
+    if (!groups.size) list.append(text("p", "No shared budget groups or readings observed. Allowance is Unknown.", "small"));
+    if (!manual || !codex)
+      list.append(text("p", (!manual && !codex ? "Manual and automatic Codex readings are" : !manual ? "Manual readings are" : "Automatic Codex readings are")
+        + " unavailable from the installed CLI and stay Unknown.", "small limits-unsupported"));
+  }
+
+  async function refreshLimits() {
+    if (limitsBusy) return;
+    limitsBusy = true;
+    try {
+      const response = await fetch("/api/limits", { cache: "no-store" });
+      lastLimits = response.ok ? await response.json() : null;
+    } catch (_) {
+      lastLimits = null;
+    } finally {
+      limitsBusy = false;
+    }
+    renderLimits();
+  }
+
   async function refresh() {
     if (busy) return;
     busy = true;
@@ -1211,6 +1388,9 @@
       busy = false;
       document.getElementById("tasks").setAttribute("aria-busy", "false");
     }
+    // Allowance metadata never blocks the activity render above.
+    renderLimits();
+    refreshLimits();
   }
   document.getElementById("refresh").addEventListener("click", refresh);
   refresh();
