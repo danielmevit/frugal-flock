@@ -42,7 +42,9 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
                GIT_AUTHOR_EMAIL='mock@example.invalid',
                GIT_COMMITTER_EMAIL='mock@example.invalid',
                UNIO_AUTO_VERIFY='0', UNIO_AUTO_SYNC='0', UNIO_AUTO_OFF='0',
-               UNIO_TIMEOUT='5', UNIO_REVIEW_TIMEOUT='5')
+               # Holding mocks must outlive admission assertions and recovery
+               # bookkeeping. The deliberate timeout case overrides this below.
+               UNIO_TIMEOUT='120', UNIO_REVIEW_TIMEOUT='5')
     subprocess.run(['bash', str(source / 'unio-install.sh')], env=env,
                    check=True, capture_output=True, timeout=60)
     at = str(base / 'bin' / 'unio')
@@ -123,7 +125,8 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
 
     def note_detached(task):
         pidfile = root / 'coord' / 'reports' / ('%s.pid' % task)
-        for _ in range(50):
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
             if pidfile.is_file():
                 try:
                     pid = int(pidfile.read_text().strip())
@@ -154,7 +157,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
                                 text=True, start_new_session=True)
         owned.append(proc)
         try:
-            out, err = proc.communicate(timeout=40)
+            out, err = proc.communicate(timeout=90)
         except subprocess.TimeoutExpired:
             kill_recorded(proc.pid)
             try:
@@ -204,6 +207,10 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         (root / 'coord' / 'tasks' / 'task3.md').write_text("Task 3 content")
         (root / 'coord' / 'tasks' / 'task4.md').write_text("Task 4 content")
         (root / 'coord' / 'tasks' / 'task5.md').write_text("Task 5 content")
+        # Separate lifecycle scenarios must not inherit another case's retry
+        # failures. These remain real tasks with normal account admission.
+        for name in ('timeout-task', 'after-timeout', 'background-task', 'signal-task'):
+            (root / 'coord' / 'tasks' / f'{name}.md').write_text(f'Task {name} content')
         # And we must track them in git for quality paths if needed, wait, coord is NOT in repo!
         # Does unio run require task file to be tracked? NO. quality paths only checks wt/worker.
 
@@ -258,7 +265,9 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         unio('tier', 'low') # limit 1
 
         def wait_barrier(path):
-            for _ in range(150):
+            # Provider startup follows a bounded 30s baseline recovery save.
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline:
                 if Path(path).exists():
                     return
                 time.sleep(0.1)
@@ -280,7 +289,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
 
         # release bar1
         (repo / 'bar1.release').touch()
-        p1.wait(timeout=30)
+        p1.wait(timeout=90)
 
         # different groups overlap
         unio('account', 'mock1', 'grp1')
@@ -298,8 +307,8 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
 
         (repo / 'bar2.release').touch()
         (repo / 'bar3.release').touch()
-        p1.wait(timeout=30)
-        p2.wait(timeout=30)
+        p1.wait(timeout=90)
+        p2.wait(timeout=90)
         del env['MOCK_BARRIER']
 
         # cap2/cap4 and lead inclusion
@@ -333,7 +342,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
 
         for i in range(3): (repo / f'bar4_{i}.release').touch()
         for p in ps:
-            p.wait(timeout=30)
+            p.wait(timeout=90)
 
 
         # held oversized/malformed metadata cannot bypass low cap or lower/regroup
@@ -376,7 +385,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
 
         # release
         (repo / 'bar_oversized.release').touch()
-        p_over.wait(timeout=30)
+        p_over.wait(timeout=90)
 
         # hardlinked policy lock rejected with state/sentinel intact
         lock_file = root / 'coord' / '.locks' / 'work-policy.lock'
@@ -425,6 +434,9 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
 
         # check failure/timeout release
         # Add bounded --kill-after=5s to Source/review timeouts
+        # The oversized-slot scenario left medium capacity after a refused
+        # reduction. Low capacity makes any leaked shared slot block the probe.
+        assert unio('tier', 'low').returncode == 0
         env['MOCK_TRAP'] = "1"
         env['UNIO_TIMEOUT'] = "2" # 2s timeout
         mock_identity_file = repo / 'mock_identity.json'
@@ -493,7 +505,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
                 raise TimeoutError("harness deadline exceeded")
             return r
 
-        proc = subprocess.Popen([str(unio_wrapper), 'run', 'mock_timeout', 'task1'],
+        proc = subprocess.Popen([str(unio_wrapper), 'run', 'mock_timeout', 'timeout-task'],
                                 cwd=repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
         owned.append(proc)
 
@@ -611,19 +623,23 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
 
         print(f"  lifecycle: {duration:.2f}s, wall: {t1_wall-t0_wall:.2f}s, exit: {proc.returncode}")
 
-        del env['UNIO_TIMEOUT']
+        env['UNIO_TIMEOUT'] = '120'
         del env['MOCK_TRAP']
         del env['MOCK_IDENTITY_FILE']
-        out_next = unio('run', 'mock1', 'task1')
-        check('slot released on timeout/failure', out_next.returncode == 0, out_next)
+        policy_after_timeout = unio('policy', '--json')
+        released = (policy_after_timeout.returncode == 0 and
+                    json.loads(policy_after_timeout.stdout)['active_native_workflows'].get('grp1', 0) == 0)
+        out_next = unio('run', 'mock1', 'after-timeout')
+        check('slot released on timeout/failure', released and out_next.returncode == 0,
+              f'policy:\n{policy_after_timeout.stdout}\nprobe:\n{out_next.stdout}\n{out_next.stderr}')
 
         # original task/hash preserved and policy header/sidecar consistent
-        prompt_file = root / 'coord' / 'reports' / 'task1.prompt.md'
-        sidecar_file = root / 'coord' / 'reports' / 'task1.policy.json'
+        prompt_file = root / 'coord' / 'reports' / 'after-timeout.prompt.md'
+        sidecar_file = root / 'coord' / 'reports' / 'after-timeout.policy.json'
         check('prompt/sidecar exists', prompt_file.exists() and sidecar_file.exists())
 
         prompt_text = prompt_file.read_text()
-        check('policy header applied', 'Unio work-policy header' in prompt_text and 'Task 1 content' in prompt_text)
+        check('policy header applied', 'Unio work-policy header' in prompt_text and 'Task after-timeout content' in prompt_text)
 
         sidecar_json = json.loads(sidecar_file.read_text())
         check('sidecar JSON consistent', sidecar_json['group'] == 'grp1' and 'policy' in sidecar_json)
@@ -634,8 +650,8 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
 
         # test background Source
         env['MOCK_BARRIER'] = str(repo / 'bar5')
-        unio('run', '-b', 'mock1', 'task1', wait=False)
-        note_detached('task1')
+        unio('run', '-b', 'mock1', 'background-task', wait=False)
+        note_detached('background-task')
         wait_barrier(repo / 'bar5.started')
 
         out_fg = unio('run', 'mock2', 'task2')
@@ -704,7 +720,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
 
         (repo / 'bar6.release').touch()
         try:
-            p_rev.wait(timeout=30)
+            p_rev.wait(timeout=90)
         except subprocess.TimeoutExpired:
             kill_recorded(p_rev.pid)
             raise
@@ -729,8 +745,10 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         def signal_reaps(proc):
             kids = descendants(proc.pid)
             os.kill(proc.pid, signal.SIGTERM)
-            deadline = time.time() + 8
-            while time.time() < deadline:
+            # Source TERM still performs its bounded final recovery save before
+            # the shell releases ownership; include that work in collection.
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline:
                 alive = [pid for pid in kids if Path('/proc/%s' % pid).exists()]
                 if proc.poll() is not None and not alive:
                     return True
@@ -741,7 +759,7 @@ with tempfile.TemporaryDirectory(prefix='work-policy-guard-') as directory:
         env['UNIO_TIMEOUT'] = '30'
         (repo / 'bar_term.started').unlink(missing_ok=True)
         (repo / 'bar_term.release').unlink(missing_ok=True)
-        p_term = unio('run', 'mock1', 'task1', wait=False)
+        p_term = unio('run', 'mock1', 'signal-task', wait=False)
         wait_barrier(repo / 'bar_term.started')
         check('run signal reaps the provider and holder', signal_reaps(p_term))
 
