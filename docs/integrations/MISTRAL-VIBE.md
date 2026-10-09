@@ -3,7 +3,19 @@
 This source-tree adapter runs the owner's installed Vibe 2.26.1 CLI. It supports
 GLM 5.3 (`zai-glm-5-3`, AI lab Z.ai) and Mistral Medium 3.5
 (`mistral-medium-3-5`, AI lab Mistral). Both use the Mistral transport and share
-one subscription budget. These tools are not packaged in the 0.5.7 installer.
+one subscription budget.
+
+## Where the adapter lives
+
+- Source checkout: `tools/vibe-worker.py`.
+- Installed copy: `~/.config/unio/lib/adapters/vibe-worker.py` (or under
+  `$UNIO_CONF_DIR`). **Development addition awaiting a future release:** the
+  installer on `main` places the exact reviewed bytes there, but the released
+  v0.5.7 installer does not. Use the source-checkout path with v0.5.7.
+
+`unio integrations` (or `--json`) shows the installed path and whether the file
+is present. It reads only file metadata: it never runs Vibe or the adapter, so
+`installed: true` says nothing about sign-in or remaining allowance.
 
 ## Configure an explicit worker
 
@@ -21,6 +33,11 @@ absolute paths. TASKFILE supplies the prompt without putting its contents in arg
 vibeglm=python3 '/path/to/repo/tools/vibe-worker.py' --model glm-5-3 --receipt-dir '/path/to/private receipts'
 vibe35=python3 '/path/to/repo/tools/vibe-worker.py' --model mistral-medium-3-5 --receipt-dir '/path/to/private receipts'
 ```
+
+With an installer that packages the adapter, point the same lines at the
+installed copy instead, for example
+`python3 '/home/you/.config/unio/lib/adapters/vibe-worker.py' --model glm-5-3 ...`.
+Both copies are byte-identical; pins, effort and bounds do not change.
 
 The file uses `alias=command`, not TOML worker sections. Make the directory
 owner-only (for example `mkdir -m 700 '/path/to/private receipts'`). Map both aliases
