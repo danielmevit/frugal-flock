@@ -123,8 +123,10 @@ def _provider_text(view):
 
 
 def _provider(args, prog):
-    from bridge.provider_capacity import PROVIDER, ProviderStore, resolve_binary
-    store = ProviderStore(args.project)
+    # Loaded only here: manual record/show never load the provider module.
+    provider = __import__('bridge.provider_capacity', fromlist=['ProviderStore'])
+    PROVIDER, resolve_binary = provider.PROVIDER, provider.resolve_binary
+    store = provider.ProviderStore(args.project)
     if args.command == 'show':
         if args.provider != PROVIDER:
             validate_label(args.provider, 'provider')

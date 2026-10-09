@@ -253,6 +253,19 @@ class AppServer:
             raise ProbeFailure('request_failed')
         return (message['result'],)
 
+    def _signal_group(self, sig):
+        try:
+            os.killpg(self.process.pid, sig)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+    def _exited(self):
+        """True once the leader has exited; leaves it unreaped (WNOWAIT)."""
+        try:
+            return os.waitid(os.P_PID, self.process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None
+        except ChildProcessError:
+            return True
+
     def close(self):
         process = self.process
         if process is None:
@@ -262,25 +275,14 @@ class AppServer:
             process.stdin.close()
         except OSError:
             pass
-        # The child is unreaped until wait(), so its process group ID is still
-        # ours: signal only that group, never a name pattern.
-        for sig, grace in ((signal.SIGTERM, 1.0), (signal.SIGKILL, 5.0)):
-            try:
-                os.killpg(process.pid, sig)
-            except (ProcessLookupError, PermissionError):
-                pass
-            try:
-                process.wait(timeout=grace)
-                break
-            except subprocess.TimeoutExpired:
-                continue
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError):
-            pass
-        if process.poll() is None:
-            process.kill()
-            process.wait(timeout=5)
+        # Until wait() reaps the leader its PID, and so its process group ID,
+        # cannot be reused: signal only that owned group, never a name pattern.
+        self._signal_group(signal.SIGTERM)
+        grace = time.monotonic() + 1.0
+        while time.monotonic() < grace and not self._exited():
+            time.sleep(0.02)
+        self._signal_group(signal.SIGKILL)
+        process.wait(timeout=5)
         process.stdout.close()
         process.stderr.close()
 
@@ -289,17 +291,24 @@ def probe_codex(binary, cwd, timeout=DEFAULT_TIMEOUT, clock=time.time, env=None)
     """Return (account_kind, buckets, observed_unix) or raise ProbeFailure."""
     server = AppServer(binary, cwd, timeout, env)
     try:
-        server.send('initialize', {'clientInfo': {'name': 'unio_capacity', 'title': 'Unio', 'version': '1'}}, 0)
-        server.receive(0)
-        server.send('initialized', {})
-        server.send('account/read', {'refreshToken': False}, 1)
-        kind = classify_account(server.receive(1))
-        server.send('account/rateLimits/read', {'excludeResetCreditDetails': True}, 2)
-        result = server.receive(2)
-        observed = int(clock())
-        return kind, normalize_rate_limits(result, observed), observed
+        return _exchange(server, clock)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        raise ProbeFailure('internal_error') from None
     finally:
         server.close()
+
+
+def _exchange(server, clock):
+    """The whole allowlisted sequence; no other request is ever sent."""
+    server.send('initialize', {'clientInfo': {'name': 'unio_capacity', 'title': 'Unio', 'version': '1'}}, 0)
+    server.receive(0)
+    server.send('initialized', {})
+    server.send('account/read', {'refreshToken': False}, 1)
+    kind = classify_account(server.receive(1))
+    server.send('account/rateLimits/read', {'excludeResetCreditDetails': True}, 2)
+    result = server.receive(2)
+    observed = int(clock())
+    return kind, normalize_rate_limits(result, observed), observed
 
 
 def resolve_binary(env=None):
