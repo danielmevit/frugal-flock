@@ -7,6 +7,7 @@
 # See LICENSE and NOTICE; distributed without warranty.
 """Loopback-only read-only Activity preview; no dispatch or project writes."""
 import argparse
+import hashlib
 import hmac
 import json
 import os
@@ -23,6 +24,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ASSETS = Path(__file__).resolve().parent
 TOP_FIELDS = {'schema_version','observed_at','stopped','agents','results','retries','recent_events','warnings','evidence'}
 DEFAULT_OBSERVER_TIMEOUT = 30
+DASHBOARD_LAUNCH = 'UNIO_DASHBOARD_LAUNCH'  # internal: set only by the managed dashboard helper
 
 
 def observer_timeout(value):
@@ -84,6 +86,7 @@ class ActivityServer(ThreadingHTTPServer):
         self.execution = execution
         self.progress = progress
         self.files = files
+        self.dashboard = None  # bounded managed-launch metadata; absent for foreground launches
         protected = plans is not None or execution is not None or progress is not None or files is not None
         self.session_token = secrets.token_urlsafe(32) if protected else None
         self.origin = 'http://127.0.0.1:' + str(self.server_port)
@@ -178,6 +181,10 @@ class ActivityHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.origin_allowed():
             return
+        if self.path == '/api/dashboard':
+            if self.server.dashboard is None:
+                return self.error_response(404, 'not_found')
+            return self.respond(200, json.dumps(self.server.dashboard, ensure_ascii=True).encode())
         if self.path == '/api/session':
             return self.respond(200, json.dumps(dict(schema_version=1,
                 manual_drafts=self.server.plans is not None,
@@ -434,7 +441,20 @@ def resolve_engine(explicit):
     return engine
 
 
+def managed_dashboard(launch, server, project, installed_version):
+    """Identity for a managed read-only launch; never tokens, paths or configuration."""
+    if (launch is None or installed_version is None or re.fullmatch('[0-9a-f]{32}', launch) is None
+            or re.fullmatch('[0-9A-Za-z.+_-]{1,64}', installed_version) is None
+            or any(getattr(server, name) is not None for name in ('plans', 'execution', 'progress', 'files'))):
+        return None
+    return dict(schema_version=1, managed=True, mode='read-only', version=installed_version,
+                project_hash=hashlib.sha256(str(project).encode('utf-8', 'surrogateescape')).hexdigest(),
+                launch_nonce=launch)
+
+
 def main(argv=None, *, engine_override=None, project_default=None, installed_version=None):
+    # Read once and drop it so observer children never inherit the launch nonce.
+    launch = os.environ.pop(DASHBOARD_LAUNCH, None)
     parser = argparse.ArgumentParser(prog='unio browser' if engine_override is not None else None,
                                      description='Unio local browser workspace')
     parser.add_argument('--project',type=Path,required=project_default is None,default=project_default,
@@ -508,6 +528,7 @@ def main(argv=None, *, engine_override=None, project_default=None, installed_ver
             except (ValueError, OSError):
                 parser.error('invalid worker files startup configuration')
         server = ActivityServer(options.port, Observer(project, engine, timeout=options.observer_timeout), plans=plans, execution=execution, progress=progress, files=files)
+        server.dashboard = managed_dashboard(launch, server, project, installed_version)
         if engine_override is not None:
             print('Unio ' + installed_version + ' browser', flush=True)
             print('Project: ' + str(project), flush=True)
