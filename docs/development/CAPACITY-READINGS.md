@@ -233,8 +233,11 @@ Unknown, and `refresh` refuses them; only Codex is supported.
 - When the response has `rateLimitsByLimitId`, every bucket in it is kept,
   keyed by its limit ID, and the single `rateLimits` is ignored so nothing
   is counted twice. The single `rateLimits` is used only when the map is
-  absent or null. A malformed map makes the whole read Unknown; it never
-  falls back.
+  absent or null. An explicit `null` map is deliberately treated like an
+  absent key, for compatibility with app-servers that send the field before
+  they support per-limit buckets. Any non-null map that is malformed (not an
+  object, empty, more than 16 buckets, or a bad limit ID) makes the whole
+  read Unknown; it never falls back.
 - A bucket keeps its `primary` and `secondary` windows. A null window is a
   legitimate absence and stays null. A bucket that is not an object is kept
   by ID as Unknown with no values.
@@ -268,6 +271,16 @@ has gone by, `stale` after `--max-age-seconds` (default 900), otherwise
 reset never counts as refilled allowance; refresh again. A reading is an
 observation only. It is never permission to run, bench or retry, and other
 clients can spend the same budget at any time.
+
+Stored `providers.json` is validated as strictly as a fresh read. Each
+`used_percent` and `remaining_percent` must be a finite number from 0
+through 100 on its own, not only consistent with the other. Every stored
+attempt, observation and reset time must be a plausible time (2001 through
+2100), so an extreme value such as year 9999 makes the file invalid instead
+of crashing. A stored reset more than one window length plus 300 seconds
+after its observation is refused, so a forged far-future reset never becomes
+usable. An invalid file shows as `invalid`, is never overwritten by a refresh
+and keeps its exact bytes.
 
 Exit codes: `refresh` returns 0 when the read succeeded and 1 when it
 recorded Unknown or was refused. `show --provider` returns 1 only when

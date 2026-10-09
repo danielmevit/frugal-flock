@@ -44,14 +44,21 @@ session, preserving their work and the agreed checks.
 through WSL, plus a [local browser workspace](bridge/README.md) in the source
 archive. Use it to prepare and run tasks, follow worker output and inspect files.
 
-*Install [Unio 0.5.4](https://github.com/danielmevit/unio/releases/tag/v0.5.4), the latest release. It adds recovery saves, authorized continuation and the live work map. [Lead cooldown restart](docs/LEAD-COOLDOWN.md) is experimental and explicitly enabled; its genuine subscription-limit cycle remains unverified.*
+*Install [Unio 0.5.6](https://github.com/danielmevit/unio/releases/tag/v0.5.6), the latest release. Since v0.5.5 the installer includes `unio browser`, which starts the dashboard with the same CLI and configuration, read-only by default. [Lead cooldown restart](docs/LEAD-COOLDOWN.md) is experimental and explicitly enabled; its genuine subscription-limit cycle remains unverified.*
 
-**In development:** a [packaged `unio browser` launcher](bridge/README.md#development-one-command-launch)
-starts the dashboard with the same CLI and configuration, read-only by default.
-This later daily-use slice is not included in the published v0.5.4 release.
-With it, `unio dashboard` keeps that read-only dashboard running in the
-background and prints its link; repeated calls reuse it. New lead instructions
-ask the lead to start it and show you the link at the beginning of a session:
+**0.5.7 candidate (not yet released):** `unio dashboard` keeps that read-only
+dashboard running in the background and prints its link; repeated calls reuse
+it. The dashboard shows each task's lifecycle (only checks passed and review
+approved counts as Finished), shared filters for the work map and list
+(Current work by default, All states, Finished, worker, category, search),
+and a **Designated AI agents & limits** section. That section lists each
+configured AI, its shared budget group, the registered lead, and every
+recorded allowance window (5h, weekly) with remaining percent, reset
+countdown, age and source. Missing, stale or expired readings show as
+Unknown. The page never asks a provider; an automatic Codex reading comes
+only from an explicit `unio capacity refresh codex --group codex`
+(details below). New lead instructions ask the lead to start the dashboard
+and show you the link at the beginning of a session:
 
 ```text
 At the start of this lead session, run `unio dashboard ensure --open-browser`
@@ -199,6 +206,20 @@ Only a fresh reading (default: under 15 minutes old) counts as usable. A
 missing, stale, expired or invalid reading shows as Unknown, never as 100%.
 A passed reset is not proof of a refill: record a new reading. Other clients
 can spend the same budget. Details: [manual capacity readings](docs/development/CAPACITY-READINGS.md).
+
+The 0.5.7 candidate adds one optional automatic source for Codex. You run it
+yourself; neither the browser nor `show` ever starts it:
+
+```bash
+unio capacity refresh codex --group codex   # one read-only metadata request
+unio capacity show --provider codex          # local cache only
+```
+
+The refresh asks the installed `codex app-server` for account and rate-limit
+metadata only: no model turn, login or token refresh. It stores the 5h and
+weekly windows separately from your manual readings. A failed refresh turns
+that group Unknown and keeps the earlier reading as history only. Other
+providers stay manual or Unknown.
 
 ## FAQ
 
@@ -422,11 +443,14 @@ needed to rebuild the Word manuals with `tools/make-docx.sh`.
   The genuine subscription-limit-to-restart cycle still needs live validation.
 - **Added in v0.5.6:** manual allowance readings with `unio capacity`
   (see above), including age, optional reset time and explicit Unknown handling.
-- **Next:** simpler daily launch and observation, then automatic
-  remaining-allowance readings and reliable delegation. Later version
-  numbers are unassigned.
-- **Later:** provider and browser allowance indicators, more reliable
-  connections and smarter delegation, guided by actual project outcomes.
+- **0.5.7 candidate, not yet released:** the background `unio dashboard`,
+  task lifecycle filters, the Designated AI agents & limits overview and an
+  explicit Codex allowance refresh. Release awaits the lead's full gate.
+- **Next:** a [temporary acting lead](docs/development/LEAD-CAPACITY-HANDOVER.md)
+  while the lead's allowance cools down (documented and planned, not
+  implemented), then more automatic readings and reliable delegation.
+- **Later:** more reliable connections and smarter delegation, guided by
+  actual project outcomes.
 
 The [UX proposal](docs/UX-DIRECTION.md) and [next steps](docs/development/ROADMAP.md) explain the
 scope and order; the [brand notes](docs/BRAND.md) explain the name.

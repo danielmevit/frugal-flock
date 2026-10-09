@@ -9560,7 +9560,7 @@ cat > "$BIN_DIR/unio" <<'UNIO_BIN_EOF'
 #   PROJECT/coord/    board.md, base, docs/, tasks/, reports/, blockers.md, STOP
 set -euo pipefail
 
-UNIO_VERSION="0.5.6"
+UNIO_VERSION="0.5.7"
 CONF_DIR="${UNIO_CONF_DIR:-$HOME/.config/unio}"
 CONF_FILE="$CONF_DIR/agents.conf"
 TPL_DIR="$CONF_DIR/templates"
@@ -17189,6 +17189,17 @@ opening is fine: the printed link is enough. This is a startup rule for
 cooperating leads; Unio does not detect or attach to other AI CLI sessions.
 The read-only dashboard keeps running until `unio dashboard stop`; STOP and
 usage limits do not end it, and stopping it never stops workers.
+
+## Allowance-aware delegation (lead instruction, not automation)
+As your trustworthy allowance falls, delegate implementation to other
+eligible main workers and keep this session for coordination, review and
+recovery. Suggested defaults: below about 20% in the 5h or weekly window
+delegate first; below about 10% prepare a handover packet. These are not
+native thresholds. Use only fresh observed readings with source and age;
+Unknown stays Unknown and a passed reset is not restored allowance.
+`unio lead` registers a reservation only. Automatic temporary acting-lead
+handover is planned, not implemented: never promote a verified-free model
+to lead, start a duplicate session on a shared budget, or interrupt active work.
 
 ## Standing model roles — read in every session
 

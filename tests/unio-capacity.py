@@ -102,7 +102,7 @@ class InstalledCapacityTests(unittest.TestCase):
 
     def test_native_help_version_and_exact_payload(self):
         self.assert_embedded()
-        self.assertTrue(self.unio('version').stdout.startswith('Unio 0.5.6 '))
+        self.assertTrue(self.unio('version').stdout.startswith('Unio 0.5.7 '))
         self.assertIn('unio capacity [--project DIR] record|show', self.unio('help').stdout)
         for args in (('capacity',), ('capacity', '--help'), ('capacity', 'record', '--help')):
             with self.subTest(args=args):

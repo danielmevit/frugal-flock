@@ -1,17 +1,44 @@
 # Unio local project workspace
 
-Included in the [Unio v0.5.4 source archive](https://github.com/danielmevit/unio/releases/tag/v0.5.4):
-Light/Dark themes, the responsive live work map, zoom/pan and every-node details.
-The packaged launcher below is later development and is not part of v0.5.4.
-Historical validation notes later in this guide describe their original revisions
-and versions.
+Light/Dark themes, the responsive live work map, zoom/pan and every-node
+details shipped in v0.5.4; the packaged `unio browser` launcher shipped in
+v0.5.5. The 0.5.7 candidate (not yet released) adds `unio dashboard`, shared
+task filters and the Designated AI agents & limits section described below.
+Historical validation notes later in this guide describe their original
+revisions and versions.
 
 This workspace has three explicit startup modes: read-only
 Activity by default, local manual drafts, and live execution. Default mode
 turns `watch --once --json` into a read-only local browser view. It shows
 recorded task decisions, worker-lock observations, operator limits, STOP and
 recent events. Default mode does not dispatch providers or write coordination
-files. Authentication and capacity remain unknown.
+files. Authentication stays Unknown.
+
+## Designated AI agents & limits
+
+This visible section lists each configured AI route with its shared budget
+group, installed binary, ON/OFF state, native active workflow count and the
+registered lead role, and then each shared budget group once with every
+recorded allowance window: duration (5h, weekly), remaining percent, reset
+time and countdown, observation age and freshness, and source (Automatic
+Codex or Manual). Only a fresh reading shows as remaining; missing, stale,
+expired and invalid readings stay Unknown, a passed reset is not recovered
+allowance, and windows are never added together. The registered lead is a
+reservation, not an attached live conversation.
+
+`GET /api/limits` serves it. The server runs only three fixed installed
+reads for the project selected at startup: `policy --json`, `capacity
+--project P show --json` and `capacity --project P show --provider codex
+--json`. There is no shell and the requester chooses nothing; each read has
+a 10 second deadline and a 256 KiB output cap, stderr is discarded unread,
+and the combined result is cached for 5 seconds. Only allowlisted fields
+with validated labels, times and numbers are returned; an out-of-range
+number becomes an explicit invalid entry. An unsupported command (for
+example 0.5.6, which lacks the capacity files), a failure or a malformed
+document turns that part Unknown without affecting activity. The browser
+never refreshes a provider or changes authentication, policy, bench or
+execution state. Host/Origin checks apply, query strings are refused and
+every write method returns `405`.
 Recorded approval is separate from current readiness and human acceptance.
 
 Python 3.9 or newer with the standard library is the only server dependency.
@@ -128,6 +155,7 @@ mode described below.
 python3 -B bridge/tests/server_test.py
 python3 -B bridge/tests/plan_store_test.py
 python3 -B bridge/tests/plan_api_test.py
+python3 -B bridge/tests/limits_api_test.py
 node --check bridge/activity.js
 node --check bridge/drafts.js
 node --check bridge/jobs.js
@@ -142,6 +170,8 @@ Optional browser checks use the same workspace-local Playwright tooling as
 
 ```bash
 node bridge/tests/browser.cjs
+node bridge/tests/work_map_browser.cjs
+node bridge/tests/limits_browser.cjs
 node bridge/tests/drafts_browser.cjs
 node bridge/tests/execution_browser.cjs
 node bridge/tests/worker_console_browser.cjs

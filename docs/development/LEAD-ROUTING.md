@@ -111,10 +111,27 @@ Resume Unio before authorized calls and stop it afterward. Preserve failures.
 
 Make coherent scoped commits early, before lengthy final checks, and maintain
 clear handoffs. Do not rely on the final AI response to preserve work. Treat
-unfinished recovery data as unverified. Supervisor-owned automatic saving,
-portable checkpoint recovery, and [lead capacity handover](LEAD-CAPACITY-HANDOVER.md)
+unfinished recovery data as unverified. Since 0.5.4, native runs capture
+baseline, changed periodic and final recovery saves (`unio save`); a lead still
+commits early, because a save is not acceptance. Portable checkpoint recovery
+across tools and the [temporary acting-lead handover](LEAD-CAPACITY-HANDOVER.md)
 remain planned work; these instructions do not claim that those features are
 implemented.
+
+## Delegate more as the lead's allowance falls
+
+This is a current lead instruction, not native runtime automation. As the
+lead's trustworthy allowance falls, delegate implementation to other eligible
+main workers and conserve the lead for coordination, review and recovery.
+Suggested operating defaults: below about 20% remaining in either the 5h or
+the weekly window, delegate implementation first; below about 10%, prepare a
+handover packet. These are not native thresholds and not proof of availability.
+Use only a fresh observed reading with its source and age (`unio capacity
+show`, or the browser's Designated AI agents & limits section); a missing,
+stale or expired reading stays Unknown, and a passed reset is not recovered
+allowance. `unio lead <agent>` registers a reservation only; it does not move a
+live CLI conversation or switch to an acting lead. See
+[lead capacity handover](LEAD-CAPACITY-HANDOVER.md).
 
 Read [task time budgets](TASK-TIME-BUDGETS.md) before choosing a deadline.
 Give substantial implementation about 90 minutes, with up to two hours for

@@ -486,12 +486,16 @@ The owner endorsed [capacity-aware task sizing and clean continuation](../CAPACI
 The [provider quota monitoring roadmap](../PROVIDER-QUOTA-MONITORING.md)
 records the 2026-10-05 request for remaining five-hour, weekly and monthly
 indicators, supported provider inputs, manual fallback and lead checks
-before dispatch. A Codex read-only probe worked; fleet monitoring is not
-implemented. Schedule this after the current approved milestones.
+before dispatch. A Codex read-only probe worked. The 0.5.7 candidate (not
+yet released) adds an explicit cached Codex metadata refresh and a read-only
+browser overview of every recorded window; other providers stay manual or
+Unknown and scheduling does not consume these readings yet.
 Preserve this design for a later milestone: periodic supported readings or
 manual input, conservative scheduling, and tested recovery checkpoints.
 M1's context packet is not a backup of uncommitted files.
 The owner also explicitly requested documentation for a future [temporary lead capacity handover](LEAD-CAPACITY-HANDOVER.md) when the primary lead's allowance is exhausted.
+It is documented in the 0.5.7 candidate; the runtime and its deterministic
+fake capacity/handoff tests are a later milestone.
 
 After a run stops, capture committed and uncommitted work, task context,
 completed checks, and unfinished work. Let the user select another

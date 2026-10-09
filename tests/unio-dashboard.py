@@ -201,7 +201,7 @@ class DashboardTests(unittest.TestCase):
         code, raw = self.request(port, '/api/dashboard')
         self.assertEqual(code, 200)
         document = json.loads(raw)
-        self.assertEqual(document, dict(schema_version=1, managed=True, mode='read-only', version='0.5.6',
+        self.assertEqual(document, dict(schema_version=1, managed=True, mode='read-only', version='0.5.7',
                                         project_hash=helper.project_hash(self.project),
                                         launch_nonce=record['launch_nonce']))
         self.assertNotIn(str(self.project).encode(), raw)
@@ -291,7 +291,7 @@ class DashboardTests(unittest.TestCase):
         self.addCleanup(bystander.kill)
         record = dict(schema_version=1, status='running', project_hash=helper.project_hash(self.project),
                       launch_nonce='a' * 32, pid=bystander.pid, boot_id=helper.boot_id(), start_ticks=0,
-                      port=1, version='0.5.6', started_at='2026-10-09T00:00:00Z', reason=None)
+                      port=1, version='0.5.7', started_at='2026-10-09T00:00:00Z', reason=None)
         for ticks in (0, helper.start_ticks(bystander.pid)):
             with self.subTest(ticks=ticks):
                 record['start_ticks'] = ticks
@@ -306,7 +306,7 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(self.request(port, '/api/dashboard')[0], 404)
             record = dict(schema_version=1, status='running', project_hash=helper.project_hash(self.project),
                           launch_nonce='b' * 32, pid=process.pid, boot_id=helper.boot_id(),
-                          start_ticks=helper.start_ticks(process.pid), port=port, version='0.5.6',
+                          start_ticks=helper.start_ticks(process.pid), port=port, version='0.5.7',
                           started_at='2026-10-09T00:00:00Z', reason=None)
             (self.project / 'coord/dashboard').mkdir(mode=0o700)
             (self.project / 'coord/dashboard/state.json').write_text(json.dumps(record))
@@ -326,7 +326,7 @@ class DashboardTests(unittest.TestCase):
 
     def test_health_refuses_foreign_metadata(self):
         expected = helper.project_hash(self.project)
-        good = dict(schema_version=1, managed=True, mode='read-only', version='0.5.6',
+        good = dict(schema_version=1, managed=True, mode='read-only', version='0.5.7',
                     project_hash=expected, launch_nonce='d' * 32)
         variants = [good, dict(good, launch_nonce='e' * 32), dict(good, managed=False),
                     dict(good, mode='execution'), dict(good, project_hash='f' * 64), dict(good, token='x'),
@@ -376,7 +376,7 @@ class DashboardTests(unittest.TestCase):
                     state.write_text(' ' * 5000)
                 elif kind == 'other-project':
                     record = dict(schema_version=1, status='failed', project_hash='0' * 64, launch_nonce='a' * 32,
-                                  pid=2, boot_id=helper.boot_id(), start_ticks=0, port=None, version='0.5.6',
+                                  pid=2, boot_id=helper.boot_id(), start_ticks=0, port=None, version='0.5.7',
                                   started_at='x', reason='readiness_timeout')
                     state.write_text(json.dumps(record))
                 elif kind == 'symlink':

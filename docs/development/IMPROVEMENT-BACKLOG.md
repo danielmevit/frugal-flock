@@ -4,7 +4,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ## Current Delivery States
 
-- **Shipped**: Released globally and installed (e.g., v0.5.4).
+- **Shipped**: Released globally and installed (latest: v0.5.6).
+- **Release candidate**: Integrated on a candidate branch with focused checks, waiting for the lead's full gate and publication (currently 0.5.7).
 - **Accepted Development**: Merged in `main`, passes focused checks and personal review, waiting for a release.
 - **Partially Implemented**: Working pieces exist in `main`, but the full milestone is incomplete.
 - **Pending**: A prepared task or candidate awaiting completion or acceptance. Distinguish an active run from a queued task or a failed attempt.
@@ -18,7 +19,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 - **Shipped**: Native shared-budget workflow admission, including the lead in low tier.
 - **Added in 0.5.6**: Manual readings with `unio capacity record`/`show`, grouped by shared budget, with observation age, optional reset time, and fresh/stale/expired/Unknown handling. This packages the reviewed store independently of the browser. See [capacity readings](CAPACITY-READINGS.md).
 - **Implementation evidence**: Gemini's first candidate passed 3 native checks but had four reproduced defects. Opus corrected those and packaged the command; the lead then corrected two inherited extreme-input crashes before the release gate. The scoreboard preserves each result rather than treating process success as acceptance.
-- **Planned**: Automatic provider readings, browser reset/age indicators and their integration with worker readiness and scheduling. No extra per-token spending or promotion of free workers to lead. There is no live meter.
+- **Release candidate 0.5.7 (not released)**: Explicit `unio capacity refresh codex` reads Codex account/rate-limit metadata once (no model turn) and caches 5h/weekly windows; `show --provider codex` is local only. The browser's Designated AI agents & limits section shows routes, shared groups, the registered lead and every window with remaining, reset countdown, age and source through a cached read-only `/api/limits`. Stored-state validation was hardened after the lead reproduced an accepted 100.000001% value and a year-9999 overflow.
+- **Planned**: Supported readings for other providers and integration of allowance with worker readiness and scheduling. No extra per-token spending or promotion of free workers to lead. A cached reading is not a live meter.
 - **Evidence**: [PROVIDER-QUOTA-MONITORING.md](../PROVIDER-QUOTA-MONITORING.md), [TASK-TIME-BUDGETS.md](TASK-TIME-BUDGETS.md)
 
 ### 2. Ready-Task Scheduling and Parallel Execution
@@ -51,7 +53,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 ### 7. Lead Cooldown and Identity Controls
 
 - **Shipped**: Lead cooldown shipped experimentally, opt-in in 0.5.4; genuine limit restart is still unobserved.
-- **Planned**: Extended supported adapters/identity and [temporary lead capacity handover](LEAD-CAPACITY-HANDOVER.md) remain future work.
+- **Current lead instruction**: Delegate more implementation as trustworthy allowance falls (suggested 20% delegate-first, 10% prepare handover; not native thresholds).
+- **Planned**: Extended supported adapters/identity and the automatic [temporary acting-lead handover](LEAD-CAPACITY-HANDOVER.md), documented for the 0.5.7 candidate but not implemented; deterministic fake capacity/handoff tests come first.
 - **Evidence**: [LEAD-COOLDOWN-CONTRACT.md](LEAD-COOLDOWN-CONTRACT.md), [LEAD-COOLDOWN-RESTART.md](LEAD-COOLDOWN-RESTART.md), [LEAD-CAPACITY-HANDOVER.md](LEAD-CAPACITY-HANDOVER.md)
 
 ### 8. Work Modes and Model Roles
@@ -65,6 +68,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 - **Shipped**: Worker updates/output/tracked worktree files shipped in 0.5.3. Themes/basic map shipped in 0.5.4.
 - **Shipped in 0.5.5**: Installed launcher, left-to-right layout and task-logo cards with muted outcome strips. Early commits are policy; snapshots do not guarantee a commit or off-device backup.
+- **Release candidate 0.5.7 (not released)**: Background `unio dashboard ensure|status|stop`, shared map/list filters (Current work default, All states, direct Finished, worker, token-based category, search) and the Designated AI agents & limits section. The imported filter candidate failed 2 of 4 native browser checks; the completion restored the map/details nesting and the original lifecycle assertions.
 - **Planned**: Live lead messages and phone pairing are different, planned capabilities. UI polish comes after functional work.
 - **Evidence**: [LIVE-WORKSPACE-VIEW.md](LIVE-WORKSPACE-VIEW.md)
 
