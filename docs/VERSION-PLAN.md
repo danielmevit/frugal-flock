@@ -5,8 +5,8 @@ changes in separate versions with their implementation and changelog entries.
 
 The [2026-10-08 milestone review](development/FUNCTIONALITY-FIRST-PLAN.md)
 separates shipped features from source additions and recommends a functional
-delivery order. The approved v0.5.4 recovery scope stays intact; later release
-numbers remain unassigned. Finish recovery before further visual expansion.
+delivery order. Recovery shipped in v0.5.4, followed by the browser launcher and
+map improvements in v0.5.5. Subsequent release numbers remain unassigned.
 
 Validation update, 2026-10-08: see [completed checks, preserved failures and
 remaining release work](development/RECOVERY-ACCEPTANCE-2026-10-08.md). The complete candidate gate passed; final documentation-only publication retains identical runtime and test bytes.
@@ -18,7 +18,7 @@ remaining release work](development/RECOVERY-ACCEPTANCE-2026-10-08.md). The comp
 | 0.5.2 | Queue approval, reservation and recovery library | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.2); source 1bddeab |
 | 0.5.3 | One real browser-to-worker workflow alongside browser output/files; owner-approved work modes yolo/medium/safe and subscription tiers low/medium/high with native shared-budget workflow accounting | [Published 2026-10-08](https://github.com/danielmevit/unio/releases/tag/v0.5.3); exact source ae61bf3d11ff; full gate, artifact and upgrade checks passed; installed with owner approval |
 | 0.5.4 | Automatic recovery saves, checkpoint continuation and lead CLI cooldown restart; browser themes and live work map | [Released 2026-10-09](https://github.com/danielmevit/unio/releases/tag/v0.5.4): complete automated gate and upgrade/restore checks passed; lead cooldown is experimental and explicitly enabled, genuine lead-limit-to-restart cycle unverified; owner approved release with that limitation |
-| 0.5.5 | Installed browser launcher (`unio browser`), interactive work map with active-first layout, task-logo cards, and muted outcome strips | Pending candidate: clearly excludes phone pairing, allowance meter, and new lead attachment |
+| 0.5.5 | Installed browser launcher (`unio browser`), interactive work map with active-first layout, task-logo cards, and muted outcome strips | [Released 2026-10-09](https://github.com/danielmevit/unio/releases/tag/v0.5.5); complete automated gate passed; phone pairing, allowance meter and live lead attachment remain planned |
 
 The owner approved the [delivery priorities](development/ROADMAP.md#approved-delivery-priorities)
 on 2026-10-06: finish 0.5.3, deliver 0.5.4, then allowance monitoring, agent

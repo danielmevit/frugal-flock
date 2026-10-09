@@ -4,7 +4,11 @@ Release notes for Unio. Between releases, each task writes a short
 fragment in `changelog.d/`; the fragments are rolled into this file when a
 version is released.
 
-## 0.5.5 UNRELEASED
+## 0.5.5 — browser launcher and clearer work map — 2026-10-09
+
+[Official release](https://github.com/danielmevit/unio/releases/tag/v0.5.5).
+The complete automated gate passed. Final publication edits preserve every
+runtime, asset and test byte from the tested candidate.
 
 - Packaged the installed browser launcher, available natively via `unio browser` with its own explicit configuration and startup options.
 - Delivered the left-to-right interactive work map featuring an active-first presentation and a neutral hub.

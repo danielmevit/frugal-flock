@@ -1,0 +1,1 @@
+Finalize v0.5.5 release documentation for the browser launcher and clearer work map; reuse the passed full gate with identical runtime and test bytes, and retain the functional backlog and unaccepted capacity findings.

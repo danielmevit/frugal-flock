@@ -18,7 +18,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 - **Next Slice**: Implement manual capacity readings and age tracking, treating missing/stale capacity as `Unknown`.
 - **Shipped**: Native shared-budget workflow admission, including the lead in low tier.
 - **Planned**: Remaining-allowance readings, reset/age indicators and their integration with worker readiness. No extra per-token spending or promotion of free workers to lead.
-- **Next implementation**: The manual-reading task is queued after Grok returned 402 without edits; assign it to an available eligible worker. No live meter or completed component is claimed.
+- **Pending implementation**: Grok returned 402 without edits. Gemini produced a candidate, but lead review reproduced a broken standalone CLI, corrupt-state overwriting, invalid readings reported as usable, and a storage symlink escape. One owner-authorized Opus correction follows; the component is unaccepted and there is no live meter.
 - **Evidence**: [PROVIDER-QUOTA-MONITORING.md](../PROVIDER-QUOTA-MONITORING.md), [TASK-TIME-BUDGETS.md](TASK-TIME-BUDGETS.md)
 
 ### 2. Ready-Task Scheduling and Parallel Execution
@@ -63,7 +63,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 ### 9. Browser Appearance and Live Overview
 
 - **Shipped**: Worker updates/output/tracked worktree files shipped in 0.5.3. Themes/basic map shipped in 0.5.4.
-- **Accepted Development**: Launcher/left-to-right/task-logo cards are accepted development pending 0.5.5 publication. Early commits are policy; snapshots do not guarantee a commit or off-device backup.
+- **Shipped in 0.5.5**: Installed launcher, left-to-right layout and task-logo cards with muted outcome strips. Early commits are policy; snapshots do not guarantee a commit or off-device backup.
 - **Planned**: Live lead messages and phone pairing are different, planned capabilities. UI polish comes after functional work.
 - **Evidence**: [LIVE-WORKSPACE-VIEW.md](LIVE-WORKSPACE-VIEW.md)
 
@@ -79,5 +79,5 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ## Parallel Work
 
-- **Opus**: Failed OAuth with no edits on 2026-10-09, not preparing a candidate.
-- **Grok**: Capacity Source ended 402 with no edits on 2026-10-09 and is queued, not currently working.
+- **Opus**: The initial release-preparation attempt failed OAuth without edits on 2026-10-09. The owner subsequently authorized one fresh capacity correction after signing in; its result remains pending.
+- **Grok**: Capacity Source ended 402 without edits on 2026-10-09; no active Grok run is claimed.
