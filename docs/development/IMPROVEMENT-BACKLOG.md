@@ -16,8 +16,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 ### 1. Allowance, Reset, and Worker Readiness
 
 - **Shipped**: Native shared-budget workflow admission, including the lead in low tier.
-- **Pending, lead-approved in review**: The manual readings store and standalone CLI (`CAPACITY-READINGS-GEMINI-1` at `528e214`). Grok returned 402 without edits. Gemini's candidate passed its 3 native checks, but lead review reproduced a broken standalone CLI, corrupt-state overwriting, invalid readings reported as usable, and a storage symlink escape. The owner-authorized Opus correction fixed all four, with 21 focused tests and personal lead approval.
-- **Pending, 0.5.6 candidate**: The installed `unio capacity record`/`show` command packages that reviewed component (`CAPACITY-NATIVE-OPUS-1`). It awaits lead review and the full release gate. Official 0.5.5 does not include it.
+- **Added in 0.5.6**: Manual readings with `unio capacity record`/`show`, grouped by shared budget, with observation age, optional reset time, and fresh/stale/expired/Unknown handling. This packages the reviewed store independently of the browser. See [capacity readings](CAPACITY-READINGS.md).
+- **Implementation evidence**: Gemini's first candidate passed 3 native checks but had four reproduced defects. Opus corrected those and packaged the command; the lead then corrected two inherited extreme-input crashes before the release gate. The scoreboard preserves each result rather than treating process success as acceptance.
 - **Planned**: Automatic provider readings, browser reset/age indicators and their integration with worker readiness and scheduling. No extra per-token spending or promotion of free workers to lead. There is no live meter.
 - **Evidence**: [PROVIDER-QUOTA-MONITORING.md](../PROVIDER-QUOTA-MONITORING.md), [TASK-TIME-BUDGETS.md](TASK-TIME-BUDGETS.md)
 
@@ -30,7 +30,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ### 3. Connection, Auth, and Transport Reliability
 
-- **Planned**: Explicit authentication checks, prompt transport reliability, and avoiding blind retries on known connection issues.
+- **Documented now**: A [help-only readiness inventory](AUTH-READINESS-INVENTORY.md), with local sign-in, remote authentication, allowance and workflow readiness kept distinct. Claude JSON status is the smallest documented first adapter; actual exit and safe-field behavior still need checking.
+- **Planned**: Implement supported read-only adapters and improve prompt/connection reliability without blind retries.
 
 ### 4. Review Aggregation and Security
 
@@ -38,7 +39,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ### 5. Context Efficiency and Measurement
 
-- **Planned**: Measured scan performance optimizations, context/token efficiency improvements. Do not invent missing benchmark scores or claim a requested tool was actually used without evidence.
+- **Planned**: Measured scan performance optimizations, including automatic-save scan overhead on mounted file systems, and context/token efficiency improvements. Do not invent missing benchmark scores or claim a requested tool was actually used without evidence.
 
 ### 6. Work Saving and Recoverable Handoffs
 
@@ -79,5 +80,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ## Parallel Work
 
-- **Opus**: The initial release-preparation attempt failed OAuth without edits on 2026-10-09. After sign-in, the owner-authorized capacity correction was approved by the lead at `528e214`. Because Grok is unavailable, the owner then authorized further Opus feature work: the native capacity packaging candidate awaits lead review.
+- **Opus**: The initial release-preparation attempt failed OAuth without edits on 2026-10-09. After sign-in, the owner-authorized capacity correction was approved by the lead at `528e214`. Because Grok is unavailable, the owner then authorized further Opus feature work: Opus packaged the native capacity command for 0.5.6; the lead made bounded extreme-input corrections before release validation.
 - **Grok**: Capacity Source ended 402 without edits on 2026-10-09; no active Grok run is claimed.
+
+- **Gemini**: Completed the bounded help-only readiness inventory; lead editorial correction tightened three evidence claims. No credentials or model probes were run by the inventory.
+- **Verified-free LongCat**: Ran the predefined local link audit: 405 targets checked, 125 skipped, 0 missing. The lead corrected document classification wording. This was routine support, not implementation or security acceptance.

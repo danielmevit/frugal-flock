@@ -4,6 +4,23 @@ Release notes for Unio. Between releases, each task writes a short
 fragment in `changelog.d/`; the fragments are rolled into this file when a
 version is released.
 
+## 0.5.6 — manual allowance tracking — 2026-10-09
+
+[Release and downloads](https://github.com/danielmevit/unio/releases/tag/v0.5.6).
+See the [usage and release scope](docs/RELEASE-0.5.6.md).
+
+- Add installed `unio capacity record` and `show`, with explicit project selection,
+  shared-budget groups, multiple windows, JSON output, age and optional reset time.
+- Keep missing, invalid, stale and expired readings unusable; a passed reset
+  does not imply refill. All readings are manual, with zero provider calls.
+- Preserve malformed state, bound and validate every loaded field, refuse
+  storage symlinks and merge concurrent writes under a lock. Handle extreme
+  integer and UTC timestamp inputs without crashing.
+- Package the store and CLI independently, verify exact installer payload bytes,
+  and preserve readings and agent configuration on reinstall.
+- Add bounded CLI-auth readiness research and a local documentation-link audit;
+  update task-fit evidence without equating Source success with acceptance.
+
 ## 0.5.5 — browser launcher and clearer work map — 2026-10-09
 
 [Official release](https://github.com/danielmevit/unio/releases/tag/v0.5.5).

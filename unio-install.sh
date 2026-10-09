@@ -6486,7 +6486,7 @@ def validate_window_minutes(value):
 
 
 def validate_percent(value):
-    if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 100:
+    if type(value) not in (int, float) or not 0 <= value <= 100 or not math.isfinite(value):
         raise CapacityError('remaining percent must be a finite number from 0 through 100')
     return float(value)
 
@@ -6500,7 +6500,10 @@ def parse_timestamp(value, name='timestamp'):
         raise CapacityError(f'{name} is not a valid ISO 8601 time') from None
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise CapacityError(f'{name} must include a timezone offset')
-    return parsed.astimezone(timezone.utc)
+    try:
+        return parsed.astimezone(timezone.utc)
+    except (OverflowError, ValueError):
+        raise CapacityError(f'{name} is outside the supported UTC range') from None
 
 
 def validate_max_age(value):
@@ -6521,7 +6524,7 @@ def _reading(window_minutes, remaining_percent, observed_at, reset_at, now):
         reset = parse_timestamp(reset_at, 'reset time')
         if reset < observed:
             raise CapacityError('reset time is before the observed time')
-        if reset > observed + timedelta(minutes=window_minutes) + CLOCK_SKEW:
+        if reset - observed > timedelta(minutes=window_minutes) + CLOCK_SKEW:
             raise CapacityError('reset time is further ahead than one window length after the observation')
     return observed, reset
 
@@ -6545,7 +6548,9 @@ def _decode(raw):
     try:
         text = raw.decode('utf-8')
         data = json.loads(text, object_pairs_hook=_strict_object, parse_constant=_reject_constant)
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+    except CapacityError:
+        raise
+    except (UnicodeDecodeError, ValueError, RecursionError):
         raise CapacityError('state is not strict UTF-8 JSON') from None
     return validate_state(data)
 
@@ -15492,7 +15497,7 @@ and the [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE
 | `gpt-6.1-sol` / Codex CLI / xhigh | `QUEUE-INVARIANTS-1`; `RELEASE-TIMEOUT-CODEX-1` | 2 accepted corrections: queue invariants passed 8 focused checks plus recorded reviews; timeout repair passed 3 focused checks and personal lead review. Suitable evidence for targeted correctness work, not a full-model success rate. |
 | `claude-opus-5-5` / Claude Code / high | `BROWSER-MAP-IDENTITY-OPUS-1`; `WORK-SAVING-MANUAL-OPUS-1` | 1 accepted UI correction; 1 saving candidate requiring changes after two demonstrated lead findings despite passing its initial 5 checks. Strong implementation still needs real review. |
 | `claude-opus-5-5` / Claude Code 2.1.294 / high requested | `LEAD-COOLDOWN-CONTRACT-OPUS-1` | One owner-authorized fresh attempt completed a two-file contract in 10m25s with Source exit 0 and 2/2 native checks. Lead tightened four launch/quota boundaries before acceptance. Useful evidence for bounded interface research and design; this run produced the contract only. The existing lead later implemented the runtime, as recorded below. The earlier OAuth refresh conflict made no edits and is an operational failure, not a reasoning result. |
-| `claude-opus-5-5` / Claude Code 2.1.295 / high requested | `CAPACITY-READINGS-OPUS-FIX-1` | One owner-authorized correction of the Gemini capacity candidate below: Source exit 0 in 7m43s, 3/3 native checks, 21 focused tests and personal lead APPROVE at `528e214`. Each reproduced defect, reintroduced locally, failed at least one test. The later packaging task `CAPACITY-NATIVE-OPUS-1` is pending lead review. An earlier OAuth failure on 2026-10-09 made no edits and is operational, not a reasoning result. |
+| `claude-opus-5-5` / Claude Code 2.1.295 / high requested | `CAPACITY-READINGS-OPUS-FIX-1` | One owner-authorized correction of the Gemini capacity candidate below: Source exit 0 in 7m43s, 3/3 native checks, 21 focused tests and personal lead APPROVE at `528e214`. Each reproduced defect, reintroduced locally, failed at least one test. The later packaging task `CAPACITY-NATIVE-OPUS-1` completed Source 0 and 10/10 native checks; lead review reproduced two inherited extreme-input crashes and corrected them before final release validation. An earlier OAuth failure on 2026-10-09 made no edits and is operational, not a reasoning result. |
 | Gemini / Antigravity CLI / exact variant not recorded | `CAPACITY-READINGS-GEMINI-1` | Source exit 0 in 223s and 3/3 native checks PASS, yet lead review reproduced four defects: the standalone CLI could not import its store, corrupt state was overwritten, invalid readings were reported as usable and a `coord` symlink escaped the project. Passing its own checks did not prove storage safety; the correction went to another worker. Grok's 402 end of the same assignment, without edits, is operational. |
 | `gemini-3.1-pro-high` / Antigravity CLI / high | `RELEASE-LAUNCH-OBSERVATION-1`; `BROWSER-THEME-MAP-1`; `BROWSER-THEME-MAP-FIX-1`; `BROWSER-MAP-IDENTITY-1`; `WORK-SAVING-PRESERVE-LOCKS-1` | 1 accepted bounded fixture correction; 2 UI candidates required further fixes; 1 connection failure without edits; 1 saving correction failed native scope verification despite 5 passing check commands; lead review found incomplete unsafe-lock inspection and took over. Repeated fixture mistakes and premature success messages added rework. Prefer smaller mechanical assignments. |
 | Existing Codex lead / same session / exact serving variant not exposed | `WORK-SAVING-LEAD-FINALIZE-1`; `WORK-SAVING-LOCK-OBSERVATION-1`; `WORK-SAVING-EMPTY-INDEX-1` | Takeover accepted in source after a self-authored full-suite failure exposed shared-lock observation, then a combined installer smoke found empty-index restore. Corrections passed 4/4 and 5/5 focused native checks with personal review. A later stale completion expectation was corrected; the full manual-saving suite passed 186 checks. Final versioned release validation remains pending. Same-session lead work is not an independent review or delegated Source. |
@@ -15500,6 +15505,8 @@ and the [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE
 | `grok-4.7` / Grok Build / high | Rename slice D; saving contract draft; `WORK-SAVING-RUNTIME-1` | Accepted license/rename work, a contract draft needing lead amendment, and a separate usage-exhausted run without edits. Useful contributions and rework both count; the capacity failure is not a code-quality sample. |
 | `opencode/longcat-2.5-preview-free` / OpenCode Zen / high and medium | `ROADMAP-PRIORITIES-1`; `LEAD-POLICY-STARTUP-DOCS-1` | 2 completed bounded documentation assessments. This small sample supports routine documentation help, not independent final security acceptance. |
 | `opencode/mimo-v2.6-flash-free` / OpenCode Zen / no exposed override | `LEAD-POLICY-STARTUP-DOCS-1`; `WORK-POLICY-1` | 1 completed documentation assessment; 1 broad state/CLI task timed out without edits. Keep it on routine support. |
+| `gemini-3.1-pro-high` / Antigravity CLI / high | `AUTH-READINESS-INVENTORY-GEMINI-1` | Completed a bounded version/help inventory with 2/2 native checks; lead editorial correction removed a false UTC timestamp, overstated readiness and an unsupported output warning. Useful supporting inventory, with factual review required. |
+| `opencode/longcat-2.5-preview-free` / OpenCode Zen / medium | `LINK-AUDIT-LONGCAT-1` | Predefined local link audit: 405 checked, 125 skipped, 0 missing, 2/2 native checks. Lead corrected unjustified historical-guide classification and removed a private absolute command. Suitable for routine script/report support, not final acceptance. |
 
 Requested effort is not proof of effective effort. Keep the original pin and
 response evidence when the CLI cannot establish the effective setting. Other

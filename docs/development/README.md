@@ -24,6 +24,9 @@ ordinary use, start with the [project README](../../README.md) or the
 | [Lead cooldown restart](LEAD-COOLDOWN-RESTART.md) | Original milestone and acceptance goals; runtime now implemented in source |
 | [Lead cooldown implementation contract](LEAD-COOLDOWN-CONTRACT.md) | Frozen adapter, durable ownership and launch controls; offline checks passed, real subscription-limit restart acceptance pending |
 | [Provider capacity](../PROVIDER-CAPACITY.md) | Recorded provider limits and assignment guidance |
+| [Manual capacity readings](CAPACITY-READINGS.md) | Installed 0.5.6 command, freshness, reset times and storage rules |
+| [Auth readiness inventory](AUTH-READINESS-INVENTORY.md) | Help-only CLI capabilities and unknown adapter semantics |
+| [Local link audit](LINK-AUDIT-2026-10-09.md) | Bounded inline target-existence audit and exclusions |
 
 Dated findings and session handoffs remain in `docs/` as historical evidence.
 Private coordination logs, worker receipts and scratch files stay in the

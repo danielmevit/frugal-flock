@@ -171,7 +171,7 @@ become the lead, main feature owner or final approver.
 
 ### Manual allowance tracking
 
-The 0.5.6 candidate adds `unio capacity`, a local record of the remaining
+Unio 0.5.6 adds `unio capacity`, a local record of the remaining
 allowance you saw for each shared budget group, with its age and optional
 reset time. You type the reading; Unio never asks a provider. Inside a
 workspace it uses that project; elsewhere pass `--project PATH`.
@@ -408,8 +408,8 @@ needed to rebuild the Word manuals with `tools/make-docx.sh`.
   [release notes](CHANGELOG.md) and [browser guide](bridge/README.md).
 - **Experimental in v0.5.4:** restart an owner-enabled lead after its cooldown.
   The genuine subscription-limit-to-restart cycle still needs live validation.
-- **Candidate, v0.5.6:** manual allowance readings with `unio capacity`
-  (see above); not released until the lead's full release gate passes.
+- **Added in v0.5.6:** manual allowance readings with `unio capacity`
+  (see above), including age, optional reset time and explicit Unknown handling.
 - **Next:** simpler daily launch and observation, then automatic
   remaining-allowance readings and reliable delegation. Later version
   numbers are unassigned.

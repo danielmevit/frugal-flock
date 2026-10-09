@@ -59,7 +59,7 @@ def validate_window_minutes(value):
 
 
 def validate_percent(value):
-    if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 100:
+    if type(value) not in (int, float) or not 0 <= value <= 100 or not math.isfinite(value):
         raise CapacityError('remaining percent must be a finite number from 0 through 100')
     return float(value)
 
@@ -73,7 +73,10 @@ def parse_timestamp(value, name='timestamp'):
         raise CapacityError(f'{name} is not a valid ISO 8601 time') from None
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise CapacityError(f'{name} must include a timezone offset')
-    return parsed.astimezone(timezone.utc)
+    try:
+        return parsed.astimezone(timezone.utc)
+    except (OverflowError, ValueError):
+        raise CapacityError(f'{name} is outside the supported UTC range') from None
 
 
 def validate_max_age(value):
@@ -94,7 +97,7 @@ def _reading(window_minutes, remaining_percent, observed_at, reset_at, now):
         reset = parse_timestamp(reset_at, 'reset time')
         if reset < observed:
             raise CapacityError('reset time is before the observed time')
-        if reset > observed + timedelta(minutes=window_minutes) + CLOCK_SKEW:
+        if reset - observed > timedelta(minutes=window_minutes) + CLOCK_SKEW:
             raise CapacityError('reset time is further ahead than one window length after the observation')
     return observed, reset
 
@@ -118,7 +121,9 @@ def _decode(raw):
     try:
         text = raw.decode('utf-8')
         data = json.loads(text, object_pairs_hook=_strict_object, parse_constant=_reject_constant)
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+    except CapacityError:
+        raise
+    except (UnicodeDecodeError, ValueError, RecursionError):
         raise CapacityError('state is not strict UTF-8 JSON') from None
     return validate_state(data)
 

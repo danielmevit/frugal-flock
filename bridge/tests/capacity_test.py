@@ -115,7 +115,8 @@ class InputRefusals(Project):
 
     def test_invalid_inputs_preserve_state(self):
         self.record(window='keep', percent=12)
-        for bad in (-0.1, 100.01, float('nan'), float('inf'), float('-inf'), True, False, '50', None):
+        for bad in (-0.1, 100.01, 10 ** 500, -(10 ** 500), float('nan'), float('inf'),
+                    float('-inf'), True, False, '50', None):
             self.assert_refused(percent=bad)
         for bad in (0, -5, 5.0, 5.5, True, '5', capacity.MAX_WINDOW_MINUTES + 1):
             self.assert_refused(minutes=bad)
@@ -127,6 +128,8 @@ class InputRefusals(Project):
         self.record(window='keep')
         before = self.state.read_bytes()
         cases = [('2026-10-09T14:00:00', None), ('not-a-time', None), ('2026-10-09', None),
+                 ('0001-01-01T00:00:00+01:00', None),
+                 ('9999-12-31T23:59:59-01:00', None),
                  ('2026-10-09T14:00:00+00:00' + ' ' * 60, None),
                  (iso(NOW + timedelta(minutes=6)), None),
                  (iso(NOW + timedelta(days=365)), None),
@@ -186,6 +189,10 @@ INVALID_STATES = {
     'provider source': forged(source='provider'),
     'bool minutes': forged(window_minutes=True),
     'percent 9999': forged(remaining_percent=9999),
+    'huge integer percent': forged(remaining_percent=10 ** 500),
+    'integer exceeds decoder limit': forged().replace(b'50', b'9' * 5000),
+    'UTC timestamp underflow': forged(observed_at='0001-01-01T00:00:00+01:00'),
+    'UTC timestamp overflow': forged(observed_at='9999-12-31T23:59:59-01:00'),
     'percent bool': forged(remaining_percent=False),
     'naive time': forged(observed_at='2026-10-09T14:00:00'),
     'reset before observation': forged(reset_at=iso(NOW - timedelta(minutes=1))),

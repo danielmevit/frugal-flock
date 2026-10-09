@@ -1,1 +1,0 @@
-* Ran the routine local documentation-link inventory at frozen main `43332bb55677302fa854ee230c1dec58db746049`: 405 inline relative Markdown links checked across 63 source files, 125 skipped by checker scope, 0 missing targets; `tools/check-docs.sh` all clean. Full report in [LINK-AUDIT-2026-10-09](../docs/development/LINK-AUDIT-2026-10-09.md).

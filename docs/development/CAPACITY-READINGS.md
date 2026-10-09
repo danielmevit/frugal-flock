@@ -1,7 +1,7 @@
 # Manual capacity readings
 
 `bridge/capacity.py` and `tools/capacity-readings.py` store and show
-capacity readings that a person entered by hand. The 0.5.6 candidate
+capacity readings that a person entered by hand. Unio 0.5.6
 installs them as `unio capacity`. This is not an automatic provider meter,
 and it is not routed or shown in the browser yet. See
 [provider quota monitoring](../PROVIDER-QUOTA-MONITORING.md) for the wider
