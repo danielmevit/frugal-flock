@@ -4,6 +4,13 @@ Release notes for Unio. Between releases, each task writes a short
 fragment in `changelog.d/`; the fragments are rolled into this file when a
 version is released.
 
+## 0.5.5 UNRELEASED
+
+- Packaged the installed browser launcher, available natively via `unio browser` with its own explicit configuration and startup options.
+- Delivered the left-to-right interactive work map featuring an active-first presentation and a neutral hub.
+- Redesigned cards to include quarter-width local AI logos/names, clear task titles, and muted outcome strips.
+
+
 ## 0.5.4 — recoverable work and live work map — 2026-10-09
 
 [Official release](https://github.com/danielmevit/unio/releases/tag/v0.5.4).
