@@ -176,7 +176,10 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertIn('usage: unio browser', help_text)
         self.assertIn('--enable-execution', help_text)
         self.assertNotIn('--engine', help_text)
-        cases = [(), ('--project', str(self.base)), ('--engine', str(self.engine)),
+        # Project-local scratch is still inside the real enclosing workspace.
+        # Use a neutral cwd to exercise the genuinely outside-project case.
+        self.call(cwd=Path('/'), code=2)
+        cases = [('--project', str(self.base)), ('--engine', str(self.engine)),
                  ('--engine=' + str(self.engine),), ('--eng', str(self.engine)),
                  ('--port', '65536'), ('--observer-timeout', 'nan'),
                  ('--enable-execution',), ('--worker', 'example'),
@@ -184,8 +187,7 @@ class BrowserLauncherTests(unittest.TestCase):
                  ('--enable-progress-output',), ('--progress-worker', 'example')]
         for args in cases:
             with self.subTest(args=args):
-                prefix = [] if not args else ['--project', str(self.project)]
-                result = self.call(*prefix, *args, code=2)
+                result = self.call('--project', str(self.project), *args, code=2)
                 self.assertNotIn('http://127.0.0.1:', result.stdout)
         self.assert_no_dispatch()
 
