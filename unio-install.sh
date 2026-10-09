@@ -17535,6 +17535,23 @@ The free inventory records the routine assessments. Original tasks, process
 results, verification, reviews and exact revisions stay in private workspace
 receipts; do not publish raw prompts or logs to fill this table.
 
+## Latest 0.5.7 candidate observations
+
+- Opus5.5/high capacity Source completed and passed9 checks; lead reproduced two
+  stored-value defects. The separate dashboard lifecycle Source passed9 checks.
+- Gemini3.1Pro/high filters Source completed but failed both browser checks;
+  Opus preserved and corrected that work. Gemini's separate handover docs passed
+  two checks and needed three editorial clarifications.
+- Opus's combined057 Source hit a reported usage/spend limit after six coherent
+  commits, exit1. Committed work remained intact. The existing lead finished
+  remaining release work and corrected malformed nested limits input handling.
+- Gemini's Perplexity static contract passed two documentation checks. Those
+  checks do not establish authenticated operation or validate all source claims;
+  exact flags, package naming and routing evidence still need lead assessment.
+
+These are candidate observations, not an invented benchmark or Source acceptance.
+Original failures and operational limits remain preserved in private receipts.
+
 ## Update it after actual work
 
 Record exact model/version, CLI/gateway, requested/effective effort, task type

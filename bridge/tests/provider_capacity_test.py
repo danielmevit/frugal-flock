@@ -194,7 +194,8 @@ def _alive(pid):
 
 
 class NormalizationTests(unittest.TestCase):
-    NOW = 1791554400
+    # Match the live fake-window fixture: its reset is one hour after this observation.
+    NOW = FUTURE - 3600
 
     def norm(self, result):
         return pc.normalize_rate_limits(result, self.NOW)
