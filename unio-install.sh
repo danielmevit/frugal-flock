@@ -6923,6 +6923,9 @@ def normalize_rate_limits(result, observed_unix):
         raise ProbeFailure('invalid_rate_limits')
     buckets = {}
     # The keyed map wins whenever present; a malformed map never falls back.
+    # Compatibility: an explicit null rateLimitsByLimitId is treated exactly
+    # like an absent key (older app-servers), so only then is the legacy
+    # single rateLimits object read. Any non-null map is used or refused.
     if result.get('rateLimitsByLimitId') is not None:
         mapped = result['rateLimitsByLimitId']
         if not isinstance(mapped, dict) or not 1 <= len(mapped) <= MAX_BUCKETS:
@@ -7114,7 +7117,14 @@ def _expect(condition, message='provider state is malformed'):
         raise CapacityError(message)
 
 
-def _stored_window(window):
+def _stored_time(value, name):
+    """A stored timestamp inside the plausible range, so later arithmetic never overflows."""
+    parsed = parse_timestamp(value, name)
+    _expect(MIN_UNIX <= parsed.timestamp() <= MAX_UNIX, f'{name} is outside the plausible range')
+    return parsed
+
+
+def _stored_window(window, observed):
     if window is None:
         return
     _expect(isinstance(window, dict) and window.get('status') in ('valid', 'unknown'))
@@ -7123,14 +7133,21 @@ def _stored_window(window):
         return
     _expect(set(window) == {'status', 'window_minutes', 'used_percent', 'remaining_percent', 'reset_at'})
     used, remaining = window['used_percent'], window['remaining_percent']
+    # Each value is range-checked on its own; the tolerance only ties them together.
     _expect(type(used) is float and math.isfinite(used) and 0 <= used <= 100)
-    _expect(type(remaining) is float and math.isfinite(remaining) and abs(remaining - (100 - used)) < 1e-5)
-    _expect(_integer(window['window_minutes']) and 1 <= window['window_minutes'] <= MAX_WINDOW_MINUTES)
+    _expect(type(remaining) is float and math.isfinite(remaining) and 0 <= remaining <= 100)
+    _expect(abs(remaining - (100 - used)) < 1e-5)
+    minutes = window['window_minutes']
+    _expect(_integer(minutes) and 1 <= minutes <= MAX_WINDOW_MINUTES)
     if window['reset_at'] is not None:
-        parse_timestamp(window['reset_at'], 'stored reset time')
+        # The same plausibility rule as a fresh provider value: a forged far-future
+        # reset never becomes usable capacity.
+        reset = _stored_time(window['reset_at'], 'stored reset time')
+        _expect((reset - observed).total_seconds() <= minutes * 60 + CLOCK_SKEW.total_seconds(),
+                'stored reset time is implausibly far from its observation')
 
 
-def _stored_buckets(buckets):
+def _stored_buckets(buckets, observed):
     _expect(isinstance(buckets, dict) and 1 <= len(buckets) <= MAX_BUCKETS)
     for key, bucket in buckets.items():
         _expect(BUCKET_ID.fullmatch(key) is not None)
@@ -7141,17 +7158,18 @@ def _stored_buckets(buckets):
         else:
             _expect(bucket['status'] == 'ok' and bucket['reason'] is None and set(bucket['windows']) == set(WINDOWS))
             for window in bucket['windows'].values():
-                _stored_window(window)
+                _stored_window(window, observed)
 
 
 def _stored_entry(entry):
     keys = {'source', 'attempted_at', 'state', 'reason', 'account_kind', 'observed_at', 'buckets', 'last_good'}
     _expect(isinstance(entry, dict) and set(entry) == keys and entry['source'] == PROVIDER)
-    attempted = parse_timestamp(entry['attempted_at'], 'stored attempt time')
+    attempted = _stored_time(entry['attempted_at'], 'stored attempt time')
     if entry['state'] == 'ok':
         _expect(entry['reason'] is None and entry['account_kind'] == 'chatgpt')
-        _expect(parse_timestamp(entry['observed_at'], 'stored observed time') <= attempted + CLOCK_SKEW)
-        _stored_buckets(entry['buckets'])
+        observed = _stored_time(entry['observed_at'], 'stored observed time')
+        _expect((observed - attempted).total_seconds() <= CLOCK_SKEW.total_seconds())
+        _stored_buckets(entry['buckets'], observed)
     else:
         _expect(entry['state'] == 'unknown' and entry['reason'] in REASONS)
         _expect(entry['account_kind'] in (None, *ACCOUNT_KINDS.values()))
@@ -7159,8 +7177,7 @@ def _stored_entry(entry):
     last = entry['last_good']
     if last is not None:
         _expect(isinstance(last, dict) and set(last) == {'observed_at', 'buckets'})
-        parse_timestamp(last['observed_at'], 'stored last-good time')
-        _stored_buckets(last['buckets'])
+        _stored_buckets(last['buckets'], _stored_time(last['observed_at'], 'stored last-good time'))
 
 
 def validate_state(data):

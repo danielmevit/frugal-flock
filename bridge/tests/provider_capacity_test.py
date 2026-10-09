@@ -333,6 +333,55 @@ class StateRefusalTests(FakeServer):
                 self.assertEqual(self.store.show()['state'], 'invalid')
         self.assertEqual(self.received(), [])
 
+    def test_extreme_stored_values_are_invalid_without_traceback(self):
+        # Reproduced at 3db60aa: 100.000001 remaining was usable and a year-9999
+        # attempt time overflowed attempted+CLOCK_SKEW instead of refusing.
+        self.refresh()
+        good = json.loads(self.state.read_text())
+        os.unlink(self.log)
+
+        def forged(change):
+            data = json.loads(json.dumps(good))
+            change(data['providers']['codex']['codex'])
+            return json.dumps(data).encode()
+
+        def primary(entry):
+            return entry['buckets']['codex']['windows']['primary']
+
+        cases = {
+            'remaining_above_100': lambda e: primary(e).update(used_percent=0.0, remaining_percent=100.000001),
+            'remaining_below_0': lambda e: primary(e).update(used_percent=100.0, remaining_percent=-0.000001),
+            'attempt_year_9999': lambda e: e.update(attempted_at='9999-12-31T23:59:59+00:00'),
+            'observed_year_9999': lambda e: e.update(observed_at='9999-12-31T23:59:59+00:00'),
+            'observed_year_0001': lambda e: e.update(observed_at='0001-01-01T00:00:00+00:00'),
+            'reset_far_future': lambda e: primary(e).update(reset_at='2099-12-31T00:00:00+00:00'),
+            'reset_year_9999': lambda e: primary(e).update(reset_at='9999-12-31T23:59:59+00:00'),
+        }
+        for name, change in cases.items():
+            with self.subTest(case=name):
+                raw = forged(change)
+                self.state.write_bytes(raw)
+                view = self.store.show('codex', now=datetime.now(timezone.utc))
+                self.assertEqual(view['state'], 'invalid')
+                self.assertEqual(view['groups']['codex']['buckets'], {})
+                with self.assertRaises(CapacityError):
+                    self.refresh()
+                self.assertEqual(self.state.read_bytes(), raw)
+                tool = subprocess.run([sys.executable, '-B', str(TOOL), '--project', self.project, 'show',
+                                       '--provider', 'codex', '--json'],
+                                      capture_output=True, text=True, timeout=20)
+                self.assertNotIn('Traceback', tool.stderr)
+                self.assertEqual(json.loads(tool.stdout)['state'], 'invalid')
+        # A forged last-good far-future reset is refused the same way.
+        self.state.write_bytes(json.dumps(good).encode())
+        self.script_for(account={'account': None, 'requiresOpenaiAuth': True})
+        self.refresh()
+        failed = json.loads(self.state.read_text())
+        last = failed['providers']['codex']['codex']['last_good']
+        last['buckets']['codex']['windows']['primary']['reset_at'] = '2099-12-31T00:00:00+00:00'
+        self.state.write_text(json.dumps(failed))
+        self.assertEqual(self.store.show()['state'], 'invalid')
+
     def test_symlinked_paths_are_refused(self):
         outside = os.path.join(self.root, 'outside')
         os.mkdir(outside)
