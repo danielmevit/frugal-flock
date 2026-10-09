@@ -1,561 +1,389 @@
 #!/usr/bin/env python3
 # Unio — Copyright (C) 2026 Daniel Mitev
-# SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE.
-"""Unit tests for Perplexity Pro research adapter.
+# Public attribution: Daniel Mevit (@danielmevit)
+# Original project: https://github.com/danielmevit/unio
+# SPDX-License-Identifier: AGPL-3.0-only
+# Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
+# See LICENSE and NOTICE; distributed without warranty.
+"""Offline tests for tools/perplexity-worker.py against a fake perplexity_web_mcp.
 
-Meaningful offline unittest with fake dependency module/dist metadata in private temp.
-No install/network/real token. Assert both exact identifiers/Thinking/source and config
-max_retries=0, token load once/one ask, no smart routing/paid fallback, path spaces/large file,
-missing dep/auth/unsupported model/invalid bounds pre-call, denial/no retry, timeout/huge
-stdout/invalid JSON safe failure/owned cleanup, token/exception secret absent from receipts.
+The fake mirrors the pinned 0.16.1 surfaces the adapter may touch (core.Perplexity,
+create_conversation, Conversation.ask, frozen configs, enums, models, exceptions,
+token_store.load_token) and nothing else, so invented call names fail. It lives in
+a private `venv --without-pip` with dist-info metadata: no install, network or token.
 """
-
 import hashlib
+import importlib.util
 import json
 import os
+from pathlib import Path
+import shutil
+import stat
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
-from pathlib import Path
-from unittest.mock import patch, MagicMock, Mock
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-
-class FakePerplexityWebMcpCli:
-    """Fake perplexity-web-mcp-cli module for testing."""
-
-    class token_store:
-        @staticmethod
-        def load_token():
-            return None  # Simulate missing token by default
-
-    class ClientConfig:
-        def __init__(self, max_retries=0, logging_level="DISABLED", rotate_fingerprint=False, timeout=300):
-            self.max_retries = max_retries
-            self.logging_level = logging_level
-            self.rotate_fingerprint = rotate_fingerprint
-            self.timeout = timeout
-
-    class Models:
-        GLM_5_3 = "glm_5_3"
-        KIMI_K3 = "kimi_k3"
-
-    class SourceFocus:
-        WEB = "WEB"
-
-    class ConversationConfig:
-        def __init__(self, model, source_focus=None, save_to_library=False):
-            self.model = model
-            self.source_focus = source_focus or []
-            self.save_to_library = save_to_library
-
-    class Perplexity:
-        def __init__(self, token, config):
-            self.token = token
-            self.config = config
-
-        def conversation(self, config):
-            return FakeConversation(config)
-
-    class MockResponse:
-        def __init__(self, answer, citations=None):
-            self.answer = answer
-            self.citations = citations or []
-
-
-class FakeConversation:
-    """Fake conversation for testing."""
-
-    def __init__(self, config):
-        self.config = config
-        self.ask_count = 0
-
-    def ask(self, prompt):
-        self.ask_count += 1
-        if self.ask_count > 1:
-            raise Exception("Multiple asks detected - should only ask once")
-
-        # Simulate different responses based on model
-        if hasattr(self.config, 'model'):
-            model = str(self.config.model)
-            if model == "GLM_5_3":
-                return FakePerplexityWebMcpCli.MockResponse(
-                    "This is a test answer from GLM-5-3",
-                    [{"url": "https://example.com", "title": "Example"}]
-                )
-            elif model == "KIMI_K3":
-                return FakePerplexityWebMcpCli.MockResponse(
-                    "This is a test answer from Kimi-K3",
-                    [{"url": "https://test.com", "title": "Test"}]
-                )
-
-        return FakePerplexityWebMcpCli.MockResponse("Default test answer")
-
-
-class TestPerplexityWorker(unittest.TestCase):
-    """Test cases for perplexity-worker.py functionality."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.temp_dir = tempfile.mkdtemp()
-        self.task_file = Path(self.temp_dir) / "test-task.txt"
-        self.large_task_file = Path(self.temp_dir) / "large-task.txt"
-        self.receipt_dir = Path(self.temp_dir) / "receipts"
-
-        # Create test task file
-        self.task_content = "What is the capital of France?"
-        self.task_file.write_text(self.task_content, encoding='utf-8')
-
-        # Create large task file (with path spaces)
-        large_content = "A" * 10000  # 10KB of content
-        self.large_task_file.write_text(large_content, encoding='utf-8')
-
-        # Create receipt directory
-        self.receipt_dir.mkdir()
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        import shutil
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-
-    def test_check_mode_missing_dependency(self):
-        """Test --check mode with missing dependency."""
-        from perplexity_worker import check_dependency, EXIT_MISSING_DEP
-
-        with patch.dict('sys.modules', {'perplexity_web_mcp_cli': None}):
-            with patch('builtins.__import__', side_effect=ImportError("No module named 'perplexity_web_mcp_cli'")):
-                exit_code, message = check_dependency()
-                self.assertEqual(exit_code, EXIT_MISSING_DEP)
-                self.assertIn("not installed", message)
-                self.assertIn("pip install perplexity-web-mcp-cli==0.16.1", message)
-
-    def test_check_mode_version_mismatch(self):
-        """Test --check mode with version mismatch."""
-        from tools.perplexity_worker import check_dependency, EXIT_VERSION_MISMATCH
-
-        # Mock the module and version
-        mock_module = MagicMock()
-
-        with patch.dict('sys.modules', {'perplexity_web_mcp_cli': mock_module}):
-            with patch('pkg_resources.get_distribution') as mock_get_dist:
-                mock_dist = MagicMock()
-                mock_dist.version = "0.15.0"
-                mock_get_dist.return_value = mock_dist
-
-                exit_code, message = check_dependency()
-                self.assertEqual(exit_code, EXIT_VERSION_MISMATCH)
-                self.assertIn("0.15.0", message)
-                self.assertIn("0.16.1", message)
-
-    def test_check_mode_success(self):
-        """Test --check mode with correct version."""
-        from tools.perplexity_worker import check_dependency, EXIT_OK
-
-        mock_module = MagicMock()
-
-        with patch.dict('sys.modules', {'perplexity_web_mcp_cli': mock_module}):
-            with patch('pkg_resources.get_distribution') as mock_get_dist:
-                mock_dist = MagicMock()
-                mock_dist.version = "0.16.1"
-                mock_get_dist.return_value = mock_dist
-
-                exit_code, message = check_dependency()
-                self.assertEqual(exit_code, EXIT_OK)
-                self.assertIn("available", message)
-
-    def test_validate_bounds_invalid(self):
-        """Test validate_bounds with invalid values."""
-        from tools.perplexity_worker import validate_bounds
-
-        # Test zero bound
-        valid, msg = validate_bounds(0, 1000)
-        self.assertFalse(valid)
-        self.assertIn("positive", msg)
-
-        # Test negative stdout size
-        valid, msg = validate_bounds(100, -1)
-        self.assertFalse(valid)
-        self.assertIn("positive", msg)
-
-        # Test bound too high
-        valid, msg = validate_bounds(3601, 1000)
-        self.assertFalse(valid)
-        self.assertIn("3600", msg)
-
-        # Test stdout size too high
-        valid, msg = validate_bounds(100, 10 * 1024 * 1024 + 1)
-        self.assertFalse(valid)
-        self.assertIn("10MiB", msg)
-
-    def test_validate_bounds_valid(self):
-        """Test validate_bounds with valid values."""
-        from tools.perplexity_worker import validate_bounds
-
-        valid, msg = validate_bounds(300, 1048576)
-        self.assertTrue(valid)
-        self.assertEqual(msg, "")
-
-    def test_validate_task_file_missing(self):
-        """Test validate_task_file with missing file."""
-        from tools.perplexity_worker import validate_task_file, EXIT_INVALID_BOUNDS
-
-        exit_code, msg, content = validate_task_file("/nonexistent/file.txt")
-        self.assertEqual(exit_code, EXIT_INVALID_BOUNDS)
-        self.assertIn("not found", msg)
-
-    def test_validate_task_file_empty(self):
-        """Test validate_task_file with empty file."""
-        from tools.perplexity_worker import validate_task_file, EXIT_INVALID_BOUNDS
-
-        empty_file = Path(self.temp_dir) / "empty.txt"
-        empty_file.write_text("", encoding='utf-8')
-
-        exit_code, msg, content = validate_task_file(str(empty_file))
-        self.assertEqual(exit_code, EXIT_INVALID_BOUNDS)
-        self.assertIn("empty", msg)
-
-    def test_validate_task_file_success(self):
-        """Test validate_task_file with valid file."""
-        from tools.perplexity_worker import validate_task_file, EXIT_OK
-
-        exit_code, msg, content = validate_task_file(str(self.task_file))
-        self.assertEqual(exit_code, EXIT_OK)
-        self.assertEqual(content, self.task_content)
-
-    def test_create_receipt_dir_new(self):
-        """Test create_receipt_dir with new directory."""
-        from tools.perplexity_worker import create_receipt_dir, EXIT_OK
-
-        new_dir = Path(self.temp_dir) / "new_receipts"
-        receipt_dir, exit_code, msg = create_receipt_dir(str(new_dir))
-
-        self.assertEqual(exit_code, EXIT_OK)
-        self.assertTrue(Path(receipt_dir).exists())
-        self.assertTrue(Path(receipt_dir).is_dir())
-
-    def test_create_receipt_dir_existing_file(self):
-        """Test create_receipt_dir with existing file (should fail)."""
-        from tools.perplexity_worker import create_receipt_dir, EXIT_INVALID_BOUNDS
-
-        # Create a file where we want the directory
-        file_path = Path(self.temp_dir) / "file_not_dir.txt"
-        file_path.write_text("content")
-
-        receipt_dir, exit_code, msg = create_receipt_dir(str(file_path))
-
-        self.assertEqual(exit_code, EXIT_INVALID_BOUNDS)
-        self.assertIn("not a directory", msg)
-
-    def test_generate_receipt_success(self):
-        """Test generate_receipt with valid parameters."""
-        from tools.perplexity_worker import generate_receipt
-
-        task_hash = hashlib.sha256(self.task_content.encode()).hexdigest()
-
-        success, receipt_path = generate_receipt(
-            str(self.receipt_dir),
-            task_hash,
-            "glm53",
-            "glm_5_3_thinking",
-            "PerplexityPro",
-            "perplexity",
-            "unknown",
-            "success",
-            0,
-            1.234,
-            300
-        )
-
-        self.assertTrue(success)
-        self.assertTrue(Path(receipt_path).exists())
-
-        # Verify receipt content
-        receipt_content = json.loads(Path(receipt_path).read_text())
-        self.assertEqual(receipt_content["requested_model"], "glm53")
-        self.assertEqual(receipt_content["configured_identifier"], "glm_5_3_thinking")
-        self.assertEqual(receipt_content["transport"], "PerplexityPro")
-        self.assertEqual(receipt_content["budget_group"], "perplexity")
-        self.assertEqual(receipt_content["effective_model"], "unknown")
-        self.assertEqual(receipt_content["outcome"], "success")
-        self.assertEqual(receipt_content["exit_code"], 0)
-        self.assertAlmostEqual(receipt_content["elapsed_seconds"], 1.234, places=3)
-        self.assertEqual(receipt_content["bound_seconds"], 300)
-        self.assertTrue(receipt_content["source_only_offline_claim"])
-
-        # Ensure no sensitive data is in receipt
-        self.assertNotIn("token", receipt_content)
-        self.assertNotIn("prompt", receipt_content)
-        self.assertNotIn("answer", receipt_content)
-        self.assertNotIn("raw", receipt_content)
-
-    def test_supported_models_and_identifiers(self):
-        """Test that supported models and thinking identifiers are correct."""
-        from tools.perplexity_worker import SUPPORTED_MODELS, THINKING_IDENTIFIERS
-
-        # Check models
-        self.assertEqual(SUPPORTED_MODELS["glm53"], "glm_5_3")
-        self.assertEqual(SUPPORTED_MODELS["kimi_k3"], "kimi_k3")
-
-        # Check thinking identifiers
-        self.assertEqual(THINKING_IDENTIFIERS["glm53"], "glm_5_3_thinking")
-        self.assertEqual(THINKING_IDENTIFIERS["kimi_k3"], "kimik3thinking")
-
-    def test_run_perplexity_query_missing_token(self):
-        """Test run_perplexity_query with missing token."""
-        from tools.perplexity_worker import run_perplexity_query, EXIT_AUTH_MISSING
-
-        with patch.dict('sys.modules', {'perplexity_web_mcp_cli': FakePerplexityWebMcpCli}):
-            exit_code, error_msg, result = run_perplexity_query(
-                "test prompt", "glm53", 300, 1000000
-            )
-
-            self.assertEqual(exit_code, EXIT_AUTH_MISSING)
-            self.assertIn("pwm login", error_msg)
-            self.assertEqual(result, {})
-
-    def test_run_perplexity_query_unsupported_model(self):
-        """Test run_perplexity_query with unsupported model."""
-        from tools.perplexity_worker import run_perplexity_query, EXIT_MODEL_UNSUPPORTED
-
-        with patch.dict('sys.modules', {'perplexity_web_mcp_cli': FakePerplexityWebMcpCli}):
-            # Mock token to be available
-            with patch.object(FakePerplexityWebMcpCli.token_store, 'load_token', return_value="fake_token"):
-                exit_code, error_msg, result = run_perplexity_query(
-                    "test prompt", "invalid_model", 300, 1000000
-                )
-
-                self.assertEqual(exit_code, EXIT_MODEL_UNSUPPORTED)
-                self.assertIn("Unsupported model", error_msg)
-                self.assertEqual(result, {})
-
-    def test_run_perplexity_query_success(self):
-        """Test run_perplexity_query with successful execution."""
-        from tools.perplexity_worker import run_perplexity_query, EXIT_OK
-
-        with patch.dict('sys.modules', {'perplexity_web_mcp_cli': FakePerplexityWebMcpCli}):
-            # Mock token to be available
-            with patch.object(FakePerplexityWebMcpCli.token_store, 'load_token', return_value="fake_token"):
-                exit_code, error_msg, result = run_perplexity_query(
-                    "test prompt", "glm53", 300, 1000000
-                )
-
-                self.assertEqual(exit_code, EXIT_OK)
-                self.assertEqual(error_msg, "")
-                self.assertIn("answer", result)
-                self.assertIn("model", result)
-                self.assertEqual(result["model"], "glm_5_3")
-                self.assertEqual(result["thinking_identifier"], "glm_5_3_thinking")
-
-    def test_run_perplexity_query_kimi_k3(self):
-        """Test run_perplexity_query with Kimi K3 model."""
-        from tools.perplexity_worker import run_perplexity_query, EXIT_OK
-
-        with patch.dict('sys.modules', {'perplexity_web_mcp_cli': FakePerplexityWebMcpCli}):
-            # Mock token to be available
-            with patch.object(FakePerplexityWebMcpCli.token_store, 'load_token', return_value="fake_token"):
-                exit_code, error_msg, result = run_perplexity_query(
-                    "test prompt", "kimi_k3", 300, 1000000
-                )
-
-                self.assertEqual(exit_code, EXIT_OK)
-                self.assertEqual(error_msg, "")
-                self.assertIn("answer", result)
-                self.assertIn("model", result)
-                self.assertEqual(result["model"], "kimi_k3")
-                self.assertEqual(result["thinking_identifier"], "kimik3thinking")
-
-    def test_client_config_values(self):
-        """Test that ClientConfig is created with correct values."""
-        from tools.perplexity_worker import run_perplexity_query, EXIT_AUTH_MISSING
-
-        with patch.dict('sys.modules', {'perplexity_web_mcp_cli': FakePerplexityWebMcpCli}):
-            # Mock token to be available
-            with patch.object(FakePerplexityWebMcpCli.token_store, 'load_token', return_value="fake_token"):
-                with patch.object(FakePerplexityWebMcpCli, 'ClientConfig') as mock_config_class:
-                    mock_config = MagicMock()
-                    mock_config_class.return_value = mock_config
-
-                    run_perplexity_query("test", "glm53", 120, 500000)
-
-                    # Verify ClientConfig was called with correct parameters
-                    mock_config_class.assert_called_once()
-                    call_args = mock_config_class.call_args
-                    self.assertEqual(call_args[1]['max_retries'], 0)
-                    self.assertEqual(call_args[1]['logging_level'], "DISABLED")
-                    self.assertEqual(call_args[1]['rotate_fingerprint'], False)
-                    self.assertEqual(call_args[1]['timeout'], 120)
-
-    def test_conversation_config_values(self):
-        """Test that ConversationConfig is created with correct values."""
-        from tools.perplexity_worker import run_perplexity_query, EXIT_OK
-
-        with patch.dict('sys.modules', {'perplexity_web_mcp_cli': FakePerplexityWebMcpCli}):
-            # Mock token to be available
-            with patch.object(FakePerplexityWebMcpCli.token_store, 'load_token', return_value="fake_token"):
-                with patch.object(FakePerplexityWebMcpCli, 'ConversationConfig') as mock_conv_class:
-                    mock_conv = MagicMock()
-                    mock_conv_class.return_value = mock_conv
-
-                    run_perplexity_query("test", "glm53", 300, 1000000)
-
-                    # Verify ConversationConfig was called with correct parameters
-                    mock_conv_class.assert_called_once()
-                    call_args = mock_conv_class.call_args
-                    self.assertEqual(str(call_args[1]['model']), "GLM_5_3")
-                    self.assertEqual(call_args[1]['source_focus'], [])
-                    self.assertEqual(call_args[1]['save_to_library'], False)
-
-    def test_path_spaces_handling(self):
-        """Test handling of paths with spaces."""
-        from tools.perplexity_worker import validate_task_file, EXIT_OK
-
-        # Create a file with spaces in the name
-        space_file = Path(self.temp_dir) / "test file with spaces.txt"
-        space_content = "Content in spaced file"
-        space_file.write_text(space_content, encoding='utf-8')
-
-        exit_code, msg, content = validate_task_file(str(space_file))
-        self.assertEqual(exit_code, EXIT_OK)
-        self.assertEqual(content, space_content)
-
-    def test_large_file_handling(self):
-        """Test handling of large files."""
-        from tools.perplexity_worker import validate_task_file, EXIT_OK
-
-        # Test with the large file we created in setUp
-        exit_code, msg, content = validate_task_file(str(self.large_task_file))
-        self.assertEqual(exit_code, EXIT_OK)
-        self.assertEqual(len(content), 10000)
-
-    def test_missing_dependency_error_handling(self):
-        """Test error handling for missing dependency."""
-        from tools.perplexity_worker import run_perplexity_query, EXIT_MISSING_DEP
-
-        # Don't mock the module - it should fail to import
-        exit_code, error_msg, result = run_perplexity_query(
-            "test prompt", "glm53", 300, 1000000
-        )
-
-        self.assertEqual(exit_code, EXIT_MISSING_DEP)
-        self.assertIn("not available", error_msg)
-        self.assertIn("pip install", error_msg)
-        self.assertEqual(result, {})
-
-    def test_invalid_json_handling(self):
-        """Test handling of invalid JSON in responses."""
-        from tools.perplexity_worker import run_perplexity_query, EXIT_OK
-
-        # Create a mock that returns invalid JSON structure
-        class BadResponse:
-            def __init__(self):
-                pass  # No answer attribute
-
-        class BadConversation:
-            def __init__(self, config):
-                pass
-
-            def ask(self, prompt):
-                return BadResponse()
-
-        class BadPerplexity:
-            def __init__(self, token, config):
-                pass
-
-            def conversation(self, config):
-                return BadConversation(config)
-
-        class BadModule:
-            class token_store:
-                @staticmethod
-                def load_token():
-                    return "fake_token"
-
-            class ClientConfig:
-                def __init__(self, **kwargs):
-                    pass
-
-            class Models:
-                GLM_5_3 = "glm_5_3"
-
-            class SourceFocus:
-                WEB = "WEB"
-
-            class ConversationConfig:
-                def __init__(self, **kwargs):
-                    pass
-
-            Perplexity = BadPerplexity
-
-        with patch.dict('sys.modules', {'perplexity_web_mcp_cli': BadModule}):
-            exit_code, error_msg, result = run_perplexity_query(
-                "test prompt", "glm53", 300, 1000000
-            )
-
-            # Should handle missing answer gracefully
-            self.assertEqual(exit_code, 10)  # EXIT_CHILD_ERROR
-            self.assertIn("missing answer", error_msg)
-
-
-class TestCommandLineInterface(unittest.TestCase):
-    """Test command line interface functionality."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.temp_dir = tempfile.mkdtemp()
-        self.task_file = Path(self.temp_dir) / "test-task.txt"
-        self.task_content = "What is the capital of France?"
-        self.task_file.write_text(self.task_content, encoding='utf-8')
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        import shutil
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-
-    def test_check_mode_command(self):
-        """Test --check command line option."""
-        from tools.perplexity_worker import main
-
-        # Mock sys.argv for --check mode
-        with patch('sys.argv', ['perplexity-worker.py', '--check']):
-            with patch.dict('sys.modules', {'perplexity_web_mcp_cli': None}):
-                with patch('builtins.__import__', side_effect=ImportError("No module")):
-                    with patch('sys.exit') as mock_exit:
-                        with patch('sys.stderr') as mock_stderr:
-                            main()
-                            # Should exit with missing dependency code
-                            mock_exit.assert_called_once()
-                            call_args = mock_exit.call_args[0]
-                            self.assertEqual(call_args[0], 1)  # EXIT_MISSING_DEP
-
-    def test_model_argument_validation(self):
-        """Test model argument validation."""
-        from tools.perplexity_worker import parse_args
-
-        # Test valid models
-        with patch('sys.argv', ['perplexity-worker.py', '--model', 'glm53', 'task.txt']):
-            args = parse_args()
-            self.assertEqual(args.model, 'glm53')
-
-        with patch('sys.argv', ['perplexity-worker.py', '--model', 'kimi_k3', 'task.txt']):
-            args = parse_args()
-            self.assertEqual(args.model, 'kimi_k3')
-
-        # Test invalid model (should raise SystemExit)
-        with patch('sys.argv', ['perplexity-worker.py', '--model', 'invalid', 'task.txt']):
-            with self.assertRaises(SystemExit):
-                parse_args()
-
-    def test_bound_and_stdout_size_validation(self):
-        """Test bound and stdout-size argument validation."""
-        from tools.perplexity_worker import parse_args
-
-        with patch('sys.argv', ['perplexity-worker.py', '--bound', '600', '--stdout-size', '2097152', 'task.txt']):
-            args = parse_args()
-            self.assertEqual(args.bound, 600)
-            self.assertEqual(args.stdout_size, 2097152)
+WORKER = Path(__file__).resolve().parent.parent / 'tools' / 'perplexity-worker.py'
+SECRET = 'tok-SECRET-4711'
+FAKE = {
+    '__init__.py': '''
+import json, os
+def log(**event):
+    with open(os.environ['FAKE_PPLX_LOG'], 'a') as handle:
+        handle.write(json.dumps(event) + '\\n')
+log(event='imported')
+''',
+    'enums.py': '''
+from enum import Enum
+class LogLevel(str, Enum):
+    DISABLED = 'DISABLED'
+    DEBUG = 'DEBUG'
+class SourceFocus(str, Enum):
+    WEB = 'web'
+    ACADEMIC = 'scholar'
+    SOCIAL = 'social'
+    FINANCE = 'edgar'
+''',
+    'config.py': '''
+from .enums import LogLevel, SourceFocus
+class _Frozen:
+    FIELDS = {}
+    def __init__(self, **values):
+        unknown = set(values) - set(self.FIELDS)
+        if unknown:
+            raise TypeError(f'unexpected fields {sorted(unknown)}')
+        self.__dict__.update({**self.FIELDS, **values})
+    def __setattr__(self, *_):
+        raise TypeError('frozen')
+class ClientConfig(_Frozen):
+    FIELDS = dict(timeout=3600, impersonate='chrome', max_retries=3, retry_base_delay=1.0,
+                  retry_max_delay=60.0, retry_jitter=0.5, requests_per_second=0.5,
+                  rotate_fingerprint=True, logging_level=LogLevel.DISABLED, log_file=None)
+class ConversationConfig(_Frozen):
+    FIELDS = dict(model=None, citation_mode='clean', save_to_library=False, search_focus='internet',
+                  source_focus=SourceFocus.WEB, time_range='', language='en-US', timezone=None,
+                  coordinates=None)
+''',
+    'models.py': '''
+import os
+from dataclasses import dataclass
+@dataclass(frozen=True, slots=True)
+class Model:
+    identifier: str
+    mode: str = 'copilot'
+class Models:
+    BEST = Model(identifier='pplx_pro')
+    SONAR = Model(identifier='experimental', mode='concise')
+    GLM_5_2 = Model(identifier='glm_5_2')
+    GLM_5_3 = Model(identifier='glm_5_3_thinking')
+    KIMI_K2_6_THINKING = Model(identifier='kimik26thinking')
+    KIMI_K3 = Model(identifier='kimik3thinking')
+if os.environ.get('FAKE_PPLX_MODE') == 'renamed':
+    Models.KIMI_K3 = Model(identifier='kimik3')
+''',
+    'types.py': '''
+from dataclasses import dataclass
+@dataclass(frozen=True)
+class SearchResultItem:
+    title: str | None = None
+    snippet: str | None = None
+    url: str | None = None
+''',
+    'exceptions.py': '''
+class PerplexityError(Exception):
+    def __init__(self, message):
+        self.message = message
+        super().__init__(message)
+class HTTPError(PerplexityError):
+    def __init__(self, message, status_code=None, url=None, response_body=None):
+        self.status_code, self.url, self.response_body = status_code, url, response_body
+        super().__init__(message)
+class AuthenticationError(HTTPError):
+    def __init__(self, message=None, url=None, response_body=None):
+        super().__init__(message or 'forbidden', 403, url, response_body)
+class RateLimitError(HTTPError):
+    def __init__(self, message=None, url=None, response_body=None):
+        super().__init__(message or 'rate limited', 429, url, response_body)
+class ResponseParsingError(PerplexityError):
+    pass
+''',
+    'token_store.py': '''
+import os
+from . import log
+def load_token():
+    log(event='load_token')
+    return os.environ.get('FAKE_PPLX_TOKEN') or None
+''',
+    'shared.py': 'from . import log\nlog(event="forbidden", name="shared")\n',
+    'router.py': 'from . import log\nlog(event="forbidden", name="router")\n',
+    'core.py': '''
+import hashlib, os, subprocess, sys, time
+from . import log
+from .config import ClientConfig, ConversationConfig
+from .exceptions import AuthenticationError, HTTPError, RateLimitError
+from .types import SearchResultItem
+class Perplexity:
+    __slots__ = ('_http',)
+    def __init__(self, session_token, config=None):
+        if not session_token or not session_token.strip():
+            raise ValueError('session_token cannot be empty')
+        assert isinstance(config, ClientConfig)
+        self._http = session_token
+        log(event='client', token_ok=session_token == os.environ['FAKE_PPLX_TOKEN'],
+            **{k: getattr(config, k) for k in ClientConfig.FIELDS if k != 'logging_level'},
+            logging_level=config.logging_level.value)
+    def create_conversation(self, config=None):
+        return Conversation(self._http, config or ConversationConfig())
+    def close(self):
+        log(event='close')
+class Conversation:
+    __slots__ = ('_http', '_config', '_answer', '_search_results')
+    def __init__(self, http, config):
+        self._http, self._config = http, config
+        self._answer, self._search_results = None, []
+        log(event='conversation', model=config.model.identifier, mode=config.model.mode,
+            sources=[getattr(s, 'value', s) for s in config.source_focus],
+            save_to_library=config.save_to_library)
+    @property
+    def answer(self):
+        return self._answer
+    @property
+    def search_results(self):
+        return self._search_results
+    def ask(self, query, model=None, files=None, citation_mode=None, stream=False, init_query=None):
+        mode = os.environ.get('FAKE_PPLX_MODE', 'ok')
+        log(event='ask', sha256=hashlib.sha256(query.encode()).hexdigest(), model=model,
+            files=files, stream=stream)
+        if mode == 'auth':
+            raise AuthenticationError('SECRET-EXC 403 ' + self._http)
+        if mode == 'ratelimit':
+            raise RateLimitError('SECRET-EXC 429')
+        if mode == 'denied':
+            raise HTTPError('SECRET-EXC model not in plan', status_code=400, response_body='SECRET')
+        if mode == 'boom':
+            raise RuntimeError('SECRET-EXC ' + self._http)
+        if mode == 'sleep':
+            helper = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+            log(event='grandchild', pid=helper.pid)
+            time.sleep(60)
+        if mode == 'noisy':
+            print('library chatter on stdout', flush=True)
+            os.write(1, b'raw fd chatter\\n')
+        self._answer = ('x' * (3 << 20)) if mode == 'huge' else 'Findings\\x1b[31m here\\r\\nline two\\n\\n'
+        self._search_results = [SearchResultItem(title='Doc', url='https://example.invalid/a'),
+                                SearchResultItem(title='Doc again', url='https://example.invalid/a'),
+                                SearchResultItem(title='No link', url=None),
+                                SearchResultItem(title=None, url='https://example.invalid/b')]
+        return self
+''',
+}
+
+
+def make_venv(base, version=None):
+    subprocess.run([sys.executable, '-m', 'venv', '--without-pip', str(base)], check=True)
+    python = base / 'bin' / 'python'
+    if version:
+        site = Path(subprocess.run([str(python), '-I', '-c', 'import sysconfig; print(sysconfig.get_paths()["purelib"])'],
+                                   check=True, capture_output=True, text=True).stdout.strip())
+        (site / 'perplexity_web_mcp').mkdir()
+        for name, text in FAKE.items():
+            (site / 'perplexity_web_mcp' / name).write_text(text.lstrip())
+        info = site / 'perplexity_web_mcp_cli-0.16.1.dist-info'
+        info.mkdir()
+        (info / 'METADATA').write_text(f'Metadata-Version: 2.1\nName: perplexity-web-mcp-cli\nVersion: {version}\n')
+        (info / 'RECORD').write_text(''.join(f'perplexity_web_mcp/{name},,\n' for name in FAKE))
+    return python
+
+
+class PerplexityWorker(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory(prefix='unio perplexity ')
+        cls.base = Path(cls.tmp.name)
+        cls.python = make_venv(cls.base / 'fake venv', '0.16.1')
+        cls.old = make_venv(cls.base / 'old venv', '0.16.0')
+        cls.bare = make_venv(cls.base / 'bare venv')
+        cls.prompt = cls.base / 'task with spaces.md'
+        cls.prompt.write_text('Summarize the trade-offs of X.\n')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def run_worker(self, *args, mode='ok', python=None, token=SECRET, env=None, timeout=60):
+        log = self.base / 'events.jsonl'
+        log.unlink(missing_ok=True)
+        full = {k: v for k, v in os.environ.items() if k != 'TASKFILE'}
+        full.update(FAKE_PPLX_LOG=str(log), FAKE_PPLX_MODE=mode, FAKE_PPLX_TOKEN=token, **(env or {}))
+        result = subprocess.run([str(python or self.python), '-B', str(WORKER), *args], env=full,
+                                capture_output=True, text=True, timeout=timeout)
+        events = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+        self.assertNotIn('forbidden', [e['event'] for e in events])
+        self.assertNotIn(SECRET, result.stdout + result.stderr)
+        self.assertNotIn('SECRET', result.stderr)
+        self.assertNotIn('Traceback', result.stderr)
+        return result, events
+
+    def kinds(self, events):
+        return [e['event'] for e in events if e['event'] != 'imported']
+
+    def private_dir(self, name):
+        path = self.base / name
+        path.mkdir(mode=0o700)
+        path.chmod(0o700)
+        return path
+
+    def test_check_reads_metadata_only(self):
+        result, events = self.run_worker('--check')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(events, [])
+        for line in ('auth: unknown', 'effective model: unknown', 'remaining capacity: unknown'):
+            self.assertIn(line, result.stdout)
+        for python, state in ((self.old, 'dependency_version'), (self.bare, 'dependency_missing')):
+            for args in (['--check'], ['--model', 'glm53', '--prompt-file', str(self.prompt)]):
+                result, events = self.run_worker(*args, python=python)
+                self.assertEqual((result.returncode, events), (3, []))
+                self.assertIn(state, result.stderr)
+
+    def test_exact_identifiers_one_token_load_one_ask(self):
+        sha = hashlib.sha256(self.prompt.read_bytes()).hexdigest()
+        cases = ((['--model', 'glm53', '--prompt-file', str(self.prompt)], {}, 'glm_5_3_thinking', ['web']),
+                 (['--model', 'kimi_k3', '--source', 'none', '--timeout', '90'], {'TASKFILE': str(self.prompt)},
+                  'kimik3thinking', []))
+        for args, env, identifier, sources in cases:
+            result, events = self.run_worker(*args, env=env)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(self.kinds(events), ['load_token', 'client', 'conversation', 'ask', 'close'])
+            client, conversation, ask = events[2], events[3], events[4]
+            self.assertTrue(client['token_ok'])
+            self.assertEqual((client['max_retries'], client['logging_level'], client['rotate_fingerprint']),
+                             (0, 'DISABLED', False))
+            self.assertEqual(client['timeout'], 90 if '90' in args else 600)
+            self.assertEqual(conversation, dict(event='conversation', model=identifier, mode='copilot',
+                                                sources=sources, save_to_library=False))
+            self.assertEqual((ask['sha256'], ask['model'], ask['files'], ask['stream']), (sha, None, None, False))
+            self.assertEqual(result.stdout, 'Findings[31m here\nline two\n\nSources:\n'
+                             '[1] Doc https://example.invalid/a\n[2] https://example.invalid/b\n')
+        result, _ = self.run_worker('--model', 'glm53', '--json', '--prompt-file', str(self.prompt), mode='noisy')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.endswith('}\n') and result.stdout.count('\n') == 1)
+        data = json.loads(result.stdout)
+        self.assertEqual(set(data), {'answer', 'citations', 'requested_model', 'configured_identifier',
+                                     'effective_model', 'transport'})
+        self.assertEqual((data['effective_model'], data['configured_identifier']), ('unknown', 'glm_5_3_thinking'))
+        self.assertEqual(len(data['citations']), 2)
+
+    def test_large_prompt_and_private_receipts(self):
+        large = self.base / 'large task.md'
+        large.write_text('é research question\n' * 20000)
+        receipts = self.private_dir('receipts')
+        for _ in range(2):
+            result, events = self.run_worker('--model', 'kimi_k3', '--prompt-file', str(large), '--receipt-dir', str(receipts))
+            self.assertEqual(result.returncode, 0, result.stderr)
+        runs = sorted(receipts.iterdir())
+        self.assertEqual(len(runs), 2)
+        text = (runs[0] / 'receipt.json').read_text()
+        receipt = json.loads(text)
+        self.assertEqual(stat.S_IMODE(runs[0].stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE((runs[0] / 'receipt.json').stat().st_mode), 0o600)
+        self.assertEqual(receipt['task_sha256'], hashlib.sha256(large.read_bytes()).hexdigest())
+        expected = dict(requested_model='kimi_k3', requested_lab='Moonshot AI', configured_identifier='kimik3thinking',
+                        thinking=True, budget_group='perplexity', effective_model='unknown', effective_lab='unknown',
+                        max_retries=0, outcome='ok', exit_code=0, transport='Perplexity Pro web session')
+        self.assertEqual({k: receipt[k] for k in expected}, expected)
+        for leak in (SECRET, 'research question', 'Findings', 'example.invalid'):
+            self.assertNotIn(leak, text)
+
+    def test_invalid_input_rejected_before_any_import(self):
+        oversize = self.base / 'oversize.md'
+        oversize.write_bytes(b'a' * (512 * 1024 + 1))
+        binary = self.base / 'binary.md'
+        binary.write_bytes(b'\xff\xfe')
+        empty = self.base / 'empty.md'
+        empty.write_text(' \n')
+        link = self.base / 'link.md'
+        link.symlink_to(self.prompt)
+        public = self.base / 'public receipts'
+        public.mkdir(mode=0o755)
+        public.chmod(0o755)
+        task = ['--prompt-file', str(self.prompt)]
+        cases = [['--model', 'glm5', *task], ['--model', 'kimi_k3_fast', *task], ['--model', 'glm53'],
+                 ['--model', 'glm53', '--timeout', 'nan', *task], ['--model', 'glm53', '--timeout', 'inf', *task],
+                 ['--model', 'glm53', '--timeout', '1', *task], ['--model', 'glm53', '--timeout', '2.5', *task],
+                 ['--model', 'glm53', '--max-output', '1e309', *task], ['--model', 'glm53', '--source', 'social', *task],
+                 ['--model', 'glm53', 'inline prompt text'], ['--model', 'glm53', *task, '--receipt-dir', str(public)],
+                 ['--model', 'glm53', *task, '--receipt-dir', str(self.base / 'missing')]]
+        cases += [['--model', 'glm53', '--prompt-file', str(p)] for p in (oversize, binary, empty, link, self.base)]
+        for args in cases:
+            result, events = self.run_worker(*args)
+            self.assertEqual((result.returncode, events), (2, []), args)
+        self.assertEqual(list(public.iterdir()), [])
+
+    def test_auth_and_model_states_before_ask(self):
+        result, events = self.run_worker('--model', 'glm53', '--prompt-file', str(self.prompt), token='')
+        self.assertEqual((result.returncode, self.kinds(events)), (5, ['load_token']))
+        self.assertIn('pwm login', result.stderr)
+        result, events = self.run_worker('--model', 'kimi_k3', '--prompt-file', str(self.prompt), mode='renamed')
+        self.assertEqual((result.returncode, self.kinds(events)), (4, []))
+
+    def test_upstream_failures_are_safe_and_not_retried(self):
+        receipts = self.private_dir('failure receipts')
+        for mode, code, state in (('auth', 5, 'auth_denied'), ('ratelimit', 6, 'rate_limited'),
+                                  ('denied', 6, 'upstream_refused'), ('boom', 10, 'internal_error')):
+            result, events = self.run_worker('--model', 'glm53', '--prompt-file', str(self.prompt),
+                                             '--receipt-dir', str(receipts), mode=mode)
+            self.assertEqual(result.returncode, code, mode)
+            self.assertEqual(result.stdout, '')
+            self.assertIn(state, result.stderr)
+            self.assertEqual(self.kinds(events), ['load_token', 'client', 'conversation', 'ask', 'close'])
+        for run in receipts.iterdir():
+            text = (run / 'receipt.json').read_text()
+            self.assertNotIn('SECRET', text)
+            self.assertNotEqual(json.loads(text)['exit_code'], 0)
+
+    def test_timeout_and_overflow_kill_owned_group(self):
+        started = time.monotonic()
+        result, events = self.run_worker('--model', 'glm53', '--timeout', '3', '--prompt-file', str(self.prompt), mode='sleep')
+        self.assertEqual(result.returncode, 7, result.stderr)
+        self.assertLess(time.monotonic() - started, 20)
+        pid = [e['pid'] for e in events if e['event'] == 'grandchild'][0]
+        for _ in range(50):
+            try:
+                state = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[0]
+            except FileNotFoundError:
+                break
+            if state == 'Z':
+                break
+            time.sleep(0.1)
+        else:
+            self.fail('owned grandchild survived timeout')
+        result, _ = self.run_worker('--model', 'glm53', '--max-output', '4096', '--prompt-file', str(self.prompt), mode='huge')
+        self.assertEqual((result.returncode, result.stdout), (8, ''))
+
+    def test_transport_parser_is_strict(self):
+        spec = importlib.util.spec_from_file_location('perplexity_worker', WORKER)
+        worker = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(worker)
+        good = b'{"state": "ok", "answer": "A", "citations": [{"title": null, "url": "https://x.invalid"}]}\n'
+        self.assertEqual(worker.parse_transport(good, 4096), ('ok', 'A', [{'title': '', 'url': 'https://x.invalid'}]))
+        self.assertEqual(worker.parse_transport(b'{"state": "auth_missing"}\n', 4096)[0], 'auth_missing')
+        self.assertEqual(worker.parse_transport(b'{"state": "ok", "answer": "' + b'a' * 5000 + b'", "citations": []}\n',
+                                                4096)[0], 'output_overflow')
+        for raw in (b'{"state": "ok", "state": "ok", "answer": "A", "citations": []}\n',
+                    b'{"state": "ok", "answer": NaN, "citations": []}\n',
+                    b'{"state": "ok", "answer": "A", "citations": [], "n": Infinity}\n',
+                    b'{"state": "ok", "answer": "A", "citations": [], "raw_data": {}}\n',
+                    b'{"state": "ok", "answer": "A", "citations": [{"title": "t", "url": "file:///etc/passwd"}]}\n',
+                    b'{"state": "ok", "answer": " ", "citations": []}\n',
+                    b'{"state": "fine"}\n', b'{"state": "ok", "answer": "A", "citations": []}',
+                    b'{"state": "auth_missing"}\n{"state": "ok"}\n', b'[]\n', b''):
+            with self.assertRaises((ValueError, UnicodeDecodeError), msg=raw):
+                worker.parse_transport(raw, 4096)
 
 
 if __name__ == '__main__':
-    unittest.main()
+    if shutil.which('true') is None:
+        sys.exit('needs a POSIX environment')
+    unittest.main(verbosity=1)
