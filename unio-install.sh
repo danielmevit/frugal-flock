@@ -7758,7 +7758,10 @@ def _decode(raw):
         data = strict_json(raw)
     except (UnicodeDecodeError, ValueError, RecursionError):
         raise CapacityError('provider state is not strict UTF-8 JSON') from None
-    return validate_state(data)
+    try:
+        return validate_state(data)
+    except (TypeError, OverflowError):
+        raise CapacityError('provider state has invalid field types') from None
 
 
 class ProviderStore:

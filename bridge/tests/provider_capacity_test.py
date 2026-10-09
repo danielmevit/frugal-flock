@@ -323,9 +323,12 @@ class StateRefusalTests(FakeServer):
         bad_entry['providers']['codex']['codex']['buckets']['codex']['windows']['primary']['used_percent'] = 'x'
         forged = json.loads(json.dumps(good))
         forged['providers']['codex']['codex']['source'] = 'manual'
+        malformed_reason = json.loads(json.dumps(good))
+        malformed_reason['providers']['codex']['codex'].update(
+            state='unknown', reason=[], account_kind=None, observed_at=None, buckets=None)
         for raw in (b'{not json', b'{"schema_version": 1, "schema_version": 1, "providers": {}}',
                     b'{"schema_version": 1, "providers": {"claude": {}}}', json.dumps(bad_entry).encode(),
-                    json.dumps(forged).encode(), b' ' * (pc.MAX_STATE_BYTES + 1)):
+                    json.dumps(forged).encode(), json.dumps(malformed_reason).encode(), b' ' * (pc.MAX_STATE_BYTES + 1)):
             with self.subTest(raw=raw[:24]):
                 self.state.write_bytes(raw)
                 with self.assertRaises(CapacityError):
