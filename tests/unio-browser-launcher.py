@@ -18,8 +18,11 @@ import time
 import unittest
 
 SOURCE = Path(__file__).resolve().parent.parent
-PAYLOAD = {p.name: p.read_bytes() for p in (SOURCE / 'bridge').iterdir()
-           if p.suffix in {'.py', '.js', '.css', '.html'}}
+# The fixed browser payload; capacity.py is packaged separately (embed-capacity.py).
+BROWSER_FILES = ('server.py', 'launcher.py', 'progress.py', 'worker_files.py',
+                 'plan_store.py', 'job_store.py', 'execution_service.py', 'index.html',
+                 'activity.js', 'activity.css', 'drafts.js', 'jobs.js', 'worker_console.js')
+PAYLOAD = {name: (SOURCE / 'bridge' / name).read_bytes() for name in BROWSER_FILES}
 
 
 class BrowserLauncherTests(unittest.TestCase):
@@ -112,6 +115,7 @@ class BrowserLauncherTests(unittest.TestCase):
 
     def test_standalone_bytes_and_shell(self):
         self.assertEqual(len(PAYLOAD), 13)
+        self.assertEqual(sorted(p.name for p in self.payload.iterdir()), sorted(BROWSER_FILES))
         for name, raw in PAYLOAD.items():
             self.assertEqual((self.payload / name).read_bytes(), raw, name)
         subprocess.run(['bash', '-n', str(self.engine)], check=True)

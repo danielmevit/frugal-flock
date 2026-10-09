@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE.
 """Record and show manual capacity readings for one selected project.
 
-Standalone source-only tool: no provider, model, network or auth request.
+Runs from the source tree or as the installed `unio capacity` payload; it
+makes no provider, model, network or auth request.
 """
 import argparse
 import json
@@ -30,21 +31,23 @@ def _number(text):
         raise argparse.ArgumentTypeError(f'not a number: {text!r}') from None
 
 
-def _parser():
+def _parser(prog):
+    # No abbreviations: `unio capacity` must see an explicit --project exactly.
     parser = argparse.ArgumentParser(
-        prog='capacity-readings.py',
+        prog=prog, allow_abbrev=False,
         description='Manual capacity readings under PROJECT/coord/capacity/readings.json. '
                     'Never calls a provider; the source is always "manual".')
     parser.add_argument('--project', required=True, metavar='PATH', help='selected project directory')
     commands = parser.add_subparsers(dest='command', required=True)
-    record = commands.add_parser('record', help='record one manual reading for one window')
+    record = commands.add_parser('record', help='record one manual reading for one window',
+                                 allow_abbrev=False)
     record.add_argument('--group', required=True, help='opaque shared-budget label')
     record.add_argument('--window', required=True, help='opaque window label, e.g. five-hour')
     record.add_argument('--window-minutes', required=True, type=_integer, help='window length in minutes')
     record.add_argument('--remaining-percent', required=True, type=_number, help='0 through 100')
     record.add_argument('--observed-at', required=True, help='timezone-aware ISO 8601 time')
     record.add_argument('--reset-at', help='optional timezone-aware ISO 8601 reset time')
-    show = commands.add_parser('show', help='show readings and their freshness')
+    show = commands.add_parser('show', help='show readings and their freshness', allow_abbrev=False)
     show.add_argument('--group', help='only this shared-budget label (Unknown when absent)')
     show.add_argument('--json', action='store_true', help='print normalized JSON')
     show.add_argument('--max-age-seconds', type=_integer, default=DEFAULT_MAX_AGE,
@@ -77,8 +80,8 @@ def _text(view):
     return '\n'.join(lines)
 
 
-def main(argv=None):
-    args = _parser().parse_args(argv)
+def main(argv=None, prog='capacity-readings.py'):
+    args = _parser(prog).parse_args(argv)
     try:
         store = CapacityStore(args.project)
         if args.command == 'record':
@@ -88,7 +91,7 @@ def main(argv=None):
             return 0
         view = store.show(args.group, args.max_age_seconds)
     except (CapacityError, OSError) as error:
-        print(f'capacity-readings: refused: {error}', file=sys.stderr)
+        print(f'{prog.removesuffix(".py")}: refused: {error}', file=sys.stderr)
         return 1
     print(json.dumps(view, indent=2) if args.json else _text(view))
     return 1 if view['state'] == 'invalid' else 0

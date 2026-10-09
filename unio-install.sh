@@ -6408,6 +6408,459 @@ cat > "$CONF_DIR/lib/browser/worker_console.js" <<'UNIO_BROWSER_WORKER_CONSOLE_J
 })();
 UNIO_BROWSER_WORKER_CONSOLE_JS
 # END EMBEDDED BROWSER
+# BEGIN EMBEDDED CAPACITY
+# Check every generated destination before replacing any capacity file.
+for capacity_dir in "$CONF_DIR/lib" "$CONF_DIR/lib/capacity" "$CONF_DIR/lib/capacity/bridge" "$CONF_DIR/lib/capacity/tools"; do
+  if [ -L "$capacity_dir" ] || { [ -e "$capacity_dir" ] && [ ! -d "$capacity_dir" ]; }; then
+    echo "unio: refusing unsafe capacity directory: $capacity_dir" >&2
+    exit 1
+  fi
+done
+for capacity_name in bridge/capacity.py tools/capacity-readings.py; do
+  capacity_file="$CONF_DIR/lib/capacity/$capacity_name"
+  if [ -L "$capacity_file" ] || { [ -e "$capacity_file" ] && { [ ! -f "$capacity_file" ] || [ "$(stat -c '%h' -- "$capacity_file")" != 1 ]; }; }; then
+    echo "unio: refusing unsafe capacity file: $capacity_file" >&2
+    exit 1
+  fi
+done
+mkdir -p "$CONF_DIR/lib/capacity/bridge" "$CONF_DIR/lib/capacity/tools"
+cat > "$CONF_DIR/lib/capacity/bridge/capacity.py" <<'UNIO_CAPACITY_STORE_PY'
+# Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit)
+# https://github.com/danielmevit/unio
+# SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
+"""Manual capacity readings under one selected project's coord/capacity/.
+
+Source-only foundation: no provider, model, network or auth request, no
+dispatch, benching, tier/mode change or retry. A reading is what a person
+saw at one time; it is never proof of current allowance once stale/expired.
+"""
+from datetime import datetime, timedelta, timezone
+import errno
+import fcntl
+import json
+import math
+import os
+import re
+import stat
+import uuid
+
+SCHEMA_VERSION = 1
+SOURCE = 'manual'
+STATE = 'readings.json'
+LOCK = '.readings.lock'
+MAX_STATE_BYTES = 65536
+MAX_GROUPS = 32
+MAX_WINDOWS = 8
+MAX_WINDOW_MINUTES = 366 * 24 * 60
+MAX_TIMESTAMP_CHARS = 64
+MAX_AGE_LIMIT = 366 * 24 * 3600
+DEFAULT_MAX_AGE = 900
+CLOCK_SKEW = timedelta(seconds=300)
+LABEL = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,63}')
+REQUIRED = {'source', 'window_minutes', 'remaining_percent', 'observed_at'}
+OPTIONAL = {'reset_at'}
+
+
+class CapacityError(ValueError):
+    """Refused input, unsafe path or unusable existing state."""
+
+
+def _now(now):
+    now = datetime.now(timezone.utc) if now is None else now
+    if not isinstance(now, datetime) or now.tzinfo is None:
+        raise CapacityError('now must be a timezone-aware datetime')
+    return now
+
+
+def validate_label(value, name='label'):
+    if not isinstance(value, str) or LABEL.fullmatch(value) is None:
+        raise CapacityError(f'{name} must be 1-64 ASCII letters, digits, ".", "_" or "-", '
+                            'starting with a letter or digit')
+    return value
+
+
+def validate_window_minutes(value):
+    if type(value) is not int or not 1 <= value <= MAX_WINDOW_MINUTES:
+        raise CapacityError(f'window minutes must be an integer from 1 through {MAX_WINDOW_MINUTES}')
+    return value
+
+
+def validate_percent(value):
+    if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 100:
+        raise CapacityError('remaining percent must be a finite number from 0 through 100')
+    return float(value)
+
+
+def parse_timestamp(value, name='timestamp'):
+    if not isinstance(value, str) or not value or len(value) > MAX_TIMESTAMP_CHARS:
+        raise CapacityError(f'{name} must be an ISO 8601 string of at most {MAX_TIMESTAMP_CHARS} characters')
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        raise CapacityError(f'{name} is not a valid ISO 8601 time') from None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise CapacityError(f'{name} must include a timezone offset')
+    return parsed.astimezone(timezone.utc)
+
+
+def validate_max_age(value):
+    if type(value) is not int or not 1 <= value <= MAX_AGE_LIMIT:
+        raise CapacityError(f'max age must be an integer number of seconds from 1 through {MAX_AGE_LIMIT}')
+    return value
+
+
+def _reading(window_minutes, remaining_percent, observed_at, reset_at, now):
+    """Validate one reading; ``now`` is None for already-stored readings."""
+    validate_window_minutes(window_minutes)
+    validate_percent(remaining_percent)
+    observed = parse_timestamp(observed_at, 'observed time')
+    if now is not None and observed > now + CLOCK_SKEW:
+        raise CapacityError('observed time is in the future')
+    reset = None
+    if reset_at is not None:
+        reset = parse_timestamp(reset_at, 'reset time')
+        if reset < observed:
+            raise CapacityError('reset time is before the observed time')
+        if reset > observed + timedelta(minutes=window_minutes) + CLOCK_SKEW:
+            raise CapacityError('reset time is further ahead than one window length after the observation')
+    return observed, reset
+
+
+def _strict_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise CapacityError('state contains a duplicate JSON key')
+        result[key] = value
+    return result
+
+
+def _reject_constant(name):
+    raise CapacityError(f'state contains non-finite number {name}')
+
+
+def _decode(raw):
+    if len(raw) > MAX_STATE_BYTES:
+        raise CapacityError(f'state exceeds {MAX_STATE_BYTES} bytes')
+    try:
+        text = raw.decode('utf-8')
+        data = json.loads(text, object_pairs_hook=_strict_object, parse_constant=_reject_constant)
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        raise CapacityError('state is not strict UTF-8 JSON') from None
+    return validate_state(data)
+
+
+def validate_state(data):
+    """Validate a whole loaded document; any defect makes all of it unusable."""
+    if not isinstance(data, dict) or set(data) != {'schema_version', 'groups'}:
+        raise CapacityError('state must contain exactly schema_version and groups')
+    if type(data['schema_version']) is not int or data['schema_version'] != SCHEMA_VERSION:
+        raise CapacityError('unsupported state schema_version')
+    groups = data['groups']
+    if not isinstance(groups, dict) or len(groups) > MAX_GROUPS:
+        raise CapacityError(f'groups must be an object with at most {MAX_GROUPS} entries')
+    for group, windows in groups.items():
+        validate_label(group, 'stored group')
+        if not isinstance(windows, dict) or not 1 <= len(windows) <= MAX_WINDOWS:
+            raise CapacityError(f'stored group {group} must hold 1 through {MAX_WINDOWS} windows')
+        for window, reading in windows.items():
+            validate_label(window, 'stored window')
+            if (not isinstance(reading, dict) or not REQUIRED <= set(reading)
+                    or not set(reading) <= REQUIRED | OPTIONAL):
+                raise CapacityError(f'stored reading {group}/{window} has unexpected fields')
+            if reading['source'] != SOURCE:
+                raise CapacityError(f'stored reading {group}/{window} has unsupported source')
+            _reading(reading['window_minutes'], reading['remaining_percent'],
+                     reading['observed_at'], reading.get('reset_at'), None)
+    return data
+
+
+class CapacityStore:
+    """Readings for one owner-selected project; every path step refuses symlinks."""
+    def __init__(self, project):
+        path = os.path.abspath(os.fspath(project))
+        if os.path.realpath(path) != path:
+            raise CapacityError('project must be a real path without symlinks')
+        if not os.path.isdir(path):
+            raise CapacityError('project must be an existing directory')
+        self.project = path
+
+    def _open_directory(self, create):
+        """Return a descriptor for coord/capacity, or None when absent and not creating."""
+        try:
+            current = os.open(self.project, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        except OSError as error:
+            raise CapacityError(f'cannot open project: {error.strerror}') from None
+        try:
+            for name in ('coord', 'capacity'):
+                if create:
+                    try:
+                        os.mkdir(name, mode=0o700, dir_fd=current)
+                    except FileExistsError:
+                        pass
+                try:
+                    child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
+                except FileNotFoundError:
+                    if create:
+                        raise
+                    return None
+                except OSError as error:
+                    if error.errno in (errno.ELOOP, errno.ENOTDIR):
+                        raise CapacityError(f'{name} must be a real directory, not a symlink or file') from None
+                    raise
+                os.close(current)
+                current = child
+            result, current = current, None
+            return result
+        finally:
+            if current is not None:
+                os.close(current)
+
+    @staticmethod
+    def _read(directory):
+        """Return validated state, or None when no state file exists."""
+        try:
+            descriptor = os.open(STATE, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        except FileNotFoundError:
+            return None
+        except OSError as error:
+            if error.errno == errno.ELOOP:
+                raise CapacityError('state file must not be a symlink') from None
+            raise
+        with os.fdopen(descriptor, 'rb') as source:
+            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                raise CapacityError('state file must be a regular file')
+            raw = source.read(MAX_STATE_BYTES + 1)
+        return _decode(raw)
+
+    @staticmethod
+    def _lock(directory):
+        try:
+            descriptor = os.open(LOCK, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK,
+                                 0o600, dir_fd=directory)
+        except OSError as error:
+            if error.errno == errno.ELOOP:
+                raise CapacityError('lock file must not be a symlink') from None
+            raise
+        try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise CapacityError('lock file must be a regular file')
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+        except BaseException:
+            os.close(descriptor)
+            raise
+        return descriptor
+
+    @staticmethod
+    def _write(directory, data):
+        raw = (json.dumps(data, ensure_ascii=True, sort_keys=True, indent=2, allow_nan=False) + '\n').encode()
+        if len(raw) > MAX_STATE_BYTES:
+            raise CapacityError(f'state would exceed {MAX_STATE_BYTES} bytes')
+        temporary = f'.readings.{uuid.uuid4().hex}.tmp'
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             0o600, dir_fd=directory)
+        try:
+            with os.fdopen(descriptor, 'wb') as output:
+                output.write(raw)
+                output.flush()
+                os.fsync(output.fileno())
+            # rename() replaces the directory entry itself and never follows it.
+            os.replace(temporary, STATE, src_dir_fd=directory, dst_dir_fd=directory)
+            os.fsync(directory)
+        finally:
+            try:
+                os.unlink(temporary, dir_fd=directory)
+            except FileNotFoundError:
+                pass
+
+    def record(self, group, window, window_minutes, remaining_percent, observed_at, reset_at=None, now=None):
+        """Merge one manual reading; refusals leave existing state bytes untouched."""
+        now = _now(now)
+        validate_label(group, 'group')
+        validate_label(window, 'window')
+        observed, reset = _reading(window_minutes, remaining_percent, observed_at, reset_at, now)
+        reading = {'source': SOURCE, 'window_minutes': window_minutes,
+                   'remaining_percent': float(remaining_percent), 'observed_at': observed.isoformat()}
+        if reset is not None:
+            reading['reset_at'] = reset.isoformat()
+        directory = self._open_directory(create=True)
+        try:
+            lock = self._lock(directory)
+            try:
+                data = self._read(directory) or {'schema_version': SCHEMA_VERSION, 'groups': {}}
+                groups = data['groups']
+                if group not in groups and len(groups) >= MAX_GROUPS:
+                    raise CapacityError(f'refusing more than {MAX_GROUPS} groups')
+                windows = groups.setdefault(group, {})
+                if window not in windows and len(windows) >= MAX_WINDOWS:
+                    raise CapacityError(f'refusing more than {MAX_WINDOWS} windows per group')
+                previous = windows.get(window)
+                if previous is not None:
+                    stored = parse_timestamp(previous['observed_at'])
+                    if observed == stored:
+                        raise CapacityError('duplicate reading: this window already has that observed time')
+                    if observed < stored:
+                        raise CapacityError('refusing a reading older than the stored one for this window')
+                windows[window] = reading
+                self._write(directory, data)
+            finally:
+                os.close(lock)
+        finally:
+            os.close(directory)
+        return reading
+
+    def show(self, group=None, max_age_seconds=DEFAULT_MAX_AGE, now=None):
+        """Normalized view; only a fresh valid reading has a usable remaining value."""
+        now = _now(now)
+        validate_max_age(max_age_seconds)
+        if group is not None:
+            validate_label(group, 'group')
+        view = {'schema_version': SCHEMA_VERSION, 'checked_at': now.astimezone(timezone.utc).isoformat(),
+                'max_age_seconds': max_age_seconds, 'state': 'missing', 'error': None, 'groups': {}}
+        data = None
+        directory = self._open_directory(create=False)
+        if directory is not None:
+            try:
+                data = self._read(directory)
+            except CapacityError as error:
+                view['state'], view['error'] = 'invalid', str(error)
+            finally:
+                os.close(directory)
+        if data is not None:
+            view['state'] = 'ok'
+        stored = data['groups'] if data else {}
+        for name in [group] if group is not None else sorted(stored):
+            windows = stored.get(name)
+            if not windows:
+                view['groups'][name] = {'status': 'unknown', 'windows': {}}
+                continue
+            view['groups'][name] = {'status': 'recorded', 'windows': {
+                window: _window_view(windows[window], max_age_seconds, now) for window in sorted(windows)}}
+        return view
+
+
+def _window_view(reading, max_age_seconds, now):
+    observed = parse_timestamp(reading['observed_at'])
+    reset = parse_timestamp(reading['reset_at']) if 'reset_at' in reading else None
+    age = (now - observed).total_seconds()
+    if observed > now + CLOCK_SKEW:
+        status = 'unknown'
+    elif (reset is not None and now >= reset) or age >= reading['window_minutes'] * 60:
+        status = 'expired'
+    elif age > max_age_seconds:
+        status = 'stale'
+    else:
+        status = 'fresh'
+    return {'source': reading['source'], 'window_minutes': reading['window_minutes'],
+            'observed_at': reading['observed_at'], 'age_seconds': round(age, 3),
+            'reset_at': reading.get('reset_at'), 'status': status,
+            'last_reading_remaining_percent': reading['remaining_percent'],
+            'usable_remaining_percent': reading['remaining_percent'] if status == 'fresh' else None}
+UNIO_CAPACITY_STORE_PY
+cat > "$CONF_DIR/lib/capacity/tools/capacity-readings.py" <<'UNIO_CAPACITY_CLI_PY'
+#!/usr/bin/env python3
+# Unio — Copyright (C) 2026 Daniel Mitev
+# SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE.
+"""Record and show manual capacity readings for one selected project.
+
+Runs from the source tree or as the installed `unio capacity` payload; it
+makes no provider, model, network or auth request.
+"""
+import argparse
+import json
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from bridge.capacity import DEFAULT_MAX_AGE, CapacityError, CapacityStore  # noqa: E402
+
+
+def _integer(text):
+    try:
+        return int(text, 10)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f'not a whole number: {text!r}') from None
+
+
+def _number(text):
+    try:
+        return float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f'not a number: {text!r}') from None
+
+
+def _parser(prog):
+    # No abbreviations: `unio capacity` must see an explicit --project exactly.
+    parser = argparse.ArgumentParser(
+        prog=prog, allow_abbrev=False,
+        description='Manual capacity readings under PROJECT/coord/capacity/readings.json. '
+                    'Never calls a provider; the source is always "manual".')
+    parser.add_argument('--project', required=True, metavar='PATH', help='selected project directory')
+    commands = parser.add_subparsers(dest='command', required=True)
+    record = commands.add_parser('record', help='record one manual reading for one window',
+                                 allow_abbrev=False)
+    record.add_argument('--group', required=True, help='opaque shared-budget label')
+    record.add_argument('--window', required=True, help='opaque window label, e.g. five-hour')
+    record.add_argument('--window-minutes', required=True, type=_integer, help='window length in minutes')
+    record.add_argument('--remaining-percent', required=True, type=_number, help='0 through 100')
+    record.add_argument('--observed-at', required=True, help='timezone-aware ISO 8601 time')
+    record.add_argument('--reset-at', help='optional timezone-aware ISO 8601 reset time')
+    show = commands.add_parser('show', help='show readings and their freshness', allow_abbrev=False)
+    show.add_argument('--group', help='only this shared-budget label (Unknown when absent)')
+    show.add_argument('--json', action='store_true', help='print normalized JSON')
+    show.add_argument('--max-age-seconds', type=_integer, default=DEFAULT_MAX_AGE,
+                      help=f'fresh/stale boundary (default {DEFAULT_MAX_AGE})')
+    return parser
+
+
+def _percent(value):
+    return 'none' if value is None else f'{value:g}%'
+
+
+def _text(view):
+    lines = [f'Readings: {view["state"]} (checked {view["checked_at"]}, '
+             f'fresh within {view["max_age_seconds"]}s)']
+    if view['error']:
+        lines.append(f'  State refused: {view["error"]}')
+    if not view['groups']:
+        lines.append('  No groups recorded; capacity is Unknown.')
+    for group, entry in view['groups'].items():
+        lines.append(f'Group {group}:')
+        if entry['status'] == 'unknown':
+            lines.append('  Unknown: no valid reading.')
+        for window, reading in entry['windows'].items():
+            lines += [f'  Window {window} ({reading["window_minutes"]} min): {reading["status"]}',
+                      f'    Source: {reading["source"]}',
+                      f'    Observed: {reading["observed_at"]} (age {reading["age_seconds"]:.0f}s)',
+                      f'    Reset: {reading["reset_at"] or "not recorded"}',
+                      f'    Last reading: {_percent(reading["last_reading_remaining_percent"])} remaining',
+                      f'    Usable now: {_percent(reading["usable_remaining_percent"])}']
+    return '\n'.join(lines)
+
+
+def main(argv=None, prog='capacity-readings.py'):
+    args = _parser(prog).parse_args(argv)
+    try:
+        store = CapacityStore(args.project)
+        if args.command == 'record':
+            reading = store.record(args.group, args.window, args.window_minutes, args.remaining_percent,
+                                   args.observed_at, args.reset_at)
+            print(f'Recorded manual reading {args.group}/{args.window} observed {reading["observed_at"]}.')
+            return 0
+        view = store.show(args.group, args.max_age_seconds)
+    except (CapacityError, OSError) as error:
+        print(f'{prog.removesuffix(".py")}: refused: {error}', file=sys.stderr)
+        return 1
+    print(json.dumps(view, indent=2) if args.json else _text(view))
+    return 1 if view['state'] == 'invalid' else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
+UNIO_CAPACITY_CLI_PY
+# END EMBEDDED CAPACITY
 
 # Remove only copies and links owned by the legacy installer.
 legacy_commands=(frugal-flock frgl-flc agentteam)
@@ -7162,7 +7615,7 @@ cat > "$BIN_DIR/unio" <<'UNIO_BIN_EOF'
 #   PROJECT/coord/    board.md, base, docs/, tasks/, reports/, blockers.md, STOP
 set -euo pipefail
 
-UNIO_VERSION="0.5.5"
+UNIO_VERSION="0.5.6"
 CONF_DIR="${UNIO_CONF_DIR:-$HOME/.config/unio}"
 CONF_FILE="$CONF_DIR/agents.conf"
 TPL_DIR="$CONF_DIR/templates"
@@ -12740,6 +13193,42 @@ cmd_browser() {
   exec python3 -B "$browser_dir/launcher.py" "$engine" "$project" "$UNIO_VERSION" "$@"
 }
 
+# --------------------------------------------------------------- capacity
+cmd_capacity() { # manual allowance readings; never calls a provider
+  command -v python3 >/dev/null || die "capacity requires Python 3.9 or newer"
+  local cli="$CONF_DIR/lib/capacity/tools/capacity-readings.py" root="" arg explicit=false asks_help=false
+  [ -f "$cli" ] && [ -f "$CONF_DIR/lib/capacity/bridge/capacity.py" ] \
+    || die "capacity files missing; rerun the matching Unio installer"
+  [ $# -gt 0 ] || set -- --help
+  # Only leading options belong to capacity itself; the CLI rejects the rest.
+  for arg in "$@"; do
+    case "$arg" in
+      --project|--project=*) explicit=true; break;;
+      -h|--help) asks_help=true;;
+      -*) ;;
+      *) break;;
+    esac
+  done
+  for arg in "$@"; do
+    case "$arg" in -h|--help) asks_help=true;; esac
+  done
+  if ! $explicit; then
+    if root=$(find_root); then
+      # The store refuses symlinked paths; select the same root physically.
+      root=$(cd -- "$root" && pwd -P) || die "capacity: project directory unavailable"
+      set -- --project "$root" "$@"
+    elif ! $asks_help; then
+      die "capacity: no Unio workspace (coord/ and wt/) found above $PWD; pass --project PATH to select a project directory"
+    fi
+  fi
+  # Isolated, no site or user paths: the installed tree is the only import source.
+  exec python3 -I -S -B -c 'import importlib.util, sys
+spec = importlib.util.spec_from_file_location("unio_capacity_cli", sys.argv[1])
+cli = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(cli)
+sys.exit(cli.main(sys.argv[2:], prog="unio capacity"))' "$cli" "$@"
+}
+
 # ------------------------------------------------------------------ score
 cmd_score() { # fleet scorecard straight from the ledger; myapp = full view
   local root="${1:-}"
@@ -13323,6 +13812,12 @@ setup / health
   unio browser [--project DIR]  launch the installed local browser workspace;
                                      read-only by default, same CLI/config;
                                      use --help for explicit startup grants
+  unio capacity [--project DIR] record|show
+                                     manual allowance readings per shared
+                                     budget group: record what you saw (age,
+                                     reset); show reports fresh/stale/expired
+                                     or Unknown, never guessed. No provider
+                                     call. --help for options
   unio agents [--json]          list agents: binary found? on/off? Local
                                      only: never signs in, probes quota or runs
                                      a configured command. --json: schema 1,
@@ -13497,6 +13992,7 @@ case "${1:-help}" in
   agents)   shift; cmd_agents "$@";;
   watch)    shift; cmd_watch "$@";;
   browser)  shift; cmd_browser "$@";;
+  capacity) shift; cmd_capacity "$@";;
   off)      shift; cmd_off "$@";;
   on)       shift; cmd_on "$@";;
   smoke)    shift; cmd_smoke "$@";;
@@ -15651,7 +16147,7 @@ cat > "$COMP_DIR/unio" <<'COMPLETION_EOF'
 _unio() {
   local cur cmd root d cmds
   cur="${COMP_WORDS[COMP_CWORD]}"
-  cmds="new init run verify result handoff save diff sync review race sabotage score doctor tail kill report status mode tier lead account policy agents watch browser off on smoke selftest stop resume allow-retry version license help"
+  cmds="new init run verify result handoff save diff sync review race sabotage score doctor tail kill report status mode tier lead account policy agents watch browser capacity off on smoke selftest stop resume allow-retry version license help"
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ); return
   fi
@@ -15669,6 +16165,12 @@ _unio() {
   case "$cmd" in
     browser) COMPREPLY=( $(compgen -W "--project --port --observer-timeout --open-browser --enable-plan-drafts --enable-execution --enable-progress-output --progress-binding --progress-worker --enable-worker-files --files-worker --worker --reviewer --worker-company --reviewer-company --config-dir --task-template --help" -- "$cur") );;
     watch) COMPREPLY=( $(compgen -W "--once --json --interval" -- "$cur") );;
+    capacity)
+      case "${COMP_WORDS[COMP_CWORD-1]}" in
+        record) COMPREPLY=( $(compgen -W "--group --window --window-minutes --remaining-percent --observed-at --reset-at --help" -- "$cur") );;
+        show) COMPREPLY=( $(compgen -W "--group --json --max-age-seconds --help" -- "$cur") );;
+        *) COMPREPLY=( $(compgen -W "--project record show --help" -- "$cur") );;
+      esac;;
     allow-retry) COMPREPLY=( $(compgen -W "$tasks" -- "$cur") );;
     run)
       if [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=( $(compgen -W "-b $workers" -- "$cur") )
