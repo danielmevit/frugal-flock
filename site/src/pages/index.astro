@@ -52,14 +52,12 @@ const legend = [
 
 // AIs that ship their own command-line tool, plus OpenCode. Anything else with
 // a CLI joins the same way, which the last (open) slot says.
-const agents: { name: string; mark: string; note?: string }[] = [
+const agents = [
   { name: "Claude Code", mark: "claude" },
   { name: "Codex", mark: "openai" },
-  { name: "Gemini CLI", mark: "gemini" },
   { name: "Antigravity", mark: "antigravity" },
   { name: "Grok", mark: "grok" },
-  // An optional adapter run from the source checkout, not in the installer.
-  { name: "Mistral Vibe", mark: "mistral", note: "Optional" },
+  { name: "Mistral Vibe", mark: "mistral" },
   { name: "Kimi Code", mark: "kimi" },
   { name: "Qwen Code", mark: "qwen" },
   { name: "MiniMax Code", mark: "minimax" },
@@ -156,7 +154,7 @@ const faqs = [
   },
   {
     q: "Which AI tools do I need?",
-    a: "One is enough to start. Settings are included for Claude Code, Codex, Antigravity, OpenCode (for models such as GLM and Kimi) and Grok. Optional adapters connect Mistral Vibe workers and Perplexity research. Any command-line AI that can take a task without a chat window can join with one line of configuration.",
+    a: "One is enough to start. Settings are included for Claude Code, Codex, Antigravity, OpenCode (for models such as GLM and Kimi) and Grok. Adapters connect Mistral Vibe workers and Perplexity research. Any command-line AI that can take a task without a chat window can join with one line of configuration.",
   },
   {
     q: "Does it work on Windows or Mac?",
@@ -237,9 +235,10 @@ const faqs = [
           <p class="micro">Free and open source</p>
           <h1 id="hero-title">YOUR AIs, <br />IN SYNC.</h1>
           <p class="lead">
-            Unio brings AI agents from different AI labs together to build and
-            improve your project. A lead delegates the work, other agents review
-            the changes, and you stay in control.
+            <span>Unio brings AI agents from different AI labs together to build
+            and improve your project.</span>
+            <span>A lead delegates the work, other agents review the changes, and
+            you stay in control.</span>
           </p>
           <div class="actions">
             <a class="btn btn-on" href="#install">Install Unio</a>
@@ -296,7 +295,6 @@ const faqs = [
         <ul class="slots">
           {agents.map((a) => (
             <li class="slot">
-              {a.note && <span class="slot-note">{a.note}</span>}
               <svg viewBox="0 0 24 24" aria-hidden="true" fill-rule={evenOdd.has(a.mark) ? "evenodd" : undefined}>{marks[a.mark].map((d) => <path d={d} />)}</svg>
               <span class="slot-name">{a.name}</span>
             </li>
@@ -308,8 +306,7 @@ const faqs = [
         </ul>
         <p class="roster-note">
           If an AI can take a task from the terminal without a chat window, one
-          line of configuration adds it to your team. Mistral Vibe connects
-          through an optional adapter.
+          line of configuration adds it to your team.
         </p>
       </section>
 
@@ -623,6 +620,9 @@ const faqs = [
     letter-spacing: -0.01em;
   }
   .lead { margin-top: 20px; color: var(--label); max-width: 46ch; }
+  /* Each sentence starts on its own line, so no word is left dangling. */
+  .lead span { display: block; }
+  p { text-wrap: pretty; }
   .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
   .readouts {
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -677,7 +677,8 @@ const faqs = [
   .rule { flex: 1; min-width: 24px; height: 1px; background: var(--line); align-self: center; }
   .count { color: var(--muted); white-space: nowrap; }
 
-  /* Roster of agents: twelve slots, one even row when wide */
+  /* Roster: ten agents and an open slot two columns wide, so 12 / 6 / 3
+     columns always fill evenly */
   .slots { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); margin: 0; padding: 0; list-style: none; }
   .slot {
     position: relative;
@@ -689,12 +690,8 @@ const faqs = [
   .slot svg { width: 32%; max-width: 64px; height: auto; fill: currentColor; }
   .slot-name { font-size: 0.6rem; text-align: center; line-height: 1.2; color: var(--text); }
   .slot:hover { background: var(--raised); color: var(--text); }
-  .slot-note {
-    position: absolute; top: 6px; right: 6px;
-    padding: 1px 5px; background: var(--chip); color: var(--label);
-    font-family: var(--mono); font-size: 0.55rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-  }
   .slot-empty {
+    grid-column: span 2; aspect-ratio: auto;
     border-style: dashed; border-color: var(--line-alt);
     background: repeating-linear-gradient(135deg, transparent 0 7px, rgba(255, 255, 255, 0.035) 7px 8px);
   }
