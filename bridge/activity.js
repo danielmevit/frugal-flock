@@ -281,18 +281,22 @@
   };
 
   function taskSignal(r, verdict) {
+    if (verdict.category === "active") return "active";
     if (["process", "validation", "review"].some(name => sectionState(r, name) === "failed")) return "failed";
-    return verdict.category === "finished" ? "passed" : verdict.category === "active" ? "active" : "attention";
+    return verdict.category === "finished" ? "passed" : "attention";
   }
   function summarySignal(records, categories) {
-    const signals = records.map(r => taskSignal(r, categories.get(r)));
-    return ["failed", "attention", "active", "passed"].find(signal => signals.includes(signal)) || "none";
+    // A grouping node is not a process. Old failures must not masquerade as
+    // project health or obscure a worker's current activity.
+    return records.some(r => categories.get(r).category === "active") ? "active" : "none";
   }
-  const SIGNAL_TEXT = {
-    failed: "Recorded failure", attention: "Needs attention", active: "Active",
-    passed: "Checks passed and review approved", none: "No task evidence",
-  };
-
+  function historySummary(records, categories) {
+    const active = records.filter(r => categories.get(r).category === "active").length;
+    const failed = records.filter(r => ["process", "validation", "review"].some(name => sectionState(r, name) === "failed")).length;
+    return active + " active " + (active === 1 ? "task" : "tasks") + "; "
+      + failed + " recorded task " + (failed === 1 ? "failure" : "failures")
+      + " in history. This is an activity summary, not project health.";
+  }
   function mapLayer(svg, name) {
     let layer = svg.querySelector(':scope > g[data-layer="' + name + '"]');
     if (!layer) {
@@ -572,8 +576,17 @@
     if (mapWorkerFilter && !data.results.some((r) => r.worker === mapWorkerFilter))
       counts += " · worker " + mapWorkerFilter + " is not in the current observation";
     setText(countsSpan, counts);
+    setText(document.getElementById("map-activity"), tally.active
+      ? tally.active + " active " + (tally.active === 1 ? "task" : "tasks") + " · Running tasks appear first. Choose Active to focus on them."
+      : "No recorded workers are running. These nodes show task history and outstanding checks or reviews. Lead CLI activity is not shown here.");
+    const empty = document.getElementById("map-empty");
+    empty.hidden = filtered.length !== 0;
+    setText(empty, mapStateFilter === "active" ? "No active tasks match these filters." : "No tasks match these filters.");
 
     filtered.sort((a, b) => {
+      const rank = { active: 0, attention: 1, finished: 2 };
+      const priority = rank[categories.get(a).category] - rank[categories.get(b).category];
+      if (priority) return priority;
       if (a.worker !== b.worker) return a.worker < b.worker ? -1 : 1;
       return a.task < b.task ? -1 : a.task > b.task ? 1 : 0;
     });
@@ -592,38 +605,39 @@
       setText(pageInfo, "");
     }
 
-    const workers = Array.from(new Set(pageTasks.map((r) => r.worker))).sort();
+    // First appearance preserves active-first priority across worker lanes.
+    const workers = Array.from(new Set(pageTasks.map((r) => r.worker)));
     const nodes = [];
     const links = [];
-    const hub = { key: HUB_KEY, kind: "hub", label: "Project hub", x: 0, y: 0 };
+    const hub = { key: HUB_KEY, kind: "hub", label: "Project hub", x: -420, y: 0 };
     nodes.push(hub);
-    const workerRadius = Math.max(200, workers.length * 190 / (2 * Math.PI));
-    workers.forEach((w, workerIndex) => {
-      const angle = -Math.PI / 2 + workerIndex * 2 * Math.PI / workers.length;
-      const ux = Math.cos(angle), uy = Math.sin(angle);
-      const own = pageTasks.filter((r) => r.worker === w);
+    const lanes = workers.map(w => {
+      const own = pageTasks.filter(r => r.worker === w);
+      const columns = Math.min(4, own.length);
+      const rows = Math.ceil(own.length / columns);
+      return { w, own, columns, height: Math.max(112, rows * 88) };
+    });
+    let laneTop = -lanes.reduce((sum, lane) => sum + lane.height, 0) / 2;
+    lanes.forEach(({ w, own, columns, height }) => {
+      const center = laneTop + height / 2;
       const workerNode = { key: workerKey(w), kind: "worker", label: w, worker: w,
-        x: ux * workerRadius, y: uy * workerRadius, count: own.length };
+        x: -180, y: center, count: own.length };
       nodes.push(workerNode);
       links.push([hub, workerNode]);
-      // Keep each ownership branch inside its sector. Additional rows grow
-      // outward, with a bounded grid for a worker that owns most of the page.
-      const halfSector = Math.min(Math.PI / 3, Math.PI / workers.length) * 0.7;
-      const sectorColumns = Math.max(1, Math.floor(2 * (workerRadius + 260) * Math.tan(halfSector) / 190) + 1);
-      const columns = Math.min(5, Math.ceil(Math.sqrt(own.length)), sectorColumns);
+      const rows = Math.ceil(own.length / columns);
       own.forEach((r, index) => {
         const row = Math.floor(index / columns);
-        const rowCount = Math.min(columns, own.length - row * columns);
-        const tangent = (index % columns - (rowCount - 1) / 2) * 190;
-        const radius = workerRadius + 260 + row * 190;
         const taskNode = { key: taskKey(r.worker, r.task), kind: "task", label: r.task,
-          worker: r.worker, task: r.task, x: ux * radius - uy * tangent,
-          y: uy * radius + ux * tangent, data: r, verdict: categories.get(r) };
+          worker: r.worker, task: r.task, x: 80 + (index % columns) * 190,
+          y: center + (row - (rows - 1) / 2) * 88, data: r, verdict: categories.get(r) };
         nodes.push(taskNode);
         links.push([workerNode, taskNode]);
       });
+      laneTop += height;
     });
 
+    const centerX = (Math.min(...nodes.map(n => n.x)) + Math.max(...nodes.map(n => n.x))) / 2;
+    for (const n of nodes) n.x -= centerX;
     mapBounds = { x: Math.max(...nodes.map((n) => Math.abs(n.x))) + 110,
       y: Math.max(...nodes.map((n) => Math.abs(n.y))) + 56 };
     applyMapPresentation();
@@ -631,11 +645,14 @@
     const linkLayer = mapLayer(svg, "links");
     const nodeLayer = mapLayer(svg, "nodes");
     linkLayer.replaceChildren(...links.map(([src, tgt]) => {
-      const line = document.createElementNS(SVG_NS, "line");
-      line.setAttribute("x1", src.x);
-      line.setAttribute("y1", src.y);
-      line.setAttribute("x2", tgt.x);
-      line.setAttribute("y2", tgt.y);
+      const line = document.createElementNS(SVG_NS, "path");
+      const start = src.x + 80, end = tgt.x - 80, bend = (start + end) / 2;
+      // Task branches use the gaps above each row rather than crossing cards.
+      line.setAttribute("d", tgt.kind === "task"
+        ? "M " + start + " " + src.y + " H " + (start + 60) + " V " + (tgt.y - 40)
+          + " H " + (end - 24) + " V " + tgt.y + " H " + end
+        : "M " + start + " " + src.y + " C " + bend + " " + src.y + ", " + bend + " " + tgt.y + ", " + end + " " + tgt.y);
+      line.setAttribute("fill", "none");
       line.setAttribute("stroke", "var(--line-alt)");
       line.setAttribute("stroke-width", "2");
       line.setAttribute("vector-effect", "non-scaling-stroke");
@@ -671,7 +688,8 @@
         const facts = "process " + label(sectionState(r, "process")) + ", validation " + label(sectionState(r, "validation")) + ", review " + label(sectionState(r, "review"));
         aria = "Task " + r.task + " on worker " + r.worker + ". " + (n.verdict.category === "finished" ? "Finished" : CATEGORY_TEXT[n.verdict.category]) + ": " + facts + ".";
         description = r.worker + " / " + r.task + "\nProcess: " + sectionState(r, "process") + "\nValidation: " + sectionState(r, "validation") + "\nReview: " + sectionState(r, "review");
-        stateText = sectionState(r, "process") !== "succeeded" ? sectionState(r, "process") : (sectionState(r, "validation") !== "passed" ? sectionState(r, "validation") : sectionState(r, "review"));
+        stateText = n.verdict.category === "active" ? "RUNNING NOW" : n.verdict.category === "finished" ? "Finished"
+          : sectionState(r, "process") !== "succeeded" ? sectionState(r, "process") : (sectionState(r, "validation") !== "passed" ? sectionState(r, "validation") : sectionState(r, "review"));
         g.dataset.category = n.verdict.category;
       }
       if (n.kind !== "task") delete g.dataset.category;
@@ -679,14 +697,18 @@
         : summarySignal(n.kind === "worker" ? data.results.filter(r => r.worker === n.worker) : data.results, categories);
       g.dataset.signal = signal;
       if (n.kind !== "task") {
-        const summary = "Observed task summary: " + SIGNAL_TEXT[signal] + ".";
+        const records = n.kind === "worker" ? data.results.filter(r => r.worker === n.worker) : data.results;
+        const active = records.filter(r => categories.get(r).category === "active").length;
+        if (active) stateText = active + " active";
+        else if (n.kind === "hub") stateText = "0 active tasks";
+        const summary = historySummary(records, categories);
         aria += ". " + summary;
         description += "\n" + summary;
       }
       if (g.getAttribute("aria-label") !== aria) g.setAttribute("aria-label", aria);
       const rect = g.querySelector("rect");
-      rect.setAttribute("stroke", isSelected ? "var(--focus-ring)" : "var(--btn-border)");
-      rect.setAttribute("stroke-width", isSelected ? "3" : "1");
+      rect.setAttribute("stroke", isSelected ? "var(--focus-ring)" : signal === "active" ? "var(--text-main)" : "var(--btn-border)");
+      rect.setAttribute("stroke-width", isSelected ? "3" : signal === "active" ? "2.5" : "1");
       setText(g.querySelector("title"), description);
       setText(g.querySelector(".node-label"), n.label.length > 15 ? n.label.substring(0, 13) + "..." : n.label);
       setText(g.querySelector(".node-state"), stateText.length > 15 ? stateText.substring(0, 13) + "..." : stateText);
@@ -780,7 +802,7 @@
     const visible = isWorker ? pageTasks.filter(r => r.worker === selected.worker) : pageTasks;
     const details = detailsFor(selected.kind, root => {
       appendDetailsHeader(root);
-      for (const name of ["observed", "summary", "scope"]) {
+      for (const name of ["observed", "summary", "history", "scope"]) {
         const p = text("p", "", "small");
         p.dataset.field = name;
         root.appendChild(p);
@@ -798,6 +820,7 @@
     setText(field("scope"), visible.length + " tasks on this map page. "
       + (isWorker ? "Select a task node for its process, validation and review details."
         : "The hub groups workers and tasks; it has no task process or worker session of its own."));
+    setText(field("history"), historySummary(records, categories));
     const button = isWorker && Array.from(document.querySelectorAll("#console-workers button.console-worker"))
       .find(b => b.dataset.worker === selected.worker);
     updateConsoleControl(details, isWorker
@@ -913,6 +936,8 @@
     applyMapPresentation();
     clearDetails();
     setText(document.getElementById("map-counts"), "");
+    setText(document.getElementById("map-activity"), "");
+    document.getElementById("map-empty").hidden = true;
     document.getElementById("map-pagination").hidden = true;
     setText(document.getElementById("map-page-info"), "");
     document.getElementById("map-prev-page").disabled = true;

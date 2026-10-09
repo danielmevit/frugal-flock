@@ -826,18 +826,24 @@ Checks: `bridge/tests/work_map_browser.cjs`, the extended
 published official version remains 0.5.3.
 
 
-### Interactive radial viewport (BROWSER-MAP-VIEWPORT-1)
+### Interactive work flow (BROWSER-MAP-FLOW-1)
 
-The responsive map has a bounded canvas. Workers branch outward from the
-Project hub, with their recorded tasks further out on each ownership branch.
+The responsive map has a bounded canvas. Read left to right: **project →
+worker → task**. Workers occupy separate lanes, with compact rows of tasks.
 Connections represent ownership only; no lead, delegation or dependency is
 inferred. At most 24 tasks appear per page. Search, state/worker filters,
-finished history and List view remain available for larger projects.
+finished history and List view remain available for larger projects. Active
+tasks sort first, before pagination, and show **RUNNING NOW** with a strong
+neutral outline. Choose **Active** in the state filter to focus on running work.
+An explicit message appears when no recorded workers are running; the lead's
+CLI activity is not observed by this feed. Finished nodes are dimmed when
+history is shown, and return to full contrast on hover, focus or selection.
+Stale or unreviewed tasks remain attention states, even if their process ended.
 
 Use the **−** / **+** buttons to zoom from 5% to 300%. The percentage shows
 the current scale. Fit is a compact overview; zoom, filter or use List to read
 individual labels on dense pages and small screens. **Fit view** fits all nodes
-on the visible page and follows window resizing; **Reset 100%** returns to the hub at natural scale. Drag with
+on the visible page and follows window resizing; **Reset 100%** centers the map at natural scale. Drag with
 a mouse or one finger to pan. Hold the middle mouse button and drag to pan in
 either direction. Scrolling over the map zooms around the pointer; Ctrl/Command
 plus wheel also works. Scrolling outside the map scrolls the page normally.
@@ -855,12 +861,14 @@ Small right-edge status strips use terminal-style colors: green for process
 success with checks passed and review approved, red for a recorded process,
 validation or review failure, and yellow for other attention states (including
 requested changes, unknown or stale evidence). Active and no-evidence states
-use gray. Text labels and a legend accompany the colors; green is recorded
-evidence, not human acceptance. Worker and hub strips summarize all their
-observed tasks, including history: failure takes precedence, then attention,
-active and finished. Their accessible labels identify this as an observed summary.
+use neutral text emphasis and gray respectively. Text labels and a legend
+accompany the colors; green is recorded evidence, not human acceptance.
+Worker and hub grouping nodes show active counts or neutral idle status.
+They do not turn red for old task failures: those remain on individual tasks
+and are counted explicitly in the groups' accessible descriptions and details.
+Grouping nodes represent ownership and activity, not overall project health.
 Exact terminal theme colors are not read from the host.
 No external assets, UI package, provider call
 or backend permission was added. The Chromium suite covers camera controls,
 real pointer/touch input, ownership geometry, failure recovery and resizing.
-This is source for the next v0.5.4 release; published v0.5.3 is unchanged.
+This flow update is development source after the published v0.5.4 release.

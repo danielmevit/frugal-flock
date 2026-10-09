@@ -192,6 +192,9 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
       assert.ok(!tuples.some(([a, b]) => a === w && b === t), "finished hidden by default: " + w + " / " + t);
     const counts = await page.textContent("#map-counts");
     assert.ok(counts.includes("40 total tasks (37 need attention, 1 active, 2 finished)"), counts);
+    assert.deepEqual(tuples[0], ["worker-1", "TASK-10"], "running task sorts before historical failures");
+    assert.ok((await page.textContent('#map-activity')).startsWith('1 active task'));
+    assert.equal(await (await node(page, 'worker-1', 'TASK-10')).evaluate(g => g.querySelector('.node-state').textContent), 'RUNNING NOW');
     assert.equal(await page.evaluate(() => [...document.querySelectorAll("#work-map [data-category]")].filter((g) => g.dataset.task === "FAILED")[0].dataset.category), "attention");
     ok("failed/unknown/changes-requested/incomplete/completion-unknown/not-run tasks visible; only 2 passed+approved collapsed");
     for (const [worker, name, signal] of [["worker-1", "TASK-1", "failed"], ["worker", "FAILED", "failed"], ["worker-1", "TASK-10", "active"], ["worker", SCRIPT, "attention"], ["worker-2", "CHANGES", "attention"], ["worker-2", "UNRUN", "attention"]]) {
@@ -203,9 +206,11 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
           && getComputedStyle(line).strokeWidth === '3px' && line.getAttribute('vector-effect') === 'non-scaling-stroke';
       }));
     }
-    assert.equal(await page.locator('#work-map [data-kind="hub"]').getAttribute('data-signal'), 'failed');
-    assert.ok((await page.locator('#work-map [data-kind="hub"]').getAttribute('aria-label')).includes('Observed task summary: Recorded failure'));
-    ok("thin right-edge strips distinguish explicit failure, attention and active records; hub aggregate labelled truthfully");
+    assert.equal(await page.locator('#work-map [data-kind="hub"]').getAttribute('data-signal'), 'active');
+    assert.ok((await page.locator('#work-map [data-kind="hub"]').getAttribute('aria-label')).includes('recorded task failures in history'));
+    assert.ok((await page.locator('#work-map [data-kind="hub"]').getAttribute('aria-label')).includes('not project health'));
+    assert.equal(await page.locator('#work-map [data-kind="worker"][data-worker="worker-1"]').getAttribute('data-signal'), 'active');
+    ok("task strips retain failure evidence; running work takes precedence on grouping nodes without a red health claim");
     await page.click("#map-next-page");
     assert.equal((await taskTuples(page)).length, 14, "second page holds the rest of 38 visible");
     await page.click("#map-prev-page");
@@ -216,11 +221,40 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     await page.selectOption("#map-state-filter", "finished");
     assert.deepEqual((await taskTuples(page)).sort(), [["worker-10", "TASK-1"], ["worker-2", "DONE-OK"]]);
     assert.equal(await page.locator('#work-map [data-kind="task"][data-signal="passed"]').count(), 2);
+    const finishedNode = page.locator('#work-map [data-kind="task"]').first();
+    await page.mouse.move(1, 1);
+    assert.equal(await finishedNode.evaluate(g => getComputedStyle(g).opacity), '0.55');
+    await finishedNode.focus();
+    assert.equal(await finishedNode.evaluate(g => getComputedStyle(g).opacity), '1');
+    await page.locator('#map-state-filter').focus();
+    await page.selectOption('#map-state-filter', 'active');
+    assert.deepEqual(await taskTuples(page), [['worker-1', 'TASK-10']]);
+    await page.selectOption('#map-worker-filter', 'zz-bulk');
+    assert.equal(await page.isVisible('#map-empty'), true);
+    assert.equal(await page.textContent('#map-empty'), 'No active tasks match these filters.');
+    await page.selectOption('#map-worker-filter', '');
     await page.selectOption("#map-state-filter", "attention");
     tuples = await taskTuples(page);
     assert.ok(!tuples.some(([, t]) => t === "TASK-10" || t === "DONE-OK"), "attention excludes active and finished");
     await page.selectOption("#map-state-filter", "");
     ok("Finished filter exposes finished records with history toggle off");
+
+    // A late-sorting worker must not disappear behind the historical pages.
+    const originalResults = results;
+    results = [...results, task('zzz-live', 'ACTIVE-LATE', 'running', 'failed', 'failed', 'running_recorded')];
+    await poll(page);
+    assert.ok((await taskTuples(page)).some(([w, t]) => w === 'zzz-live' && t === 'ACTIVE-LATE'));
+    assert.equal(await (await node(page, 'zzz-live', 'ACTIVE-LATE')).evaluate(g => g.dataset.signal), 'active');
+    results = originalResults.map(r => r.process.state === 'running' && r.activity === 'running_recorded'
+      ? { ...r, process: { state: 'succeeded', exit_code: 0 }, activity: 'succeeded', worker_lock: 'free' } : r);
+    await poll(page);
+    assert.equal(await page.locator('#work-map [data-kind="hub"]').getAttribute('data-signal'), 'none');
+    assert.equal(await page.locator('#work-map [data-kind="hub"] .node-state').textContent(), '0 active tasks');
+    assert.ok((await page.textContent('#map-activity')).includes('No recorded workers are running'));
+    assert.ok((await page.textContent('#map-activity')).includes('Lead CLI activity is not shown'));
+    results = originalResults;
+    await poll(page);
+    ok('late-sorting running workers stay on page one; idle grouping is neutral despite historical failures; finished history dims and remains focusable');
 
     // Accessible node buttons and exact prefix-collision identities.
     const t1 = await node(page, "worker-1", "TASK-1");
@@ -547,17 +581,16 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
       const groups = [...document.querySelectorAll('#work-map [data-node-key]')];
       const point = g => { const m = g.transform.baseVal.getItem(0).matrix; return { x: m.e, y: m.f }; };
       const hub = point(groups.find(g => g.dataset.kind === "hub"));
-      if (hub.x !== 0 || hub.y !== 0) return false;
       const workers = new Map(groups.filter(g => g.dataset.kind === "worker").map(g => [g.dataset.worker, point(g)]));
       return groups.filter(g => g.dataset.kind === "task").every(g => {
         const t = point(g), w = workers.get(g.dataset.worker);
-        return Math.hypot(t.x, t.y) > Math.hypot(w.x, w.y) && t.x * w.x + t.y * w.y > w.x * w.x + w.y * w.y;
+        return hub.x < w.x && w.x < t.x;
       }) && groups.every((g, i) => groups.slice(i + 1).every(h => {
         const a = point(g), b = point(h);
         return Math.abs(a.x - b.x) >= 160 || Math.abs(a.y - b.y) >= 52;
       }));
-    }), "ownership branches grow outward from hub with no overlapping node rectangles");
-    ok("radial hub/worker/task ownership geometry grows outward without node overlap");
+    }), "ownership flows project to worker to task left-to-right without overlapping node rectangles");
+    ok("left-to-right project/worker/task lanes have no node overlap");
 
     for (const theme of ["light", "dark"]) {
       await page.selectOption("#theme-selector", theme);
@@ -575,7 +608,7 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
       assert.deepEqual(strokes, theme === 'light' ? ['#1a7f37','#cf222e','#9a6700'] : ['#3fb950','#f85149','#d29922']);
       assert.ok(await page.evaluate(() => [...document.querySelectorAll('#work-map [data-kind="task"]')].every(g => {
         const root = getComputedStyle(document.documentElement), signal = g.dataset.signal;
-        const token = signal === 'active' || signal === 'none' ? '--muted' : '--map-' + signal;
+        const token = signal === 'active' ? '--text-main' : signal === 'none' ? '--muted' : '--map-' + signal;
         const probe = document.createElement('span'); probe.style.color = root.getPropertyValue(token);
         document.body.appendChild(probe); const color = getComputedStyle(probe).color; probe.remove();
         return getComputedStyle(g.querySelector('.node-status')).stroke === color;
@@ -601,11 +634,13 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
         details: document.getElementById("map-details").childElementCount,
         detailsHidden: document.getElementById("map-details").hidden,
         counts: document.getElementById("map-counts").textContent,
+        activity: document.getElementById('map-activity').textContent,
+        emptyHidden: document.getElementById('map-empty').hidden,
         pagination: document.getElementById("map-pagination").hidden,
         pageInfo: document.getElementById("map-page-info").textContent,
         rows: document.querySelectorAll("#tasks .row").length,
       }));
-      assert.deepEqual(state, { nodes: 0, details: 0, detailsHidden: true, counts: "", pagination: true, pageInfo: "", rows: 0 }, "after " + step);
+      assert.deepEqual(state, { nodes: 0, details: 0, detailsHidden: true, counts: "", activity: "", emptyHidden: true, pagination: true, pageInfo: "", rows: 0 }, "after " + step);
     }
     await dead("failure");
     await page.click("#view-list"); await dead("list view");
