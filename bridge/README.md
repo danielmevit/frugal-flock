@@ -1,6 +1,6 @@
 # Unio local project workspace
 
-This source-only workspace has three explicit startup modes: read-only
+This workspace has three explicit startup modes: read-only
 Activity by default, local manual drafts, and live execution. Default mode
 turns `watch --once --json` into a read-only local browser view. It shows
 recorded task decisions, worker-lock observations, operator limits, STOP and
@@ -14,6 +14,32 @@ override that with an explicit trusted executable that supports `watch`.
 This source preview does not change an installed release.
 Use a disposable source build in workspace `tmp/`, following
 [the preview contract](../docs/BRIDGE-ACTIVITY.md).
+
+## Development: one-command launch
+
+The next daily-launch slice packages this existing dashboard in the standalone
+installer. It is separate from the frozen v0.5.4 recovery candidate and is not
+in published v0.5.3. See the [launcher contract](../docs/development/BROWSER-LAUNCHER-CONTRACT.md).
+With a build containing that slice, start inside any initialized project:
+
+```bash
+unio browser
+```
+
+Or select an enclosing workspace explicitly from another directory:
+
+```bash
+unio browser --project '/path/to/workspace' --open-browser
+```
+
+The CLI prints its version, project, engine, configuration and actual loopback
+URL. It infers the project from repo/worker subdirectories and fixes the engine
+to the same invoked CLI; there is no installed-launcher `--engine` override.
+The default remains read-only. All existing explicit draft, execution, output
+and file grants below remain available; use `unio browser --help`. Ctrl-C
+stops the service. Reinstalling preserves owner configuration and bench state.
+
+## Source startup
 
 From the repository root:
 
@@ -47,8 +73,8 @@ same-origin capability document at `GET /api/session`. The server
 binds 127.0.0.1; Host must match its actual address, and an Origin header
 must match that same origin. No cross-origin access, request-selected folder,
 engine, command or task exists. Default mode has no mutation endpoint. The selected
-engine runs on the trusted host; this is not an OS sandbox or a packaged
-launcher. Project data is sensitive to anyone with local account access.
+engine runs on the trusted host; this is not an OS sandbox. Project data is
+sensitive to anyone with local account access.
 No remote exposure, global reinstall, native credential access, or release
 is needed to use the preview.
 

@@ -9,6 +9,7 @@
 import argparse
 import hmac
 import json
+import os
 import re
 import secrets
 import shutil
@@ -433,10 +434,15 @@ def resolve_engine(explicit):
     return engine
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Unio read-only local Activity preview')
-    parser.add_argument('--project',type=Path,required=True,help='enclosing workspace with repo/, coord/, wt/')
-    parser.add_argument('--engine',type=Path,help='CLI executable supporting watch --once --json (default: unio on PATH)')
+def main(argv=None, *, engine_override=None, project_default=None, installed_version=None):
+    parser = argparse.ArgumentParser(prog='unio browser' if engine_override is not None else None,
+                                     description='Unio local browser workspace')
+    parser.add_argument('--project',type=Path,required=project_default is None,default=project_default,
+                        help='enclosing workspace with repo/, coord/, wt/ (inferred by unio browser when inside a workspace)')
+    if engine_override is None:
+        parser.add_argument('--engine',type=Path,help='CLI executable supporting watch --once --json (default: unio on PATH)')
+    else:
+        parser.set_defaults(engine=engine_override)
     parser.add_argument('--observer-timeout',type=observer_timeout,default=DEFAULT_OBSERVER_TIMEOUT,
                         help='native observation deadline in seconds, 1 through 120 (default: 30)')
     parser.add_argument('--port',type=int,default=0,help='loopback port, 0 chooses an unused port')
@@ -454,7 +460,7 @@ def main():
     parser.add_argument('--reviewer-company',type=str,help='reviewer company label')
     parser.add_argument('--config-dir',type=Path,help='config dir path')
     parser.add_argument('--task-template',type=Path,help='task template path')
-    options = parser.parse_args()
+    options = parser.parse_args(argv)
     if not 0 <= options.port <= 65535: parser.error('port must be 0 through 65535')
     project = options.project.absolute()
     if project.is_symlink() or project.resolve() != project or any(not (project/p).is_dir() for p in ('repo','coord','wt')):
@@ -502,6 +508,14 @@ def main():
             except (ValueError, OSError):
                 parser.error('invalid worker files startup configuration')
         server = ActivityServer(options.port, Observer(project, engine, timeout=options.observer_timeout), plans=plans, execution=execution, progress=progress, files=files)
+        if engine_override is not None:
+            print('Unio ' + installed_version + ' browser', flush=True)
+            print('Project: ' + str(project), flush=True)
+            print('Engine: ' + str(engine), flush=True)
+            configuration = project / 'coord' / 'agents.conf'
+            if not configuration.is_file():
+                configuration = Path(os.environ['UNIO_CONF_DIR']) / 'agents.conf'
+            print('Configuration: ' + str(configuration), flush=True)
         serve_preview(server, options.open_browser)
     finally:
         if files is not None:

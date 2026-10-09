@@ -46,6 +46,11 @@ archive. Use it to prepare and run tasks, follow worker output and inspect files
 
 *Install [Unio 0.5.3](https://github.com/danielmevit/unio/releases/tag/v0.5.3), the latest published release. See the [version plan](docs/VERSION-PLAN.md) for the next milestones.*
 
+**In development:** a [packaged `unio browser` launcher](bridge/README.md#development-one-command-launch)
+starts the dashboard with the same CLI and configuration, read-only by default.
+This later daily-use slice is separate from the frozen recovery candidate and
+is not in the published release.
+
 [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
 [FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·
 [What's next](#whats-next)

@@ -30,6 +30,6173 @@ fi
 TPL_DIR="$CONF_DIR/templates"
 mkdir -p "$BIN_DIR" "$COMP_DIR" "$CONF_DIR" "$TPL_DIR" "$CONF_DIR/playbooks"
 
+# BEGIN EMBEDDED BROWSER
+# Check every generated destination before replacing any browser file.
+for browser_dir in "$CONF_DIR/lib" "$CONF_DIR/lib/browser"; do
+  if [ -L "$browser_dir" ] || { [ -e "$browser_dir" ] && [ ! -d "$browser_dir" ]; }; then
+    echo "unio: refusing unsafe browser directory: $browser_dir" >&2
+    exit 1
+  fi
+done
+for browser_name in server.py launcher.py progress.py worker_files.py plan_store.py job_store.py execution_service.py index.html activity.js activity.css drafts.js jobs.js worker_console.js; do
+  browser_file="$CONF_DIR/lib/browser/$browser_name"
+  if [ -L "$browser_file" ] || { [ -e "$browser_file" ] && { [ ! -f "$browser_file" ] || [ "$(stat -c '%h' -- "$browser_file")" != 1 ]; }; }; then
+    echo "unio: refusing unsafe browser file: $browser_file" >&2
+    exit 1
+  fi
+done
+mkdir -p "$CONF_DIR/lib/browser"
+cat > "$CONF_DIR/lib/browser/server.py" <<'UNIO_BROWSER_SERVER_PY'
+#!/usr/bin/env python3
+# Unio — Copyright (C) 2026 Daniel Mitev
+# Public attribution: Daniel Mevit (@danielmevit)
+# Original project: https://github.com/danielmevit/unio
+# SPDX-License-Identifier: AGPL-3.0-only
+# Additional attribution/origin terms: NOTICE (AGPLv3 sections 7(b), 7(c)).
+# See LICENSE and NOTICE; distributed without warranty.
+"""Loopback-only read-only Activity preview; no dispatch or project writes."""
+import argparse
+import hmac
+import json
+import os
+import re
+import secrets
+import shutil
+from pathlib import Path
+import subprocess
+import threading
+import time
+import webbrowser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+ASSETS = Path(__file__).resolve().parent
+TOP_FIELDS = {'schema_version','observed_at','stopped','agents','results','retries','recent_events','warnings','evidence'}
+DEFAULT_OBSERVER_TIMEOUT = 30
+
+
+def observer_timeout(value):
+    try:
+        seconds = float(value)
+    except (ValueError, TypeError):
+        raise argparse.ArgumentTypeError('observer timeout must be 1 through 120 seconds') from None
+    if isinstance(value, bool) or not 1 <= seconds <= 120:
+        raise argparse.ArgumentTypeError('observer timeout must be 1 through 120 seconds')
+    return seconds
+
+
+def unique_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError('duplicate JSON field')
+        value[key] = item
+    return value
+
+
+class Observer:
+    def __init__(self, project, engine, timeout=DEFAULT_OBSERVER_TIMEOUT):
+        self.project, self.engine, self.timeout = project, engine, observer_timeout(timeout)
+        self.lock = threading.Lock()
+        self.cached = None
+        self.expires = 0
+
+    def read(self):
+        with self.lock:
+            if time.monotonic() < self.expires:
+                return self.cached
+            self.cached = None
+            try:
+                result = subprocess.run([str(self.engine),'watch','--once','--json'],
+                    cwd=self.project/'repo', stdin=subprocess.DEVNULL, capture_output=True, timeout=self.timeout)
+                if result.returncode or len(result.stdout) > 8 * 1024 * 1024:
+                    raise ValueError('observer failed')
+                data = json.loads(result.stdout)
+                if (not isinstance(data,dict) or type(data.get('schema_version')) is not int or data['schema_version'] != 1
+                    or type(data.get('stopped')) is not bool or any(not isinstance(data.get(k),list)
+                        for k in ('agents','results','retries','recent_events','warnings'))):
+                    raise ValueError('unsupported observer document')
+                # Producer is the fixed owner-selected CLI. Never include arbitrary
+                # stdout/stderr or unexpected top-level fields in an HTTP response.
+                self.cached = {k:v for k,v in data.items() if k in TOP_FIELDS}
+            except (ValueError,OSError,subprocess.TimeoutExpired):
+                self.cached = None
+            self.expires = time.monotonic() + 1
+            return self.cached
+
+
+class ActivityServer(ThreadingHTTPServer):
+    daemon_threads = True
+    def __init__(self, port, observer, plans=None, execution=None, progress=None, files=None):
+        super().__init__(('127.0.0.1',port), ActivityHandler)
+        self.observer = observer
+        self.plans = plans
+        self.execution = execution
+        self.progress = progress
+        self.files = files
+        protected = plans is not None or execution is not None or progress is not None or files is not None
+        self.session_token = secrets.token_urlsafe(32) if protected else None
+        self.origin = 'http://127.0.0.1:' + str(self.server_port)
+
+    def server_close(self):
+        if self.files is not None:
+            self.files.close()
+        if self.progress is not None:
+            self.progress.close()
+        if self.execution is not None:
+            self.execution.close()
+        super().server_close()
+
+
+class ActivityHandler(BaseHTTPRequestHandler):
+    def log_message(self, *_):
+        pass  # no request paths or query strings copied into task history
+
+    def respond(self, code, data, content_type='application/json; charset=utf-8'):
+        self.send_response(code)
+        self.send_header('Content-Type',content_type)
+        self.send_header('Content-Length',str(len(data)))
+        self.send_header('Cache-Control','no-store')
+        self.send_header('X-Content-Type-Options','nosniff')
+        self.send_header('Referrer-Policy','no-referrer')
+        self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def error_response(self, code, error):
+        self.respond(code,json.dumps(dict(schema_version=1,error=error)).encode())
+
+    def execution_error_response(self, error):
+        status, code = 503, 'native_unavailable'
+        try:
+            from execution_service import ERRORS, ExecutionError
+            # Establish actual inheritance before reading mutable public fields;
+            # a class name or a spoofed __class__ cannot grant public-error status.
+            if issubclass(type(error), ExecutionError):
+                public_code, public_status = error.code, error.status
+                if (type(public_code) is str and type(public_status) is int
+                        and ERRORS.get(public_code) == public_status):
+                    status, code = public_status, public_code
+        except Exception:
+            pass  # Broken error properties/imports remain fixed internal errors.
+        return self.error_response(status, code)
+
+    def progress_error_response(self, error):
+        status, code = 503, 'progress_unavailable'
+        try:
+            from progress import ERRORS, ProgressError
+            if issubclass(type(error), ProgressError):
+                public_code, public_status = error.code, error.status
+                if (type(public_code) is str and type(public_status) is int
+                        and ERRORS.get(public_code) == public_status):
+                    status, code = public_status, public_code
+        except Exception:
+            pass
+        return self.error_response(status, code)
+
+    def files_error_response(self, error):
+        status, code = 503, 'files_unavailable'
+        try:
+            from worker_files import ERRORS, WorkerFilesError
+            if issubclass(type(error), WorkerFilesError):
+                public_code, public_status = error.code, error.status
+                if (type(public_code) is str and type(public_status) is int
+                        and ERRORS.get(public_code) == public_status):
+                    status, code = public_status, public_code
+        except Exception:
+            pass
+        return self.error_response(status, code)
+
+    def origin_allowed(self, write=False):
+        if self.headers.get_all('Host') != [self.server.origin.removeprefix('http://')]:
+            self.error_response(403, 'host_refused')
+            return False
+        origins = self.headers.get_all('Origin') or []
+        if origins != [self.server.origin] and (write or origins):
+            self.error_response(403, 'origin_refused')
+            return False
+        return True
+
+    def token_allowed(self):
+        supplied = self.headers.get_all('X-Unio-Session') or []
+        if (len(supplied) != 1 or self.server.session_token is None
+                or not hmac.compare_digest(supplied[0].encode(), self.server.session_token.encode())):
+            self.error_response(403, 'session_refused')
+            return False
+        return True
+
+    def do_GET(self):
+        if not self.origin_allowed():
+            return
+        if self.path == '/api/session':
+            return self.respond(200, json.dumps(dict(schema_version=1,
+                manual_drafts=self.server.plans is not None,
+                execution=self.server.execution is not None,
+                progress_output=self.server.progress is not None,
+                worker_files=self.server.files is not None,
+                token=self.server.session_token)).encode())
+        if self.path.startswith('/api/worker-files'):
+            if self.server.files is None:
+                return self.error_response(404, 'not_found')
+            if not self.token_allowed():
+                return
+            if self.headers.get_all('Transfer-Encoding') or self.headers.get_all('Content-Length'):
+                return self.error_response(400, 'invalid_request')
+            match = re.fullmatch(r'/api/worker-files/workers(?:/([0-9a-f]{64})/files(?:/([0-9a-f]{64}))?)?', self.path)
+            if match is None:
+                return self.error_response(400, 'invalid_request')
+            worker_id, file_id = match.groups()
+            try:
+                if worker_id is None:
+                    value = self.server.files.workers()
+                elif file_id is None:
+                    value = self.server.files.files(worker_id)
+                else:
+                    value = self.server.files.preview(worker_id, file_id)
+                return self.respond(200, json.dumps(value, ensure_ascii=True).encode())
+            except Exception as error:
+                return self.files_error_response(error)
+        if self.path.startswith('/api/progress'):
+            if self.server.progress is None:
+                return self.error_response(404, 'not_found')
+            if not self.token_allowed():
+                return
+            # Observation accepts no body/framing ambiguity, even an empty body.
+            if self.headers.get_all('Transfer-Encoding') or self.headers.get_all('Content-Length'):
+                return self.error_response(400, 'invalid_request')
+            match = re.fullmatch(r'/api/progress/workers/([0-9a-f]{64})(?:/runs/([0-9a-f]{64})(/output)?)?(?:\?cursor=([A-Za-z0-9_-]{1,512}))?', self.path)
+            try:
+                if self.path == '/api/progress/workers':
+                    value = self.server.progress.workers()
+                elif re.fullmatch(r'/api/progress/workers/[0-9a-f]{64}/runs', self.path):
+                    value = self.server.progress.runs(self.path.split('/')[4])
+                elif match:
+                    worker, run, output, cursor = match.groups()
+                    if cursor and not output:
+                        return self.error_response(400, 'invalid_request')
+                    value = self.server.progress.get(worker_id=worker, run_id=run, cursor=cursor, output=bool(output))
+                else:
+                    return self.error_response(400, 'invalid_request')
+                return self.respond(200, json.dumps(value, ensure_ascii=True).encode())
+            except Exception as error:
+                return self.progress_error_response(error)
+
+        if self.server.plans is not None and self.path.startswith('/api/plans/'):
+            if not self.token_allowed():
+                return
+            identity = self.path.removeprefix('/api/plans/')
+            if re.fullmatch('[0-9a-f]{32}', identity) is None:
+                return self.error_response(400, 'invalid_plan_id')
+            try:
+                draft = self.server.plans.get(identity)
+            except FileNotFoundError:
+                return self.error_response(404, 'plan_not_found')
+            except (ValueError, OSError):
+                return self.error_response(503, 'draft_unavailable')
+            return self.respond(200, json.dumps(draft, ensure_ascii=True).encode())
+
+        if self.server.execution is not None and self.path.startswith('/api/jobs'):
+            if not self.token_allowed():
+                return
+            if self.path == '/api/jobs':
+                try:
+                    return self.respond(200, json.dumps(dict(schema_version=1, jobs=self.server.execution.jobs()), ensure_ascii=True).encode())
+                except Exception as e:
+                    return self.execution_error_response(e)
+            identity = self.path.removeprefix('/api/jobs/')
+            if re.fullmatch('[0-9a-f]{32}', identity) is None:
+                return self.error_response(400, 'invalid_request')
+            try:
+                job = self.server.execution.get(job_id=identity)
+                return self.respond(200, json.dumps(job, ensure_ascii=True).encode())
+            except Exception as e:
+                return self.execution_error_response(e)
+
+        if self.path == '/api/activity':
+            snapshot = self.server.observer.read()
+            if snapshot is None: return self.error_response(503,'activity_unavailable')
+            return self.respond(200,json.dumps(snapshot,ensure_ascii=True).encode())
+        routes = {'/':('index.html','text/html; charset=utf-8'),
+                  '/activity.js':('activity.js','text/javascript; charset=utf-8'),
+                  '/drafts.js':('drafts.js','text/javascript; charset=utf-8'),
+                  '/activity.css':('activity.css','text/css; charset=utf-8')}
+        if self.path in routes:
+            name, content_type = routes[self.path]
+            return self.respond(200, (ASSETS/name).read_bytes(), content_type)
+        if self.path in ('/jobs.js', '/worker_console.js'):
+            try:
+                return self.respond(200, (ASSETS/self.path[1:]).read_bytes(), 'text/javascript; charset=utf-8')
+            except FileNotFoundError:
+                return self.error_response(404, 'not_found')
+        return self.error_response(404, 'not_found')
+
+    def do_POST(self):
+        if self.path.startswith('/api/worker-files'):
+            if self.server.files is None:
+                return self.error_response(404, 'not_found')
+            return self.error_response(405, 'read_only')
+        if self.path.startswith('/api/progress'):
+            return self.error_response(405, 'read_only')
+        if self.server.plans is None and self.server.execution is None:
+            return self.error_response(405, 'read_only')
+        if not self.origin_allowed(write=True) or not self.token_allowed():
+            return
+        if not (self.path == '/api/plans' or self.path.startswith('/api/jobs')):
+            return self.error_response(404, 'not_found')
+        if self.path.startswith('/api/jobs') and self.server.execution is None:
+            return self.error_response(404, 'not_found')
+        if self.path == '/api/plans' and self.server.plans is None:
+            return self.error_response(404, 'not_found')
+
+        if self.headers.get('Transfer-Encoding') is not None:
+            return self.error_response(400, 'invalid_body')
+        lengths = self.headers.get_all('Content-Length') or []
+        if not lengths:
+            return self.error_response(411, 'length_required')
+        if len(lengths) != 1 or re.fullmatch('[0-9]{1,6}', lengths[0]) is None:
+            return self.error_response(400, 'invalid_body')
+        length = int(lengths[0])
+        if length > 32768:
+            return self.error_response(413, 'body_too_large')
+        if self.headers.get('Content-Type', '').split(';', 1)[0].strip().lower() != 'application/json':
+            return self.error_response(415, 'json_required')
+        try:
+            self.connection.settimeout(5)
+            raw = self.rfile.read(length)
+            if len(raw) != length:
+                return self.error_response(400, 'invalid_body')
+            body = json.loads(raw.decode('utf-8'), object_pairs_hook=unique_object)
+        except TimeoutError:
+            return self.error_response(408, 'body_timeout')
+        except (ValueError, OSError):
+            return self.error_response(400, 'invalid_body')
+        if not isinstance(body, dict):
+            return self.error_response(400, 'invalid_request')
+
+        if self.path == '/api/plans':
+            if set(body) != {'request'}:
+                return self.error_response(400, 'invalid_request')
+            try:
+                draft = self.server.plans.create(body['request'])
+            except ValueError:
+                return self.error_response(400, 'invalid_request')
+            except OSError:
+                return self.error_response(503, 'draft_unavailable')
+            return self.respond(201, json.dumps(draft, ensure_ascii=True).encode())
+
+        # /api/jobs endpoints
+        try:
+            if self.path == '/api/jobs':
+                if set(body) != {'draft_id', 'expected_hash', 'request_key'}:
+                    return self.error_response(400, 'invalid_request')
+                job = self.server.execution.prepare(**body)
+                return self.respond(201, json.dumps(job, ensure_ascii=True).encode())
+
+            parts = self.path.split('/')
+            if len(parts) == 5 and parts[1] == 'api' and parts[2] == 'jobs':
+                job_id = parts[3]
+                action = parts[4]
+                if re.fullmatch('[0-9a-f]{32}', job_id) is None:
+                    return self.error_response(400, 'invalid_request')
+
+                if action == 'approve':
+                    if set(body) != {'expected_hash', 'approval_key', 'preview_hash'}:
+                        return self.error_response(400, 'invalid_request')
+                    job = self.server.execution.approve(job_id=job_id, **body)
+                elif action == 'start':
+                    if set(body) != {'approval_key', 'reservation_key'}:
+                        return self.error_response(400, 'invalid_request')
+                    job = self.server.execution.start(job_id=job_id, **body)
+                elif action in ('verify', 'review', 'stop'):
+                    if set(body) != {'action_key'}:
+                        return self.error_response(400, 'invalid_request')
+                    # use getattr so it handles stop, verify, review
+                    method = getattr(self.server.execution, action)
+                    job = method(job_id=job_id, **body)
+                elif action == 'accept':
+                    if set(body) != {'revision_hash', 'action_key'}:
+                        return self.error_response(400, 'invalid_request')
+                    job = self.server.execution.accept(job_id=job_id, **body)
+                elif action == 'cancel':
+                    if set(body) != set():
+                        return self.error_response(400, 'invalid_request')
+                    job = self.server.execution.cancel(job_id=job_id)
+                else:
+                    return self.error_response(404, 'not_found')
+                return self.respond(200, json.dumps(job, ensure_ascii=True).encode())
+
+            return self.error_response(404, 'not_found')
+        except Exception as e:
+            return self.execution_error_response(e)
+
+    def reject_method(self):
+        if self.path.startswith('/api/worker-files'):
+            if self.server.files is None:
+                return self.error_response(404, 'not_found')
+            return self.error_response(405, 'read_only')
+        self.error_response(405,'read_only')
+
+    do_PUT = do_PATCH = do_DELETE = do_OPTIONS = do_HEAD = reject_method
+
+
+
+def open_preview(origin):
+    try:
+        opened = webbrowser.open(origin, new=2)
+    except (webbrowser.Error, OSError):
+        opened = False
+    if not opened:
+        print('Browser could not be opened. Open ' + origin + ' manually.', flush=True)
+
+
+def serve_preview(server, open_browser=False):
+    if getattr(server, 'execution', None) is not None:
+        print(server.origin + ' — explicit execution preview; an approved job can start one configured worker run and one configured review', flush=True)
+    else:
+        mode = 'manual draft preview' if getattr(server, 'plans', None) is not None else 'read-only Activity preview'
+        print(server.origin + ' — ' + mode + '; no provider dispatch', flush=True)
+    if getattr(server, 'progress', None) is not None:
+        print('Protected Source output observation enabled for trusted startup grants; observation never dispatches', flush=True)
+    if getattr(server, 'files', None) is not None:
+        print('Protected worktree file observation enabled for trusted startup workers; observation never edits or dispatches', flush=True)
+    if open_browser:
+        # A slow desktop opener must not delay the listening observation service.
+        threading.Thread(target=open_preview, args=(server.origin,), daemon=True).start()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+
+
+def resolve_engine(explicit):
+    """Use an explicit executable, or the unio command on PATH."""
+    if explicit is None:
+        found = shutil.which('unio')
+        if not found:
+            raise ValueError('unio engine not found on PATH; pass --engine')
+        engine = Path(found).absolute()
+    else:
+        engine = Path(explicit).absolute()
+    if not engine.is_file():
+        raise ValueError('engine executable not found')
+    return engine
+
+
+def main(argv=None, *, engine_override=None, project_default=None, installed_version=None):
+    parser = argparse.ArgumentParser(prog='unio browser' if engine_override is not None else None,
+                                     description='Unio local browser workspace')
+    parser.add_argument('--project',type=Path,required=project_default is None,default=project_default,
+                        help='enclosing workspace with repo/, coord/, wt/ (inferred by unio browser when inside a workspace)')
+    if engine_override is None:
+        parser.add_argument('--engine',type=Path,help='CLI executable supporting watch --once --json (default: unio on PATH)')
+    else:
+        parser.set_defaults(engine=engine_override)
+    parser.add_argument('--observer-timeout',type=observer_timeout,default=DEFAULT_OBSERVER_TIMEOUT,
+                        help='native observation deadline in seconds, 1 through 120 (default: 30)')
+    parser.add_argument('--port',type=int,default=0,help='loopback port, 0 chooses an unused port')
+    parser.add_argument('--open-browser',action='store_true',help='optionally open this loopback read-only preview in the default browser')
+    parser.add_argument('--enable-plan-drafts',action='store_true',help='opt in to manual draft storage only; never starts workers')
+    parser.add_argument('--enable-progress-output',action='store_true',help='allow protected Source output observation only')
+    parser.add_argument('--progress-binding',action='append',default=[],help='trusted WORKER:TASK allowlist entry')
+    parser.add_argument('--progress-worker',action='append',default=[],help='trusted worker grant for its latest owned native task')
+    parser.add_argument('--enable-worker-files',action='store_true',help='allow read-only tracked worktree text observation')
+    parser.add_argument('--files-worker',action='append',default=[],help='trusted worker whose wt/WORKER tree may be listed')
+    parser.add_argument('--enable-execution',action='store_true',help='opt in to execution mode')
+    parser.add_argument('--worker',type=str,help='worker label')
+    parser.add_argument('--reviewer',type=str,help='reviewer label')
+    parser.add_argument('--worker-company',type=str,help='worker company label')
+    parser.add_argument('--reviewer-company',type=str,help='reviewer company label')
+    parser.add_argument('--config-dir',type=Path,help='config dir path')
+    parser.add_argument('--task-template',type=Path,help='task template path')
+    options = parser.parse_args(argv)
+    if not 0 <= options.port <= 65535: parser.error('port must be 0 through 65535')
+    project = options.project.absolute()
+    if project.is_symlink() or project.resolve() != project or any(not (project/p).is_dir() for p in ('repo','coord','wt')):
+        parser.error('project must be a real enclosing Unio workspace')
+    try:
+        engine = resolve_engine(options.engine)
+    except ValueError as error:
+        parser.error(str(error))
+
+    execution_opts = [options.worker, options.reviewer, options.worker_company, options.reviewer_company, options.config_dir, options.task_template]
+    if any(opt is not None for opt in execution_opts) and not options.enable_execution:
+        parser.error('partial execution settings without explicit mode refuse at startup')
+    if options.enable_execution and not all(opt is not None for opt in execution_opts):
+        parser.error('--enable-execution requires all execution startup inputs')
+
+    progress_grants = bool(options.progress_binding) or bool(options.progress_worker)
+    if progress_grants != options.enable_progress_output:
+        parser.error('--enable-progress-output requires --progress-binding or --progress-worker; grants require explicit output mode')
+    if bool(options.files_worker) != options.enable_worker_files:
+        parser.error('--enable-worker-files requires --files-worker; file grants require explicit files mode')
+    progress = None
+    plans = None
+    execution = None
+    files = None
+    try:
+        if options.enable_plan_drafts or options.enable_execution:
+            from plan_store import PlanStore
+            plans = PlanStore(project)
+        if options.enable_execution:
+            from execution_service import ExecutionService
+            execution = ExecutionService(project, engine, options.worker, options.reviewer, options.config_dir, options.task_template, options.worker_company, options.reviewer_company)
+        if options.enable_progress_output:
+            from progress import ProgressService
+            bindings = [entry.split(':') for entry in options.progress_binding]
+            if any(len(entry) != 2 for entry in bindings):
+                parser.error('invalid progress binding')
+            try:
+                progress = ProgressService(project, engine, bindings, workers=options.progress_worker)
+            except (ValueError, OSError):
+                parser.error('invalid progress startup configuration')
+        if options.enable_worker_files:
+            from worker_files import WorkerFilesService
+            try:
+                files = WorkerFilesService(project, options.files_worker)
+            except (ValueError, OSError):
+                parser.error('invalid worker files startup configuration')
+        server = ActivityServer(options.port, Observer(project, engine, timeout=options.observer_timeout), plans=plans, execution=execution, progress=progress, files=files)
+        if engine_override is not None:
+            print('Unio ' + installed_version + ' browser', flush=True)
+            print('Project: ' + str(project), flush=True)
+            print('Engine: ' + str(engine), flush=True)
+            configuration = project / 'coord' / 'agents.conf'
+            if not configuration.is_file():
+                configuration = Path(os.environ['UNIO_CONF_DIR']) / 'agents.conf'
+            print('Configuration: ' + str(configuration), flush=True)
+        serve_preview(server, options.open_browser)
+    finally:
+        if files is not None:
+            files.close()
+        if progress is not None:
+            progress.close()
+        if plans is not None:
+            plans.close()
+        if execution is not None:
+            execution.close()
+
+if __name__ == '__main__':
+    main()
+UNIO_BROWSER_SERVER_PY
+cat > "$CONF_DIR/lib/browser/launcher.py" <<'UNIO_BROWSER_LAUNCHER_PY'
+#!/usr/bin/env python3
+# Unio — Copyright (C) 2026 Daniel Mitev
+# SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE.
+"""Installed CLI entry: reuse server options with a fixed native engine."""
+from pathlib import Path
+import sys
+
+if sys.version_info < (3, 9):
+    raise SystemExit('unio browser: Python 3.9 or newer is required')
+
+from server import main
+
+if __name__ == '__main__':
+    main(sys.argv[4:], engine_override=Path(sys.argv[1]),
+         project_default=Path(sys.argv[2]) if sys.argv[2] else None,
+         installed_version=sys.argv[3])
+UNIO_BROWSER_LAUNCHER_PY
+cat > "$CONF_DIR/lib/browser/progress.py" <<'UNIO_BROWSER_PROGRESS_PY'
+# Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit)
+# https://github.com/danielmevit/unio
+# SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
+"""Bounded observation of explicitly owned native Source receipts; no execution."""
+import base64
+from datetime import datetime, timezone
+import hashlib
+import hmac
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import stat
+import threading
+import time
+import unicodedata
+
+from execution_service import _decode, _native_document
+
+JSON_LIMIT = 131072
+PAGE_BYTES = 16384
+LINE_BYTES = 4096
+TEXT_CHARS = 16384
+LEDGER_BYTES = 65536
+LEDGER_RECORDS = 256
+MAX_BINDINGS = 32
+DEADLINE = 2.0
+STALE_SECONDS = 30
+ERRORS = {'invalid_request': 400, 'progress_not_found': 404,
+          'cursor_mismatch': 409, 'progress_unavailable': 503}
+LABEL = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,79}\Z')
+OPAQUE = re.compile(r'[0-9a-f]{64}\Z')
+SECRET = re.compile(r'(?i)(authorization|bearer\s|password|passwd|secret|api[ _-]?key|access[ _-]?token|refresh[ _-]?token|session[ _-]?token|agents\.conf|\.ssh[/\\]|\.git[/\\]|peer[ _-]?review|review[ _-]?material|BEGIN .*PRIVATE KEY|END .*PRIVATE KEY|https?://[^\s/]+:[^\s@]+@)')
+TOKEN = re.compile(r'(?i)(?:sk-|gh[pousr]_|github_pat_|AKIA)[A-Za-z0-9_-]{8,}|[A-Za-z0-9+/=_-]{80,}')
+ANSI = re.compile(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[PX^_][^\x1b]*\x1b\\|[@-_])')
+
+
+class ProgressError(Exception):
+    def __init__(self, code):
+        self.code, self.status = code, ERRORS[code]
+        super().__init__(code)
+
+
+def digest(value):
+    return hashlib.sha256(value).hexdigest()
+
+
+def stamp(value):
+    if not isinstance(value, str) or len(value) > 64:
+        raise ValueError('date')
+    date = datetime.fromisoformat(value)
+    if date.tzinfo is None:
+        raise ValueError('timezone')
+    return date.timestamp()
+
+
+def literal(raw):
+    text = raw.decode('utf-8', errors='strict')
+    text = ANSI.sub('', text)
+    text = ''.join(c for c in text if c in '\n\t' or unicodedata.category(c) not in ('Cc', 'Cf', 'Cs'))
+    if SECRET.search(text) or TOKEN.search(text) or re.fullmatch(r'[A-Za-z0-9+/=]{32,}\s*', text):
+        return '[sensitive output excluded]\n'
+    return text
+
+
+class ProgressService:
+    """Startup bindings are authority. Only latest native attempts are supported."""
+    def __init__(self, workspace, engine, bindings, workers=None):
+        self.workspace = Path(workspace).absolute()
+        self.engine = Path(engine).absolute()
+        if self.workspace.resolve() != self.workspace or not self.workspace.is_dir():
+            raise ValueError('invalid workspace')
+        if workers is None:
+            workers = []
+        elif not isinstance(workers, (list, tuple)):
+            raise ValueError('invalid bindings')
+        # Fixed task bindings and worker grants share one explicit startup budget.
+        if not 1 <= len(bindings) + len(workers) <= MAX_BINDINGS:
+            raise ValueError('invalid bindings')
+        self.bindings = {}
+        tasks, bound_workers = set(), set()
+        for worker, task in bindings:
+            if not LABEL.fullmatch(worker) or not LABEL.fullmatch(task) or task in tasks:
+                raise ValueError('invalid or ambiguous binding')
+            tasks.add(task)
+            bound_workers.add(worker)
+            identity = digest((worker + '\0' + task).encode())
+            self.bindings[identity] = (worker, task)
+        seen = []
+        for worker in workers:
+            if (not isinstance(worker, str) or not LABEL.fullmatch(worker)
+                    or worker in seen or worker in bound_workers):
+                raise ValueError('invalid or ambiguous binding')
+            seen.append(worker)
+        self.worker_grants = seen
+        self.key = secrets.token_bytes(32)
+        self.generations = {}
+        self.lock = threading.Lock()
+        self.root = os.open(self.workspace, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+
+    def close(self):
+        with self.lock:
+            if self.root is not None:
+                os.close(self.root)
+                self.root = None
+
+    def _open(self, *parts, directory=False):
+        """Walk only fixed owned components, with dirfds to close rename races."""
+        fd = os.dup(self.root)
+        try:
+            for index, part in enumerate(parts):
+                if part in ('', '.', '..') or '/' in part:
+                    raise ValueError('path')
+                isdir = index < len(parts) - 1 or directory
+                nxt = os.open(part, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK |
+                              (os.O_DIRECTORY if isdir else 0), dir_fd=fd)
+                os.close(fd)
+                fd = nxt
+                info = os.fstat(fd)
+                if not (stat.S_ISDIR(info.st_mode) if isdir else stat.S_ISREG(info.st_mode)):
+                    raise ValueError('special file')
+                if not isdir and info.st_nlink != 1:
+                    raise ValueError('hard link')
+            return fd
+        except BaseException:
+            os.close(fd)
+            raise
+
+    def _read(self, *parts, limit=JSON_LIMIT):
+        fd = self._open(*parts)
+        try:
+            if os.fstat(fd).st_size > limit:
+                raise ValueError('size')
+            raw = os.read(fd, limit + 1)
+            if len(raw) > limit:
+                raise ValueError('size')
+            return raw
+        finally:
+            os.close(fd)
+
+    def _ledger_lines(self):
+        fd = self._open('coord', 'reports', 'ledger.jsonl')
+        try:
+            size = os.fstat(fd).st_size
+            start = max(0, size - LEDGER_BYTES)
+            raw = os.pread(fd, LEDGER_BYTES, start)
+        finally:
+            os.close(fd)
+        if start:
+            raw = raw.partition(b'\n')[2]
+        # Partial final records never establish ownership.
+        return raw.split(b'\n')[:-1][-LEDGER_RECORDS:]
+
+    def _names(self, *parts):
+        fd = self._open(*parts, directory=True)
+        try:
+            names = os.listdir(fd)
+        finally:
+            os.close(fd)
+        if len(names) > LEDGER_RECORDS:
+            raise ValueError('unbounded evidence')
+        return names
+
+    def _start(self, worker, task):
+        for line in reversed(self._ledger_lines()):
+            event = _decode(line)
+            if not isinstance(event, dict):
+                raise ValueError('ledger')
+            if event.get('event') == 'run_start' and event.get('task') == task:
+                if event.get('worker') != worker:
+                    raise ValueError('foreign source')
+                return stamp(event['ts'])
+        raise ValueError('missing source start')
+
+    def _select_task(self, worker):
+        """Latest task agreed by the bounded ledger, result and retry evidence."""
+        owned = []
+        for line in self._ledger_lines():
+            event = _decode(line)
+            if not isinstance(event, dict):
+                raise ValueError('ledger')
+            if event.get('event') != 'run_start' or event.get('worker') != worker:
+                continue
+            task = event.get('task')
+            if not isinstance(task, str) or LABEL.fullmatch(task) is None:
+                raise ValueError('ledger task')
+            owned.append((task, stamp(event.get('ts'))))
+        if not owned:
+            raise ValueError('unknown worker run')
+        task, started = owned[-1]
+        for other, when in owned[:-1]:
+            if other != task and when >= started:
+                raise ValueError('ambiguous task')
+        names = self._names('coord', 'results', worker)
+        newest_task, newest_time, seen = None, None, set()
+        for name in names:
+            if not name.endswith('.json'):
+                raise ValueError('unexpected result')
+            label = name[:-5]
+            if LABEL.fullmatch(label) is None:
+                raise ValueError('unexpected result')
+            native = _native_document(_decode(self._read('coord', 'results', worker, name)), worker, label)
+            updated = stamp(native['updated_at'])
+            seen.add(label)
+            if newest_time is None or updated > newest_time:
+                newest_task, newest_time = label, updated
+            elif updated == newest_time and label != newest_task:
+                raise ValueError('ambiguous result')
+        if newest_task != task or task not in seen:
+            raise ValueError('result does not confirm latest run')
+        best_task, best_time = None, None
+        for name in self._names('coord', 'retries'):
+            if LABEL.fullmatch(name) is None:
+                raise ValueError('unexpected retry')
+            retry = _decode(self._read('coord', 'retries', name, 'state.json'))
+            latest = retry.get('latest') if isinstance(retry, dict) else None
+            if not isinstance(latest, dict) or worker not in latest:
+                continue
+            when = stamp(retry.get('updated_at'))
+            if best_time is None or when > best_time:
+                best_task, best_time = name, when
+            elif when == best_time and name != best_task:
+                raise ValueError('ambiguous retry')
+        if best_task != task:
+            raise ValueError('retry does not confirm latest run')
+        return task
+
+    def _resolve_grants(self):
+        found, failed = {}, {}
+        for worker in self.worker_grants:
+            placeholder = digest((worker + '\0').encode())
+            try:
+                task = self._select_task(worker)
+                identity = digest((worker + '\0' + task).encode())
+                if identity in self.bindings or identity in found:
+                    raise ValueError('ambiguous grant')
+                found[identity] = (worker, task)
+            except (ValueError, OSError):
+                failed[placeholder] = worker
+        return found, failed
+
+    def _evidence(self, identity):
+        if identity in self.bindings:
+            worker, task = self.bindings[identity]
+        else:
+            found, failed = self._resolve_grants()
+            if identity in failed:
+                raise ProgressError('progress_unavailable')
+            if identity not in found:
+                raise ProgressError('progress_not_found')
+            worker, task = found[identity]
+        fd = self._open('wt', worker, directory=True)
+        os.close(fd)
+        task_hash = digest(self._read('coord', 'tasks', task + '.md'))
+        raw = self._read('coord', 'results', worker, task + '.json')
+        native = _native_document(_decode(raw), worker, task)
+        retry = _decode(self._read('coord', 'retries', task, 'state.json'))
+        if (not isinstance(retry, dict) or type(retry.get('schema_version')) is not int
+                or retry['schema_version'] != 1 or retry.get('task') != task
+                or type(retry.get('failed_attempts')) is not int or retry['failed_attempts'] < 0
+                or type(retry.get('retry_granted')) is not bool
+                or not isinstance(retry.get('latest'), dict) or set(retry['latest']) != {worker}):
+            raise ValueError('ambiguous attempt')
+        attempt = retry['latest'][worker]
+        if (not isinstance(attempt, dict) or set(attempt) != {'id', 'pending', 'failed'}
+                or not isinstance(attempt['id'], str) or not re.fullmatch('[0-9a-f]{32}', attempt['id'])
+                or type(attempt['pending']) is not bool or type(attempt['failed']) is not bool):
+            raise ValueError('attempt')
+        revision = native['process']['revision']
+        if revision is None or revision['task_sha256'] != task_hash:
+            raise ValueError('task changed')
+        start = self._start(worker, task)
+        updated = stamp(native['updated_at'])
+        retry_time = stamp(retry['updated_at'])
+        state = native['process']['state']
+        if (retry_time > updated or (state == 'running' and start < int(updated))
+                or (state != 'running' and start > updated)):
+            raise ValueError('inconsistent receipts')
+        if (state == 'running' and attempt['failed']) or (state == 'failed' and not attempt['failed']):
+            raise ValueError('inconsistent failure')
+        if (state == 'running') != attempt['pending']:
+            raise ValueError('inconsistent attempt')
+        run = digest((identity + attempt['id'] + task_hash).encode())
+        return worker, task, native, run, start, updated
+
+    def _liveness(self, worker, task):
+        try:
+            raw = self._read('coord', 'reports', task + '.pid', limit=32)
+        except FileNotFoundError:
+            return 'unknown'
+        if not re.fullmatch(b'[1-9][0-9]{0,9}\n', raw):
+            return 'unknown'
+        pid = int(raw)
+        # Proc observation never signals, attaches to, or scans other processes.
+        try:
+            with open('/proc/' + str(pid) + '/cmdline', 'rb') as source:
+                argv = source.read(4097).split(b'\0')
+            cwd = os.readlink('/proc/' + str(pid) + '/cwd')
+            if (len(argv) != 6 or argv[-1] != b'' or Path(os.fsdecode(argv[0])).name != 'bash'
+                    or argv[1] != os.fsencode(self.engine) or argv[2:5] != [b'run', worker.encode(), task.encode()]
+                    or cwd != str(self.workspace / 'repo')):
+                return 'unknown'
+            return 'running'
+        except (OSError, ValueError):
+            return 'unknown'
+
+    def _cursor(self, run, generation, offset, skip=False):
+        data = json.dumps([run, generation, offset, skip], separators=(',', ':')).encode()
+        return base64.urlsafe_b64encode(data + hmac.digest(self.key, data, 'sha256')).decode().rstrip('=')
+
+    def _uncursor(self, cursor, run, generation):
+        if not isinstance(cursor, str) or not re.fullmatch('[A-Za-z0-9_-]{1,512}', cursor):
+            raise ProgressError('invalid_request')
+        try:
+            raw = base64.b64decode(cursor + '=' * (-len(cursor) % 4), altchars=b'-_', validate=True)
+            data, signature = raw[:-32], raw[-32:]
+            value = _decode(data)
+            if (not hmac.compare_digest(signature, hmac.digest(self.key, data, 'sha256'))
+                    or not isinstance(value, list) or len(value) != 4 or value[:2] != [run, generation]
+                    or type(value[2]) is not int or not 0 <= value[2] <= 2**63 - 1
+                    or type(value[3]) is not bool):
+                raise ValueError('cursor')
+            return value[2], value[3]
+        except (ValueError, TypeError):
+            raise ProgressError('cursor_mismatch') from None
+
+    def _log(self, identity, run, task, start, updated, native):
+        fd = self._open('coord', 'reports', task + '.log')
+        try:
+            info = os.fstat(fd)
+            # Running receipt precedes the shell's truncate/open. Old output is unavailable.
+            earliest = max(updated, start) if native['process']['state'] == 'running' else start
+            if info.st_mtime < earliest or (native['process']['state'] != 'running' and info.st_mtime > updated):
+                raise ValueError('unbound log')
+            prior = self.generations.get(identity)
+            changed = prior is None or prior['run'] != run or prior['file'] != (info.st_dev, info.st_ino)
+            if not changed:
+                changed = (info.st_size < prior['size']
+                    or (info.st_size == prior['size'] and (info.st_mtime_ns, info.st_ctime_ns) != prior['times'])
+                    or os.pread(fd, len(prior['prefix']), 0) != prior['prefix']
+                    or os.pread(fd, len(prior['anchor']), prior['at']) != prior['anchor'])
+            generation = secrets.token_hex(32) if changed else prior['generation']
+            at = max(0, info.st_size - 256)
+            self.generations[identity] = dict(run=run, file=(info.st_dev, info.st_ino), size=info.st_size,
+                at=at, anchor=os.pread(fd, 256, at), prefix=os.pread(fd, min(info.st_size, 256), 0),
+                times=(info.st_mtime_ns, info.st_ctime_ns), generation=generation)
+            return fd, info, generation
+        except BaseException:
+            os.close(fd)
+            raise
+
+    def _page(self, fd, size, run, generation, cursor=None, excerpt=False):
+        offset, skip = self._uncursor(cursor, run, generation) if cursor else (0, False)
+        if excerpt:
+            offset, skip = max(0, size - PAGE_BYTES), size > PAGE_BYTES
+        if offset > size:
+            raise ProgressError('cursor_mismatch')
+        raw = os.pread(fd, min(PAGE_BYTES, size - offset), offset)
+        end = raw.rfind(b'\n') + 1
+        partial = len(raw) > end
+        output, characters, excerpt_text = [], 0, ''
+        consumed = 0
+        if skip:
+            first = raw.find(b'\n')
+            if first < 0:
+                return '', offset + len(raw), True, partial, offset, digest(raw)
+            consumed = first + 1
+            skip = False
+        for record in raw[consumed:end].split(b'\n')[:-1]:
+            line = record + b'\n'
+            if len(line) > LINE_BYTES:
+                rendered = '[long output record excluded]\n'
+            else:
+                try:
+                    rendered = literal(line)
+                except UnicodeError:
+                    rendered = '[invalid UTF-8 record excluded]\n'
+            if not excerpt and characters + len(rendered) > TEXT_CHARS:
+                break
+            consumed += len(line)
+            if excerpt:
+                excerpt_text = (excerpt_text + rendered)[-1024:]
+            else:
+                characters += len(rendered)
+                output.append(rendered)
+        if consumed == end and len(raw) - end > LINE_BYTES:
+            notice = '[long output record excluded]\n'
+            if excerpt or characters + len(notice) <= TEXT_CHARS:
+                consumed, skip = len(raw), True
+                if excerpt:
+                    excerpt_text = (excerpt_text + notice)[-1024:]
+                else:
+                    output.append(notice)
+        text = excerpt_text if excerpt else ''.join(output)
+        return text, offset + consumed, skip, partial, offset, digest(raw)
+
+    def _view(self, identity, run_id=None, cursor=None, output=False):
+        worker, task, native, run, start, updated = self._evidence(identity)
+        if run_id is not None and run_id != run:
+            raise ProgressError('progress_not_found')
+        now = time.time()
+        observed = datetime.now(timezone.utc).isoformat()
+        life = self._liveness(worker, task)
+        view = dict(schema_version=1, worker_id=identity, worker=worker, task=task, run_id=run,
+            observed_at=observed, recorded_at=native['updated_at'], observation_stale=now - updated > STALE_SECONDS,
+            source=native['process'], verification=native['validation'], review=native['review'],
+            acceptance={'state': 'unavailable'}, recorded_evidence_stale=native['stale'],
+            observed_liveness=life, observed_phase='source' if life == 'running' and native['process']['state'] == 'running' else 'unknown',
+            output=dict(state='unavailable', generation=None, observed_at=observed, modified_at=None,
+                        excerpt='', text='', next_cursor=None, at_end=None, partial_record=False))
+        try:
+            fd, info, generation = self._log(identity, run, task, start, updated, native)
+        except FileNotFoundError:
+            self.generations.pop(identity, None)
+            view['output']['state'] = 'missing'
+            if cursor:
+                raise ProgressError('cursor_mismatch') from None
+            return view
+        except (ValueError, OSError):
+            self.generations.pop(identity, None)
+            if cursor:
+                raise ProgressError('cursor_mismatch') from None
+            return view
+        try:
+            text, offset, skip, partial, origin, page_hash = self._page(fd, info.st_size, run, generation, cursor, excerpt=not output)
+            # Verify the same owned path, identity and already-read content after the read.
+            other = self._open('coord', 'reports', task + '.log')
+            try:
+                after = os.fstat(other)
+                snapshot = self.generations[identity]
+                if ((after.st_dev, after.st_ino) != (info.st_dev, info.st_ino)
+                        or after.st_size < info.st_size
+                        or (after.st_size == info.st_size and (after.st_mtime_ns, after.st_ctime_ns) != snapshot['times'])
+                        or os.pread(other, len(snapshot['prefix']), 0) != snapshot['prefix']
+                        or os.pread(other, len(snapshot['anchor']), snapshot['at']) != snapshot['anchor']
+                        or digest(os.pread(other, min(PAGE_BYTES, info.st_size - origin), origin)) != page_hash):
+                    raise ProgressError('cursor_mismatch')
+            finally:
+                os.close(other)
+            if self._evidence(identity)[3] != run:
+                raise ProgressError('cursor_mismatch')
+            state = 'first_output_wait' if info.st_size == 0 else ('quiet' if now - info.st_mtime > STALE_SECONDS else 'available')
+            view['output'] = dict(state=state, generation=generation, observed_at=observed,
+                modified_at=datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat(),
+                excerpt='' if output else text, text=text if output else '',
+                next_cursor=self._cursor(run, generation, offset, skip), at_end=offset == info.st_size,
+                partial_record=partial)
+            return view
+        except BaseException:
+            self.generations.pop(identity, None)
+            raise
+        finally:
+            os.close(fd)
+
+    def _operation(self, call):
+        begin = time.monotonic()
+        if not self.lock.acquire(timeout=DEADLINE):
+            raise ProgressError('progress_unavailable')
+        try:
+            value = call(begin)
+            if time.monotonic() - begin > DEADLINE:
+                raise ProgressError('progress_unavailable')
+            return value
+        except ProgressError:
+            raise
+        except Exception:
+            raise ProgressError('progress_unavailable') from None
+        finally:
+            self.lock.release()
+
+    def workers(self):
+        def unavailable(identity, worker, task):
+            return dict(schema_version=1, worker_id=identity, worker=worker, task=task, state='unavailable')
+
+        def collect(begin):
+            views = []
+            for identity, (worker, task) in self.bindings.items():
+                if time.monotonic() - begin > DEADLINE:
+                    raise ProgressError('progress_unavailable')
+                try:
+                    views.append(self._view(identity))
+                except (ValueError, OSError):
+                    views.append(unavailable(identity, worker, task))
+            if self.worker_grants:
+                found, failed = self._resolve_grants()
+                for identity, (worker, task) in found.items():
+                    if time.monotonic() - begin > DEADLINE:
+                        raise ProgressError('progress_unavailable')
+                    try:
+                        views.append(self._view(identity))
+                    except (ValueError, OSError, ProgressError):
+                        views.append(unavailable(identity, worker, task))
+                for identity, worker in failed.items():
+                    views.append(unavailable(identity, worker, ''))
+            return dict(schema_version=1, workers=views)
+        return self._operation(collect)
+
+    def runs(self, worker_id):
+        return dict(schema_version=1, runs=[self.get(worker_id)])
+
+    def get(self, worker_id, run_id=None, cursor=None, output=False):
+        if not isinstance(worker_id, str) or not OPAQUE.fullmatch(worker_id) or (run_id is not None and (not isinstance(run_id, str) or not OPAQUE.fullmatch(run_id))):
+            raise ProgressError('invalid_request')
+        return self._operation(lambda _: self._view(worker_id, run_id, cursor, output))
+UNIO_BROWSER_PROGRESS_PY
+cat > "$CONF_DIR/lib/browser/worker_files.py" <<'UNIO_BROWSER_WORKER_FILES_PY'
+# Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit)
+# https://github.com/danielmevit/unio
+# SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
+"""Bounded read-only listing of tracked worktree text. No edits or execution."""
+from datetime import datetime, timezone
+import hashlib
+import os
+from pathlib import Path
+import re
+import selectors
+import signal
+import stat
+import subprocess
+import threading
+import time
+import unicodedata
+
+ERRORS = {'invalid_request': 400, 'files_not_found': 404, 'files_unavailable': 503}
+LABEL = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,79}\Z')
+OPAQUE = re.compile(r'[0-9a-f]{64}\Z')
+MAX_WORKERS = 32
+MAX_FILES = 256
+PREVIEW_BYTES = 65536
+LIST_CAP = 1024 * 1024
+DEADLINE = 2.0
+REAP_GRACE = 0.25
+EXCLUDED_DIRS = {'.git', '.ssh', '.gnupg', '.aws', '.azure', '.kube', '.docker',
+                 'auth', 'credential', 'credentials', 'secret', 'secrets'}
+EXCLUDED_FILES = {'agents.conf', '.env', '.netrc', '.npmrc', '.pypirc', '.htpasswd',
+                  '.git-credentials', '.gitconfig', '.pgpass', '.my.cnf',
+                  'id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519', 'known_hosts',
+                  'credentials.json', 'credentials.yml', 'credentials.yaml',
+                  'secrets.json', 'secrets.yml', 'secrets.yaml',
+                  'auth.json', 'token.json', 'tokens.json', 'service-account.json'}
+EXCLUDED_SUFFIXES = ('.pem', '.key', '.p12', '.pfx', '.kdbx', '.keystore')
+
+
+class WorkerFilesError(Exception):
+    def __init__(self, code):
+        self.code, self.status = code, ERRORS[code]
+        super().__init__(code)
+
+
+def digest(value):
+    return hashlib.sha256(value).hexdigest()
+
+
+def allowed_path(relative):
+    if (not isinstance(relative, str) or not relative or len(relative) > 1024
+            or len(relative.encode()) > 1024 or os.path.normpath(relative) != relative):
+        return False
+    if any(unicodedata.category(char) in ('Cc', 'Cf') for char in relative):
+        return False
+    parts = relative.split('/')
+    if any(part in ('', '.', '..') for part in parts):
+        return False
+    if any(part in EXCLUDED_DIRS or part.startswith('.env') for part in parts):
+        return False
+    name = parts[-1]
+    lowered = name.lower()
+    if (name in EXCLUDED_FILES or name.startswith('.env') or name.endswith(EXCLUDED_SUFFIXES)
+            or 'credential' in lowered):
+        return False
+    return True
+
+
+class WorkerFilesService:
+    """Startup worker grants are the only roots. Requests cannot choose a path."""
+
+    def __init__(self, workspace, workers):
+        self.workspace = Path(workspace).absolute()
+        if self.workspace.resolve() != self.workspace or not self.workspace.is_dir():
+            raise ValueError('invalid workspace')
+        if not isinstance(workers, (list, tuple)) or not 1 <= len(workers) <= MAX_WORKERS:
+            raise ValueError('invalid files workers')
+        self.root = os.open(self.workspace, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        self.lock = threading.Lock()
+        self.grants = {}
+        seen = []
+        try:
+            for worker in workers:
+                if not isinstance(worker, str) or LABEL.fullmatch(worker) is None or worker in seen:
+                    raise ValueError('invalid files worker')
+                seen.append(worker)
+                try:
+                    fd = self._open('wt', worker, directory=True)
+                except OSError:
+                    raise ValueError('invalid files worker') from None
+                try:
+                    info = os.fstat(fd)
+                finally:
+                    os.close(fd)
+                self.grants[digest(worker.encode())] = dict(worker=worker, dev=info.st_dev, ino=info.st_ino)
+        except BaseException:
+            os.close(self.root)
+            self.root = None
+            raise
+
+    def close(self):
+        with self.lock:
+            if self.root is not None:
+                os.close(self.root)
+                self.root = None
+
+    def _open(self, *parts, directory=False):
+        if self.root is None:
+            raise WorkerFilesError('files_unavailable')
+        fd = os.dup(self.root)
+        try:
+            for index, part in enumerate(parts):
+                if part in ('', '.', '..') or '/' in part or '\\' in part:
+                    raise ValueError('path')
+                isdir = index < len(parts) - 1 or directory
+                nxt = os.open(part, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK |
+                              (os.O_DIRECTORY if isdir else 0), dir_fd=fd)
+                os.close(fd)
+                fd = nxt
+                info = os.fstat(fd)
+                if not (stat.S_ISDIR(info.st_mode) if isdir else stat.S_ISREG(info.st_mode)):
+                    raise ValueError('special file')
+                if not isdir and info.st_nlink != 1:
+                    raise ValueError('hard link')
+            return fd
+        except BaseException:
+            os.close(fd)
+            raise
+
+    def _entry(self, worker_id):
+        if not isinstance(worker_id, str) or OPAQUE.fullmatch(worker_id) is None:
+            raise WorkerFilesError('invalid_request')
+        entry = self.grants.get(worker_id)
+        if entry is None:
+            raise WorkerFilesError('files_not_found')
+        return entry
+
+    def _confirm(self, entry):
+        fd = self._open('wt', entry['worker'], directory=True)
+        try:
+            info = os.fstat(fd)
+            if (info.st_dev, info.st_ino) != (entry['dev'], entry['ino']) or not stat.S_ISDIR(info.st_mode):
+                raise WorkerFilesError('files_unavailable')
+        except BaseException:
+            os.close(fd)
+            raise
+        return fd
+
+    def _open_relative(self, root_fd, relative):
+        if not allowed_path(relative):
+            raise ValueError('path')
+        fd = os.dup(root_fd)
+        try:
+            parts = relative.split('/')
+            for index, part in enumerate(parts):
+                isdir = index < len(parts) - 1
+                nxt = os.open(part, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK |
+                              (os.O_DIRECTORY if isdir else 0), dir_fd=fd)
+                os.close(fd)
+                fd = nxt
+                info = os.fstat(fd)
+                if isdir:
+                    if not stat.S_ISDIR(info.st_mode):
+                        raise ValueError('special file')
+                elif not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    raise ValueError('special file')
+            return fd
+        except BaseException:
+            os.close(fd)
+            raise
+
+    def _reap_group(self, proc):
+        """Kill and reap only the process group owned by this spawn.
+
+        start_new_session makes this pid the group id. A descendant can keep
+        that group after the leader exits, so signal the same id on deadline,
+        overflow and error even when poll() already has a status. A missing
+        group is ignored. No other process ids are scanned.
+        """
+        def signal_owned_group():
+            pgid = proc.pid
+            if isinstance(pgid, int) and pgid > 0:
+                try:
+                    os.killpg(pgid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    return
+
+        signal_owned_group()
+        try:
+            proc.wait(timeout=REAP_GRACE)
+        except subprocess.TimeoutExpired:
+            signal_owned_group()
+            try:
+                proc.wait(timeout=REAP_GRACE)
+            except subprocess.TimeoutExpired:
+                return
+
+    def _git_paths(self, root_fd):
+        # Same confirmed worktree descriptor. Git must not look up the startup path again.
+        passed = None
+        proc = None
+        selector = None
+        try:
+            passed = os.dup(root_fd)
+            while passed < 3:
+                nxt = os.dup(passed)
+                os.close(passed)
+                passed = nxt
+            argv = ['git', '-C', '/proc/self/fd/%d' % passed, '-c', 'core.fsmonitor=false',
+                    '-c', 'core.untrackedCache=false', 'ls-files', '-z', '--', '.']
+            env = {'PATH': os.environ.get('PATH', ''), 'LC_ALL': 'C', 'GIT_CONFIG_NOSYSTEM': '1',
+                   'GIT_CONFIG_GLOBAL': os.devnull, 'GIT_CONFIG_SYSTEM': os.devnull, 'GIT_TERMINAL_PROMPT': '0'}
+            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                    env=env, start_new_session=True, close_fds=True, pass_fds=(passed,))
+            deadline = time.monotonic() + DEADLINE
+            pipe = proc.stdout.fileno()
+            os.set_blocking(pipe, False)
+            selector = selectors.DefaultSelector()
+            selector.register(pipe, selectors.EVENT_READ)
+            chunks = []
+            total = 0
+            limit = LIST_CAP + 1
+            eof = False
+            while total < limit:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    self._reap_group(proc)
+                    raise WorkerFilesError('files_unavailable')
+                if not selector.select(remaining):
+                    self._reap_group(proc)
+                    raise WorkerFilesError('files_unavailable')
+                try:
+                    piece = os.read(pipe, limit - total)
+                except BlockingIOError:
+                    continue
+                except OSError:
+                    self._reap_group(proc)
+                    raise
+                if not piece:
+                    eof = True
+                    break
+                chunks.append(piece)
+                total += len(piece)
+            raw = b''.join(chunks)
+            overflow = total > LIST_CAP
+            if overflow or not eof:
+                self._reap_group(proc)
+            if not eof and not overflow:
+                raise WorkerFilesError('files_unavailable')
+            if eof and not overflow:
+                try:
+                    code = proc.wait(timeout=REAP_GRACE)
+                except subprocess.TimeoutExpired:
+                    self._reap_group(proc)
+                    raise WorkerFilesError('files_unavailable') from None
+                if code != 0:
+                    raise WorkerFilesError('files_unavailable')
+            if overflow:
+                raw = raw[:LIST_CAP].rsplit(b'\0', 1)[0]
+            elif raw.endswith(b'\0'):
+                raw = raw[:-1]
+            paths = []
+            if raw:
+                for piece in raw.split(b'\0'):
+                    try:
+                        relative = piece.decode('utf-8')
+                    except UnicodeError:
+                        continue
+                    if allowed_path(relative):
+                        paths.append(relative)
+            paths.sort()
+            return paths, overflow
+        except WorkerFilesError:
+            raise
+        except Exception:
+            if proc is not None:
+                self._reap_group(proc)
+            raise
+        finally:
+            if selector is not None:
+                selector.close()
+            if proc is not None and proc.stdout is not None:
+                proc.stdout.close()
+            if passed is not None:
+                os.close(passed)
+
+    def _grant_still_pinned(self, entry, root):
+        info = os.fstat(root)
+        if (info.st_dev, info.st_ino) != (entry['dev'], entry['ino']) or not stat.S_ISDIR(info.st_mode):
+            raise WorkerFilesError('files_unavailable')
+        # A replaced path must not be observed even if the descriptor no longer pins it.
+        again = self._confirm(entry)
+        os.close(again)
+
+    def _safe_files(self, entry, begin):
+        root = self._confirm(entry)
+        try:
+            paths, overflow = self._git_paths(root)
+            self._grant_still_pinned(entry, root)
+            kept = []
+            for relative in paths:
+                if time.monotonic() - begin > DEADLINE:
+                    raise WorkerFilesError('files_unavailable')
+                try:
+                    fd = self._open_relative(root, relative)
+                except (OSError, ValueError):
+                    continue
+                os.close(fd)
+                kept.append(relative)
+                if len(kept) > MAX_FILES:
+                    break
+            truncated = overflow or len(kept) > MAX_FILES
+            files = []
+            for relative in kept[:MAX_FILES]:
+                files.append(dict(file_id=digest((entry['worker'] + '\0' + relative).encode()),
+                                   relative_path=relative))
+            return files, truncated
+        finally:
+            os.close(root)
+
+    def _read_text(self, entry, relative):
+        root = self._confirm(entry)
+        try:
+            fd = self._open_relative(root, relative)
+        except (OSError, ValueError):
+            os.close(root)
+            raise WorkerFilesError('files_unavailable') from None
+        try:
+            info = os.fstat(fd)
+            raw = os.read(fd, PREVIEW_BYTES + 1)
+            if b'\0' in raw[:PREVIEW_BYTES]:
+                raise WorkerFilesError('files_unavailable')
+            oversized = info.st_size > PREVIEW_BYTES or len(raw) > PREVIEW_BYTES
+            chunk = raw[:PREVIEW_BYTES]
+            try:
+                if oversized:
+                    try:
+                        text = chunk.decode('utf-8')
+                    except UnicodeDecodeError as error:
+                        if error.start <= 0 or error.end != len(chunk):
+                            raise WorkerFilesError('files_unavailable') from None
+                        text = chunk[:error.start].decode('utf-8')
+                else:
+                    text = raw.decode('utf-8')
+            except UnicodeError:
+                raise WorkerFilesError('files_unavailable') from None
+            other = self._open_relative(root, relative)
+            try:
+                after = os.fstat(other)
+                if ((after.st_dev, after.st_ino) != (info.st_dev, info.st_ino)
+                        or after.st_nlink != 1 or os.read(other, len(raw)) != raw):
+                    raise WorkerFilesError('files_unavailable')
+            finally:
+                os.close(other)
+            again = self._confirm(entry)
+            os.close(again)
+            return text, oversized
+        finally:
+            os.close(fd)
+            os.close(root)
+
+    def _operation(self, call):
+        begin = time.monotonic()
+        if self.root is None or not self.lock.acquire(timeout=DEADLINE):
+            raise WorkerFilesError('files_unavailable')
+        try:
+            value = call(begin)
+            if time.monotonic() - begin > DEADLINE:
+                raise WorkerFilesError('files_unavailable')
+            return value
+        except WorkerFilesError:
+            raise
+        except Exception:
+            raise WorkerFilesError('files_unavailable') from None
+        finally:
+            self.lock.release()
+
+    def workers(self):
+        def collect(_begin):
+            rows = []
+            for identity, entry in self.grants.items():
+                fd = self._confirm(entry)
+                os.close(fd)
+                rows.append(dict(worker_id=identity, worker=entry['worker'],
+                                 worktree_label='wt/' + entry['worker']))
+            return dict(schema_version=1, workers=rows)
+        return self._operation(collect)
+
+    def files(self, worker_id):
+        def collect(begin):
+            entry = self._entry(worker_id)
+            rows, truncated = self._safe_files(entry, begin)
+            return dict(schema_version=1, worker_id=worker_id, worker=entry['worker'],
+                        files=rows, truncated=truncated)
+        return self._operation(collect)
+
+    def preview(self, worker_id, file_id):
+        def collect(begin):
+            if not isinstance(file_id, str) or OPAQUE.fullmatch(file_id) is None:
+                raise WorkerFilesError('invalid_request')
+            entry = self._entry(worker_id)
+            rows, _truncated = self._safe_files(entry, begin)
+            match = next((row for row in rows if row['file_id'] == file_id), None)
+            if match is None:
+                raise WorkerFilesError('files_not_found')
+            text, truncated = self._read_text(entry, match['relative_path'])
+            return dict(schema_version=1, worker_id=worker_id, file_id=file_id,
+                        relative_path=match['relative_path'],
+                        observed_at=datetime.now(timezone.utc).isoformat(),
+                        text=text, truncated=truncated)
+        return self._operation(collect)
+UNIO_BROWSER_WORKER_FILES_PY
+cat > "$CONF_DIR/lib/browser/plan_store.py" <<'UNIO_BROWSER_PLAN_STORE_PY'
+# Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit)
+# https://github.com/danielmevit/unio
+# SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
+"""Durable manual draft storage; no HTTP, native tasks, approval or dispatch."""
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import uuid
+
+MAX_REQUEST = 4000
+MAX_RECORD = 65536
+FIELDS = {'schema_version', 'id', 'created_at', 'state', 'request'}
+
+
+class PlanStore:
+    """Immutable drafts under one owner-selected workspace's coord/ui-plans/."""
+    def __init__(self, workspace):
+        workspace = Path(workspace).absolute()
+        if workspace.resolve() != workspace or workspace.is_symlink():
+            raise ValueError('workspace must be a real path')
+        coordination = os.open(workspace / 'coord', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            try:
+                os.mkdir('ui-plans', mode=0o700, dir_fd=coordination)
+            except FileExistsError:
+                pass
+            self._fd = os.open('ui-plans', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=coordination)
+        finally:
+            os.close(coordination)
+
+    def close(self):
+        if self._fd is not None:
+            fd, self._fd = self._fd, None
+            os.close(fd)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+    def _directory(self):
+        if self._fd is None:
+            raise ValueError('store is closed')
+        return self._fd
+
+    @staticmethod
+    def _request(value):
+        if not isinstance(value, str) or not value.strip() or len(value) > MAX_REQUEST:
+            raise ValueError('request must contain 1 through 4000 characters of meaningful text')
+        return value
+
+    def create(self, request):
+        request = self._request(request)
+        directory = self._directory()
+        identity = uuid.uuid4().hex
+        record = dict(schema_version=1, id=identity, created_at=datetime.now(timezone.utc).isoformat(),
+                      state='draft', request=request)
+        raw = (json.dumps(record, ensure_ascii=True, sort_keys=True, separators=(',', ':')) + '\n').encode()
+        temporary, name = '.' + identity + '.tmp', identity + '.json'
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             0o600, dir_fd=directory)
+        try:
+            with os.fdopen(descriptor, 'wb') as output:
+                output.write(raw)
+                output.flush()
+                os.fsync(output.fileno())
+            # Link publishes a complete immutable record and refuses overwrite.
+            os.link(temporary, name, src_dir_fd=directory, dst_dir_fd=directory, follow_symlinks=False)
+            os.unlink(temporary, dir_fd=directory)
+            os.fsync(directory)
+        finally:
+            try:
+                os.unlink(temporary, dir_fd=directory)
+            except FileNotFoundError:
+                pass
+        return {**record, 'content_sha256': hashlib.sha256(raw).hexdigest()}
+
+    def get(self, identity):
+        if not isinstance(identity, str) or re.fullmatch('[0-9a-f]{32}', identity) is None:
+            raise ValueError('invalid plan ID')
+        descriptor = os.open(identity + '.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             dir_fd=self._directory())
+        with os.fdopen(descriptor, 'rb') as source:
+            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                raise ValueError('plan record must be a regular file')
+            raw = source.read(MAX_RECORD + 1)
+        if len(raw) > MAX_RECORD:
+            raise ValueError('plan record exceeds size limit')
+        record = json.loads(raw)
+        if (not isinstance(record, dict) or set(record) != FIELDS
+                or type(record['schema_version']) is not int or record['schema_version'] != 1
+                or record['id'] != identity or record['state'] != 'draft'
+                or not isinstance(record['created_at'], str)):
+            raise ValueError('unsupported plan record')
+        self._request(record['request'])
+        created = datetime.fromisoformat(record['created_at'])
+        if created.tzinfo is None:
+            raise ValueError('plan creation time must include timezone')
+        return {**record, 'content_sha256': hashlib.sha256(raw).hexdigest()}
+UNIO_BROWSER_PLAN_STORE_PY
+cat > "$CONF_DIR/lib/browser/job_store.py" <<'UNIO_BROWSER_JOB_STORE_PY'
+# Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit)
+# https://github.com/danielmevit/unio
+# SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
+"""Durable queue jobs with explicit approval and reservation; no executor or dispatch."""
+from datetime import datetime, timezone
+import os
+from pathlib import Path
+import re
+import sqlite3
+import stat
+import uuid
+
+try:
+    from plan_store import PlanStore
+except ImportError:
+    import importlib.util
+
+    _spec = importlib.util.spec_from_file_location(
+        'plan_store', Path(__file__).with_name('plan_store.py'))
+    _module = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_module)
+    PlanStore = _module.PlanStore
+
+STATE = 'awaiting_owner_approval'
+DATABASE = 'ui-jobs.sqlite3'
+COLUMNS = ('id', 'request_key', 'draft_id', 'draft_sha256', 'worker', 'created_at', 'state', 'approval_key', 'approved_at', 'reservation_key', 'reserved_at', 'unknown_at', 'cancelled_at')
+HEX32 = re.compile('[0-9a-f]{32}')
+HEX64 = re.compile('[0-9a-f]{64}')
+WORKER = re.compile('[a-z][a-z0-9_-]{0,63}')
+BUSY_TIMEOUT = 10.0
+
+CREATE_JOBS = ('CREATE TABLE jobs ('
+               'id TEXT PRIMARY KEY, '
+               'request_key TEXT NOT NULL UNIQUE, '
+               'draft_id TEXT NOT NULL, '
+               'draft_sha256 TEXT NOT NULL, '
+               'worker TEXT NOT NULL, '
+               'created_at TEXT NOT NULL, '
+               'state TEXT NOT NULL, '
+               'approval_key TEXT UNIQUE, '
+               'approved_at TEXT, '
+               'reservation_key TEXT UNIQUE, '
+               'reserved_at TEXT, '
+               'unknown_at TEXT, '
+               'cancelled_at TEXT)')
+# The only schema-1 layout ever created; anything else at version 1 is refused.
+SCHEMA1_JOBS = ('CREATE TABLE jobs ('
+                'id TEXT PRIMARY KEY, '
+                'request_key TEXT NOT NULL UNIQUE, '
+                'draft_id TEXT NOT NULL, '
+                'draft_sha256 TEXT NOT NULL, '
+                'worker TEXT NOT NULL, '
+                'created_at TEXT NOT NULL, '
+                'state TEXT NOT NULL)')
+SCHEMA1_SELECT = ('SELECT id, request_key, draft_id, draft_sha256, worker, created_at, state '
+                  'FROM jobs ORDER BY created_at, id')
+MIGRATE_JOBS = ('INSERT INTO jobs_new '
+                '(id, request_key, draft_id, draft_sha256, worker, created_at, state) '
+                'SELECT id, request_key, draft_id, draft_sha256, worker, created_at, state FROM jobs')
+SELECT_JOB = ('SELECT id, request_key, draft_id, draft_sha256, worker, created_at, state, '
+               'approval_key, approved_at, reservation_key, reserved_at, unknown_at, cancelled_at '
+               'FROM jobs WHERE id = ?')
+SELECT_BY_KEY = ('SELECT id, request_key, draft_id, draft_sha256, worker, created_at, state, '
+                 'approval_key, approved_at, reservation_key, reserved_at, unknown_at, cancelled_at '
+                 'FROM jobs WHERE request_key = ?')
+SELECT_PENDING = ('SELECT id, request_key, draft_id, draft_sha256, worker, created_at, state, '
+                   'approval_key, approved_at, reservation_key, reserved_at, unknown_at, cancelled_at '
+                   'FROM jobs WHERE state = ? ORDER BY created_at, id')
+SELECT_JOBS = ('SELECT id, request_key, draft_id, draft_sha256, worker, created_at, state, '
+               'approval_key, approved_at, reservation_key, reserved_at, unknown_at, cancelled_at '
+               'FROM jobs ORDER BY created_at, id')
+INSERT_JOB = ('INSERT INTO jobs '
+              '(id, request_key, draft_id, draft_sha256, worker, created_at, state) '
+              'VALUES (?, ?, ?, ?, ?, ?, ?)')
+
+
+def _quote(name):
+    return '"' + name.replace('"', '""') + '"'
+
+
+def _schema_tokens(sql):
+    """Keep DDL syntax that PRAGMAs omit, ignoring whitespace and name quoting.
+
+    ALTER TABLE quotes the migrated table name. Other syntax, including
+    CHECK constraints and table options, must still match the known DDL.
+    """
+    tokens = re.findall(r'"(?:[^"]|"")*"|[A-Za-z_][A-Za-z0-9_]*|[^\s]', sql)
+    return tuple((token[1:-1].replace('""', '"') if token.startswith('"') else token).lower()
+                 for token in tokens)
+
+
+def _expected_layout(create):
+    reference = sqlite3.connect(':memory:')
+    try:
+        reference.execute(create)
+        return JobStore._layout(reference)
+    finally:
+        reference.close()
+
+
+class JobStore:
+    """Waiting jobs in coord/ui-jobs.sqlite3 under one owner-selected workspace.
+
+    Reading a stored job never claims its referenced draft is still current
+    or ready for dispatch; approve and reserve recheck the draft each time.
+    Nothing here executes a job, starts a process or calls a provider.
+    """
+
+    def __init__(self, workspace):
+        workspace = Path(workspace).absolute()
+        if workspace.resolve() != workspace or workspace.is_symlink():
+            raise ValueError('workspace must be a real path')
+        coordination = os.open(workspace / 'coord', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            try:
+                info = os.stat(DATABASE, dir_fd=coordination, follow_symlinks=False)
+            except FileNotFoundError:
+                try:
+                    descriptor = os.open(DATABASE,
+                                         os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                                         0o600, dir_fd=coordination)
+                except FileExistsError:
+                    pass
+                else:
+                    os.close(descriptor)
+            else:
+                if not stat.S_ISREG(info.st_mode):
+                    raise ValueError('job database must be a regular file')
+        finally:
+            os.close(coordination)
+        try:
+            connection = sqlite3.connect(str(workspace / 'coord' / DATABASE),
+                                         timeout=BUSY_TIMEOUT, isolation_level=None)
+        except sqlite3.Error as error:
+            raise ValueError('cannot open job database') from error
+        try:
+            connection.execute('BEGIN IMMEDIATE')
+            version = connection.execute('PRAGMA user_version').fetchone()[0]
+            objects = connection.execute(
+                'SELECT COUNT(*) FROM sqlite_master').fetchone()[0]
+            if version == 0 and objects == 0:
+                try:
+                    connection.execute(CREATE_JOBS)
+                    connection.execute('PRAGMA user_version = 2')
+                    connection.execute('COMMIT')
+                except BaseException:
+                    self._rollback(connection)
+                    raise
+            elif version == 1:
+                try:
+                    self._migrate(connection)
+                    connection.execute('COMMIT')
+                except BaseException:
+                    self._rollback(connection)
+                    raise
+            else:
+                try:
+                    self._verify(connection)
+                finally:
+                    self._rollback(connection)
+        except sqlite3.Error as error:
+            connection.close()
+            raise ValueError('corrupt or unsupported job database') from error
+        except BaseException:
+            connection.close()
+            raise
+        self._db = connection
+        self._workspace = workspace
+
+    def close(self):
+        if self._db is not None:
+            db, self._db = self._db, None
+            db.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+    def _connection(self):
+        if self._db is None:
+            raise ValueError('store is closed')
+        return self._db
+
+    @staticmethod
+    def _rollback(connection):
+        try:
+            connection.execute('ROLLBACK')
+        except sqlite3.Error:
+            pass
+
+    @staticmethod
+    def _layout(connection):
+        """Describe the jobs table's columns, constraints and companion objects.
+
+        Autoindex names are left out because a renamed table keeps its
+        original numbering; everything that affects stored data is kept.
+        """
+        # table_info hides generated columns; table_xinfo includes them and
+        # their hidden/generated flags so they cannot be lost in migration.
+        columns = tuple(row[1:] for row in connection.execute('PRAGMA table_xinfo(jobs)'))
+        indexes = []
+        for _, name, unique, origin, partial in connection.execute('PRAGMA index_list(jobs)').fetchall():
+            keys = tuple((row[2], row[3], row[4]) for row
+                         in connection.execute('PRAGMA index_xinfo(' + _quote(name) + ')') if row[5])
+            indexes.append((origin, unique, partial, keys))
+        others = connection.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE NOT (type = 'table' AND name = 'jobs') "
+            "AND NOT (type = 'index' AND tbl_name = 'jobs' AND sql IS NULL)").fetchone()[0]
+        schema = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'jobs'").fetchone()
+        definition = _schema_tokens(schema[0]) if schema is not None else ()
+        return columns, tuple(sorted(indexes)), others, definition
+
+    @classmethod
+    def _verify(cls, connection):
+        version = connection.execute('PRAGMA user_version').fetchone()[0]
+        if version != 2:
+            raise ValueError('unsupported job database schema version')
+        if cls._layout(connection) != _expected_layout(CREATE_JOBS):
+            raise ValueError('unsupported job database schema')
+
+    @classmethod
+    def _migrate(cls, connection):
+        """Upgrade the recognized schema-1 layout inside the caller's transaction.
+
+        Every legacy record is validated before anything is written, and the
+        result is verified before the caller commits, so a refusal leaves the
+        database exactly as it was.
+        """
+        if cls._layout(connection) != _expected_layout(SCHEMA1_JOBS):
+            raise ValueError('unsupported schema-1 job database layout')
+        legacy = connection.execute(SCHEMA1_SELECT).fetchall()
+        for row in legacy:
+            if cls._record(tuple(row) + (None,) * 6)['state'] != STATE:
+                raise ValueError('corrupt schema-1 job record')
+        connection.execute(CREATE_JOBS.replace('CREATE TABLE jobs', 'CREATE TABLE jobs_new'))
+        connection.execute(MIGRATE_JOBS)
+        connection.execute('DROP TABLE jobs')
+        connection.execute('ALTER TABLE jobs_new RENAME TO jobs')
+        connection.execute('PRAGMA user_version = 2')
+        cls._verify(connection)
+        migrated = connection.execute(SELECT_JOBS).fetchall()
+        if [tuple(row[:7]) for row in migrated] != [tuple(row) for row in legacy]:
+            raise ValueError('schema-1 migration did not preserve job records')
+        for row in migrated:
+            cls._record(row)
+
+    @staticmethod
+    def _hex32(value, label):
+        if not isinstance(value, str) or HEX32.fullmatch(value) is None:
+            raise ValueError('invalid ' + label)
+        return value
+
+    @staticmethod
+    def _hex64(value, label):
+        if not isinstance(value, str) or HEX64.fullmatch(value) is None:
+            raise ValueError('invalid ' + label)
+        return value
+
+    @staticmethod
+    def _worker(value):
+        if not isinstance(value, str) or WORKER.fullmatch(value) is None:
+            raise ValueError('invalid worker ID')
+        return value
+
+    @staticmethod
+    def _record(row):
+        (identity, request_key, draft_id, draft_sha256, worker, created_at, state,
+         approval_key, approved_at, reservation_key, reserved_at, unknown_at, cancelled_at) = row
+        values = (identity, request_key, draft_id, draft_sha256, worker, created_at, state)
+        if any(not isinstance(value, str) for value in values):
+            raise ValueError('corrupt job record')
+        if (HEX32.fullmatch(identity) is None or HEX32.fullmatch(request_key) is None
+                or HEX32.fullmatch(draft_id) is None or HEX64.fullmatch(draft_sha256) is None
+                or WORKER.fullmatch(worker) is None):
+            raise ValueError('corrupt job record')
+        if datetime.fromisoformat(created_at).tzinfo is None:
+            raise ValueError('job creation time must include timezone')
+
+        def check_hex32(val):
+            return val is None or (isinstance(val, str) and HEX32.fullmatch(val) is not None)
+
+        def check_ts(val):
+            return val is None or (isinstance(val, str) and datetime.fromisoformat(val).tzinfo is not None)
+
+        if not (check_hex32(approval_key) and check_hex32(reservation_key)):
+            raise ValueError('corrupt job record')
+        if not (check_ts(approved_at) and check_ts(reserved_at) and check_ts(unknown_at) and check_ts(cancelled_at)):
+            raise ValueError('corrupt job record')
+
+        if ((approval_key is None) != (approved_at is None)
+                or (reservation_key is None) != (reserved_at is None)):
+            raise ValueError('corrupt job record')
+
+        if state == 'awaiting_owner_approval':
+            if any(value is not None for value in row[7:]):
+                raise ValueError('corrupt job record')
+        elif state == 'approved':
+            if (approval_key is None
+                    or any(value is not None for value in (reservation_key, reserved_at, unknown_at, cancelled_at))):
+                raise ValueError('corrupt job record')
+        elif state == 'reserved':
+            if (approval_key is None or reservation_key is None
+                    or unknown_at is not None or cancelled_at is not None):
+                raise ValueError('corrupt job record')
+        elif state == 'completion_unknown':
+            if (approval_key is None or reservation_key is None
+                    or unknown_at is None or cancelled_at is not None):
+                raise ValueError('corrupt job record')
+        elif state == 'cancelled':
+            if (cancelled_at is None
+                    or any(value is not None for value in (reservation_key, reserved_at, unknown_at))):
+                raise ValueError('corrupt job record')
+        else:
+            raise ValueError('corrupt job record')
+
+        return dict(id=identity, draft_id=draft_id, draft_sha256=draft_sha256, worker=worker,
+                    request_key=request_key, created_at=created_at, state=state,
+                    approval_key=approval_key, approved_at=approved_at,
+                    reservation_key=reservation_key, reserved_at=reserved_at,
+                    unknown_at=unknown_at, cancelled_at=cancelled_at)
+
+    def _require_current(self, draft_id, expected_hash):
+        with PlanStore(self._workspace) as plans:
+            draft = plans.get(draft_id)
+        if draft['content_sha256'] != expected_hash:
+            raise ValueError('draft content changed since the expected hash')
+
+    def enqueue(self, draft_id, expected_hash, worker, request_key):
+        """Idempotently record one job awaiting owner approval.
+
+        The draft's current PlanStore content hash is checked before every
+        create and every replay, so an edited draft never queues or requeues.
+        """
+        self._hex32(draft_id, 'draft ID')
+        self._hex64(expected_hash, 'draft hash')
+        self._worker(worker)
+        self._hex32(request_key, 'request key')
+        connection = self._connection()
+        with PlanStore(self._workspace) as plans:
+            draft = plans.get(draft_id)
+            if draft['content_sha256'] != expected_hash:
+                raise ValueError('draft content changed since the expected hash')
+        connection.execute('BEGIN IMMEDIATE')
+        try:
+            existing = connection.execute(SELECT_BY_KEY, (request_key,)).fetchone()
+            if existing is not None:
+                record = self._record(existing)
+                if (record['draft_id'] != draft_id
+                        or record['draft_sha256'] != expected_hash
+                        or record['worker'] != worker):
+                    raise ValueError('request key already used with different job inputs')
+                connection.execute('ROLLBACK')
+                return record
+            identity = uuid.uuid4().hex
+            created_at = datetime.now(timezone.utc).isoformat()
+            connection.execute(INSERT_JOB, (identity, request_key, draft_id, expected_hash,
+                                            worker, created_at, STATE))
+        except sqlite3.IntegrityError:
+            self._rollback(connection)
+            row = connection.execute(SELECT_BY_KEY, (request_key,)).fetchone()
+            if row is None:
+                raise
+            record = self._record(row)
+            if (record['draft_id'] != draft_id or record['draft_sha256'] != expected_hash
+                    or record['worker'] != worker):
+                raise ValueError('request key already used with different job inputs') from None
+            return record
+        except BaseException:
+            self._rollback(connection)
+            raise
+        try:
+            connection.execute('COMMIT')
+        except sqlite3.Error:
+            self._rollback(connection)
+            raise
+        return self.get(identity)
+
+    def get(self, job_id):
+        self._hex32(job_id, 'job ID')
+        row = self._connection().execute(SELECT_JOB, (job_id,)).fetchone()
+        return None if row is None else self._record(row)
+
+    def pending(self):
+        rows = self._connection().execute(SELECT_PENDING, ('awaiting_owner_approval',)).fetchall()
+        return [self._record(row) for row in rows]
+
+    def jobs(self):
+        rows = self._connection().execute(SELECT_JOBS).fetchall()
+        return [self._record(row) for row in rows]
+
+    def approve(self, job_id, expected_hash, worker, approval_key):
+        self._hex32(job_id, 'job ID')
+        self._hex64(expected_hash, 'draft hash')
+        self._worker(worker)
+        self._hex32(approval_key, 'approval key')
+        connection = self._connection()
+        connection.execute('BEGIN IMMEDIATE')
+        try:
+            row = connection.execute(SELECT_JOB, (job_id,)).fetchone()
+            if row is None:
+                raise ValueError('job not found')
+            record = self._record(row)
+
+            if record['draft_sha256'] != expected_hash or record['worker'] != worker:
+                raise ValueError('approval inputs do not match job')
+
+            if record['state'] in ('reserved', 'completion_unknown', 'cancelled'):
+                raise ValueError('job cannot be approved in current state')
+
+            # Recheck the draft even on replay: an old approval is never
+            # returned as success once its draft has changed.
+            self._require_current(record['draft_id'], expected_hash)
+
+            if record['state'] == 'approved':
+                if record['approval_key'] == approval_key:
+                    connection.execute('ROLLBACK')
+                    return record
+                raise ValueError('job already approved with a different key')
+
+            approved_at = datetime.now(timezone.utc).isoformat()
+            try:
+                connection.execute('UPDATE jobs SET state = ?, approval_key = ?, approved_at = ? WHERE id = ?',
+                                   ('approved', approval_key, approved_at, job_id))
+            except sqlite3.IntegrityError:
+                raise ValueError('approval key already used')
+            connection.execute('COMMIT')
+        except BaseException:
+            self._rollback(connection)
+            raise
+        return self.get(job_id)
+
+    def reserve(self, job_id, approval_key, reservation_key):
+        self._hex32(job_id, 'job ID')
+        self._hex32(approval_key, 'approval key')
+        self._hex32(reservation_key, 'reservation key')
+        connection = self._connection()
+        connection.execute('BEGIN IMMEDIATE')
+        try:
+            row = connection.execute(SELECT_JOB, (job_id,)).fetchone()
+            if row is None:
+                raise ValueError('job not found')
+            record = self._record(row)
+
+            if record['state'] not in ('approved', 'reserved'):
+                raise ValueError('job cannot be reserved in current state')
+
+            if record['approval_key'] != approval_key:
+                raise ValueError('approval key mismatch')
+
+            # Recheck the draft even on replay. A successful replay still
+            # reports newly_reserved=False, so it never authorizes a dispatch.
+            self._require_current(record['draft_id'], record['draft_sha256'])
+
+            if record['state'] == 'reserved':
+                if record['reservation_key'] == reservation_key:
+                    connection.execute('ROLLBACK')
+                    return dict(job=record, newly_reserved=False)
+                raise ValueError('job already reserved with a different key')
+
+            reserved_at = datetime.now(timezone.utc).isoformat()
+            try:
+                connection.execute('UPDATE jobs SET state = ?, reservation_key = ?, reserved_at = ? WHERE id = ?',
+                                   ('reserved', reservation_key, reserved_at, job_id))
+            except sqlite3.IntegrityError:
+                raise ValueError('reservation key already used')
+            connection.execute('COMMIT')
+        except BaseException:
+            self._rollback(connection)
+            raise
+        return dict(job=self.get(job_id), newly_reserved=True)
+
+    def mark_unknown(self, job_id, reservation_key):
+        self._hex32(job_id, 'job ID')
+        self._hex32(reservation_key, 'reservation key')
+        connection = self._connection()
+        connection.execute('BEGIN IMMEDIATE')
+        try:
+            row = connection.execute(SELECT_JOB, (job_id,)).fetchone()
+            if row is None:
+                raise ValueError('job not found')
+            record = self._record(row)
+
+            if record['state'] == 'completion_unknown':
+                if record['reservation_key'] == reservation_key:
+                    connection.execute('ROLLBACK')
+                    return record
+                raise ValueError('job already marked unknown for a different reservation')
+
+            if record['state'] != 'reserved':
+                raise ValueError('only reserved jobs can be marked unknown')
+
+            if record['reservation_key'] != reservation_key:
+                raise ValueError('reservation key mismatch')
+
+            unknown_at = datetime.now(timezone.utc).isoformat()
+            connection.execute('UPDATE jobs SET state = ?, unknown_at = ? WHERE id = ?',
+                               ('completion_unknown', unknown_at, job_id))
+            connection.execute('COMMIT')
+        except BaseException:
+            self._rollback(connection)
+            raise
+        return self.get(job_id)
+
+    def cancel(self, job_id):
+        self._hex32(job_id, 'job ID')
+        connection = self._connection()
+        connection.execute('BEGIN IMMEDIATE')
+        try:
+            row = connection.execute(SELECT_JOB, (job_id,)).fetchone()
+            if row is None:
+                raise ValueError('job not found')
+            record = self._record(row)
+
+            if record['state'] == 'cancelled':
+                connection.execute('ROLLBACK')
+                return record
+
+            if record['state'] not in ('awaiting_owner_approval', 'approved'):
+                raise ValueError('job cannot be cancelled in current state')
+
+            cancelled_at = datetime.now(timezone.utc).isoformat()
+            connection.execute('UPDATE jobs SET state = ?, cancelled_at = ? WHERE id = ?',
+                               ('cancelled', cancelled_at, job_id))
+            connection.execute('COMMIT')
+        except BaseException:
+            self._rollback(connection)
+            raise
+        return self.get(job_id)
+UNIO_BROWSER_JOB_STORE_PY
+cat > "$CONF_DIR/lib/browser/execution_service.py" <<'UNIO_BROWSER_EXECUTION_SERVICE_PY'
+# Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit)
+# https://github.com/danielmevit/unio
+# SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE. No warranty.
+"""Explicit, at-most-once native execution over the frozen draft/job stores.
+
+The coordination lock serializes service writers across threads and processes.
+Native Unio retains its own worker lock. Neither a receipt nor reading a result
+is authority to launch, retry, release ownership or spend on a review.
+"""
+from contextlib import contextmanager
+from datetime import datetime
+import copy
+import fcntl
+import functools
+import hashlib
+import inspect
+import json
+import os
+from pathlib import Path
+import re
+import selectors
+import signal
+import sqlite3
+import stat
+import subprocess
+import threading
+import time
+import unicodedata
+import uuid
+
+try:
+    from job_store import JobStore
+    from plan_store import PlanStore
+except ImportError:
+    import importlib.util
+
+    def _load(name):
+        spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(name + '.py'))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    JobStore = _load('job_store').JobStore
+    PlanStore = _load('plan_store').PlanStore
+
+JSON_LIMIT = 128 * 1024
+OUTPUT_LIMIT = 1024 * 1024
+CONFIG_LIMIT = 8 * 1024 * 1024
+CONFIG_FILES = 128
+DEADLINES = dict(result=15, run=30, verify=900, review=1200, kill=30)
+LOCK_TIMEOUT = 10
+HEX32 = re.compile(r'[0-9a-f]{32}')
+HEX64 = re.compile(r'[0-9a-f]{64}')
+GIT_ID = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})')
+LABEL = re.compile(r'[a-z][a-z0-9_-]{0,63}')
+ERRORS = dict(invalid_request=400, job_not_found=404, conflict=409, draft_stale=409,
+              binding_stale=409, worker_unavailable=409, stopped=409, not_ready=409,
+              outcome_unknown=409, storage_unavailable=503, native_unavailable=503)
+REASONS = frozenset(('missing_scope', 'missing_validate', 'scope_violation', 'check_failed',
+                     'empty_work', 'task_tampered', 'candidate_changed_during_validation',
+                     'reviewer_process_failed', 'unknown_verdict', 'candidate_changed_during_review'))
+WARNINGS = frozenset(('native_result_unavailable', 'native_result_invalid', 'binding_stale',
+                      'draft_stale', 'outcome_unknown', 'ownership_unknown', 'stopped'))
+REVISION_FIELDS = {'base_commit', 'candidate_commit', 'task_sha256', 'worktree_sha256'}
+
+
+class ExecutionError(Exception):
+    """Fixed public error; never exposes an internal exception or host path."""
+    def __init__(self, code, status=None):
+        if code not in ERRORS or (status is not None and status != ERRORS[code]):
+            raise ValueError('unsupported execution error')
+        self.code, self.status = code, ERRORS[code]
+        super().__init__(code)
+
+
+class _NativeFailure(Exception):
+    def __init__(self, started, exit_code=None):
+        self.started, self.exit_code = started, exit_code
+
+
+def _public(method):
+    signature = inspect.signature(method)
+    @functools.wraps(method)
+    def wrapped(self, *args, **kwargs):
+        try:
+            signature.bind(self, *args, **kwargs)
+        except TypeError as error:
+            raise ExecutionError('invalid_request') from error
+        try:
+            return method(self, *args, **kwargs)
+        except ExecutionError:
+            raise
+        except (OSError, sqlite3.Error, ValueError, TypeError, KeyError, UnicodeError, RecursionError, OverflowError) as error:
+            raise ExecutionError('storage_unavailable') from error
+    return wrapped
+
+
+def _json_bytes(value):
+    return _canonical(value) + b'\n'
+
+
+def _canonical(value):
+    return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(',', ':')).encode()
+
+
+def _stored(value):
+    """Durable companion bytes; unescaped UTF-8 keeps valid Unicode text within bounds.
+
+    Values that cannot be UTF-8 (lone surrogates from a JSON-escaped draft) keep
+    the escaped form. Both decode to the identical value, so canonical hashes
+    (always computed with _canonical) never depend on the stored encoding.
+    """
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode() + b'\n'
+    except UnicodeEncodeError:
+        return _json_bytes(value)
+
+
+def _hash(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('duplicate JSON field')
+        result[key] = value
+    return result
+
+
+def _decode(raw):
+    return json.loads(raw, object_pairs_hook=_pairs,
+                      parse_constant=lambda _: (_ for _ in ()).throw(ValueError('invalid number')))
+
+
+def _matches(pattern, value):
+    return isinstance(value, str) and pattern.fullmatch(value) is not None
+
+
+def _path_control(value):
+    return any(unicodedata.category(char) in ('Cc', 'Zl', 'Zp') for char in value)
+
+
+def _input(pattern, value):
+    if not _matches(pattern, value):
+        raise ExecutionError('invalid_request')
+
+
+def _real_path(value, directory=False):
+    path = Path(value).absolute()
+    if path.resolve() != path:
+        raise ValueError('symlink path')
+    info = path.lstat()
+    if not (stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)):
+        raise ValueError('unsupported path')
+    return path
+
+
+def _read(path, limit=JSON_LIMIT):
+    _real_path(path)
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, 'rb') as source:
+        if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+            raise ValueError('unsupported file')
+        data = source.read(limit + 1)
+    if len(data) > limit:
+        raise ValueError('oversized file')
+    return data
+
+
+def _revision(value):
+    if not isinstance(value, dict) or set(value) != REVISION_FIELDS:
+        raise ValueError('invalid revision')
+    for key in REVISION_FIELDS:
+        if not _matches(GIT_ID if key.endswith('_commit') else HEX64, value[key]):
+            raise ValueError('invalid revision value')
+    return dict(value)
+
+
+def _native_document(document, worker, task):
+    """Validate known fields before whitelisting; private producer extras vanish."""
+    if (not isinstance(document, dict) or type(document.get('schema_version')) is not int
+            or document['schema_version'] != 1 or document.get('worker') != worker
+            or document.get('task') != task):
+        raise ValueError('invalid native identity')
+    updated = document.get('updated_at')
+    if (not isinstance(updated, str) or len(updated) > 64
+            or datetime.fromisoformat(updated).tzinfo is None):
+        raise ValueError('invalid native date')
+    if 'current_revision' not in document:
+        raise ValueError('missing current revision')
+    current = document['current_revision']
+    if current is not None:
+        current = _revision(current)
+    if any(type(document.get(key)) is not bool for key in ('stale', 'ready_for_human_review')):
+        raise ValueError('invalid native readiness')
+    result = dict(worker=worker, task=task, updated_at=updated, current_revision=current)
+    fields = dict(process=('state', 'exit_code', 'revision'),
+                  validation=('state', 'scope', 'checks_run', 'checks_failed', 'reasons', 'revision'),
+                  review=('state', 'reviewer', 'process_exit_code', 'material_complete', 'reasons', 'revision'))
+    states = dict(process=('not_run', 'running', 'succeeded', 'failed'),
+                  validation=('not_run', 'passed', 'failed', 'incomplete'),
+                  review=('not_run', 'approved', 'changes_requested', 'unknown', 'failed'))
+    for name, keys in fields.items():
+        section = document.get(name)
+        if not isinstance(section, dict) or any(key not in section for key in keys):
+            raise ValueError('missing evidence')
+        section = {key: section[key] for key in keys}
+        if section['state'] not in states[name]:
+            raise ValueError('invalid evidence state')
+        if section['revision'] is not None:
+            section['revision'] = _revision(section['revision'])
+        elif section['state'] != 'not_run':
+            raise ValueError('missing evidence revision')
+        if name in ('process', 'review'):
+            code = section['exit_code' if name == 'process' else 'process_exit_code']
+            if code is not None and (type(code) is not int or not 0 <= code <= 2147483647):
+                raise ValueError('invalid native exit')
+        if name in ('validation', 'review'):
+            reasons = section['reasons']
+            if (not isinstance(reasons, list) or len(reasons) > 30
+                    or any(not isinstance(reason, str) or reason not in REASONS for reason in reasons)):
+                raise ValueError('invalid native reasons')
+        result[name] = section
+    p, v, r = (result[key] for key in ('process', 'validation', 'review'))
+    if ((p['state'] == 'succeeded' and p['exit_code'] != 0)
+            or (p['state'] in ('not_run', 'running') and p['exit_code'] is not None)
+            or (p['state'] == 'failed' and p['exit_code'] == 0)):
+        raise ValueError('inconsistent worker exit')
+    if (v['scope'] not in ('OK', 'VIOLATION', 'UNCHECKED')
+            or any(type(v[key]) is not int or not 0 <= v[key] <= 1000000
+                   for key in ('checks_run', 'checks_failed'))
+            or v['checks_failed'] > v['checks_run']):
+        raise ValueError('invalid native checks')
+    if v['state'] == 'passed' and (v['scope'] != 'OK' or v['checks_run'] < 1
+                                   or v['checks_failed'] != 0 or v['reasons']):
+        raise ValueError('inconsistent validation')
+    if (type(r['material_complete']) is not bool
+            or (r['reviewer'] is not None and not _matches(LABEL, r['reviewer']))):
+        raise ValueError('invalid reviewer')
+    if r['state'] in ('approved', 'changes_requested') and (
+            r['process_exit_code'] != 0 or not r['material_complete'] or not r['reviewer'] or r['reasons']):
+        raise ValueError('inconsistent review decision')
+    if r['state'] == 'failed' and r['process_exit_code'] in (None, 0):
+        raise ValueError('inconsistent review failure')
+    stale = document['stale'] or current is None or any(
+        section['revision'] != current for section in (p, v, r) if section['state'] != 'not_run')
+    # An explicitly failed post-run snapshot must never become ready after filtering.
+    if 'post_run_snapshot' in document['process']:
+        if document['process']['post_run_snapshot'] != 'failed':
+            raise ValueError('invalid snapshot failure')
+        stale = True
+    ready = (not stale and p['state'] == 'succeeded' and v['state'] == 'passed'
+             and r['state'] == 'approved' and all(s['revision'] == current for s in (p, v, r)))
+    if document['ready_for_human_review'] and not ready:
+        raise ValueError('inconsistent native readiness')
+    result.update(stale=stale, ready_for_human_review=ready and document['ready_for_human_review'])
+    return result
+
+
+class ExecutionService:
+    @_public
+    def __init__(self, workspace, engine, worker, reviewer, config_dir,
+                 template_path, worker_company, reviewer_company):
+        self._closed = False
+        self._thread_lock = threading.RLock()
+        self._fd = None
+        for value in (worker, reviewer):
+            _input(LABEL, value)
+        for value in (worker_company, reviewer_company):
+            if not isinstance(value, str) or not value.strip() or len(value) > 100 or any(
+                    ord(char) < 32 or ord(char) == 127 for char in value):
+                raise ExecutionError('invalid_request')
+        if worker_company == reviewer_company:
+            raise ExecutionError('invalid_request')
+        try:
+            self._workspace = _real_path(workspace, True)
+            self._repo = _real_path(self._workspace / 'repo', True)
+            self._coord = _real_path(self._workspace / 'coord', True)
+            _real_path(self._workspace / 'wt', True)
+            self._wt = _real_path(self._workspace / 'wt' / worker, True)
+            self._engine = _real_path(engine)
+            if not os.access(self._engine, os.X_OK):
+                raise ValueError('engine not executable')
+            self._config = _real_path(config_dir, True)
+            self._template_path = _real_path(template_path)
+        except (ValueError, OSError, TypeError) as error:
+            raise ExecutionError('invalid_request') from error
+        self._worker, self._reviewer = worker, reviewer
+        self._worker_company, self._reviewer_company = worker_company, reviewer_company
+        try:
+            self._template()  # Startup validates compilation, but never demands a clean worker.
+            self._fingerprints()
+        except (OSError, ValueError, TypeError, RecursionError) as error:
+            raise ExecutionError('invalid_request') from error
+        directory = self._coord / 'ui-execution'
+        try:
+            directory.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        _real_path(directory, True)
+        self._directory = directory
+        self._fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            with self._locked():
+                for name in ('bindings', 'states', 'actions'):
+                    try:
+                        os.mkdir(name, mode=0o700, dir_fd=self._fd)
+                    except FileExistsError:
+                        pass
+                    _real_path(directory / name, True)
+                with JobStore(self._workspace) as store:
+                    store.jobs()  # Fail closed on corrupt queue records at startup.
+                self._owner()  # Existing unknown ownership is retained, never repaired.
+        except BaseException:
+            os.close(self._fd)
+            self._fd = None
+            raise
+
+    def close(self):
+        with self._thread_lock:
+            self._closed = True
+            if self._fd is not None:
+                os.close(self._fd)
+                self._fd = None
+
+    @contextmanager
+    def _locked(self):
+        with self._thread_lock:
+            if self._closed or self._fd is None:
+                raise ExecutionError('storage_unavailable')
+            descriptor = os.open('lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK,
+                                 0o600, dir_fd=self._fd)
+            try:
+                if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                    raise ValueError('unsupported lock')
+                deadline = time.monotonic() + LOCK_TIMEOUT
+                while True:
+                    try:
+                        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        break
+                    except BlockingIOError:
+                        if time.monotonic() >= deadline:
+                            raise ExecutionError('worker_unavailable')
+                        time.sleep(0.02)
+                # Refuse directory replacement; held descriptors are not a new authority.
+                if os.stat(self._directory, follow_symlinks=False).st_ino != os.fstat(self._fd).st_ino:
+                    raise ValueError('replaced execution directory')
+                _real_path(self._directory, True)
+                yield
+            finally:
+                os.close(descriptor)
+
+    def _write(self, path, record, exclusive=False):
+        raw = _json_bytes(record)
+        if len(raw) > JSON_LIMIT:
+            raise ValueError('oversized durable record')
+        self._publish(path, raw, exclusive)
+
+    def _publish(self, path, raw, exclusive):
+        _real_path(path.parent, True)
+        if os.path.lexists(path):
+            _real_path(path)
+            if exclusive:
+                if _read(path, max(JSON_LIMIT, len(raw))) == raw:
+                    return
+                raise ExecutionError('conflict')
+        temporary = path.parent / ('.' + uuid.uuid4().hex + '.tmp')
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        try:
+            with os.fdopen(descriptor, 'wb') as output:
+                output.write(raw)
+                output.flush()
+                os.fsync(output.fileno())
+            if exclusive:
+                try:
+                    os.link(temporary, path, follow_symlinks=False)
+                except FileExistsError:
+                    if _read(path, max(JSON_LIMIT, len(raw))) != raw:
+                        raise ExecutionError('conflict') from None
+            else:
+                os.replace(temporary, path)
+            directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def _owner_path(self):
+        return self._directory / (self._worker + '.json')
+
+    def _owner(self):
+        path = self._owner_path()
+        if not os.path.lexists(path):
+            return None
+        record = _decode(_read(path))
+        if (not isinstance(record, dict) or set(record) != {
+                'schema_version', 'worker', 'phase', 'job_id', 'request_key'}
+                or type(record['schema_version']) is not int or record['schema_version'] != 1
+                or record['worker'] != self._worker or record['phase'] not in ('preparing', 'owned', 'released')
+                or not _matches(HEX32, record['request_key'])
+                or (record['phase'] != 'preparing' and not _matches(HEX32, record['job_id']))
+                or (record['phase'] == 'preparing' and record['job_id'] is not None)):
+            raise ValueError('corrupt ownership')
+        if record['phase'] in ('owned', 'released'):
+            try:
+                binding, state = self._records(record['job_id'])
+            except ExecutionError as error:
+                raise ValueError('ownership has no service binding') from error
+            if binding['request_key'] != record['request_key']:
+                raise ValueError('ownership mismatch')
+            with JobStore(self._workspace) as store:
+                job = store.get(record['job_id'])
+            if job is None or job['worker'] != self._worker:
+                raise ValueError('ownership has no queue binding')
+            if any(job[key] != binding[key] for key in ('request_key', 'draft_id', 'draft_sha256')):
+                raise ValueError('ownership queue inputs changed')
+            if record['phase'] == 'released' and job['state'] != 'cancelled' and state['acceptance']['state'] != 'accepted':
+                raise ValueError('ownership released without explicit completion')
+            if record['phase'] == 'released' and job['state'] != 'cancelled' and (
+                    self._unresolved(state) or not any(self._action(key)['method'] == 'accept'
+                    and self._action(key)['phase'] == 'done'
+                    and self._action(key)['revision'] == state['acceptance']['revision'] for key in state['actions'])):
+                raise ValueError('ownership released without a durable acceptance outcome')
+        return record
+
+    def _own(self, job):
+        owner = self._owner()
+        if (owner is None or owner['phase'] != 'owned' or owner['job_id'] != job['id']
+                or owner['request_key'] != job['request_key']):
+            raise ExecutionError('outcome_unknown')
+
+    def _release(self, job):
+        owner = self._owner()
+        if owner and owner['phase'] == 'released' and owner['job_id'] == job['id']:
+            return
+        self._own(job)
+        self._write(self._owner_path(), dict(schema_version=1, worker=self._worker,
+                    phase='released', job_id=job['id'], request_key=job['request_key']))
+
+    def _template(self):
+        raw = _read(self._template_path)
+        template = _decode(raw)
+        self._validate_template(template)
+        return template, _hash(raw)
+
+    @staticmethod
+    def _validate_template(template):
+        if (not isinstance(template, dict) or set(template) != {'schema_version', 'instructions', 'scope', 'validate'}
+                or type(template['schema_version']) is not int or template['schema_version'] != 1):
+            raise ExecutionError('invalid_request')
+        instructions, scope, validate = (template[key] for key in ('instructions', 'scope', 'validate'))
+        if (not isinstance(instructions, str) or not 1 <= len(instructions) <= 12000
+                or re.search(r'^## (?:Allowed scope|Validate)(?:\r)?$', instructions, re.MULTILINE)):
+            raise ExecutionError('invalid_request')
+        instructions.encode('utf-8')
+        if not isinstance(scope, list) or not 1 <= len(scope) <= 100:
+            raise ExecutionError('invalid_request')
+        for path in scope:
+            if (not isinstance(path, str) or not path or path.startswith('/') or '\\' in path
+                    or any(part in ('', '.', '..') for part in path.split('/'))
+                    or _path_control(path)
+                    or path != path.strip()):
+                raise ExecutionError('invalid_request')
+            path.encode('utf-8')
+        if len(set(scope)) != len(scope) or not isinstance(validate, list) or not 1 <= len(validate) <= 30:
+            raise ExecutionError('invalid_request')
+        if any(not isinstance(command, str) or not command.strip() or len(command) > 2000
+               or any(char in '\x00\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029' for char in command) for command in validate):
+            raise ExecutionError('invalid_request')
+        for command in validate:
+            command.encode('utf-8')
+
+    def _config_hash(self):
+        rows, total = [], 0
+        def walk(directory):
+            nonlocal total
+            _real_path(directory, True)
+            for path in sorted(directory.iterdir()):
+                mode = path.lstat().st_mode
+                if stat.S_ISDIR(mode):
+                    rows.append([str(path.relative_to(self._config)), 'directory'])
+                    if len(rows) > 1024:
+                        raise ValueError('too many configuration entries')
+                    walk(path)
+                elif stat.S_ISREG(mode):
+                    raw = _read(path, CONFIG_LIMIT - total)
+                    total += len(raw)
+                    rows.append([str(path.relative_to(self._config)), 'file', stat.S_IMODE(mode), _hash(raw)])
+                    if sum(row[1] == 'file' for row in rows) > CONFIG_FILES:
+                        raise ValueError('too many configuration files')
+                else:
+                    raise ValueError('unsupported configuration input')
+        walk(self._config)
+        # Native Unio prefers the project-local override over config_dir/agents.conf.
+        override = self._coord / 'agents.conf'
+        if os.path.lexists(override):
+            raw = _read(override, CONFIG_LIMIT - total)
+            if sum(row[1] == 'file' for row in rows) >= CONFIG_FILES:
+                raise ValueError('too many configuration files')
+            rows.append(['@coord/agents.conf', 'file', _hash(raw)])
+        return _hash(_json_bytes(rows))
+
+    def _fingerprints(self):
+        return dict(engine=_hash(_read(self._engine, CONFIG_LIMIT)), config=self._config_hash(),
+                    template=self._template()[1])
+
+    def _call(self, argv, timeout):
+        """Drain bounded pipes while the process runs, including inherited pipes."""
+        environment = os.environ.copy()
+        environment.update(UNIO_CONF_DIR=str(self._config), UNIO_AUTO_OFF='0',
+                           UNIO_AUTO_VERIFY='0', UNIO_AUTO_SYNC='0')
+        try:
+            process = subprocess.Popen(argv, cwd=self._repo, env=environment,
+                                       stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, start_new_session=True, close_fds=True)
+        except OSError as error:
+            raise _NativeFailure(False) from error
+        stdout, size = bytearray(), 0
+        deadline = time.monotonic() + timeout
+        try:
+            with selectors.DefaultSelector() as selector:
+                for pipe in (process.stdout, process.stderr):
+                    os.set_blocking(pipe.fileno(), False)
+                    selector.register(pipe, selectors.EVENT_READ)
+                while selector.get_map():
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise _NativeFailure(True, process.poll())
+                    for key, _ in selector.select(min(remaining, 0.1)):
+                        chunk = os.read(key.fileobj.fileno(), 65536)
+                        if not chunk:
+                            selector.unregister(key.fileobj)
+                            continue
+                        size += len(chunk)
+                        if size > OUTPUT_LIMIT:
+                            raise _NativeFailure(True, process.poll())
+                        if key.fileobj is process.stdout:
+                            stdout.extend(chunk)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise _NativeFailure(True, process.poll())
+                try:
+                    code = process.wait(timeout=remaining)
+                except subprocess.TimeoutExpired as error:
+                    raise _NativeFailure(True) from error
+                return code, bytes(stdout)
+        except (OSError, _NativeFailure) as error:
+            self._terminate_session(process.pid)
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass
+            if isinstance(error, _NativeFailure):
+                raise
+            raise _NativeFailure(True, process.poll()) from error
+        finally:
+            process.stdout.close()
+            process.stderr.close()
+
+    @staticmethod
+    def _terminate_session(session_id):
+        # Native timeout commands create additional process groups. Signal only
+        # groups in the session we created, never names or unrelated workers.
+        groups = {session_id}
+        if Path('/proc').is_dir():
+            for entry in Path('/proc').iterdir():
+                if not entry.name.isdigit():
+                    continue
+                try:
+                    identity = int(entry.name)
+                    if os.getsid(identity) == session_id:
+                        groups.add(os.getpgid(identity))
+                except (ProcessLookupError, PermissionError):
+                    pass
+        for group in groups:
+            try:
+                os.killpg(group, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+    def _git(self, directory, *arguments):
+        try:
+            code, raw = self._call(['git', '-C', str(directory), '-c', 'core.fsmonitor=false',
+                                    '-c', 'core.untrackedCache=false', *arguments], 15)
+        except _NativeFailure as error:
+            raise ExecutionError('worker_unavailable') from error
+        if code != 0:
+            raise ExecutionError('worker_unavailable')
+        return raw
+
+    def _base(self):
+        path = self._coord / 'base'
+        base = _read(path, 4096).decode().strip() if os.path.lexists(path) else 'main'
+        if (not base or base.startswith('-') or '..' in base or any(
+                char.isspace() or ord(char) < 32 for char in base)):
+            raise ExecutionError('worker_unavailable')
+        revision = self._git(self._repo, 'rev-parse', '--verify', '--end-of-options', base + '^{commit}').decode().strip()
+        if not _matches(GIT_ID, revision):
+            raise ExecutionError('worker_unavailable')
+        return base, revision
+
+    def _worker_revision(self, clean=False):
+        _real_path(self._wt, True)
+        # Batch only facts within this observation. No evidence is cached or
+        # shared with another _check/_native call. rev-parse emits the common
+        # directory, peeled commit, then full symbolic HEAD in that order.
+        try:
+            raw = self._git(self._wt, 'rev-parse', '--path-format=absolute',
+                            '--git-common-dir', 'HEAD^{commit}', '--symbolic-full-name', 'HEAD')
+            common, revision, branch, end = raw.decode().split('\n')
+            repo_common, repo_end = self._git(
+                self._repo, 'rev-parse', '--path-format=absolute', '--git-common-dir').decode().split('\n')
+            if (end or repo_end or branch != 'refs/heads/agent/' + self._worker
+                    or not _matches(GIT_ID, revision)
+                    or any(not Path(path).is_absolute() or any(ord(c) < 32 for c in path)
+                           for path in (common, repo_common))
+                    or Path(common).resolve() != Path(repo_common).resolve()):
+                raise ExecutionError('worker_unavailable')
+        except (ValueError, OSError) as error:
+            raise ExecutionError('worker_unavailable') from error
+
+        # -v supplies hidden-edit flags; --stage supplies unmerged stages in
+        # the same NUL-delimited read. Parse the fixed header only: filenames
+        # may contain tabs/newlines and must never become shell input.
+        raw = self._git(self._wt, 'ls-files', '--stage', '-v', '-z')
+        seen = set()
+        for row in raw.split(b'\0')[:-1]:
+            header, separator, path = row.partition(b'\t')
+            if (not separator or not path or path in seen
+                    or re.fullmatch(rb'[HMRCK?] (?:100644|100755|120000|160000) '
+                                    rb'(?:[0-9a-f]{40}|[0-9a-f]{64}) 0', header) is None):
+                raise ExecutionError('worker_unavailable')
+            seen.add(path)
+        if raw and not raw.endswith(b'\0'):
+            raise ExecutionError('worker_unavailable')
+        try:
+            # Git distinguishes a bare key (true) from an explicit empty value
+            # (false); an untyped read emits the same newline for both.
+            code, raw = self._call(['git', '-C', str(self._wt), 'config', '--type=bool',
+                                    '--get-all', 'core.sparseCheckout'], 15)
+        except _NativeFailure as error:
+            raise ExecutionError('worker_unavailable') from error
+        if not ((code == 1 and raw == b'') or (code == 0 and raw == b'false\n')):
+            raise ExecutionError('worker_unavailable')
+        if clean:
+            base, base_revision = self._base()
+            if revision != base_revision:
+                raise ExecutionError('worker_unavailable')
+            if self._git(self._wt, 'status', '--porcelain=v1', '--untracked-files=all', '-z'):
+                raise ExecutionError('worker_unavailable')
+        return revision
+
+    def _stop_check(self):
+        path = self._coord / 'STOP'
+        if os.path.lexists(path):
+            _real_path(path)
+            raise ExecutionError('stopped')
+
+    def _worker_free(self):
+        path = self._coord / '.locks' / (self._worker + '.lock')
+        if not os.path.lexists(path):
+            return
+        _real_path(path)
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise ValueError('invalid native lock')
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise ExecutionError('worker_unavailable') from error
+        finally:
+            os.close(descriptor)
+
+    @contextmanager
+    def _accept_guard(self):
+        """Keep native writers out while evidence and acceptance are compared."""
+        directory = self._coord / '.locks'
+        try:
+            directory.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        _real_path(directory, True)
+        path = directory / (self._worker + '.lock')
+        descriptor = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+        try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise ValueError('unsupported native lock')
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise ExecutionError('worker_unavailable') from error
+            yield
+        finally:
+            os.close(descriptor)
+
+    def _draft(self, draft_id, expected_hash):
+        try:
+            with PlanStore(self._workspace) as plans:
+                draft = plans.get(draft_id)
+        except (FileNotFoundError, ValueError) as error:
+            raise ExecutionError('draft_stale') from error
+        if draft['content_sha256'] != expected_hash:
+            raise ExecutionError('draft_stale')
+        return draft
+
+    def _compile(self, request, task_id, template):
+        # ensure_ascii escapes every newline/control/unicode line separator in the request.
+        return ('# ' + task_id + '\n\nSaved request (one literal JSON string):\n'
+                + json.dumps(request, ensure_ascii=True) + '\n\n' + template['instructions']
+                + '\n\n## Allowed scope\n' + ''.join('- ' + path + '\n' for path in template['scope'])
+                + '\n## Validate\n' + ''.join('$ ' + command + '\n' for command in template['validate'])).encode()
+
+    def _records(self, job_id):
+        path = self._directory / 'bindings' / (job_id + '.json')
+        if not os.path.lexists(path):
+            raise ExecutionError('job_not_found')
+        binding = _decode(_read(path))
+        fields = {'schema_version', 'job_id', 'request_key', 'draft_id', 'draft_sha256', 'base',
+                  'base_revision', 'worker_revision', 'preview', 'fingerprints', 'startup'}
+        if (not isinstance(binding, dict) or set(binding) != fields
+                or type(binding['schema_version']) is not int or binding['schema_version'] != 1
+                or binding['job_id'] != job_id
+                or any(not _matches(HEX32, binding[key]) for key in ('job_id', 'request_key', 'draft_id'))
+                or not _matches(HEX64, binding['draft_sha256'])
+                or any(not _matches(GIT_ID, binding[key]) for key in ('base_revision', 'worker_revision'))
+                or binding['worker_revision'] != binding['base_revision']
+                or not isinstance(binding['base'], str) or not 1 <= len(binding['base']) <= 4096):
+            raise ValueError('corrupt binding')
+        preview = binding['preview']
+        if not isinstance(preview, dict) or set(preview) != {'task_id', 'task_sha256',
+                'preview_hash', 'worker', 'reviewer', 'worker_company', 'reviewer_company'}:
+            raise ValueError('corrupt stored preview')
+        if not _matches(LABEL, preview['worker']):
+            raise ValueError('corrupt bound worker')
+        if preview['worker'] != self._worker:
+            raise ExecutionError('job_not_found')
+        # Keep each JSON document bounded even at the template/request maxima.
+        # These immutable companions are part of the complete binding, checked
+        # against its preview/task hashes on every read.
+        for name in ('request', 'scope', 'validate'):
+            preview[name] = _decode(_read(self._directory / 'bindings' / (job_id + '.' + name + '.json')))
+        binding['task'] = _read(self._directory / 'bindings' / (job_id + '.md'), OUTPUT_LIMIT).decode()
+        if (not isinstance(preview, dict) or set(preview) != {'request', 'task_id', 'task_sha256',
+                'preview_hash', 'scope', 'validate', 'worker', 'reviewer', 'worker_company', 'reviewer_company'}
+                or preview['worker'] != self._worker or preview['task_id'] != 'ui-' + job_id
+                or not _matches(LABEL, preview['reviewer'])
+                or not _matches(HEX64, preview['task_sha256']) or not _matches(HEX64, preview['preview_hash'])
+                or _hash(binding['task'].encode()) != preview['task_sha256']):
+            raise ValueError('corrupt preview')
+        public = {key: value for key, value in preview.items() if key != 'preview_hash'}
+        if _hash(_canonical(public)) != preview['preview_hash']:
+            raise ValueError('corrupt preview hash')
+        # Reconstruct with the bound sections, ensuring stored compilation is exact.
+        task = binding['task']
+        if (task.count('\n## Allowed scope\n') != 1 or task.count('\n## Validate\n') != 1
+                or not isinstance(preview['request'], str) or not 1 <= len(preview['request']) <= 4000
+                or not isinstance(preview['scope'], list) or not isinstance(preview['validate'], list)
+                or not all(isinstance(value, str) for value in preview['scope'] + preview['validate'])
+                or not isinstance(preview['worker_company'], str) or not isinstance(preview['reviewer_company'], str)
+                or preview['worker_company'] == preview['reviewer_company']):
+            raise ValueError('corrupt bound task')
+        prefix = ('# ' + preview['task_id'] + '\n\nSaved request (one literal JSON string):\n'
+                  + json.dumps(preview['request'], ensure_ascii=True) + '\n\n')
+        suffix = ('\n\n## Allowed scope\n' + ''.join('- ' + path + '\n' for path in preview['scope'])
+                  + '\n## Validate\n' + ''.join('$ ' + command + '\n' for command in preview['validate']))
+        if not task.startswith(prefix) or not task.endswith(suffix):
+            raise ValueError('task disagrees with public preview')
+        instructions = task[len(prefix):-len(suffix)]
+        try:
+            self._validate_template(dict(schema_version=1, instructions=instructions,
+                                         scope=preview['scope'], validate=preview['validate']))
+        except ExecutionError as error:
+            raise ValueError('corrupt compiled template') from error
+        for label in ('worker_company', 'reviewer_company'):
+            if not 1 <= len(preview[label]) <= 100 or any(ord(char) < 32 or ord(char) == 127 for char in preview[label]):
+                raise ValueError('corrupt company label')
+        fingerprints = binding['fingerprints']
+        if (not isinstance(fingerprints, dict) or set(fingerprints) != {'engine', 'config', 'template'}
+                or any(not _matches(HEX64, value) for value in fingerprints.values())
+                or not isinstance(binding['startup'], dict)
+                or set(binding['startup']) != {'engine', 'config', 'template'}
+                or any(not isinstance(value, str) for value in binding['startup'].values())):
+            raise ValueError('corrupt fingerprints')
+        state = _decode(_read(self._directory / 'states' / (job_id + '.json')))
+        if (not isinstance(state, dict) or set(state) != {'schema_version', 'job_id', 'execution',
+                'acceptance', 'run_action', 'review_action', 'actions'}
+                or type(state['schema_version']) is not int or state['schema_version'] != 1
+                or state['job_id'] != job_id or not isinstance(state['actions'], list)
+                or len(state['actions']) > 1000
+                or len(set(state['actions'])) != len(state['actions'])
+                or any(not _matches(HEX32, key) for key in state['actions'])):
+            raise ValueError('corrupt execution state')
+        execution = state['execution']
+        if (not isinstance(execution, dict) or set(execution) != {'state', 'launcher_exit'}
+                or execution['state'] not in ('not_started', 'launch_accepted', 'launch_failed', 'completion_unknown')
+                or (execution['launcher_exit'] is not None and type(execution['launcher_exit']) is not int)):
+            raise ValueError('corrupt launch state')
+        acceptance = state['acceptance']
+        if (not isinstance(acceptance, dict) or set(acceptance) != {'state', 'revision'}
+                or acceptance['state'] not in ('pending', 'accepted')
+                or (acceptance['state'] == 'pending') != (acceptance['revision'] is None)):
+            raise ValueError('corrupt acceptance')
+        if acceptance['revision'] is not None:
+            _revision(acceptance['revision'])
+        for key in ('run_action', 'review_action'):
+            if state[key] is not None and (not _matches(HEX32, state[key]) or state[key] not in state['actions']):
+                raise ValueError('corrupt action pointer')
+        for key in state['actions']:
+            action = self._action(key)
+            if action is None or action['job_id'] != job_id or action['binding_sha256'] != _hash(_json_bytes(binding)):
+                raise ValueError('corrupt action binding')
+        # Publication may have stopped between an action intent and its state
+        # pointer. Such an orphan must block another key, especially a review.
+        for path in (self._directory / 'actions').iterdir():
+            if not _matches(HEX32, path.stem) or path.suffix != '.json':
+                if path.name.startswith('.'):
+                    continue
+                raise ValueError('unsupported action record')
+            action = self._action(path.stem)
+            if action['job_id'] == job_id and path.stem not in state['actions']:
+                raise ValueError('unresolved orphan action')
+        return binding, state
+
+    def _state_write(self, state):
+        self._write(self._directory / 'states' / (state['job_id'] + '.json'), state)
+
+    def _load_job(self, store, job_id):
+        _input(HEX32, job_id)
+        binding, state = self._records(job_id)
+        job = store.get(job_id)
+        if job is None:
+            raise ValueError('binding has no job')
+        if any(job[key] != binding[key] for key in ('draft_id', 'draft_sha256', 'request_key')) or job['worker'] != self._worker:
+            raise ValueError('queue binding mismatch')
+        return job, binding, state
+
+    def _check(self, job, binding, task=False, clean=False, check_stop=True):
+        if check_stop:
+            self._stop_check()
+        self._draft(job['draft_id'], job['draft_sha256'])
+        startup = dict(engine=str(self._engine), config=str(self._config), template=str(self._template_path))
+        preview = binding['preview']
+        if (startup != binding['startup'] or self._reviewer != preview['reviewer']
+                or self._worker_company != preview['worker_company']
+                or self._reviewer_company != preview['reviewer_company']):
+            raise ExecutionError('binding_stale')
+        try:
+            if self._fingerprints() != binding['fingerprints']:
+                raise ExecutionError('binding_stale')
+            base, revision = self._base()
+            if base != binding['base'] or revision != binding['base_revision']:
+                raise ExecutionError('binding_stale')
+            worker_revision = self._worker_revision(clean=clean)
+            if job['reservation_key'] is None and job['state'] != 'cancelled' and worker_revision != binding['worker_revision']:
+                raise ExecutionError('binding_stale')
+            task_path = self._task_path(binding)
+            if task or os.path.lexists(task_path):
+                if _read(task_path, OUTPUT_LIMIT) != binding['task'].encode():
+                    raise ExecutionError('binding_stale')
+        except ExecutionError as error:
+            if error.code == 'invalid_request':
+                raise ExecutionError('binding_stale') from error
+            raise
+        except (ValueError, OSError) as error:
+            raise ExecutionError('binding_stale') from error
+
+    def _task_path(self, binding):
+        return self._coord / 'tasks' / (binding['preview']['task_id'] + '.md')
+
+    def _action(self, key):
+        path = self._directory / 'actions' / (key + '.json')
+        if not os.path.lexists(path):
+            return None
+        action = _decode(_read(path))
+        if (not isinstance(action, dict) or set(action) != {'schema_version', 'key', 'job_id', 'method',
+                'inputs', 'revision', 'binding_sha256', 'phase', 'exit_code', 'error'}
+                or type(action['schema_version']) is not int or action['schema_version'] != 1
+                or action['key'] != key or not _matches(HEX32, action['job_id'])
+                or action['method'] not in ('approve', 'start', 'verify', 'review', 'accept', 'stop')
+                or not isinstance(action['inputs'], dict)
+                or not _matches(HEX64, action['binding_sha256'])
+                or action['phase'] not in ('intent', 'done', 'unknown', 'failed')
+                or (action['exit_code'] is not None and type(action['exit_code']) is not int)
+                or (action['error'] is not None and action['error'] not in ERRORS)):
+            raise ValueError('corrupt action')
+        if action['revision'] is not None:
+            _revision(action['revision'])
+        return action
+
+    def _replay(self, key, method, job_id, inputs):
+        action = self._action(key)
+        if action is not None and (action['method'] != method or action['job_id'] != job_id or action['inputs'] != inputs):
+            raise ExecutionError('conflict')
+        return action
+
+    def _intent(self, key, method, binding, state, inputs, revision=None):
+        action = dict(schema_version=1, key=key, job_id=binding['job_id'], method=method,
+                      inputs=inputs, revision=revision, binding_sha256=_hash(_json_bytes(binding)),
+                      phase='intent', exit_code=None, error=None)
+        self._write(self._directory / 'actions' / (key + '.json'), action, True)
+        state['actions'].append(key)
+        if method == 'start':
+            state['run_action'] = key
+        elif method == 'review':
+            state['review_action'] = key
+        self._state_write(state)
+        return action
+
+    def _finish(self, action, phase='done', exit_code=None, error=None):
+        action.update(phase=phase, exit_code=exit_code, error=error)
+        self._write(self._directory / 'actions' / (action['key'] + '.json'), action)
+
+    def _unknown(self, store, job, state, action, code=None):
+        self._finish(action, 'unknown', code, 'outcome_unknown')
+        if job['state'] == 'reserved':
+            store.mark_unknown(job['id'], job['reservation_key'])
+        state['execution'] = dict(state='completion_unknown', launcher_exit=state['execution']['launcher_exit'])
+        self._state_write(state)
+
+    def _unresolved(self, state):
+        return any(self._action(key)['phase'] in ('intent', 'unknown') for key in state['actions'])
+
+    def _native(self, binding):
+        task = binding['preview']['task_id']
+        try:
+            code, raw = self._call([str(self._engine), 'result', self._worker, task], DEADLINES['result'])
+        except _NativeFailure:
+            return None, 'native_result_unavailable'
+        if code != 0:
+            return None, 'native_result_unavailable'
+        try:
+            native = _native_document(_decode(raw), self._worker, task)
+            revision = native['current_revision']
+            if revision is not None and (revision['task_sha256'] != binding['preview']['task_sha256']
+                    or revision['base_commit'] != binding['base_revision']
+                    or revision['candidate_commit'] != self._worker_revision()):
+                native.update(stale=True, ready_for_human_review=False)
+            if native['review']['state'] == 'approved' and native['review']['reviewer'] != binding['preview']['reviewer']:
+                native.update(stale=True, ready_for_human_review=False)
+            return native, None
+        except (ValueError, TypeError, KeyError, UnicodeError, ExecutionError, RecursionError, OverflowError):
+            return None, 'native_result_invalid'
+
+    def _view(self, store, job, binding, state, native=None, native_warning=None, observe=True):
+        warnings = []
+        try:
+            self._check(job, binding, task=state['run_action'] is not None, check_stop=False)
+        except ExecutionError as error:
+            if error.code in ('binding_stale', 'draft_stale', 'stopped'):
+                warnings.append(error.code)
+            else:
+                warnings.append('binding_stale')
+        if os.path.lexists(self._coord / 'STOP'):
+            _real_path(self._coord / 'STOP')
+            warnings.append('stopped')
+        owner = self._owner()
+        if owner is None or owner['phase'] == 'preparing' or (
+                owner['phase'] == 'owned' and owner['job_id'] != job['id']
+                and state['acceptance']['state'] != 'accepted' and job['state'] != 'cancelled'):
+            warnings.append('ownership_unknown')
+        execution = dict(state['execution'])
+        if state['run_action'] is not None:
+            launch = self._action(state['run_action'])
+            if launch['exit_code'] is not None:
+                execution['launcher_exit'] = launch['exit_code']
+        if self._unresolved(state) or (job['state'] in ('reserved', 'completion_unknown') and state['run_action'] is None):
+            execution['state'] = 'completion_unknown'
+            warnings.append('outcome_unknown')
+        if observe and state['run_action'] is not None and 'binding_stale' not in warnings and 'draft_stale' not in warnings:
+            native, native_warning = self._native(binding)
+        if native_warning:
+            warnings.append(native_warning)
+        if native is not None and any(message in warnings for message in (
+                'binding_stale', 'draft_stale', 'ownership_unknown', 'outcome_unknown')):
+            native = copy.deepcopy(native)
+            native.update(stale=True, ready_for_human_review=False)
+        acceptance = copy.deepcopy(state['acceptance'])
+        if acceptance['state'] == 'accepted' and (native is None or not native['ready_for_human_review']
+                                                  or acceptance['revision'] != native['current_revision']):
+            acceptance['state'] = 'stale'
+        return dict(schema_version=1, job=job, preview=copy.deepcopy(binding['preview']),
+                    execution=execution, native_result=native, acceptance=acceptance,
+                    warnings=list(dict.fromkeys(warnings))[:8])
+
+    def _publication(self, job_id, request_key, draft, template, base, base_revision,
+                     worker_revision, fingerprints):
+        """Build and bound-check every document prepare() publishes for job_id."""
+        if not _matches(HEX32, job_id):
+            raise ValueError('invalid queue identity')
+        task_id = 'ui-' + job_id
+        task = self._compile(draft['request'], task_id, template)
+        preview = dict(request=draft['request'], task_id=task_id, task_sha256=_hash(task),
+                       scope=template['scope'], validate=template['validate'], worker=self._worker,
+                       reviewer=self._reviewer, worker_company=self._worker_company,
+                       reviewer_company=self._reviewer_company)
+        preview['preview_hash'] = _hash(_canonical(preview))
+        binding = dict(schema_version=1, job_id=job_id, request_key=request_key, draft_id=draft['id'],
+                       draft_sha256=draft['content_sha256'], base=base, base_revision=base_revision,
+                       worker_revision=worker_revision, preview=preview, task=task.decode(),
+                       fingerprints=fingerprints, startup=dict(engine=str(self._engine),
+                       config=str(self._config), template=str(self._template_path)))
+        state = dict(schema_version=1, job_id=job_id,
+                     execution=dict(state='not_started', launcher_exit=None),
+                     acceptance=dict(state='pending', revision=None), run_action=None,
+                     review_action=None, actions=[])
+        physical = copy.deepcopy(binding)
+        physical.pop('task')
+        bindings = self._directory / 'bindings'
+        documents = [(bindings / (job_id + '.md'), task)]
+        for name in ('request', 'scope', 'validate'):
+            documents.append((bindings / (job_id + '.' + name + '.json'), _stored(physical['preview'].pop(name))))
+        documents.append((bindings / (job_id + '.json'), _json_bytes(physical)))
+        # Metadata written by this and later transitions: state and every ownership phase.
+        metadata = [_json_bytes(state)] + [
+            _json_bytes(dict(schema_version=1, worker=self._worker, phase=phase,
+                             job_id=None if phase == 'preparing' else job_id, request_key=request_key))
+            for phase in ('preparing', 'owned', 'released')]
+        if len(task) > OUTPUT_LIMIT or any(len(raw) > JSON_LIMIT
+                                           for raw in [raw for _, raw in documents[1:]] + metadata):
+            raise ExecutionError('invalid_request')
+        _json_bytes(binding)  # The canonical action-binding hash input must also serialize.
+        return binding, state, documents
+
+    @_public
+    def prepare(self, draft_id, expected_hash, request_key):
+        _input(HEX32, draft_id)
+        _input(HEX64, expected_hash)
+        _input(HEX32, request_key)
+        with self._locked(), JobStore(self._workspace) as store:
+            draft = self._draft(draft_id, expected_hash)
+            existing = next((job for job in store.jobs() if job['request_key'] == request_key), None)
+            if existing:
+                if existing['draft_id'] != draft_id or existing['draft_sha256'] != expected_hash or existing['worker'] != self._worker:
+                    raise ExecutionError('conflict')
+                job, binding, state = self._load_job(store, existing['id'])
+                self._check(job, binding, task=state['run_action'] is not None)
+                return self._view(store, job, binding, state)
+            self._stop_check()
+            owner = self._owner()
+            if owner and owner['phase'] != 'released':
+                raise ExecutionError('outcome_unknown' if owner['phase'] == 'preparing' else 'worker_unavailable')
+            if owner is None and any(job['worker'] == self._worker for job in store.jobs()):
+                raise ExecutionError('outcome_unknown')
+            # A missing ownership record never grants authority over an orphan binding/queue claim.
+            if any(job['worker'] == self._worker and job['state'] != 'cancelled'
+                   and (owner is None or job['id'] != owner['job_id']) for job in store.jobs()):
+                for job in store.jobs():
+                    if job['worker'] == self._worker and job['state'] != 'cancelled':
+                        try:
+                            _, old_state = self._records(job['id'])
+                        except ExecutionError as error:
+                            raise ExecutionError('outcome_unknown') from error
+                        if old_state['acceptance']['state'] != 'accepted':
+                            raise ExecutionError('outcome_unknown')
+            self._worker_free()
+            worker_revision = self._worker_revision(clean=True)
+            base, base_revision = self._base()
+            template, _ = self._template()
+            fingerprints = self._fingerprints()
+            # Preflight every document at its exact size before any ownership or
+            # queue publication: queue IDs are always 32 hex characters, so a
+            # placeholder ID yields byte-identical lengths. A deterministic bound
+            # refusal therefore leaves ownership, queue rows and evidence unchanged.
+            self._publication('0' * 32, request_key, draft, template, base, base_revision,
+                              worker_revision, fingerprints)
+            self._write(self._owner_path(), dict(schema_version=1, worker=self._worker,
+                        phase='preparing', job_id=None, request_key=request_key))
+            job = store.enqueue(draft_id, expected_hash, self._worker, request_key)
+            # Any failure from here is genuine uncertainty and stays outcome_unknown.
+            binding, state, documents = self._publication(job['id'], request_key, draft, template, base,
+                                                          base_revision, worker_revision, fingerprints)
+            for path, raw in documents:
+                self._publish(path, raw, True)
+            self._state_write(state)
+            self._write(self._owner_path(), dict(schema_version=1, worker=self._worker,
+                        phase='owned', job_id=job['id'], request_key=request_key))
+            return self._view(store, job, binding, state, observe=False)
+
+    @_public
+    def approve(self, job_id, expected_hash, approval_key, preview_hash):
+        _input(HEX64, expected_hash)
+        _input(HEX32, approval_key)
+        _input(HEX64, preview_hash)
+        with self._locked(), JobStore(self._workspace) as store:
+            job, binding, state = self._load_job(store, job_id)
+            inputs = dict(expected_hash=expected_hash, preview_hash=preview_hash)
+            action = self._replay(approval_key, 'approve', job_id, inputs)
+            self._check(job, binding)
+            if expected_hash != job['draft_sha256'] or preview_hash != binding['preview']['preview_hash']:
+                raise ExecutionError('conflict')
+            if action:
+                if action['phase'] != 'done':
+                    raise ExecutionError(action['error'] or 'outcome_unknown')
+                return self._view(store, job, binding, state, observe=False)
+            self._own(job)
+            if job['state'] not in ('awaiting_owner_approval', 'approved'):
+                raise ExecutionError('conflict')
+            if job['approval_key'] is not None and job['approval_key'] != approval_key:
+                raise ExecutionError('conflict')
+            action = self._intent(approval_key, 'approve', binding, state, inputs)
+            try:
+                job = store.approve(job_id, expected_hash, self._worker, approval_key)
+            except ValueError as error:
+                self._finish(action, 'failed', error='conflict')
+                raise ExecutionError('conflict') from error
+            self._finish(action)
+            return self._view(store, job, binding, state, observe=False)
+
+    @_public
+    def start(self, job_id, approval_key, reservation_key):
+        _input(HEX32, approval_key)
+        _input(HEX32, reservation_key)
+        with self._locked(), JobStore(self._workspace) as store:
+            job, binding, state = self._load_job(store, job_id)
+            inputs = dict(approval_key=approval_key)
+            action = self._replay(reservation_key, 'start', job_id, inputs)
+            if action:
+                if action['phase'] == 'intent' and job['state'] == 'reserved':
+                    self._unknown(store, job, state, action)
+                    job = store.get(job_id)
+                return self._view(store, job, binding, state)
+            if job['state'] != 'approved' or state['run_action'] is not None or job['approval_key'] != approval_key:
+                raise ExecutionError('conflict')
+            self._own(job)
+            self._check(job, binding, clean=True)
+            self._worker_free()
+            # Check any existing task before reservation; publication itself remains exclusive.
+            path = self._task_path(binding)
+            _real_path(path.parent, True)
+            if os.path.lexists(path) and _read(path, OUTPUT_LIMIT) != binding['task'].encode():
+                raise ExecutionError('binding_stale')
+            try:
+                reservation = store.reserve(job_id, approval_key, reservation_key)
+            except ValueError as error:
+                raise ExecutionError('conflict') from error
+            job = reservation['job']
+            if not reservation['newly_reserved']:
+                raise ExecutionError('outcome_unknown')
+            action = self._intent(reservation_key, 'start', binding, state, inputs)
+            try:
+                self._publish(path, binding['task'].encode(), True)
+                self._check(job, binding, task=True, clean=True)
+                code, _ = self._call([str(self._engine), 'run', '-b', self._worker,
+                                      binding['preview']['task_id']], DEADLINES['run'])
+            except _NativeFailure as error:
+                self._unknown(store, job, state, action, error.exit_code)
+                state['execution']['launcher_exit'] = error.exit_code
+                if not error.started:
+                    state['execution']['state'] = 'launch_failed'
+                    self._finish(action, 'failed', error.exit_code, 'native_unavailable')
+                self._state_write(state)
+                raise ExecutionError('outcome_unknown' if error.started else 'native_unavailable') from error
+            except (ExecutionError, OSError, ValueError) as error:
+                self._unknown(store, job, state, action)
+                raise ExecutionError('outcome_unknown') from error
+            state['execution'] = dict(state='launch_accepted' if code == 0 else 'completion_unknown', launcher_exit=code)
+            if code != 0:
+                self._unknown(store, job, state, action, code)
+            else:
+                try:
+                    # Keep intent unresolved until the launch receipt itself is
+                    # durable. A crash between publications stays conservative.
+                    self._state_write(state)
+                    self._finish(action, exit_code=code)
+                except (OSError, ValueError, sqlite3.Error) as error:
+                    self._unknown(store, job, state, action, code)
+                    raise ExecutionError('outcome_unknown') from error
+            return self._view(store, store.get(job_id), binding, state)
+
+    def _perform(self, method, job_id, action_key):
+        _input(HEX32, action_key)
+        with self._locked(), JobStore(self._workspace) as store:
+            job, binding, state = self._load_job(store, job_id)
+            action = self._replay(action_key, method, job_id, {})
+            if action:
+                if action['phase'] == 'intent':
+                    self._unknown(store, job, state, action)
+                    job = store.get(job_id)
+                return self._view(store, job, binding, state)
+            self._own(job)
+            if state['run_action'] is None or job['state'] not in ('reserved', 'completion_unknown'):
+                raise ExecutionError('not_ready')
+            if method != 'stop':
+                self._check(job, binding, task=True)
+                if self._unresolved(state) or job['state'] == 'completion_unknown':
+                    raise ExecutionError('outcome_unknown')
+            else:
+                # Kill addresses only this immutable task; STOP/draft edits must not block it.
+                try:
+                    if _hash(_read(self._engine, CONFIG_LIMIT)) != binding['fingerprints']['engine'] or str(self._engine) != binding['startup']['engine']:
+                        raise ExecutionError('binding_stale')
+                except (ValueError, OSError) as error:
+                    raise ExecutionError('binding_stale') from error
+            if method == 'review' and state['review_action'] is not None:
+                raise ExecutionError('conflict')
+            native, warning = self._native(binding)
+            revision = native['current_revision'] if native else None
+            if method != 'stop':
+                self._worker_free()
+                if (native is None or native['stale'] or native['process']['state'] != 'succeeded'
+                        or native['process']['exit_code'] != 0 or native['process']['revision'] != revision):
+                    raise ExecutionError('not_ready')
+                if method == 'review' and (native['validation']['state'] != 'passed'
+                                           or native['validation']['revision'] != revision):
+                    raise ExecutionError('not_ready')
+                # Recheck after the observational subprocess, immediately before Validate/review.
+                self._check(job, binding, task=True)
+            action = self._intent(action_key, method, binding, state, {}, revision)
+            operation = 'kill' if method == 'stop' else method
+            argv = [str(self._engine), operation]
+            if method != 'stop':
+                argv.append(self._worker)
+            argv.append(binding['preview']['task_id'])
+            if method == 'review':
+                argv.append(self._reviewer)
+            try:
+                code, _ = self._call(argv, DEADLINES[operation])
+            except _NativeFailure as error:
+                self._unknown(store, job, state, action, error.exit_code)
+                raise ExecutionError('outcome_unknown') from error
+            try:
+                self._finish(action, exit_code=code)
+            except (OSError, ValueError, sqlite3.Error) as error:
+                self._unknown(store, job, state, action, code)
+                raise ExecutionError('outcome_unknown') from error
+            native, warning = self._native(binding)
+            if method == 'stop' and (code != 0 or native is None or native['process']['state'] not in ('succeeded', 'failed')):
+                self._unknown(store, job, state, action, code)
+            # Failed checks/reviews retain their real exit; they never buy a new paid review.
+            return self._view(store, store.get(job_id), binding, state, native, warning, observe=False)
+
+    @_public
+    def verify(self, job_id, action_key):
+        return self._perform('verify', job_id, action_key)
+
+    @_public
+    def review(self, job_id, action_key):
+        return self._perform('review', job_id, action_key)
+
+    @_public
+    def stop(self, job_id, action_key):
+        return self._perform('stop', job_id, action_key)
+
+    @_public
+    def accept(self, job_id, revision_hash, action_key):
+        _input(HEX32, job_id)
+        _input(GIT_ID, revision_hash)
+        _input(HEX32, action_key)
+        with self._locked(), JobStore(self._workspace) as store, self._accept_guard():
+            job, binding, state = self._load_job(store, job_id)
+            inputs = dict(revision_hash=revision_hash)
+            action = self._replay(action_key, 'accept', job_id, inputs)
+            self._check(job, binding, task=True)
+            if self._unresolved(state) or job['state'] == 'completion_unknown':
+                raise ExecutionError('outcome_unknown')
+            native, warning = self._native(binding)
+            if (native is None or not native['ready_for_human_review'] or native['stale']
+                    or native['current_revision']['candidate_commit'] != revision_hash):
+                raise ExecutionError('not_ready')
+            if action:
+                if action['phase'] != 'done' or action['revision'] != native['current_revision']:
+                    raise ExecutionError('conflict')
+                self._release(job)
+                return self._view(store, job, binding, state, native, warning, observe=False)
+            self._own(job)
+            self._check(job, binding, task=True)
+            latest, latest_warning = self._native(binding)
+            if (latest is None or not latest['ready_for_human_review']
+                    or latest['current_revision'] != native['current_revision']):
+                raise ExecutionError('not_ready')
+            native, warning = latest, latest_warning
+            action = self._intent(action_key, 'accept', binding, state, inputs, native['current_revision'])
+            state['acceptance'] = dict(state='accepted', revision=native['current_revision'])
+            self._state_write(state)
+            self._finish(action)
+            self._release(job)
+            return self._view(store, job, binding, state, native, warning, observe=False)
+
+    @_public
+    def cancel(self, job_id):
+        with self._locked(), JobStore(self._workspace) as store:
+            job, binding, state = self._load_job(store, job_id)
+            if job['state'] == 'cancelled':
+                owner = self._owner()
+                if owner and owner['phase'] == 'owned' and owner['job_id'] == job_id:
+                    self._release(job)
+                return self._view(store, job, binding, state, observe=False)
+            if job['state'] not in ('awaiting_owner_approval', 'approved') or state['run_action'] is not None:
+                raise ExecutionError('conflict')
+            self._own(job)
+            job = store.cancel(job_id)
+            self._release(job)
+            return self._view(store, job, binding, state, observe=False)
+
+    @_public
+    def get(self, job_id):
+        with self._locked(), JobStore(self._workspace) as store:
+            job, binding, state = self._load_job(store, job_id)
+            return self._view(store, job, binding, state)
+
+    @_public
+    def jobs(self):
+        with self._locked(), JobStore(self._workspace) as store:
+            result = []
+            for job in store.jobs():
+                if job['worker'] != self._worker or not os.path.lexists(self._directory / 'bindings' / (job['id'] + '.json')):
+                    continue
+                job, binding, state = self._load_job(store, job['id'])
+                result.append(self._view(store, job, binding, state))
+            return result
+UNIO_BROWSER_EXECUTION_SERVICE_PY
+cat > "$CONF_DIR/lib/browser/index.html" <<'UNIO_BROWSER_INDEX_HTML'
+<!doctype html>
+<!-- Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
+     https://github.com/danielmevit/unio
+     SPDX-License-Identifier: AGPL-3.0-only; see LICENSE and NOTICE. No warranty. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Unio · project workspace</title>
+    <link rel="stylesheet" href="activity.css" />
+    <script defer src="activity.js"></script>
+    <script defer src="drafts.js"></script>
+    <script defer src="jobs.js"></script>
+    <script defer src="worker_console.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#workspace">Skip to workspace</a>
+    <main id="workspace" tabindex="-1">
+      <header class="topbar">
+        <div class="workspace-brand">
+          <span class="brand">Unio</span>
+          <h1>Project workspace</h1>
+        </div>
+        <div class="topbar-controls">
+          <span id="mode-label" class="mode-label">Checking mode</span>
+          <button id="refresh" type="button">Refresh</button>
+          <div class="theme-control">
+            <label for="theme-selector" class="visually-hidden">Theme</label>
+            <select id="theme-selector">
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+        </div>
+      </header>
+      <p class="notice">
+        Read-only preview. Recorded decisions are separate from current
+        readiness and your acceptance.
+      </p>
+      <div class="workspace-layout">
+        <section id="manual-drafts" class="composer" hidden aria-labelledby="draft-title">
+          <div class="section-heading">
+            <p class="eyebrow">Your request</p>
+            <h2 id="draft-title">Compose a task</h2>
+          </div>
+          <p class="small" id="draft-help">
+            Save your request locally. Saving stores text only; no AI or worker starts.
+          </p>
+          <form id="draft-form">
+            <label for="draft-request">Describe the work to save</label>
+            <textarea id="draft-request" required maxlength="4000" rows="8"
+              aria-describedby="draft-help" placeholder="What should change, and how will you check it?"></textarea>
+            <button id="save-draft" class="primary" type="submit">Save draft</button>
+          </form>
+          <p id="draft-status" role="status" aria-live="polite"></p>
+          <details id="reopen-details" class="reopen-details">
+            <summary>Reopen saved work</summary>
+            <form id="reopen-form">
+              <label for="draft-id">Reopen a draft by ID</label>
+              <div class="draft-reopen">
+                <input id="draft-id" required pattern="[0-9a-f]{32}" maxlength="32"
+                  autocomplete="off" spellcheck="false" aria-describedby="reopen-help" />
+                <button id="reopen-draft" type="submit">Reopen draft</button>
+              </div>
+            </form>
+            <form id="reopen-job-form" hidden>
+              <label for="job-id">Reopen a job by ID</label>
+              <div class="draft-reopen">
+                <input id="job-id" required pattern="[0-9a-f]{32}" maxlength="32"
+                  autocomplete="off" spellcheck="false" aria-describedby="reopen-help" />
+                <button id="reopen-job" type="submit">Reopen job</button>
+              </div>
+            </form>
+            <p id="reopen-help" class="small">Use the 32-character ID saved in details. Reopening reads state and never starts work.</p>
+          </details>
+        </section>
+        <section id="selected-work" class="selected-work" hidden aria-labelledby="selected-title">
+          <div class="section-heading">
+            <p class="eyebrow">Selected work</p>
+            <h2 id="selected-title">Task workspace</h2>
+          </div>
+          <div id="workspace-empty" class="empty-state">
+            <span class="empty-mark" aria-hidden="true">01</span>
+            <h3>Start with a saved request</h3>
+            <p id="workspace-empty-help">Write your task in the composer, or reopen a saved draft. Your exact text will appear here.</p>
+          </div>
+          <div id="draft-result" hidden>
+            <h3>Saved request</h3>
+            <pre id="draft-text"></pre>
+            <details>
+              <summary>Draft ID and saved content hash</summary>
+              <p id="draft-reference" class="small"></p>
+            </details>
+          </div>
+          <div id="execution-panel" hidden aria-labelledby="stage-title">
+            <ol id="job-stages" class="stages" aria-label="Execution stages">
+              <li data-stage="draft">Draft</li>
+              <li data-stage="preview">Preview</li>
+              <li data-stage="approve">Approval</li>
+              <li data-stage="run">Run</li>
+              <li data-stage="verify">Checks</li>
+              <li data-stage="review">Review</li>
+              <li data-stage="accept">Acceptance</li>
+            </ol>
+            <div class="stage-heading">
+              <h3 id="stage-title">Prepare a preview</h3>
+              <span id="job-state" class="state-label"></span>
+            </div>
+            <p id="stage-help" class="stage-help"></p>
+            <div class="execution-actions" id="execution-actions" role="group" aria-label="Actions for selected work" aria-describedby="stage-help">
+              <button id="job-prepare" class="primary" type="button" hidden>Prepare preview</button>
+              <button id="job-approve" class="primary" type="button" hidden>Approve run</button>
+              <button id="job-start" class="primary" type="button" hidden>Start once</button>
+              <button id="job-verify" class="primary" type="button" hidden>Verify changes</button>
+              <button id="job-review" class="primary" type="button" hidden>Request review</button>
+              <button id="job-accept" class="primary" type="button" hidden>Accept current revision</button>
+              <button id="job-stop" class="danger" type="button" hidden>Stop task</button>
+              <button id="job-cancel" type="button" hidden>Cancel job</button>
+              <button id="job-refresh" type="button" hidden>Refresh job</button>
+            </div>
+            <p id="job-status" role="status" aria-live="polite"></p>
+            <ul id="job-warnings" class="warnings" hidden aria-label="Job warnings"></ul>
+            <section id="job-preview" class="preview" hidden aria-labelledby="preview-title">
+              <h3 id="preview-title">Exact execution preview</h3>
+              <p class="small">Inspect the request, allowed scope, checks and configured labs before approving a run.</p>
+              <div id="job-preview-text"></div>
+              <details>
+                <summary>Job identity and binding hashes</summary>
+                <pre id="job-reference-text"></pre>
+              </details>
+            </section>
+            <section id="job-result" class="result" hidden aria-labelledby="result-title">
+              <h3 id="result-title">Current evidence</h3>
+              <dl id="job-evidence" class="evidence-grid"></dl>
+              <details>
+                <summary>Exact native result and revision details</summary>
+                <pre id="job-result-text"></pre>
+              </details>
+            </section>
+          </div>
+        </section>
+      </div>
+      <section id="worker-console" class="activity-section" hidden aria-labelledby="console-title">
+        <div class="activity-heading">
+          <div>
+            <p class="eyebrow">Worker observation</p>
+            <h2 id="console-title">Source output and files</h2>
+          </div>
+          <p id="console-status" role="status" aria-live="polite">Waiting for the local session.</p>
+        </div>
+        <p class="small">Filtered Source text and tracked worktree files are observations. They are not a summary, a completion proof, or a way to run commands.</p>
+        <div id="console-workers"></div>
+        <div id="console-panel" hidden>
+          <div class="console-tabs" role="tablist" aria-label="Worker observation">
+            <button id="console-tab-output" type="button" role="tab" aria-selected="true" aria-controls="console-output">Output</button>
+            <button id="console-tab-files" type="button" role="tab" aria-selected="false" aria-controls="console-files">Files</button>
+          </div>
+          <div id="console-output" role="tabpanel" aria-labelledby="console-tab-output">
+            <p id="console-meta" class="small"></p>
+            <pre id="console-text"></pre>
+            <div class="execution-actions">
+              <button id="console-older" type="button">Earlier page</button>
+              <button id="console-newer" type="button">Later page</button>
+            </div>
+          </div>
+          <div id="console-files" role="tabpanel" aria-labelledby="console-tab-files" hidden>
+            <p id="console-file-meta" class="small"></p>
+            <ul id="console-file-list"></ul>
+            <pre id="console-file-text"></pre>
+          </div>
+        </div>
+      </section>
+      <section class="activity-section" aria-labelledby="tasks-title">
+        <div class="activity-heading">
+          <div>
+            <p class="eyebrow">Project evidence</p>
+            <h2 id="tasks-title">Recorded tasks</h2>
+          </div>
+          <div class="view-switch" role="group" aria-label="Task view">
+            <button id="view-map" type="button" aria-pressed="true">Work map</button>
+            <button id="view-list" type="button" aria-pressed="false">List</button>
+          </div>
+          <p id="status" role="status" aria-live="polite">Loading local activity…</p>
+        </div>
+        <p class="small evidence-help">These are recorded observations. A successful process alone does not mean verified, reviewed or accepted source.</p>
+
+        <div id="tasks-map-container" class="map-container">
+          <div class="map-controls">
+            <div class="map-camera-controls" role="group" aria-label="Map viewport">
+              <button id="map-zoom-out" type="button" aria-label="Zoom out">−</button>
+              <output id="map-zoom-level" aria-label="Map zoom">100%</output>
+              <button id="map-zoom-in" type="button" aria-label="Zoom in">+</button>
+              <button id="map-fit" type="button" aria-pressed="true">Fit view</button>
+              <button id="map-reset" type="button">Reset 100%</button>
+            </div>
+            <label class="history-toggle"><input type="checkbox" id="map-history-toggle"> Show finished history</label>
+            <select id="map-worker-filter" aria-label="Filter by worker"><option value="">All Workers</option></select>
+            <select id="map-state-filter" aria-label="Filter by state">
+              <option value="">All States</option>
+              <option value="attention">Needs Attention</option>
+              <option value="active">Active</option>
+              <option value="finished">Finished</option>
+            </select>
+            <input type="search" id="map-search" placeholder="Filter tasks..." aria-label="Filter tasks">
+            <span id="map-counts" class="map-counts"></span>
+          </div>
+          <p id="map-help" class="small map-help">Scroll over the map to zoom at the pointer. Hold the middle mouse button and drag to pan, or drag with the left button or touch. Use + / − to zoom, arrow keys to pan, 0 to fit, or Home to reset. Tab to a node, then Enter or Space to select.</p>
+          <p class="small map-legend" aria-label="Node status legend">
+            <span><i class="signal-passed" aria-hidden="true"></i>Finished: checks passed, review approved</span>
+            <span><i class="signal-failed" aria-hidden="true"></i>Recorded failure</span>
+            <span><i class="signal-attention" aria-hidden="true"></i>Needs attention</span>
+            <span><i aria-hidden="true"></i>Active / no evidence</span>
+          </p>
+          <div class="map-workspace">
+            <div class="map-canvas-column">
+              <div class="map-scroll-area">
+                <svg id="work-map" tabindex="0" role="group" aria-label="Work map" aria-describedby="map-help"></svg>
+              </div>
+              <div id="map-pagination" class="map-pagination" hidden>
+                <button id="map-prev-page" type="button" disabled>Earlier</button>
+                <span id="map-page-info"></span>
+                <button id="map-next-page" type="button" disabled>Later</button>
+              </div>
+            </div>
+          <aside id="map-details" class="map-details" aria-label="Node details" hidden></aside>
+          </div>
+        </div>
+
+        <div id="tasks"></div>
+      </section>
+      <div class="observer-details">
+        <details>
+          <summary>Tools and operator limits</summary>
+          <div id="limits"></div>
+        </details>
+        <details>
+          <summary>Recent recorded events and warnings</summary>
+          <pre id="events"></pre>
+        </details>
+      </div>
+      <p id="mode-footer" class="small">
+        Default mode observes local activity only. Authentication and provider capacity are unknown.
+        Use CLI result to recheck current readiness.
+      </p>
+      <footer>
+        <span>Unio — Your AIs, in sync.</span>
+        <nav aria-label="Project links">
+          <a href="https://github.com/danielmevit/unio">GitHub</a>
+          <a href="https://github.com/danielmevit/unio/blob/main/LICENSE">License · AGPL-3.0-only</a>
+        </nav>
+      </footer>
+    </main>
+  </body>
+</html>
+UNIO_BROWSER_INDEX_HTML
+cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
+/* Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
+ * https://github.com/danielmevit/unio
+ * SPDX-License-Identifier: AGPL-3.0-only; see LICENSE and NOTICE. No warranty. */
+(function () {
+  "use strict";
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const themeSelector = document.getElementById("theme-selector");
+  const STORAGE_KEY = "unio-theme-preference";
+  const mql = window.matchMedia("(prefers-color-scheme: dark)");
+
+  // The live selected preference is the authority. Storage only seeds it on
+  // load, so a denied or failing store never overrides an explicit choice.
+  function normalTheme(value) {
+    return value === "light" || value === "dark" ? value : "system";
+  }
+  function storedTheme() {
+    try {
+      return normalTheme(localStorage.getItem(STORAGE_KEY));
+    } catch (_) {
+      return "system";
+    }
+  }
+  let themePreference = storedTheme();
+
+  function applyTheme() {
+    const actual = themePreference === "system" ? (mql.matches ? "dark" : "light") : themePreference;
+    document.documentElement.dataset.theme = actual;
+    document.documentElement.dataset.themePreference = themePreference;
+  }
+
+  if (themeSelector) {
+    themeSelector.value = themePreference;
+    themeSelector.addEventListener("change", () => {
+      themePreference = normalTheme(themeSelector.value);
+      themeSelector.value = themePreference;
+      try {
+        localStorage.setItem(STORAGE_KEY, themePreference);
+      } catch (_) {}
+      applyTheme();
+    });
+  }
+  mql.addEventListener("change", applyTheme);
+  applyTheme();
+
+  const status = document.getElementById("status");
+  let busy = false;
+
+  let currentView = window.innerWidth >= 1000 ? "map" : "list";
+  let mapHistoryVisible = false;
+  let mapSearchQuery = "";
+  let mapWorkerFilter = "";
+  let mapStateFilter = "";
+  let mapCurrentPage = 0;
+  let mapFitView = true;
+  const mapCamera = { x: 0, y: 0, scale: 1 };
+  let mapBounds = { x: 120, y: 80 };
+  let mapDrag = null;
+  let suppressMapClick = false;
+  const MIN_MAP_SCALE = 0.05, MAX_MAP_SCALE = 3;
+  const MAP_PAGE_SIZE = 24;
+  let lastData = null;
+  // Selection is an exact node key plus its tuple; never a display label.
+  let selected = null;
+
+  function updateViewSwitch() {
+    const mapBtn = document.getElementById("view-map");
+    const listBtn = document.getElementById("view-list");
+    if (mapBtn && listBtn) {
+      mapBtn.setAttribute("aria-pressed", currentView === "map" ? "true" : "false");
+      listBtn.setAttribute("aria-pressed", currentView === "list" ? "true" : "false");
+      document.getElementById("tasks-map-container").hidden = currentView !== "map";
+      document.getElementById("tasks").hidden = currentView !== "list";
+    }
+  }
+
+  const mapBtn = document.getElementById("view-map");
+  if (mapBtn) {
+    mapBtn.addEventListener("click", () => { currentView = "map"; updateViewSwitch(); if (lastData) render(lastData); });
+    document.getElementById("view-list").addEventListener("click", () => { currentView = "list"; updateViewSwitch(); if (lastData) render(lastData); });
+    document.getElementById("map-history-toggle").addEventListener("change", (e) => { mapHistoryVisible = e.target.checked; mapCurrentPage = 0; if (lastData) render(lastData); });
+    document.getElementById("map-search").addEventListener("input", (e) => { mapSearchQuery = e.target.value.toLowerCase(); mapCurrentPage = 0; if (lastData) render(lastData); });
+    document.getElementById("map-worker-filter").addEventListener("change", (e) => { mapWorkerFilter = e.target.value; mapCurrentPage = 0; if (lastData) render(lastData); else syncWorkerOptions([]); });
+    document.getElementById("map-state-filter").addEventListener("change", (e) => { mapStateFilter = e.target.value; mapCurrentPage = 0; if (lastData) render(lastData); });
+    document.getElementById("map-prev-page").addEventListener("click", () => { mapCurrentPage = Math.max(0, mapCurrentPage - 1); if (lastData) render(lastData); });
+    document.getElementById("map-next-page").addEventListener("click", () => { mapCurrentPage++; if (lastData) render(lastData); });
+    document.getElementById("map-fit").addEventListener("click", () => { mapFitView = true; applyMapPresentation(); });
+    document.getElementById("map-reset").addEventListener("click", resetMapCamera);
+    document.getElementById("map-zoom-in").addEventListener("click", () => zoomMap(1.25));
+    document.getElementById("map-zoom-out").addEventListener("click", () => zoomMap(1 / 1.25));
+    setupMapGestures();
+    updateViewSwitch();
+    applyMapPresentation();
+    new ResizeObserver(applyMapPresentation).observe(document.getElementById("work-map").parentElement);
+  }
+
+  function text(tag, value, className = "") {
+    const element = document.createElement(tag);
+    element.textContent = value;
+    element.className = className;
+    return element;
+  }
+  function setText(element, value) {
+    if (element.textContent !== value) element.textContent = value;
+  }
+  function label(value) {
+    return String(value).replaceAll("_", " ");
+  }
+
+  function render(data) {
+    lastData = data;
+    if (currentView === "map") { renderMap(data); }
+
+    const tasks = document.getElementById("tasks");
+    tasks.replaceChildren();
+    for (const result of data.results) {
+      const row = text("div", "", "row");
+      const identity = text("div", "");
+      identity.append(text("strong", result.worker + " / " + result.task));
+      identity.append(
+        text("p", "Recorded at " + (result.recorded_at || "unknown")),
+      );
+      const state = text("div", "", "data");
+      state.append(
+        text(
+          "span",
+          result.activity.replaceAll("_", " "),
+          "chip" +
+            (result.activity === "completion_unknown" ||
+            result.process.state === "failed"
+              ? " warn"
+              : ""),
+        ),
+      );
+      state.append(
+        text(
+          "p",
+          "Process " +
+            result.process.state.replaceAll("_", " ") +
+            " · exit " +
+            (result.process.exit_code ?? "unknown") +
+            " · worker lock " +
+            result.worker_lock,
+        ),
+      );
+      state.append(
+        text(
+          "p",
+          "Validation " +
+            result.validation.state.replaceAll("_", " ") +
+            " · " +
+            result.validation.checks_run +
+            " checks / " +
+            result.validation.checks_failed +
+            " failed",
+        ),
+      );
+      state.append(
+        text(
+          "p",
+          "Review " +
+            result.review.state.replaceAll("_", " ") +
+            " · reviewer " +
+            (result.review.reviewer || "not recorded"),
+        ),
+      );
+      if (result.activity === "completion_unknown")
+        state.append(
+          text(
+            "p",
+            "No completion recorded; interruption possible. Detached processes are not ruled out.",
+          ),
+        );
+      row.append(identity, state);
+      tasks.append(row);
+    }
+    if (!data.results.length)
+      tasks.append(text("p", "No structured task evidence yet.", "small"));
+    const limits = document.getElementById("limits");
+    limits.replaceChildren();
+    for (const agent of data.agents) {
+      const row = text("div", "", "row");
+      row.append(text("strong", agent.name));
+      const info = text("div", "", "data");
+      info.append(
+        text(
+          "span",
+          agent.bench.off ? "OFF" : "on",
+          "chip" + (agent.bench.off ? " warn" : ""),
+        ),
+      );
+      info.append(
+        text(
+          "p",
+          "Binary " +
+            (agent.binary.present === null
+              ? "unknown"
+              : agent.binary.present
+                ? "installed"
+                : "missing") +
+            " · authentication unknown · capacity unknown",
+        ),
+      );
+      if (agent.bench.operator_retry_at !== null)
+        info.append(
+          text(
+            "p",
+            "Operator retry epoch " +
+              agent.bench.operator_retry_at +
+              "; not a provider reset.",
+          ),
+        );
+      row.append(info);
+      limits.append(row);
+    }
+    if (!data.agents.length)
+      limits.append(text("p", "No tool observations recorded. Authentication and capacity remain unknown.", "small"));
+    for (const retry of data.retries)
+      limits.append(
+        text(
+          "p",
+          retry.task +
+            ": " +
+            retry.failed_attempts +
+            " failed attempts · " +
+            (retry.blocked
+              ? "BLOCKED"
+              : retry.retry_granted
+                ? "one retry granted"
+                : "brake clear"),
+          "small",
+        ),
+      );
+    document.getElementById("events").textContent = JSON.stringify(
+      { recent_events: data.recent_events, warnings: data.warnings },
+      null,
+      2,
+    );
+    status.className = "";
+    status.textContent =
+      "Observed " +
+      data.observed_at +
+      " · STOP " +
+      (data.stopped ? "active" : "clear");
+  }
+
+  // JSON arrays cannot collide for different tuples, whatever the names hold.
+  function taskKey(worker, task) { return JSON.stringify(["task", worker, task]); }
+  function workerKey(worker) { return JSON.stringify(["worker", worker]); }
+  const HUB_KEY = JSON.stringify(["hub"]);
+
+  function sectionState(r, name) {
+    const section = r && r[name];
+    return section && typeof section.state === "string" ? section.state : "unavailable";
+  }
+
+  // Process success is not acceptance. Only fully passed and approved records
+  // collapse into history; every failed, unknown, incomplete, stale or
+  // unreviewed record stays visible as needing attention.
+  function classify(r) {
+    const process = sectionState(r, "process");
+    const validation = sectionState(r, "validation");
+    const review = sectionState(r, "review");
+    const reasons = [];
+    if (process === "running") {
+      if (r.activity === "running_recorded") return { category: "active", reasons: ["process running"] };
+      reasons.push("process running without a held worker lock; completion unknown");
+    } else if (process !== "succeeded") {
+      reasons.push("process " + label(process));
+    }
+    if (r.activity === "completion_unknown" && process !== "running") reasons.push("completion unknown");
+    if (validation !== "passed") reasons.push("validation " + label(validation));
+    if (review !== "approved") reasons.push("review " + label(review));
+    if (r.stale === true) reasons.push("recorded evidence stale");
+    return reasons.length ? { category: "attention", reasons } : { category: "finished", reasons: [] };
+  }
+  const CATEGORY_TEXT = {
+    active: "Active",
+    attention: "Needs attention",
+    finished: "Finished (checks passed and review approved; not your acceptance)",
+  };
+
+  function taskSignal(r, verdict) {
+    if (["process", "validation", "review"].some(name => sectionState(r, name) === "failed")) return "failed";
+    return verdict.category === "finished" ? "passed" : verdict.category === "active" ? "active" : "attention";
+  }
+  function summarySignal(records, categories) {
+    const signals = records.map(r => taskSignal(r, categories.get(r)));
+    return ["failed", "attention", "active", "passed"].find(signal => signals.includes(signal)) || "none";
+  }
+  const SIGNAL_TEXT = {
+    failed: "Recorded failure", attention: "Needs attention", active: "Active",
+    passed: "Checks passed and review approved", none: "No task evidence",
+  };
+
+  function mapLayer(svg, name) {
+    let layer = svg.querySelector(':scope > g[data-layer="' + name + '"]');
+    if (!layer) {
+      layer = document.createElementNS(SVG_NS, "g");
+      layer.dataset.layer = name;
+      if (name === "links") svg.insertBefore(layer, svg.firstChild);
+      else svg.appendChild(layer);
+    }
+    return layer;
+  }
+
+  function applyMapPresentation() {
+    const svg = document.getElementById("work-map");
+    if (!svg) return;
+    const { width, height } = svg.getBoundingClientRect();
+    // Hidden List view must not replace the last usable camera dimensions.
+    if (!width || !height) return;
+    if (mapFitView) {
+      mapCamera.x = 0;
+      mapCamera.y = 0;
+      mapCamera.scale = Math.max(MIN_MAP_SCALE, Math.min(1, width / (2 * mapBounds.x), height / (2 * mapBounds.y)));
+    }
+    const w = width / mapCamera.scale, h = height / mapCamera.scale;
+    svg.setAttribute("viewBox", [mapCamera.x - w / 2, mapCamera.y - h / 2, w, h].join(" "));
+    svg.dataset.view = mapFitView ? "fit" : "actual";
+    svg.dataset.cameraX = String(mapCamera.x);
+    svg.dataset.cameraY = String(mapCamera.y);
+    svg.dataset.scale = String(mapCamera.scale);
+    document.getElementById("map-fit").setAttribute("aria-pressed", String(mapFitView));
+    setText(document.getElementById("map-zoom-level"), Math.round(mapCamera.scale * 100) + "%");
+    document.getElementById("map-zoom-in").disabled = mapCamera.scale >= MAX_MAP_SCALE;
+    document.getElementById("map-zoom-out").disabled = mapCamera.scale <= MIN_MAP_SCALE;
+  }
+
+  function resetMapCamera() {
+    mapFitView = false;
+    Object.assign(mapCamera, { x: 0, y: 0, scale: 1 });
+    applyMapPresentation();
+  }
+
+  function zoomMap(factor, pointer) {
+    const rect = document.getElementById("work-map").getBoundingClientRect();
+    const scale = Math.max(MIN_MAP_SCALE, Math.min(MAX_MAP_SCALE, mapCamera.scale * factor));
+    if (pointer && rect.width && rect.height) {
+      // Keep the world point under the pointer in the same screen position.
+      const dx = pointer.clientX - rect.left - rect.width / 2;
+      const dy = pointer.clientY - rect.top - rect.height / 2;
+      mapCamera.x += dx / mapCamera.scale - dx / scale;
+      mapCamera.y += dy / mapCamera.scale - dy / scale;
+    }
+    mapCamera.scale = scale;
+    mapFitView = false;
+    applyMapPresentation();
+  }
+
+  function setupMapGestures() {
+    const svg = document.getElementById("work-map");
+    svg.addEventListener("wheel", (event) => {
+      // Wheel zoom belongs only to the map; the rest of the page scrolls normally.
+      event.preventDefault();
+      if (!mapDrag && event.deltaY) zoomMap(event.deltaY < 0 ? 1.25 : 1 / 1.25, event);
+    }, { passive: false });
+    svg.addEventListener("keydown", (event) => {
+      const step = 80 / mapCamera.scale;
+      if (event.key === "+" || event.key === "=") zoomMap(1.25);
+      else if (event.key === "-") zoomMap(1 / 1.25);
+      else if (event.key === "0") { mapFitView = true; applyMapPresentation(); }
+      else if (event.key === "Home") resetMapCamera();
+      else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        if (event.key === "ArrowLeft") mapCamera.x -= step;
+        if (event.key === "ArrowRight") mapCamera.x += step;
+        if (event.key === "ArrowUp") mapCamera.y -= step;
+        if (event.key === "ArrowDown") mapCamera.y += step;
+        mapFitView = false;
+        applyMapPresentation();
+      } else return;
+      event.preventDefault();
+    });
+    svg.addEventListener("pointerdown", (event) => {
+      if (!event.isPrimary || ![0, 1].includes(event.button) || mapDrag) return;
+      if (event.button === 1) event.preventDefault(); // Suppress browser autoscroll.
+      suppressMapClick = false;
+      mapDrag = { id: event.pointerId, button: event.button, clientX: event.clientX, clientY: event.clientY,
+        x: mapCamera.x, y: mapCamera.y, scale: mapCamera.scale, moved: false };
+    });
+    svg.addEventListener("pointermove", (event) => {
+      if (!mapDrag || event.pointerId !== mapDrag.id) return;
+      const dx = event.clientX - mapDrag.clientX, dy = event.clientY - mapDrag.clientY;
+      if (!mapDrag.moved && Math.hypot(dx, dy) < 4) return;
+      if (!mapDrag.moved) {
+        mapDrag.moved = true;
+        svg.setPointerCapture(event.pointerId);
+        svg.classList.add("is-panning");
+      }
+      mapFitView = false;
+      mapCamera.x = mapDrag.x - dx / mapDrag.scale;
+      mapCamera.y = mapDrag.y - dy / mapDrag.scale;
+      suppressMapClick = mapDrag.button === 0;
+      applyMapPresentation();
+    });
+    const endDrag = (event) => {
+      if (!mapDrag || event.pointerId !== mapDrag.id) return;
+      mapDrag = null;
+      svg.classList.remove("is-panning");
+      if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
+    };
+    svg.addEventListener("pointerup", endDrag);
+    svg.addEventListener("pointercancel", endDrag);
+    svg.addEventListener("lostpointercapture", endDrag);
+    svg.addEventListener("auxclick", event => {
+      if (event.button === 1) event.preventDefault();
+    });
+    svg.addEventListener("pointerleave", (event) => {
+      if (mapDrag && !mapDrag.moved) endDrag(event);
+    });
+    svg.addEventListener("click", (event) => {
+      if (!suppressMapClick) return;
+      suppressMapClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+  }
+
+  function revealMapNode(g) {
+    const svg = document.getElementById("work-map");
+    const view = svg.viewBox.baseVal;
+    const { e: x, f: y } = g.transform.baseVal.getItem(0).matrix;
+    // Keyboard focus can reach a node beyond the current camera. Reveal its
+    // centre without zooming or changing the selected task.
+    if (x >= view.x + 85 && x <= view.x + view.width - 85 &&
+        y >= view.y + 30 && y <= view.y + view.height - 30) return;
+    mapFitView = false;
+    mapCamera.x = x;
+    mapCamera.y = y;
+    applyMapPresentation();
+  }
+
+  function syncWorkerOptions(names) {
+    const select = document.getElementById("map-worker-filter");
+    const wanted = Array.from(new Set(names)).sort();
+    const desired = [{ value: "", text: "All Workers" }].concat(wanted.map((w) => ({ value: w, text: w })));
+    if (mapWorkerFilter && !wanted.includes(mapWorkerFilter))
+      desired.push({ value: mapWorkerFilter, text: mapWorkerFilter + " (not in current observation)" });
+    const existing = new Map(Array.from(select.options).map((option) => [option.value, option]));
+    desired.forEach((want, index) => {
+      let option = existing.get(want.value);
+      existing.delete(want.value);
+      if (!option) {
+        option = document.createElement("option");
+        option.value = want.value;
+      }
+      setText(option, want.text);
+      if (select.options[index] !== option) select.insertBefore(option, select.options[index] || null);
+    });
+    for (const option of existing.values()) option.remove();
+    if (select.value !== mapWorkerFilter) select.value = mapWorkerFilter;
+  }
+
+  function createNodeGroup() {
+    const g = document.createElementNS(SVG_NS, "g");
+    const rect = document.createElementNS(SVG_NS, "rect");
+    const signal = document.createElementNS(SVG_NS, "line");
+    signal.setAttribute("class", "node-status");
+    signal.setAttribute("x1", "78");
+    signal.setAttribute("x2", "78");
+    signal.setAttribute("y1", "-20");
+    signal.setAttribute("y2", "20");
+    signal.setAttribute("vector-effect", "non-scaling-stroke");
+    signal.setAttribute("aria-hidden", "true");
+    const title = document.createElementNS(SVG_NS, "title");
+    const textLabel = document.createElementNS(SVG_NS, "text");
+    const textState = document.createElementNS(SVG_NS, "text");
+    textLabel.setAttribute("class", "node-label");
+    textState.setAttribute("class", "node-state");
+    rect.setAttribute("x", -80);
+    rect.setAttribute("y", -26);
+    rect.setAttribute("width", 160);
+    rect.setAttribute("height", 52);
+    rect.setAttribute("rx", 5);
+    rect.setAttribute("fill", "var(--paper)");
+    for (const node of [textLabel, textState]) {
+      node.setAttribute("text-anchor", "middle");
+      node.style.pointerEvents = "none";
+    }
+    textLabel.setAttribute("y", "-3");
+    textLabel.setAttribute("fill", "var(--text-main)");
+    textLabel.setAttribute("font-size", "12px");
+    textState.setAttribute("y", "14");
+    textState.setAttribute("fill", "var(--muted)");
+    textState.setAttribute("font-size", "10px");
+    g.append(rect, signal, title, textLabel, textState);
+    g.setAttribute("role", "button");
+    g.setAttribute("tabindex", "0");
+    g.style.cursor = "pointer";
+    // Handlers read the group's current dataset, never a captured record.
+    g.addEventListener("click", () => selectNode(g));
+    g.addEventListener("focus", () => revealMapNode(g));
+    g.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        selectNode(g);
+      }
+    });
+    return g;
+  }
+
+  function selectNode(g) {
+    if (!lastData || !g.isConnected) return;
+    selected = {
+      key: g.dataset.nodeKey,
+      kind: g.dataset.kind,
+      worker: g.dataset.worker,
+      task: g.dataset.task,
+    };
+    renderMap(lastData);
+  }
+
+  function clearSelection() {
+    selected = null;
+    clearDetails();
+    const svg = document.getElementById("work-map");
+    if (svg) svg.focus({ preventScroll: true });
+    if (lastData) renderMap(lastData);
+  }
+
+  // Order children without moving the focused group, so focus survives.
+  function orderGroups(layer, ordered) {
+    const current = Array.from(layer.children);
+    if (current.length === ordered.length && current.every((g, i) => g === ordered[i])) return;
+    const active = document.activeElement;
+    const anchorIndex = ordered.indexOf(active);
+    if (anchorIndex < 0) {
+      for (const g of ordered) layer.appendChild(g);
+      return;
+    }
+    const anchor = ordered[anchorIndex];
+    for (let i = 0; i < anchorIndex; i++) layer.insertBefore(ordered[i], anchor);
+    let previous = anchor;
+    for (let i = anchorIndex + 1; i < ordered.length; i++) {
+      layer.insertBefore(ordered[i], previous.nextSibling);
+      previous = ordered[i];
+    }
+  }
+
+  function renderMap(data) {
+    const svg = document.getElementById("work-map");
+    const countsSpan = document.getElementById("map-counts");
+    const pagination = document.getElementById("map-pagination");
+    const prevBtn = document.getElementById("map-prev-page");
+    const nextBtn = document.getElementById("map-next-page");
+    const pageInfo = document.getElementById("map-page-info");
+
+    syncWorkerOptions(data.results.map((r) => r.worker));
+
+    const filtered = [];
+    const categories = new Map();
+    const tally = { active: 0, attention: 0, finished: 0 };
+
+    for (const r of data.results) {
+      const verdict = classify(r);
+      categories.set(r, verdict);
+      tally[verdict.category]++;
+      const isFinished = verdict.category === "finished";
+      // The Finished filter exposes history without the separate toggle.
+      if (isFinished && !mapHistoryVisible && mapStateFilter !== "finished") continue;
+      if (mapWorkerFilter && r.worker !== mapWorkerFilter) continue;
+      if (mapStateFilter && verdict.category !== mapStateFilter) continue;
+      const stateStr = (sectionState(r, "process") + " " + r.activity + " " + sectionState(r, "validation") + " " + sectionState(r, "review") + " " + verdict.category).toLowerCase();
+      const searchMatch = !mapSearchQuery ||
+          r.worker.toLowerCase().includes(mapSearchQuery) ||
+          r.task.toLowerCase().includes(mapSearchQuery) ||
+          stateStr.includes(mapSearchQuery);
+      if (searchMatch) filtered.push(r);
+    }
+
+    let counts = data.results.length + " total tasks (" + tally.attention + " need attention, " + tally.active + " active, " + tally.finished + " finished) · " + filtered.length + " shown";
+    if (mapWorkerFilter && !data.results.some((r) => r.worker === mapWorkerFilter))
+      counts += " · worker " + mapWorkerFilter + " is not in the current observation";
+    setText(countsSpan, counts);
+
+    filtered.sort((a, b) => {
+      if (a.worker !== b.worker) return a.worker < b.worker ? -1 : 1;
+      return a.task < b.task ? -1 : a.task > b.task ? 1 : 0;
+    });
+
+    const totalPages = Math.ceil(filtered.length / MAP_PAGE_SIZE);
+    if (mapCurrentPage >= totalPages) mapCurrentPage = Math.max(0, totalPages - 1);
+    const pageTasks = filtered.slice(mapCurrentPage * MAP_PAGE_SIZE, (mapCurrentPage + 1) * MAP_PAGE_SIZE);
+
+    if (filtered.length > MAP_PAGE_SIZE) {
+      pagination.hidden = false;
+      setText(pageInfo, "Page " + (mapCurrentPage + 1) + " of " + (totalPages || 1));
+      prevBtn.disabled = mapCurrentPage === 0;
+      nextBtn.disabled = mapCurrentPage >= totalPages - 1;
+    } else {
+      pagination.hidden = true;
+      setText(pageInfo, "");
+    }
+
+    const workers = Array.from(new Set(pageTasks.map((r) => r.worker))).sort();
+    const nodes = [];
+    const links = [];
+    const hub = { key: HUB_KEY, kind: "hub", label: "Project hub", x: 0, y: 0 };
+    nodes.push(hub);
+    const workerRadius = Math.max(200, workers.length * 190 / (2 * Math.PI));
+    workers.forEach((w, workerIndex) => {
+      const angle = -Math.PI / 2 + workerIndex * 2 * Math.PI / workers.length;
+      const ux = Math.cos(angle), uy = Math.sin(angle);
+      const own = pageTasks.filter((r) => r.worker === w);
+      const workerNode = { key: workerKey(w), kind: "worker", label: w, worker: w,
+        x: ux * workerRadius, y: uy * workerRadius, count: own.length };
+      nodes.push(workerNode);
+      links.push([hub, workerNode]);
+      // Keep each ownership branch inside its sector. Additional rows grow
+      // outward, with a bounded grid for a worker that owns most of the page.
+      const halfSector = Math.min(Math.PI / 3, Math.PI / workers.length) * 0.7;
+      const sectorColumns = Math.max(1, Math.floor(2 * (workerRadius + 260) * Math.tan(halfSector) / 190) + 1);
+      const columns = Math.min(5, Math.ceil(Math.sqrt(own.length)), sectorColumns);
+      own.forEach((r, index) => {
+        const row = Math.floor(index / columns);
+        const rowCount = Math.min(columns, own.length - row * columns);
+        const tangent = (index % columns - (rowCount - 1) / 2) * 190;
+        const radius = workerRadius + 260 + row * 190;
+        const taskNode = { key: taskKey(r.worker, r.task), kind: "task", label: r.task,
+          worker: r.worker, task: r.task, x: ux * radius - uy * tangent,
+          y: uy * radius + ux * tangent, data: r, verdict: categories.get(r) };
+        nodes.push(taskNode);
+        links.push([workerNode, taskNode]);
+      });
+    });
+
+    mapBounds = { x: Math.max(...nodes.map((n) => Math.abs(n.x))) + 110,
+      y: Math.max(...nodes.map((n) => Math.abs(n.y))) + 56 };
+    applyMapPresentation();
+
+    const linkLayer = mapLayer(svg, "links");
+    const nodeLayer = mapLayer(svg, "nodes");
+    linkLayer.replaceChildren(...links.map(([src, tgt]) => {
+      const line = document.createElementNS(SVG_NS, "line");
+      line.setAttribute("x1", src.x);
+      line.setAttribute("y1", src.y);
+      line.setAttribute("x2", tgt.x);
+      line.setAttribute("y2", tgt.y);
+      line.setAttribute("stroke", "var(--line-alt)");
+      line.setAttribute("stroke-width", "2");
+      line.setAttribute("vector-effect", "non-scaling-stroke");
+      return line;
+    }));
+
+    // Reuse the same group for the same exact key; remove only obsolete ones.
+    const existing = new Map();
+    for (const g of Array.from(nodeLayer.children)) {
+      if (g.dataset.nodeKey && !existing.has(g.dataset.nodeKey)) existing.set(g.dataset.nodeKey, g);
+      else g.remove();
+    }
+    const ordered = [];
+    for (const n of nodes) {
+      let g = existing.get(n.key);
+      existing.delete(n.key);
+      if (!g) g = createNodeGroup();
+      g.dataset.nodeKey = n.key;
+      g.dataset.kind = n.kind;
+      if (n.worker !== undefined) g.dataset.worker = n.worker; else delete g.dataset.worker;
+      if (n.task !== undefined) g.dataset.task = n.task; else delete g.dataset.task;
+      const isSelected = !!selected && selected.key === n.key;
+      g.setAttribute("transform", "translate(" + n.x + ", " + n.y + ")");
+      g.setAttribute("aria-pressed", isSelected ? "true" : "false");
+      let description = n.label;
+      let stateText = "";
+      let aria = "Project hub";
+      if (n.kind === "worker") {
+        aria = "Worker " + n.worker + ", " + n.count + (n.count === 1 ? " task" : " tasks") + " shown";
+        stateText = n.count + (n.count === 1 ? " task shown" : " tasks shown");
+      } else if (n.kind === "task") {
+        const r = n.data;
+        const facts = "process " + label(sectionState(r, "process")) + ", validation " + label(sectionState(r, "validation")) + ", review " + label(sectionState(r, "review"));
+        aria = "Task " + r.task + " on worker " + r.worker + ". " + (n.verdict.category === "finished" ? "Finished" : CATEGORY_TEXT[n.verdict.category]) + ": " + facts + ".";
+        description = r.worker + " / " + r.task + "\nProcess: " + sectionState(r, "process") + "\nValidation: " + sectionState(r, "validation") + "\nReview: " + sectionState(r, "review");
+        stateText = sectionState(r, "process") !== "succeeded" ? sectionState(r, "process") : (sectionState(r, "validation") !== "passed" ? sectionState(r, "validation") : sectionState(r, "review"));
+        g.dataset.category = n.verdict.category;
+      }
+      if (n.kind !== "task") delete g.dataset.category;
+      const signal = n.kind === "task" ? taskSignal(n.data, n.verdict)
+        : summarySignal(n.kind === "worker" ? data.results.filter(r => r.worker === n.worker) : data.results, categories);
+      g.dataset.signal = signal;
+      if (n.kind !== "task") {
+        const summary = "Observed task summary: " + SIGNAL_TEXT[signal] + ".";
+        aria += ". " + summary;
+        description += "\n" + summary;
+      }
+      if (g.getAttribute("aria-label") !== aria) g.setAttribute("aria-label", aria);
+      const rect = g.querySelector("rect");
+      rect.setAttribute("stroke", isSelected ? "var(--focus-ring)" : "var(--btn-border)");
+      rect.setAttribute("stroke-width", isSelected ? "3" : "1");
+      setText(g.querySelector("title"), description);
+      setText(g.querySelector(".node-label"), n.label.length > 15 ? n.label.substring(0, 13) + "..." : n.label);
+      setText(g.querySelector(".node-state"), stateText.length > 15 ? stateText.substring(0, 13) + "..." : stateText);
+      ordered.push(g);
+    }
+    let lostFocus = false;
+    for (const g of existing.values()) {
+      if (g === document.activeElement) lostFocus = true;
+      g.remove();
+    }
+    if (lostFocus) svg.focus({ preventScroll: true });
+    orderGroups(nodeLayer, ordered);
+
+    renderDetails(data, pageTasks, categories);
+  }
+
+  function clearDetails() {
+    const details = document.getElementById("map-details");
+    details.replaceChildren();
+    details.hidden = true;
+    delete details.dataset.key;
+    delete details.dataset.mode;
+  }
+
+  function renderDetails(data, pageTasks, categories) {
+    if (!selected) {
+      clearDetails();
+      return;
+    }
+    if (selected.kind !== "task") {
+      showOverview(data, pageTasks, categories);
+      return;
+    }
+    const r = data.results.find((t) => t.worker === selected.worker && t.task === selected.task);
+    if (r && pageTasks.includes(r)) showDetails(r, data, categories.get(r));
+    else showMissing(r ? "filtered" : "absent");
+  }
+
+  // Build the detail skeleton once per exact selection and mode; later polls
+  // only update text, so focused controls are never replaced.
+  function detailsFor(mode, build) {
+    const details = document.getElementById("map-details");
+    details.hidden = false;
+    details.setAttribute("aria-label", selected.kind === "task" ? "Task details"
+      : selected.kind === "worker" ? "Worker details" : "Project details");
+    if (details.dataset.key !== selected.key || details.dataset.mode !== mode) {
+      details.replaceChildren();
+      details.dataset.key = selected.key;
+      details.dataset.mode = mode;
+      build(details);
+    }
+    return details;
+  }
+  function clearButton() {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "map-clear-sel";
+    btn.textContent = "Clear selection";
+    btn.addEventListener("click", clearSelection);
+    return btn;
+  }
+
+  function showMissing(reason) {
+    const details = detailsFor("missing", (root) => {
+      appendDetailsHeader(root);
+      const p = document.createElement("p");
+      p.className = "warnings";
+      p.dataset.field = "missing";
+      root.appendChild(p);
+    });
+    const name = selected.worker + " / " + selected.task;
+    setText(details.querySelector('[data-field="title"]'), name);
+    setText(details.querySelector('[data-field="missing"]'), reason === "filtered"
+      ? "Selected task " + name + " is off-page or filtered out."
+      : "Selected task " + name + " is not in the current observation.");
+    updateConsoleControl(details, { text: "Output and files are unavailable here until this task is visible in the current observation.", action: null });
+  }
+
+  function appendDetailsHeader(root) {
+    const header = document.createElement("div");
+    header.className = "map-details-header";
+    const h3 = document.createElement("h3");
+    h3.dataset.field = "title";
+    header.append(h3, clearButton());
+    root.appendChild(header);
+  }
+
+  function showOverview(data, pageTasks, categories) {
+    const isWorker = selected.kind === "worker";
+    const records = isWorker ? data.results.filter(r => r.worker === selected.worker) : data.results;
+    const visible = isWorker ? pageTasks.filter(r => r.worker === selected.worker) : pageTasks;
+    const details = detailsFor(selected.kind, root => {
+      appendDetailsHeader(root);
+      for (const name of ["observed", "summary", "scope"]) {
+        const p = text("p", "", "small");
+        p.dataset.field = name;
+        root.appendChild(p);
+      }
+    });
+    const field = name => details.querySelector('[data-field="' + name + '"]');
+    setText(field("title"), isWorker ? selected.worker : "Project hub");
+    setText(field("observed"), "Current observation " + (data.observed_at || "unknown"));
+    const tally = { active: 0, attention: 0, finished: 0 };
+    for (const r of records) tally[categories.get(r).category]++;
+    setText(field("summary"), records.length
+      ? records.length + " observed tasks · " + tally.active + " active · " + tally.attention + " need attention · " + tally.finished + " finished."
+      : isWorker ? "No task evidence for this worker in the current observation."
+        : "No structured task evidence in the current observation.");
+    setText(field("scope"), visible.length + " tasks on this map page. "
+      + (isWorker ? "Select a task node for its process, validation and review details."
+        : "The hub groups workers and tasks; it has no task process or worker session of its own."));
+    const button = isWorker && Array.from(document.querySelectorAll("#console-workers button.console-worker"))
+      .find(b => b.dataset.worker === selected.worker);
+    updateConsoleControl(details, isWorker
+      ? consoleRoute({ worker: selected.worker, task: button ? button.dataset.task || "" : "" })
+      : { text: "The project hub has no output or worktree files of its own. Select a worker or task to inspect available output and files.", action: null });
+  }
+
+  function consoleRoute(r) {
+    const button = Array.from(document.querySelectorAll("#console-workers button.console-worker"))
+      .find((b) => b.dataset.worker === r.worker);
+    if (!button) return { text: "Protected output and worktree files are unavailable for this worker in the current session.", action: null };
+    const output = button.dataset.output === "true";
+    const files = button.dataset.files === "true";
+    const latest = button.dataset.task || "";
+    const event = { worker: r.worker, task: latest };
+    if (output && latest === r.task) {
+      return {
+        text: files ? "Source output and tracked worktree files are available for this task."
+          : "Source output is available for this task. Worktree files are not enabled.",
+        action: { label: "Open Source console for " + r.worker + " / " + r.task, event },
+      };
+    }
+    if (output && latest) {
+      return {
+        text: "Protected output is currently showing a different/latest task (" + latest + "), not this historical record."
+          + (files ? " Tracked worktree files show the worker's current worktree, not this record." : " Worktree files are not enabled."),
+        action: { label: "Open console for different/latest task " + latest, event },
+      };
+    }
+    if (files) {
+      return {
+        text: (output ? "Source output has no recorded task for this worker. " : "Source output is not available for this worker. ")
+          + "Only tracked worktree files are available; they show the worker's current worktree, not this record.",
+        action: { label: "Open worktree files for " + r.worker, event },
+      };
+    }
+    return { text: "Source output has no recorded task for this worker, and worktree files are not enabled.", action: null };
+  }
+
+  function showDetails(r, data, verdict) {
+    const details = detailsFor("task", (root) => {
+      appendDetailsHeader(root);
+      const grid = document.createElement("dl");
+      grid.className = "evidence-grid";
+      grid.style.margin = "16px 0";
+      for (const [name, title] of [["observed", "Observed"], ["recorded", "Recorded"], ["status", "Status"], ["activity", "Activity"], ["process", "Process"], ["validation", "Validation"], ["review", "Review"]]) {
+        const row = document.createElement("div");
+        const dt = document.createElement("dt");
+        dt.textContent = title;
+        const dd = document.createElement("dd");
+        dd.dataset.field = name;
+        row.append(dt, dd);
+        grid.appendChild(row);
+      }
+      root.appendChild(grid);
+    });
+    const field = (name) => details.querySelector('[data-field="' + name + '"]');
+    setText(field("title"), r.worker + " / " + r.task);
+    setText(field("observed"), "Current observation " + (data.observed_at || "unknown"));
+    setText(field("recorded"), "Task evidence recorded " + (r.recorded_at || "unknown"));
+    setText(field("status"), CATEGORY_TEXT[verdict.category] + (verdict.reasons.length ? " · " + verdict.reasons.join("; ") : ""));
+    setText(field("activity"), label(r.activity));
+    setText(field("process"), label(sectionState(r, "process")) + " · exit " + (r.process && r.process.exit_code !== null && r.process.exit_code !== undefined ? r.process.exit_code : "unknown"));
+    setText(field("validation"), label(sectionState(r, "validation")) + " · " + (r.validation ? r.validation.checks_run : "unknown") + " checks / " + (r.validation ? r.validation.checks_failed : "unknown") + " failed");
+    setText(field("review"), label(sectionState(r, "review")) + " · reviewer " + ((r.review && r.review.reviewer) || "not recorded"));
+
+    updateConsoleControl(details, consoleRoute(r));
+  }
+
+  function updateConsoleControl(details, route) {
+    let consoleText = details.querySelector('[data-field="console"]');
+    if (!consoleText) {
+      const consoleDiv = text("div", "", "map-details-console");
+      consoleText = text("p", "", "small");
+      consoleText.dataset.field = "console";
+      consoleText.id = "map-console-reason";
+      consoleDiv.appendChild(consoleText);
+      details.appendChild(consoleDiv);
+    }
+    setText(consoleText, route.text);
+    let open = details.querySelector('[data-field="console-open"]');
+    if (!open) {
+      open = document.createElement("button");
+      open.type = "button";
+      open.dataset.field = "console-open";
+      open.setAttribute("aria-describedby", "map-console-reason");
+      open.addEventListener("click", () => {
+        if (open.disabled || !lastData || open.dataset.worker === undefined) return;
+        document.dispatchEvent(new CustomEvent("unio-open-console", {
+          detail: { worker: open.dataset.worker, task: open.dataset.task },
+        }));
+      });
+      consoleText.parentElement.appendChild(open);
+    }
+    open.disabled = !route.action;
+    open.className = route.action ? "primary" : "";
+    if (!route.action) {
+      delete open.dataset.worker;
+      delete open.dataset.task;
+      setText(open, "Open output or files");
+      return;
+    }
+    open.dataset.worker = route.action.event.worker;
+    open.dataset.task = route.action.event.task;
+    setText(open, route.action.label);
+  }
+
+  function clearMapAfterFailure() {
+    const svg = document.getElementById("work-map");
+    svg.replaceChildren();
+    if (mapDrag) svg.dispatchEvent(new PointerEvent("pointercancel", { pointerId: mapDrag.id }));
+    mapBounds = { x: 120, y: 80 };
+    applyMapPresentation();
+    clearDetails();
+    setText(document.getElementById("map-counts"), "");
+    document.getElementById("map-pagination").hidden = true;
+    setText(document.getElementById("map-page-info"), "");
+    document.getElementById("map-prev-page").disabled = true;
+    document.getElementById("map-next-page").disabled = true;
+    syncWorkerOptions([]);
+  }
+
+  async function refresh() {
+    if (busy) return;
+    busy = true;
+    document.getElementById("tasks").setAttribute("aria-busy", "true");
+    try {
+      const response = await fetch("/api/activity", { cache: "no-store" });
+      if (!response.ok) throw new Error("observer unavailable");
+      render(await response.json());
+    } catch (_) {
+      lastData = null;
+      // Remove old states so a failed observation cannot look current.
+      clearMapAfterFailure();
+      document.getElementById("tasks").replaceChildren();
+      document.getElementById("limits").replaceChildren();
+      document.getElementById("events").textContent = "";
+      status.className = "error";
+      status.textContent =
+        "Local activity is unavailable. No current state is claimed.";
+    } finally {
+      busy = false;
+      document.getElementById("tasks").setAttribute("aria-busy", "false");
+    }
+  }
+  document.getElementById("refresh").addEventListener("click", refresh);
+  refresh();
+  setInterval(refresh, 2000);
+})();
+UNIO_BROWSER_ACTIVITY_JS
+cat > "$CONF_DIR/lib/browser/activity.css" <<'UNIO_BROWSER_ACTIVITY_CSS'
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+
+  --text-main: #242424;
+  --bg-main: #f2f2f2;
+  --muted: #606060;
+  --line: #d6d6d6;
+  --accent: #333333;
+  --paper: #fafafa;
+  --bg-label: #e6e6e6;
+  --text-label: #363636;
+  --bg-composer: #ebebeb;
+  --btn-border: #828282;
+  --btn-text: #303030;
+  --btn-hover-bg: #e4e4e4;
+  --btn-hover-border: #777777;
+  --btn-primary-hover: #191919;
+  --btn-danger-text: #292929;
+  --btn-danger-border: #969696;
+  --btn-danger-hover: #e2e2e2;
+  --btn-disabled-bg: #e6e6e6;
+  --btn-disabled-text: #696969;
+  --btn-disabled-border: #cecece;
+  --btn-primary-text: #ffffff;
+  --focus-ring: #1c1c1c;
+  --text-placeholder: #717171;
+  --line-alt: #bdbdbd;
+  --text-error: #292929;
+  --bg-error: #e5e5e5;
+  --border-error: #676767;
+  --bg-pre: #eeeeee;
+  --border-pre: #d9d9d9;
+  --text-summary: #4d4d4d;
+  --text-stage: #606060;
+  --text-stage-help: #555555;
+  --text-warn: #353535;
+  --bg-warn: #e8e8e8;
+  --text-status: #4b4b4b;
+  --text-chip: #363636;
+  --bg-chip-warn: #e0e0e0;
+  --text-chip-warn: #353535;
+  --map-passed: #1a7f37;
+  --map-failed: #cf222e;
+  --map-attention: #9a6700;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --text-main: #e8e8e8;
+  --bg-main: #1c1c1c;
+  --muted: #a6a6a6;
+  --line: #3d3d3d;
+  --accent: #d2d2d2;
+  --paper: #252525;
+  --bg-label: #333333;
+  --text-label: #c4c4c4;
+  --bg-composer: #2b2b2b;
+  --btn-border: #686868;
+  --btn-text: #e8e8e8;
+  --btn-hover-bg: #3d3d3d;
+  --btn-hover-border: #8b8b8b;
+  --btn-primary-hover: #eeeeee;
+  --btn-danger-text: #eeeeee;
+  --btn-danger-border: #858585;
+  --btn-danger-hover: #383838;
+  --btn-disabled-bg: #2e2e2e;
+  --btn-disabled-text: #888888;
+  --btn-disabled-border: #464646;
+  --btn-primary-text: #1c1c1c;
+  --focus-ring: #e2e2e2;
+  --text-placeholder: #a0a0a0;
+  --line-alt: #555555;
+  --text-error: #eeeeee;
+  --bg-error: #383838;
+  --border-error: #a0a0a0;
+  --bg-pre: #222222;
+  --border-pre: #3b3b3b;
+  --text-summary: #b4b4b4;
+  --text-stage: #a6a6a6;
+  --text-stage-help: #bdbdbd;
+  --text-warn: #dddddd;
+  --bg-warn: #383838;
+  --text-status: #b4b4b4;
+  --text-chip: #c4c4c4;
+  --bg-chip-warn: #383838;
+  --text-chip-warn: #dddddd;
+  --map-passed: #3fb950;
+  --map-failed: #f85149;
+  --map-attention: #d29922;
+}
+
+body {
+  color: var(--text-main);
+  background: var(--bg-main);
+}
+/* Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
+   https://github.com/danielmevit/unio
+   SPDX-License-Identifier: AGPL-3.0-only; see LICENSE and NOTICE. No warranty. */
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; line-height: 1.55; }
+main { width: 100%; padding: 0 clamp(16px, 2.3vw, 48px) 24px; }
+section, form, details, .workspace-layout > * { min-width: 0; }
+button, input, textarea, select, summary { font: inherit; }
+h1, h2, h3, h4, p { margin-top: 0; }
+h1 { font-size: 17px; font-weight: 550; letter-spacing: -.35px; margin: 0; }
+h2 { font-size: 21px; line-height: 1.3; font-weight: 620; letter-spacing: -.5px; margin-bottom: 16px; }
+h3 { font-size: 17px; line-height: 1.4; font-weight: 620; margin-bottom: 12px; }
+h4 { font-size: 13px; font-weight: 650; margin-bottom: 7px; }
+p { overflow-wrap: anywhere; }
+.topbar { min-height: 80px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); }
+.workspace-brand, .topbar-controls { display: flex; align-items: center; gap: 18px; }
+.topbar-controls { min-width: 0; flex-wrap: wrap; }
+.brand { font-size: 23px; font-weight: 750; letter-spacing: -1px; border-right: 1px solid var(--line); padding-right: 18px; }
+.mode-label, .state-label { font-size: 12px; font-weight: 600; padding: 4px 8px; background: var(--bg-label); color: var(--text-label); border-radius: 4px; overflow-wrap: anywhere; }
+.notice { color: var(--muted); font-size: 13px; margin: 15px 0 24px; max-width: 100ch; }
+.small { font-size: 13px; color: var(--muted); }
+.eyebrow { color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .8px; margin: 0 0 6px; }
+.workspace-layout { display: grid; grid-template-columns: minmax(280px, 330px) minmax(0, 1fr); align-items: start; gap: 24px; }
+.composer { padding: 24px; background: var(--bg-composer); border: 1px solid var(--line); border-radius: 10px; }
+.composer .small { margin-bottom: 18px; }
+.selected-work { padding: 24px 28px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; }
+.section-heading h2 { margin-bottom: 12px; }
+.empty-state { min-height: 280px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 20px 0; max-width: 56ch; }
+.empty-mark { font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 20px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; }
+.empty-state p { color: var(--muted); margin-bottom: 0; }
+button { min-height: 44px; border: 1px solid var(--btn-border); background: var(--paper); color: var(--btn-text); border-radius: 5px; padding: 9px 14px; cursor: pointer; font-size: 13px; font-weight: 600; transition: background-color 140ms, border-color 140ms; }
+button:hover { background: var(--btn-hover-bg); border-color: var(--btn-hover-border); }
+button:active:not(:disabled) { transform: translateY(1px); }
+button.primary { background: var(--accent); color: var(--btn-primary-text); border-color: var(--accent); }
+button.primary:hover { background: var(--btn-primary-hover); }
+button.danger { color: var(--btn-danger-text); border-color: var(--btn-danger-border); }
+button.danger:hover { background: var(--btn-danger-hover); }
+button:disabled { cursor: default; background: var(--btn-disabled-bg); color: var(--btn-disabled-text); border-color: var(--btn-disabled-border); }
+:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
+main:focus { outline: none; }
+.skip-link { position: absolute; left: 16px; top: -80px; z-index: 2; padding: 12px 18px; background: var(--paper); color: var(--accent); border: 1px solid var(--accent); }
+.skip-link:focus { top: 12px; }
+label { display: block; font-size: 13px; font-weight: 550; margin: 14px 0 7px; }
+textarea, input { width: 100%; min-width: 0; border: 1px solid var(--btn-border); border-radius: 5px; background: var(--paper); color: inherit; padding: 11px 12px; }
+textarea { resize: vertical; min-height: 170px; line-height: 1.6; margin-bottom: 12px; }
+textarea::placeholder { color: var(--text-placeholder); }
+input { min-height: 44px; font-size: 13px; }
+#draft-form > button { width: 100%; }
+.draft-reopen { display: flex; flex-wrap: wrap; gap: 8px; }
+.draft-reopen input { flex: 1 1 150px; }
+.draft-reopen button { flex: 1 0 auto; }
+.reopen-details { border-top: 1px solid var(--line-alt); margin-top: 22px; padding-top: 10px; }
+#draft-status, #job-status { font-size: 13px; margin: 14px 0 0; }
+#draft-status:empty, #job-status:empty { display: none; }
+.error { color: var(--text-error); background: var(--bg-error); border-left: 3px solid var(--border-error); padding: 12px; border-radius: 3px; overflow-wrap: anywhere; }
+#draft-reference { overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; background: var(--bg-pre); border: 1px solid var(--border-pre); border-radius: 5px; padding: 14px 16px; font: 12px/1.65 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; max-width: 100%; margin: 0 0 16px; tab-size: 2; }
+summary { cursor: pointer; color: var(--text-summary); font-size: 13px; font-weight: 550; min-height: 44px; padding: 12px 0; overflow-wrap: anywhere; }
+details[open] > summary { margin-bottom: 8px; }
+.stages { padding: 0; margin: 18px 0 22px; list-style: none; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+.stages li { font-size: 11px; color: var(--text-stage); border-top: 2px solid var(--line); padding-top: 7px; overflow-wrap: anywhere; }
+.stages li[aria-current="step"] { color: var(--accent); border-color: var(--accent); font-weight: 700; }
+.stage-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.stage-heading h3 { margin-bottom: 8px; }
+.stage-help { color: var(--text-stage-help); max-width: 76ch; font-size: 13px; margin-bottom: 16px; }
+.execution-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.preview, .result { border-top: 1px solid var(--line); padding-top: 22px; margin-top: 24px; }
+.preview-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.provider-labels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 12px 0 8px; }
+.provider-labels p { margin: 3px 0 0; font-size: 13px; }
+.provider-labels strong { display: block; font-size: 13px; }
+.evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; gap: 0 24px; }
+.evidence-grid > div { border-bottom: 1px solid var(--line); padding: 12px 0; }
+.evidence-grid dt { color: var(--muted); font-size: 12px; }
+.evidence-grid dd { margin: 3px 0 0; font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
+.warnings { padding: 12px 16px 12px 30px; color: var(--text-warn); background: var(--bg-warn); font-size: 13px; border-radius: 4px; overflow-wrap: anywhere; }
+.activity-section { margin-top: 30px; }
+.console-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.console-tabs button[aria-selected="true"] { border-color: var(--accent); color: var(--accent); }
+.console-worker { display: block; width: 100%; text-align: left; margin: 0 0 8px; }
+.console-worker strong, .console-worker .small, .console-excerpt { display: block; }
+.console-excerpt { white-space: pre-wrap; font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; margin-top: 8px; }
+#console-workers { margin-top: 12px; }
+#console-file-list { list-style: none; padding: 0; margin: 0 0 12px; }
+#console-file-list li { margin: 0 0 8px; }
+#console-file-list button { width: 100%; text-align: left; }
+#console-text, #console-file-text { max-height: 320px; overflow: auto; }
+#console-panel { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 16px; }
+.activity-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.activity-heading h2 { margin-bottom: 0; }
+#status { margin: 0; font-size: 12px; color: var(--text-status); text-align: right; }
+#status.error { color: var(--text-error); }
+.evidence-help { margin: 12px 0 20px; max-width: 90ch; }
+.row { border-top: 1px solid var(--line); padding: 18px 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr); gap: 24px; }
+.row strong { display: block; font-size: 13px; font-weight: 620; overflow-wrap: anywhere; }
+.row p { font-size: 12px; margin: 5px 0 0; color: var(--muted); }
+.row .data { font-size: 12px; }
+.chip { display: inline-block; border-radius: 3px; background: var(--bg-label); color: var(--text-chip); font-size: 11px; font-weight: 550; padding: 2px 7px; }
+.chip.warn { background: var(--bg-chip-warn); color: var(--text-chip-warn); }
+.observer-details { border-top: 1px solid var(--line); margin: 4px 0 20px; }
+.observer-details > details { border-bottom: 1px solid var(--line); }
+#mode-footer { max-width: 100ch; }
+footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; margin-top: 22px; }
+footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+footer a { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); font-size: 13px; text-underline-offset: 3px; }
+@media (max-width: 1000px) {
+  main { padding: 0 24px 24px; }
+  .workspace-layout { grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); gap: 18px; }
+  .selected-work, .composer { padding: 22px; }
+  .stages { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 8px; }
+  .preview-grid, .provider-labels { grid-template-columns: 1fr; gap: 0; }
+}
+@media (max-width: 720px) {
+  main { padding: 0 16px 20px; }
+  .topbar { flex-wrap: wrap; gap: 8px; padding: 16px 0; }
+  .workspace-brand { gap: 12px; }
+  .brand { padding-right: 12px; }
+  h1 { font-size: 15px; }
+  .topbar-controls { width: 100%; justify-content: space-between; gap: 12px; }
+  .notice { margin: 14px 0 20px; }
+  .workspace-layout { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .selected-work, .composer { padding: 20px; }
+  .empty-state { min-height: 190px; }
+  .activity-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
+  #status { text-align: left; }
+  .row { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 18px 0; }
+  .stage-heading { align-items: flex-start; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .evidence-grid { grid-template-columns: 1fr; }
+  .execution-actions button { flex: 1 1 auto; }
+  pre { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  button:active:not(:disabled) { transform: none; }
+}
+
+.view-switch {
+  display: flex;
+  gap: 8px;
+}
+.view-switch button[aria-pressed="true"] {
+  background: var(--bg-label);
+  border-color: var(--accent);
+  color: var(--text-label);
+}
+.map-container {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: clamp(12px, 1.5vw, 24px);
+  margin-top: 15px;
+}
+.map-controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.map-controls input[type="search"] {
+  flex: 1 1 200px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 5px 10px;
+}
+.map-controls select {
+  flex: 1 1 160px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  color: var(--text-main);
+  background: var(--paper);
+  border: 1px solid var(--btn-border);
+  border-radius: 5px;
+}
+.history-toggle {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  cursor: pointer;
+}
+.history-toggle input { width: auto; min-height: auto; flex: none; }
+.map-camera-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.map-camera-controls button { min-width: 44px; }
+#map-zoom-level { min-width: 4ch; text-align: center; font-size: 12px; color: var(--muted); }
+.map-help { margin: 0 0 12px; max-width: 100ch; }
+.map-workspace { display: grid; grid-template-columns: minmax(0, 1fr); }
+.map-canvas-column, .map-details { min-width: 0; }
+.map-scroll-area {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--bg-main);
+  border-radius: 5px;
+  height: clamp(320px, 55vh, 560px);
+}
+#work-map { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; user-select: none; }
+#work-map.is-panning, #work-map.is-panning [data-node-key] { cursor: grabbing !important; }
+#work-map [data-layer="links"] { pointer-events: none; }
+#work-map [data-node-key]:focus-visible rect { stroke: var(--focus-ring); stroke-width: 3; }
+.map-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-top: 15px;
+  font-size: 13px;
+}
+.map-pagination button {
+  min-height: 44px;
+  padding: 5px 10px;
+}
+.map-counts {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: auto;
+}
+.map-details {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+.map-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.map-details-header h3 { overflow-wrap: anywhere; }
+.node-status { stroke: var(--muted); stroke-width: 3; stroke-linecap: round; pointer-events: none; }
+[data-signal="passed"] > .node-status { stroke: var(--map-passed); }
+[data-signal="failed"] > .node-status { stroke: var(--map-failed); }
+[data-signal="attention"] > .node-status { stroke: var(--map-attention); }
+.map-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.map-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.map-legend i { display: inline-block; height: 12px; border-right: 3px solid var(--muted); }
+.map-legend .signal-passed { border-color: var(--map-passed); }
+.map-legend .signal-failed { border-color: var(--map-failed); }
+.map-legend .signal-attention { border-color: var(--map-attention); }
+@media (min-width: 1100px) {
+  .map-workspace:has(> .map-details:not([hidden])) {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+    gap: 20px;
+  }
+  .map-details {
+    margin-top: 0;
+    padding: 0 0 0 20px;
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    height: clamp(320px, 55vh, 560px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+  .map-details .evidence-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .map-controls select, .map-controls input[type="search"] { flex-basis: 100%; }
+  .map-counts { margin-left: 0; }
+}
+UNIO_BROWSER_ACTIVITY_CSS
+cat > "$CONF_DIR/lib/browser/drafts.js" <<'UNIO_BROWSER_DRAFTS_JS'
+/* Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
+ * https://github.com/danielmevit/unio
+ * SPDX-License-Identifier: AGPL-3.0-only; see LICENSE and NOTICE. No warranty. */
+(function () {
+  "use strict";
+  const panel = document.getElementById("manual-drafts");
+  const notice = document.querySelector(".notice");
+  const readOnlyNotice = notice.textContent.trim();
+  const selected = document.getElementById("selected-work");
+  const empty = document.getElementById("workspace-empty");
+  const request = document.getElementById("draft-request");
+  const identity = document.getElementById("draft-id");
+  const status = document.getElementById("draft-status");
+  const result = document.getElementById("draft-result");
+  const buttons = ["save-draft", "reopen-draft"].map((id) =>
+    document.getElementById(id),
+  );
+  let token = null,
+    busy = false,
+    executionBusy = false;
+  function controls() {
+    for (const button of buttons) button.disabled = busy || executionBusy || !token;
+    document.getElementById("draft-form").setAttribute("aria-busy", String(busy));
+    document.getElementById("reopen-form").setAttribute("aria-busy", String(busy));
+  }
+  function mode(data) {
+    const live = data.execution === true;
+    panel.hidden = !data.manual_drafts;
+    selected.hidden = !data.manual_drafts;
+    document.getElementById("mode-label").textContent = live
+      ? "Live execution" : data.manual_drafts ? "Manual drafts" : "Read-only";
+    notice.textContent = live
+      ? "Live execution is enabled. Saving and preparing do not call providers. Approve run permits spending; Start once and Request review are separate explicit actions."
+      : data.manual_drafts
+        ? "Manual draft preview. Saving stores your text locally; no AI or worker starts. Recorded task decisions remain separate from readiness and acceptance."
+        : readOnlyNotice;
+    document.getElementById("draft-help").textContent = live
+      ? "Save your exact request, then prepare the configured scope, checks and lab preview. Saving does not start a worker."
+      : "Save your request locally. Saving stores text only; no AI or worker starts.";
+    document.getElementById("workspace-empty-help").textContent = live
+      ? "Save a request or reopen a job. Inspect its exact preview before approving spending and starting once."
+      : "Write your task in the composer, or reopen a saved draft. Your exact text will appear here.";
+    document.getElementById("mode-footer").textContent = live
+      ? "Execution mode can spend provider allowance through explicit Start once and Request review actions. Acceptance applies only to the current verified and reviewed revision; it does not merge, install or publish. Authentication and provider capacity are unknown."
+      : data.manual_drafts
+        ? "Manual mode saves and reopens literal drafts only. Authentication and provider capacity are unknown. Use CLI result to recheck current source readiness."
+        : "Default mode observes local activity only. Authentication and provider capacity are unknown. Use CLI result to recheck current readiness.";
+  }
+  function message(value, error = false) {
+    status.textContent = value;
+    status.className = error ? "error" : "";
+  }
+  function disconnected() {
+    token = null;
+    controls();
+    document.getElementById("mode-label").textContent = "Mode unavailable";
+    notice.textContent = "Session unavailable. No execution capability is confirmed. Reload to reconnect.";
+    document.dispatchEvent(new CustomEvent("unio-session", {
+      detail: { manual_drafts: false, execution: false, token: null },
+    }));
+    message("Draft session unavailable. Reload to reconnect.", true);
+  }
+  async function session() {
+    token = null;
+    controls();
+    const response = await fetch("/api/session", { cache: "no-store" });
+    if (!response.ok) throw new Error("session unavailable");
+    const data = await response.json();
+    if (data.schema_version !== 1 || typeof data.manual_drafts !== "boolean")
+      throw new Error("invalid capability");
+    mode(data);
+    if (data.manual_drafts) {
+      if (typeof data.token !== "string" || !data.token)
+        throw new Error("missing session");
+      token = data.token;
+    }
+    controls();
+    document.dispatchEvent(new CustomEvent("unio-session", { detail: data }));
+    return data.manual_drafts;
+  }
+  function show(data) {
+    if (
+      data.schema_version !== 1 ||
+      data.state !== "draft" ||
+      !/^[0-9a-f]{32}$/.test(data.id) ||
+      typeof data.request !== "string" ||
+      !/^[0-9a-f]{64}$/.test(data.content_sha256)
+    )
+      throw new Error("invalid draft");
+    document.getElementById("draft-text").textContent = data.request;
+    document.getElementById("draft-reference").textContent =
+      "ID: " + data.id + " · SHA-256: " + data.content_sha256;
+    identity.value = data.id;
+    location.hash = "draft=" + data.id;
+    result.hidden = false;
+    empty.hidden = true;
+    document.dispatchEvent(new CustomEvent("saved-draft", { detail: data }));
+  }
+  async function operation(save) {
+    if (busy || executionBusy || !token) return;
+    if (save && !request.value.trim()) {
+      message("Enter a request before saving.", true);
+      return;
+    }
+    if (!save && !/^[0-9a-f]{32}$/.test(identity.value)) {
+      message("Enter the 32-character draft ID.", true);
+      return;
+    }
+    busy = true;
+    controls();
+    result.hidden = true;
+    document.dispatchEvent(new Event("draft-opening"));
+    message(save ? "Saving your manual draft…" : "Opening your manual draft…");
+    try {
+      const response = await fetch(
+        save ? "/api/plans" : "/api/plans/" + identity.value,
+        {
+          method: save ? "POST" : "GET",
+          cache: "no-store",
+          headers: {
+            "X-Unio-Session": token,
+            ...(save ? { "Content-Type": "application/json" } : {}),
+          },
+          ...(save ? { body: JSON.stringify({ request: request.value }) } : {}),
+        },
+      );
+      if (response.status === 403) {
+        await session();
+        message(
+          "Session refreshed. Review your text and choose " +
+            (save ? "Save draft" : "Reopen draft") +
+            " again. No retry was sent.",
+          true,
+        );
+      } else if (!save && response.status === 404) {
+        message("Draft not found in this project.", true);
+      } else {
+        if (!response.ok) throw new Error("operation unavailable");
+        show(await response.json());
+        message(
+          save
+            ? "Manual draft saved. No AI or worker started."
+            : "Manual draft reopened. No AI or worker started.",
+        );
+      }
+    } catch (_) {
+      message(
+        save
+          ? "Save outcome not confirmed. Your text is kept. No retry was sent."
+          : "Draft could not be opened. No current draft is claimed.",
+        true,
+      );
+    } finally {
+      busy = false;
+      controls();
+      document.dispatchEvent(new Event("draft-idle"));
+    }
+  }
+  document.getElementById("draft-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    operation(true);
+  });
+  document.getElementById("reopen-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    operation(false);
+  });
+  document.addEventListener("refresh-session", (event) => {
+    session().then(event.detail.resolve).catch((error) => {
+      disconnected();
+      event.detail.reject(error);
+    });
+  });
+  document.addEventListener("execution-busy", (event) => {
+    executionBusy = event.detail;
+    controls();
+  });
+  session()
+    .then((enabled) => {
+      const saved = location.hash.match(/^#draft=([0-9a-f]{32})$/);
+      if (enabled && saved) {
+        identity.value = saved[1];
+        operation(false);
+      }
+    })
+    .catch(disconnected);
+})();
+UNIO_BROWSER_DRAFTS_JS
+cat > "$CONF_DIR/lib/browser/jobs.js" <<'UNIO_BROWSER_JOBS_JS'
+/* Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
+ * https://github.com/danielmevit/unio
+ * SPDX-License-Identifier: AGPL-3.0-only; see LICENSE and NOTICE. No warranty. */
+(function () {
+  "use strict";
+  const panel = document.getElementById("execution-panel");
+  const status = document.getElementById("job-status");
+  const stageTitle = document.getElementById("stage-title");
+  const stageHelp = document.getElementById("stage-help");
+  const reopen = document.getElementById("reopen-job-form");
+  const buttons = Object.fromEntries(
+    ["prepare", "approve", "start", "verify", "review", "accept", "stop", "cancel", "refresh"]
+      .map((action) => [action, document.getElementById("job-" + action)]),
+  );
+  const contextKey = "unio_execution_context";
+  const pendingKey = "unio_pending_operation";
+  let token = null, enabled = false, busy = false, draftBusy = false;
+  let currentDraft = null, currentJob = null, initialized = false;
+  let needsRead = false;
+  let available = new Set();
+
+  function stored(key) {
+    const raw = sessionStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  }
+  function remember(key, value) {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  }
+  function opaqueKey(storageKey, known = null) {
+    let key = sessionStorage.getItem(storageKey);
+    if (key && !/^[0-9a-f]{32}$/.test(key)) throw new Error("Saved action context is invalid. No action was sent.");
+    if (known && key && key !== known) throw new Error("Saved action key conflicts with this job. No action was sent.");
+    if (!key) {
+      key = known || Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      sessionStorage.setItem(storageKey, key);
+    }
+    return key;
+  }
+  function jobKey(kind, known = null) {
+    return opaqueKey(`unio_job_${currentJob.job.id}_${kind}`, known);
+  }
+  function draftKey() {
+    return opaqueKey(`unio_draft_${currentDraft.id}_request`);
+  }
+  function message(value, error = false) {
+    status.textContent = value;
+    status.className = error ? "error" : "";
+  }
+  function controls() {
+    for (const [action, button] of Object.entries(buttons))
+      button.disabled = busy || draftBusy || !token || !available.has(action) ||
+        (needsRead && !["refresh", "stop"].includes(action));
+    document.getElementById("reopen-job").disabled = busy || draftBusy || !token;
+    panel.setAttribute("aria-busy", String(busy));
+    reopen.setAttribute("aria-busy", String(busy));
+  }
+  function setBusy(value, text, error = false) {
+    busy = value;
+    controls();
+    document.dispatchEvent(new CustomEvent("execution-busy", { detail: value }));
+    if (text) message(text, error);
+  }
+  function sameRevision(a, b) {
+    return !!a && !!b && ["base_commit", "candidate_commit", "task_sha256", "worktree_sha256"]
+      .every((key) => typeof a[key] === "string" && a[key] === b[key]);
+  }
+  function element(tag, value, className = "") {
+    const node = document.createElement(tag);
+    node.textContent = value;
+    node.className = className;
+    return node;
+  }
+  function stage(name, title, help) {
+    stageTitle.textContent = title;
+    stageHelp.textContent = help;
+    for (const item of document.querySelectorAll("#job-stages li")) {
+      item.removeAttribute("aria-current");
+      if (item.dataset.stage === name) item.setAttribute("aria-current", "step");
+    }
+  }
+  function offer(action, permitted = true) {
+    buttons[action].hidden = false;
+    if (permitted) available.add(action);
+  }
+  function preview(job) {
+    const p = job.preview;
+    const content = document.getElementById("job-preview-text");
+    content.replaceChildren();
+    if (!p) return;
+    content.append(element("h4", "Request"));
+    const request = element("pre", p.request);
+    request.id = "job-request-text";
+    content.append(request);
+    const grid = element("div", "", "preview-grid");
+    for (const [label, lines] of [["Allowed scope", p.scope], ["Validate checks", p.validate]]) {
+      const section = element("div", "");
+      section.append(element("h4", label), element("pre", lines.join("\n")));
+      grid.append(section);
+    }
+    content.append(grid);
+    const providers = element("div", "", "provider-labels");
+    for (const [label, worker, company] of [["Source worker", p.worker, p.worker_company], ["Independent reviewer", p.reviewer, p.reviewer_company]]) {
+      const group = element("div", "");
+      group.append(element("h4", label), element("strong", company), element("p", worker));
+      providers.append(group);
+    }
+    content.append(providers);
+    document.getElementById("job-reference-text").textContent =
+      `Job ID: ${job.job.id}\nDraft ID: ${job.job.draft_id}\nDraft SHA-256: ${job.job.draft_sha256}\nTask ID: ${p.task_id}\nTask SHA-256: ${p.task_sha256}\nPreview SHA-256: ${p.preview_hash}`;
+  }
+  function evidence(job) {
+    const grid = document.getElementById("job-evidence");
+    grid.replaceChildren();
+    const n = job.native_result;
+    const values = [
+      ["Launch receipt", job.execution.state.replaceAll("_", " ") + " · exit " + (job.execution.launcher_exit ?? "unknown")],
+      ["Native process", n ? n.process.state.replaceAll("_", " ") + " · exit " + (n.process.exit_code ?? "unknown") : "Unavailable; no completion claimed"],
+      ["Validation", n ? `${n.validation.state.replaceAll("_", " ")} · ${n.validation.checks_run} checks / ${n.validation.checks_failed} failed · scope ${n.validation.scope}` : "No current checks available"],
+      ["Independent review", n ? n.review.state.replaceAll("_", " ") + " · " + (n.review.reviewer || "no reviewer recorded") : "No current review available"],
+      ["Source readiness", n ? n.stale ? "Stale evidence" : n.ready_for_human_review ? "Current verified and reviewed revision" : "Not ready for acceptance" : "Unknown"],
+      ["Acceptance", job.acceptance.state === "accepted" ? "Current revision accepted" : job.acceptance.state === "stale" ? "Stale; earlier acceptance does not apply" : "Pending; run approval is separate"],
+    ];
+    for (const [label, value] of values) {
+      const row = element("div", "");
+      row.append(element("dt", label), element("dd", value));
+      grid.append(row);
+    }
+    document.getElementById("job-result-text").textContent = JSON.stringify({
+      execution: job.execution, native_result: n, acceptance: job.acceptance, warnings: job.warnings,
+    }, null, 2);
+  }
+  const warningHelp = {
+    binding_stale: "The fixed execution binding changed.",
+    draft_stale: "The saved request no longer matches its recorded hash.",
+    ownership_unknown: "Worker ownership is uncertain; another start is not permitted.",
+    outcome_unknown: "An action outcome is unknown; reads cannot authorize another attempt.",
+    stopped: "Project STOP is active.",
+    native_result_unavailable: "Current native evidence is unavailable.",
+    native_result_invalid: "The native result could not be validated; no readiness is claimed.",
+  };
+  function renderJob(job) {
+    currentJob = job;
+    panel.hidden = !enabled;
+    document.getElementById("workspace-empty").hidden = !!(currentDraft || job);
+    // The job preview contains the exact request; avoid displaying it twice.
+    document.getElementById("draft-result").hidden = !!job || !currentDraft;
+    available = new Set();
+    for (const button of Object.values(buttons)) button.hidden = true;
+    document.getElementById("job-preview").hidden = !job;
+    document.getElementById("job-result").hidden = !job;
+    const warnings = document.getElementById("job-warnings");
+    warnings.replaceChildren();
+    warnings.hidden = !job || !job.warnings.length;
+    document.getElementById("job-state").textContent = job ? job.job.state.replaceAll("_", " ") : "Saved draft";
+    if (!job) {
+      stage("preview", "Prepare a preview", "Next: prepare the saved request with the fixed scope, checks and configured labs. Preparation makes no provider call and grants no spending approval.");
+      offer("prepare", !!currentDraft);
+      offer("refresh", !!currentDraft);
+      controls();
+      return;
+    }
+    preview(job);
+    evidence(job);
+    for (const warning of job.warnings)
+      warnings.append(element("li", (warningHelp[warning] || "Recorded warning.") + " (" + warning + ")"));
+    offer("refresh");
+    const state = job.job.state;
+    const n = job.native_result;
+    const blocked = job.warnings.some((warning) => ["binding_stale", "draft_stale", "ownership_unknown", "outcome_unknown", "stopped"].includes(warning));
+    const uncertain = state === "completion_unknown" || job.execution.state === "completion_unknown";
+    const currentProcess = n && !n.stale && n.process.state === "succeeded" && n.process.exit_code === 0 && sameRevision(n.process.revision, n.current_revision);
+    const checked = currentProcess && n.validation.state === "passed" && n.validation.scope === "OK" && n.validation.checks_run > 0 && n.validation.checks_failed === 0 && !n.validation.reasons.length && sameRevision(n.validation.revision, n.current_revision);
+    const reviewed = checked && n.review.state === "approved" && n.review.process_exit_code === 0 && n.review.material_complete && !n.review.reasons.length && n.review.reviewer === job.preview.reviewer && sameRevision(n.review.revision, n.current_revision);
+    if (state === "cancelled") {
+      stage("preview", "Job cancelled", "This waiting job was cancelled before reservation. Cancellation does not terminate a live worker. You can save a new request explicitly.");
+    } else if (uncertain) {
+      stage("run", "Completion is unknown", "Next: refresh recorded state or explicitly stop this task. A lost response is not permission to start or spend again; no automatic retry is sent.");
+      offer("stop");
+    } else if (blocked || (n && n.stale) || job.acceptance.state === "stale") {
+      stage("verify", "Current evidence needs attention", "Next: refresh and inspect warnings and exact revision details. Stale evidence or a changed binding cannot authorize a run, review or current acceptance.");
+      if (state === "reserved" && (!n || n.process.state === "running")) offer("stop");
+      if (["awaiting_owner_approval", "approved"].includes(state)) offer("cancel");
+    } else if (state === "awaiting_owner_approval") {
+      stage("approve", "Inspect before approving", "Next: inspect the exact preview below. Approve run permits the configured worker and reviewer spending, but starts neither. Acceptance of verified and reviewed source comes later.");
+      offer("approve"); offer("cancel");
+    } else if (state === "approved") {
+      stage("run", "Approved; ready to start once", "Next: Start once launches the configured worker and can spend provider allowance. Approval alone has not started it. Cancel job is available before reservation.");
+      offer("start"); offer("cancel");
+    } else if (state === "reserved") {
+      if (job.acceptance.state === "accepted") {
+        stage("accept", "Current revision accepted", "Acceptance records this exact verified and reviewed revision. It does not merge, install or publish. Refresh to check whether the evidence remains current.");
+      } else if (!n || ["not_run", "running"].includes(n.process.state)) {
+        stage("run", n ? "Worker evidence: " + n.process.state.replaceAll("_", " ") : "Waiting for native evidence", "Next: refresh to observe the native process. A launch receipt does not establish worker success. Stop task targets only this job; cancellation is no longer available.");
+        offer("stop");
+      } else if (!currentProcess) {
+        stage("run", "Worker did not succeed", "Inspect the native exit and revision details. No automatic retry or provider switch is available. Any correction requires another explicitly scoped task.");
+      } else if (!checked) {
+        stage("verify", "Check the source changes", n.validation.state === "not_run"
+          ? "Next: Verify changes runs the fixed Validate commands against the current successful native revision. Worker success alone does not make the source ready."
+          : "Checks did not pass. Inspect the scope, failed checks and exact native reasons below. No successful verification or acceptance is claimed.");
+        offer("verify", n.validation.state === "not_run");
+      } else if (!reviewed) {
+        stage("review", "Independent review", n.review.state === "not_run"
+          ? "Next: Request review spends allowance for one configured independent reviewer call. Current passed checks are required. A failed or unknown review is not retried automatically."
+          : "The recorded review is not an approval of this current revision. Inspect its exact state and reasons. Another paid review is not offered for this job.");
+        offer("review", n.review.state === "not_run");
+      } else {
+        stage("accept", "Decide on the current revision", "Next: accept only the exact current verified and reviewed revision shown in details. This source decision is separate from spending approval and does not merge, install or publish.");
+        offer("accept", n.ready_for_human_review === true);
+      }
+    } else {
+      stage("run", "Job state unavailable", "Refresh this job to read current state. No execution readiness is claimed.");
+    }
+    controls();
+  }
+
+  async function checkSession() {
+    return new Promise((resolve, reject) => document.dispatchEvent(new CustomEvent("refresh-session", { detail: { resolve, reject } })));
+  }
+  const errorHelp = {
+    outcome_unknown: "Outcome is unknown. Refresh job to read evidence before any further action.",
+    not_ready: "Current native evidence does not permit this action. Refresh job and inspect details.",
+    binding_stale: "The execution binding changed. Refresh job and inspect warnings.",
+    draft_stale: "The saved draft no longer matches this job. Your text and context are kept.",
+    worker_unavailable: "The configured worker is unavailable. No provider switch was made.",
+    stopped: "Project STOP is active. No start is permitted.",
+    conflict: "This action conflicts with recorded job context. Refresh job; no new intent was created.",
+    job_not_found: "Job not found in this project's execution records.",
+    storage_unavailable: "Job storage is unavailable. Your text and context are kept.",
+    native_unavailable: "Native evidence is unavailable. No completion is claimed.",
+  };
+  async function apiCall(method, path, body) {
+    if (!token) throw new Error("Execution session unavailable. No action was sent.");
+    const response = await fetch(path, {
+      method, cache: "no-store",
+      headers: { "X-Unio-Session": token, ...(body ? { "Content-Type": "application/json" } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (response.status === 403) {
+      await checkSession();
+      throw new Error("Session refreshed. Refresh job to read current state. No retry was sent.");
+    }
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error((errorHelp[data.error] || "Operation unavailable. Your request and context are kept.") + " (" + data.error + ") No retry was sent.");
+    }
+    return response.json();
+  }
+  function recordJob(data) {
+    if (data.schema_version !== 1 || !data.job || !/^[0-9a-f]{32}$/.test(data.job.id) || !data.preview || !data.execution || !data.acceptance || !Array.isArray(data.warnings))
+      throw new Error("Job response unavailable. No readiness is claimed.");
+    remember(contextKey, { jobId: data.job.id, draftId: data.job.draft_id });
+    document.getElementById("job-id").value = data.job.id;
+    location.hash = "job=" + data.job.id;
+    needsRead = false;
+    document.getElementById("result-title").textContent = "Current evidence";
+    renderJob(data);
+  }
+  async function openJob(id, restoring = false) {
+    if (busy || !enabled) return;
+    document.getElementById("job-id").value = id;
+    if (!currentJob && !currentDraft) {
+      panel.hidden = false;
+      document.getElementById("workspace-empty").hidden = true;
+      document.getElementById("job-state").textContent = "Reading saved work";
+      stage("preview", "Open a saved job", "Reopening reads recorded state only. If the ID cannot be opened, keep the ID and check it in Reopen saved work. No worker or review starts.");
+    }
+    setBusy(true, restoring ? "Restoring job context; reading state only…" : "Reopening job…");
+    try {
+      recordJob(await apiCall("GET", "/api/jobs/" + id));
+      message(restoring ? "Job context restored. No POST was sent. Inspect current evidence." : "Job reopened. Inspect current evidence.");
+    } catch (error) {
+      needsRead = true;
+      document.getElementById("reopen-details").open = true;
+      document.getElementById("result-title").textContent = "Last observed evidence; reopen unavailable";
+      message(error.message, true);
+    }
+    finally { setBusy(false); }
+  }
+  async function refresh() {
+    if (busy || !enabled) return;
+    setBusy(true, "Refreshing job evidence…");
+    try {
+      if (currentJob) recordJob(await apiCall("GET", "/api/jobs/" + currentJob.job.id));
+      else if (currentDraft) {
+        const key = sessionStorage.getItem(`unio_draft_${currentDraft.id}_request`);
+        const data = await apiCall("GET", "/api/jobs");
+        const job = data.jobs.find((view) => view.job.request_key === key && view.job.draft_id === currentDraft.id);
+        if (job) recordJob(job);
+        else {
+          renderJob(null);
+          if (needsRead) stage("preview", "Preparation outcome not confirmed", "Next: refresh the saved intent. No matching job is currently recorded; an unconfirmed preparation is not repeated automatically or replaced with a new key.");
+        }
+      }
+      message("Job refreshed. Reads do not retry actions.");
+    } catch (error) {
+      needsRead = true;
+      document.getElementById("result-title").textContent = "Last observed evidence; refresh unavailable";
+      message(error.message, true);
+    }
+    finally { setBusy(false); }
+  }
+  function actionBody(action) {
+    if (action === "prepare") return { draft_id: currentDraft.id, expected_hash: currentDraft.content_sha256, request_key: draftKey() };
+    if (action === "approve") return { expected_hash: currentJob.job.draft_sha256, approval_key: jobKey("approval_key", currentJob.job.approval_key), preview_hash: currentJob.preview.preview_hash };
+    if (action === "start") return { approval_key: jobKey("approval_key", currentJob.job.approval_key), reservation_key: jobKey("reservation_key", currentJob.job.reservation_key) };
+    if (action === "cancel") return {};
+    if (action === "accept") return { revision_hash: currentJob.native_result.current_revision.candidate_commit, action_key: jobKey("action_key_accept") };
+    return { action_key: jobKey("action_key_" + action) };
+  }
+  const sending = {
+    prepare: "Preparing the exact preview…", approve: "Recording run approval…", start: "Sending start-once intent…",
+    verify: "Running the fixed checks…", review: "Requesting the configured review once…", accept: "Recording current source acceptance…",
+    stop: "Requesting stop for this task…", cancel: "Cancelling the waiting job…",
+  };
+  const completed = {
+    prepare: "Job prepared. Inspect the exact preview before approving.", approve: "Run approved. No worker started.",
+    start: "Launch response recorded. Inspect native evidence; launch acceptance is not worker success.",
+    verify: "Verification response recorded. Inspect the actual checks and reasons below.",
+    review: "Review response recorded. Inspect the actual decision and reasons below.",
+    accept: "Current revision accepted. No merge, installation or publication occurred.",
+    stop: "Stop response recorded. Inspect native evidence; termination is not assumed.", cancel: "Job cancelled before reservation.",
+  };
+  async function act(action) {
+    if (busy || draftBusy || !enabled || !available.has(action) ||
+        (needsRead && action !== "stop")) return;
+    const hadFocus = document.activeElement === buttons[action];
+    let completedResponse = false;
+    setBusy(true, sending[action]);
+    try {
+      const body = actionBody(action);
+      const id = action === "prepare" ? currentDraft.id : currentJob.job.id;
+      const path = action === "prepare" ? "/api/jobs" : `/api/jobs/${id}/${action}`;
+      const key = `unio_action_${id}_${action}`;
+      const revision = ["verify", "review", "accept"].includes(action) ? currentJob.native_result.current_revision : null;
+      const intent = { path, body, revision };
+      const old = stored(key);
+      if (old && JSON.stringify(old) !== JSON.stringify(intent)) throw new Error("Saved action belongs to different inputs or revision. No new intent or action key was created.");
+      remember(key, intent);
+      remember(contextKey, { jobId: currentJob ? currentJob.job.id : null, draftId: currentDraft ? currentDraft.id : currentJob.job.draft_id });
+      remember(pendingKey, intent);
+      // The complete opaque intent is saved before this single POST. Recovery only reads.
+      const data = await apiCall("POST", path, body);
+      recordJob(data);
+      sessionStorage.removeItem(pendingKey);
+      message(completed[action]);
+      completedResponse = true;
+    } catch (error) {
+      needsRead = true;
+      document.getElementById("result-title").textContent = "Last observed evidence; action response unconfirmed";
+      if (currentJob) document.getElementById("job-state").textContent = "Last observed: " + currentJob.job.state.replaceAll("_", " ");
+      const known = error instanceof TypeError ? "Response not confirmed. Your request and action context are kept. Refresh job to read state. No retry was sent." : error.message;
+      message(known, true);
+    } finally {
+      setBusy(false);
+      if (completedResponse && hadFocus && buttons[action].hidden) {
+        const next = Object.entries(buttons).find(([name, button]) => available.has(name) && !button.hidden && !button.disabled);
+        if (next) next[1].focus();
+      }
+    }
+  }
+  for (const action of Object.keys(sending)) buttons[action].addEventListener("click", () => act(action));
+  buttons.refresh.addEventListener("click", refresh);
+  reopen.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const id = document.getElementById("job-id").value;
+    if (/^[0-9a-f]{32}$/.test(id)) openJob(id);
+  });
+  document.addEventListener("draft-opening", () => { draftBusy = true; controls(); });
+  document.addEventListener("draft-idle", () => {
+    draftBusy = false;
+    if (!currentJob && document.getElementById("draft-result").hidden) available.delete("prepare");
+    controls();
+  });
+  document.addEventListener("saved-draft", async (event) => {
+    currentDraft = event.detail;
+    if (!enabled || busy) return;
+    if (currentJob && currentJob.job.draft_id === currentDraft.id) { renderJob(currentJob); return; }
+    try {
+      remember(contextKey, { draftId: currentDraft.id, jobId: null });
+      renderJob(null);
+      needsRead = false;
+      message("Draft loaded. Prepare a preview; no worker has started.");
+      if (sessionStorage.getItem(`unio_draft_${currentDraft.id}_request`)) await refresh();
+    } catch (_) { message("Action storage unavailable. Execution actions require saved opaque context.", true); available.clear(); controls(); }
+  });
+  document.addEventListener("unio-session", async (event) => {
+    const data = event.detail;
+    enabled = data.execution === true && typeof data.token === "string" && !!data.token;
+    token = enabled ? data.token : null;
+    reopen.hidden = !enabled;
+    panel.hidden = !enabled || !(currentDraft || currentJob);
+    controls();
+    if (!enabled || initialized) return;
+    initialized = true;
+    try {
+      const hash = location.hash.match(/^#job=([0-9a-f]{32})$/);
+      const context = stored(contextKey);
+      if (hash || (!location.hash && context && context.jobId)) {
+        const id = hash ? hash[1] : context.jobId;
+        if (/^[0-9a-f]{32}$/.test(id)) await openJob(id, true);
+      } else if (!location.hash && context && /^[0-9a-f]{32}$/.test(context.draftId)) {
+        document.getElementById("draft-id").value = context.draftId;
+        document.getElementById("reopen-form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      }
+      if (stored(pendingKey)) message("An earlier action response was not confirmed. Context is kept; recovery reads state only. No POST was retried.", true);
+    } catch (_) {
+      message("Saved execution context unavailable. Reopen the job by ID; no action was retried.", true);
+    }
+  });
+})();
+UNIO_BROWSER_JOBS_JS
+cat > "$CONF_DIR/lib/browser/worker_console.js" <<'UNIO_BROWSER_WORKER_CONSOLE_JS'
+/* Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
+ * https://github.com/danielmevit/unio
+ * SPDX-License-Identifier: AGPL-3.0-only; see LICENSE and NOTICE. No warranty. */
+(function () {
+  "use strict";
+  const section = document.getElementById("worker-console");
+  const status = document.getElementById("console-status");
+  const workers = document.getElementById("console-workers");
+  const panel = document.getElementById("console-panel");
+  const outputPanel = document.getElementById("console-output");
+  const filesPanel = document.getElementById("console-files");
+  const meta = document.getElementById("console-meta");
+  const outputText = document.getElementById("console-text");
+  const fileMeta = document.getElementById("console-file-meta");
+  const fileList = document.getElementById("console-file-list");
+  const fileText = document.getElementById("console-file-text");
+  const older = document.getElementById("console-older");
+  const newer = document.getElementById("console-newer");
+  const outputTab = document.getElementById("console-tab-output");
+  const filesTab = document.getElementById("console-tab-files");
+  const TEXT_LIMIT = 16384;
+  const PAGE_LIMIT = 8;
+  let token = null;
+  let outputOn = false;
+  let filesOn = false;
+  let timer = 0;
+  let running = false;
+  let epoch = 0;
+  let wantSoon = false;
+  let failed = false;
+  let backoff = 2000;
+  let selectedName = null;
+  let selectedProgressId = null;
+  let selectedFilesId = null;
+  let runId = null;
+  let generation = null;
+  let tab = "output";
+  let fileId = null;
+  let pages = [];
+  let pageIndex = 0;
+  let note = "";
+
+  function text(tag, value, className) {
+    const element = document.createElement(tag);
+    element.textContent = value;
+    if (className) element.className = className;
+    return element;
+  }
+  function say(value) {
+    if (status.textContent !== value) status.textContent = value;
+  }
+  function plan(ms) {
+    clearTimeout(timer);
+    timer = 0;
+    if ((!outputOn && !filesOn) || document.hidden) return;
+    timer = setTimeout(run, ms);
+  }
+  function resetPages() {
+    pages = [];
+    pageIndex = 0;
+    runId = null;
+    generation = null;
+    outputText.textContent = "";
+  }
+  function clearObservation() {
+    workers.replaceChildren();
+    resetPages();
+    fileId = null;
+    fileList.replaceChildren();
+    fileText.textContent = "";
+    fileMeta.textContent = "";
+    meta.textContent = "";
+    panel.hidden = true;
+  }
+  function shutdown(message) {
+    epoch += 1;
+    outputOn = false;
+    filesOn = false;
+    token = null;
+    clearTimeout(timer);
+    clearObservation();
+    section.hidden = true;
+    say(message);
+  }
+  function ageOf(iso) {
+    const then = Date.parse(iso);
+    if (!Number.isFinite(then)) return "Observed " + iso;
+    const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+    return "Observed " + iso + " · age " + seconds + "s";
+  }
+  function recorded(view) {
+    if (view.state === "unavailable" || !view.output) return "Unavailable. No owned Source run is claimed.";
+    const source = view.source || {};
+    const verification = view.verification || {};
+    const review = view.review || {};
+    const acceptance = view.acceptance || {};
+    const output = view.output;
+    const exitCode = source.exit_code === null || source.exit_code === undefined ? "none" : String(source.exit_code);
+    let line = "Recorded source " + (source.state || "unavailable")
+      + " · exit " + exitCode
+      + " · verification " + (verification.state || "unavailable")
+      + " · review " + (review.state || "unavailable")
+      + " · acceptance " + (acceptance.state || "unavailable")
+      + " · liveness " + (view.observed_liveness || "unknown")
+      + " · phase " + (view.observed_phase || "unknown")
+      + " · output " + (output.state || "unavailable");
+    if (view.observation_stale === true) line += " · observation stale";
+    if (view.recorded_evidence_stale === true) line += " · recorded evidence stale";
+    if (output.state === "quiet") line += " · quiet does not prove completion or failure";
+    if (output.state === "first_output_wait") line += " · no Source record yet";
+    if (output.state === "missing") line += " · Source log is missing";
+    return line;
+  }
+  function chooseTab(next) {
+    tab = next;
+    const output = next === "output";
+    outputTab.setAttribute("aria-selected", output ? "true" : "false");
+    filesTab.setAttribute("aria-selected", output ? "false" : "true");
+    outputPanel.hidden = !output;
+    filesPanel.hidden = output;
+  }
+  function showOutputPage() {
+    const page = pages[pageIndex];
+    older.disabled = pageIndex <= 0;
+    newer.disabled = !page || page.atEnd !== false || !page.next;
+    if (!page) {
+      outputText.textContent = "";
+      return;
+    }
+    outputText.textContent = page.text;
+    const bits = [recorded(page.view)];
+    if (page.view.observed_at) bits.unshift(ageOf(page.view.observed_at));
+    if (page.view.output.modified_at) bits.push("Log modified " + page.view.output.modified_at);
+    if (page.atEnd === true) bits.push("This page reached the current end of the observed log. That is not execution completion.");
+    if (page.partial === true) bits.push("A partial record is held until the next newline.");
+    if (page.discarded) bits.push("Earlier displayed pages were discarded to bound this panel.");
+    if (note) bits.push(note);
+    meta.textContent = bits.join(" ");
+  }
+  function remember(view, requestedCursor) {
+    const output = view.output;
+    if (!output || typeof output.text !== "string") throw Object.assign(new Error("http"), { status: 503 });
+    if (runId && view.run_id !== runId) {
+      note = "The latest run changed. Previous pages were reset.";
+      pages = [];
+      pageIndex = 0;
+    }
+    if (generation && output.generation && output.generation !== generation) {
+      note = "The Source generation changed. Showing a new observation from the start.";
+      if (requestedCursor) {
+        pages = [];
+        pageIndex = 0;
+        runId = view.run_id;
+        generation = output.generation;
+        return false;
+      }
+    }
+    runId = view.run_id;
+    generation = output.generation;
+    let shown = output.text;
+    if (shown.length > TEXT_LIMIT) shown = shown.slice(0, TEXT_LIMIT);
+    const entry = {
+      cursor: requestedCursor,
+      next: typeof output.next_cursor === "string" ? output.next_cursor : null,
+      text: shown,
+      atEnd: output.at_end === true,
+      partial: output.partial_record === true,
+      view: view,
+      discarded: false,
+    };
+    if (!requestedCursor) {
+      pages = [entry];
+      pageIndex = 0;
+    } else if (pages[pageIndex] && pages[pageIndex].cursor === requestedCursor) {
+      pages[pageIndex] = entry;
+    } else {
+      pages = pages.slice(0, pageIndex + 1);
+      pages.push(entry);
+      pageIndex = pages.length - 1;
+      if (pages.length > PAGE_LIMIT) {
+        pages = pages.slice(pages.length - PAGE_LIMIT);
+        pages[0].discarded = true;
+        pageIndex = pages.length - 1;
+      }
+    }
+    showOutputPage();
+    return true;
+  }
+  async function getJSON(path) {
+    if (!token) throw Object.assign(new Error("session"), { session: true });
+    let response;
+    try {
+      response = await fetch(path, { cache: "no-store", headers: { "X-Unio-Session": token } });
+    } catch (_) {
+      throw Object.assign(new Error("network"), { network: true });
+    }
+    if (response.status === 403) {
+      await new Promise((resolve, reject) => {
+        document.dispatchEvent(new CustomEvent("refresh-session", { detail: { resolve, reject } }));
+      });
+      throw Object.assign(new Error("session"), { session: true });
+    }
+    if (!response.ok) {
+      let body = null;
+      try { body = await response.json(); } catch (_) { body = null; }
+      throw Object.assign(new Error("http"), { status: response.status, body: body });
+    }
+    return response.json();
+  }
+  function outputPath() {
+    return "/api/progress/workers/" + selectedProgressId + "/runs/" + runId + "/output";
+  }
+  async function loadOutput(ticket) {
+    if (!selectedProgressId) return;
+    if (!runId) {
+      const listed = await getJSON("/api/progress/workers/" + selectedProgressId);
+      if (ticket !== epoch) return;
+      if (!listed.run_id) {
+        meta.textContent = recorded(listed);
+        outputText.textContent = "";
+        older.disabled = true;
+        newer.disabled = true;
+        return;
+      }
+      runId = listed.run_id;
+    }
+    const current = pages[pageIndex];
+    const cursor = current ? current.cursor : null;
+    const path = outputPath() + (cursor ? "?cursor=" + encodeURIComponent(cursor) : "");
+    try {
+      const view = await getJSON(path);
+      if (ticket !== epoch) return;
+      if (remember(view, cursor) === false) {
+        note = "The Source generation changed. Showing a new observation from the start.";
+        say(note);
+        const fresh = await getJSON("/api/progress/workers/" + selectedProgressId + "/runs/" + view.run_id + "/output");
+        if (ticket !== epoch) return;
+        remember(fresh, null);
+      }
+    } catch (error) {
+      if (error.status === 503 || (error.status === 404 && !cursor)) {
+        outputText.textContent = "";
+        meta.textContent = "Source output is unavailable. No current page is claimed.";
+        older.disabled = true;
+        newer.disabled = true;
+        return;
+      }
+      if (error.status === 409 && cursor) {
+        note = "The Source generation or run changed. Showing a new observation from the start.";
+        say(note);
+        resetPages();
+        const listed = await getJSON("/api/progress/workers/" + selectedProgressId);
+        if (ticket !== epoch || !listed.run_id) return;
+        runId = listed.run_id;
+        const fresh = await getJSON(outputPath());
+        if (ticket !== epoch) return;
+        remember(fresh, null);
+        return;
+      }
+      throw error;
+    }
+  }
+  async function loadFiles(ticket) {
+    if (!selectedFilesId) {
+      fileMeta.textContent = "No file grant for this worker. Worktree files stay unavailable.";
+      fileList.replaceChildren();
+      fileText.textContent = "";
+      return;
+    }
+    const listing = await getJSON("/api/worker-files/workers/" + selectedFilesId + "/files");
+    if (ticket !== epoch || listing.schema_version !== 1 || !Array.isArray(listing.files)) {
+      throw Object.assign(new Error("http"), { status: 503 });
+    }
+    fileList.replaceChildren();
+    const seen = new Set();
+    for (const file of listing.files) {
+      if (!file || typeof file.file_id !== "string" || typeof file.relative_path !== "string") continue;
+      seen.add(file.file_id);
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = file.relative_path;
+      button.setAttribute("aria-pressed", file.file_id === fileId ? "true" : "false");
+      button.addEventListener("click", () => {
+        fileId = file.file_id;
+        fileText.textContent = "";
+        wantSoon = true;
+        if (!running) plan(200);
+      });
+      item.append(button);
+      fileList.append(item);
+    }
+    const suffix = listing.truncated === true ? " Tracked file list truncated at 256 paths." : "";
+    fileMeta.textContent = "Tracked source text only." + suffix + " Filename exclusions do not prove the remaining text is secret-free.";
+    if (fileId && !seen.has(fileId)) {
+      fileId = null;
+      fileText.textContent = "";
+      fileMeta.textContent += " The previously selected file is not in this list.";
+    }
+    if (!fileId) return;
+    let preview;
+    try {
+      preview = await getJSON("/api/worker-files/workers/" + selectedFilesId + "/files/" + fileId);
+    } catch (error) {
+      if (error.status === 503 || error.status === 404) {
+        fileText.textContent = "";
+        fileMeta.textContent += " File content is unavailable.";
+        return;
+      }
+      throw error;
+    }
+    if (ticket !== epoch || typeof preview.text !== "string") return;
+    fileText.textContent = preview.text;
+    fileMeta.textContent += preview.truncated === true ? " Preview truncated at 64 KiB." : " Full observed text is shown.";
+    if (preview.observed_at) fileMeta.textContent += " " + ageOf(preview.observed_at);
+  }
+  function render(progress, fileWorkers) {
+    const byName = new Map();
+    if (progress && Array.isArray(progress.workers)) {
+      for (const view of progress.workers) {
+        if (view && typeof view.worker === "string") byName.set(view.worker, { progress: view });
+      }
+    }
+    if (Array.isArray(fileWorkers)) {
+      for (const row of fileWorkers) {
+        if (!row || typeof row.worker !== "string") continue;
+        const slot = byName.get(row.worker) || {};
+        slot.files = row;
+        byName.set(row.worker, slot);
+      }
+    }
+    if (selectedName && !byName.has(selectedName)) {
+      selectedName = null;
+      selectedProgressId = null;
+      selectedFilesId = null;
+      panel.hidden = true;
+      resetPages();
+    }
+    workers.replaceChildren();
+    if (!byName.size) {
+      workers.append(text("p", "No granted worker is currently listed.", "small"));
+    }
+    for (const [name, slot] of byName) {
+      const view = slot.progress;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "console-worker";
+      button.setAttribute("aria-controls", "console-panel");
+      button.setAttribute("aria-expanded", selectedName === name && !panel.hidden ? "true" : "false");
+      button.dataset.worker = name;
+      button.dataset.task = view && typeof view.task === "string" ? view.task : "";
+      button.dataset.output = outputOn && view ? "true" : "false";
+      button.dataset.files = filesOn && slot.files ? "true" : "false";
+      const title = view && view.task ? name + " / " + view.task : name;
+      const excerpt = view && view.output && typeof view.output.excerpt === "string" && view.output.excerpt
+        ? view.output.excerpt : (view ? "No filtered excerpt in this observation." : "Source output is not enabled. No Source excerpt is claimed.");
+      button.append(
+        text("strong", title),
+        text("span", view && view.observed_at ? ageOf(view.observed_at) : "Observation age unavailable", "small"),
+        text("span", view ? recorded(view) : "Files grant only. No Source state is claimed.", "small"),
+        text("span", excerpt, "console-excerpt"),
+      );
+      button.addEventListener("click", () => {
+        // A files-only worker has no Source view; open its Files tab.
+        const firstTab = outputOn && view ? "output" : "files";
+        if (selectedName === name && !panel.hidden) {
+          chooseTab(firstTab);
+          return;
+        }
+        selectedName = name;
+        panel.hidden = false;
+        note = "";
+        resetPages();
+        fileId = null;
+        fileText.textContent = "";
+        epoch += 1;
+        chooseTab(firstTab);
+        wantSoon = true;
+        if (!running) plan(200);
+      });
+      workers.append(button);
+      if (selectedName === name) {
+        const nextProgress = view && typeof view.worker_id === "string" ? view.worker_id : null;
+        const nextFiles = slot.files && typeof slot.files.worker_id === "string" ? slot.files.worker_id : null;
+        if (selectedProgressId && nextProgress && selectedProgressId !== nextProgress) {
+          note = "The latest task changed. Previous output pages were reset.";
+          resetPages();
+        }
+        selectedProgressId = nextProgress;
+        selectedFilesId = nextFiles;
+      }
+    }
+    say(note || (outputOn ? "Source observation is reading granted workers." : "Worktree file observation is reading granted workers."));
+  }
+  function failure(error) {
+    clearObservation();
+    selectedName = null;
+    if (error && error.session) {
+      backoff = 2000;
+      say("Session refreshed. No action was replayed. No current output is claimed until the next read.");
+      return;
+    }
+    backoff = 5000;
+    const code = error && error.body && error.body.error;
+    if (code === "progress_unavailable" || error && error.status === 503 && outputOn) {
+      say("Source observation is unavailable. No current output is claimed.");
+      return;
+    }
+    if (code === "files_unavailable") {
+      say("File observation is unavailable. No current file text is claimed.");
+      return;
+    }
+    say("Connection unavailable. No current output or files are claimed.");
+  }
+  async function once(ticket) {
+    let progress = null;
+    let fileWorkers = null;
+    if (outputOn) {
+      progress = await getJSON("/api/progress/workers");
+      if (ticket !== epoch) return;
+      if (!progress || progress.schema_version !== 1 || !Array.isArray(progress.workers)) {
+        throw Object.assign(new Error("http"), { status: 503 });
+      }
+    }
+    if (filesOn) {
+      const body = await getJSON("/api/worker-files/workers");
+      if (ticket !== epoch) return;
+      if (!body || body.schema_version !== 1 || !Array.isArray(body.workers)) {
+        throw Object.assign(new Error("http"), { status: 503 });
+      }
+      fileWorkers = body.workers;
+    }
+    if (ticket !== epoch) return;
+    render(progress, fileWorkers);
+    if (panel.hidden) return;
+    if (tab === "output" && outputOn) await loadOutput(ticket);
+    if (tab === "files") {
+      if (!filesOn) {
+        fileList.replaceChildren();
+        fileText.textContent = "";
+        fileMeta.textContent = "Worktree files are not enabled for this preview.";
+      } else await loadFiles(ticket);
+    }
+    note = "";
+  }
+  async function run() {
+    if (running || (!outputOn && !filesOn)) return;
+    running = true;
+    const ticket = epoch;
+    failed = false;
+    try {
+      await once(ticket);
+    } catch (error) {
+      if (ticket === epoch) {
+        failed = true;
+        failure(error);
+      }
+    } finally {
+      running = false;
+      if (outputOn || filesOn) {
+        const wait = wantSoon ? 200 : (failed ? backoff : 2000);
+        wantSoon = false;
+        plan(wait);
+      }
+    }
+  }
+  outputTab.addEventListener("click", () => {
+    chooseTab("output");
+    wantSoon = true;
+    if (!running) plan(200);
+  });
+  filesTab.addEventListener("click", () => {
+    chooseTab("files");
+    wantSoon = true;
+    if (!running) plan(200);
+  });
+  older.addEventListener("click", () => {
+    if (pageIndex <= 0) return;
+    pageIndex -= 1;
+    showOutputPage();
+  });
+  newer.addEventListener("click", () => {
+    const page = pages[pageIndex];
+    if (!page || page.atEnd !== false || !page.next) return;
+    if (pages[pageIndex + 1]) {
+      pageIndex += 1;
+      showOutputPage();
+      return;
+    }
+    pages = pages.slice(0, pageIndex + 1);
+    pages.push({ cursor: page.next, text: "", atEnd: null, partial: false, view: page.view, next: null, discarded: false });
+    pageIndex += 1;
+    wantSoon = true;
+    if (!running) plan(200);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && (outputOn || filesOn) && !running) plan(200);
+  });
+  document.addEventListener("unio-session", (event) => {
+    const data = event.detail || {};
+    const next = typeof data.token === "string" ? data.token : null;
+    const output = data.progress_output === true && !!next;
+    const files = data.worker_files === true && !!next;
+    const changed = next !== token || output !== outputOn || files !== filesOn;
+    token = next;
+    outputOn = output;
+    filesOn = files;
+    if (!outputOn && !filesOn) {
+      shutdown("Worker output and files are off. No Source excerpt or worktree text is claimed.");
+      return;
+    }
+    section.hidden = false;
+    if (changed) {
+      epoch += 1;
+      clearObservation();
+      selectedName = null;
+      note = "Session updated. Reading the current observation. No action was replayed.";
+      say(note);
+      wantSoon = true;
+      if (!running) plan(200);
+    } else if (!running && !timer) {
+      plan(200);
+    }
+  });
+
+  // Local map requests carry only an exact worker and task identity. Anything
+  // else is ignored; no request opens a worker the console has not listed.
+  document.addEventListener("unio-open-console", (event) => {
+    const detail = event.detail;
+    if (!detail || typeof detail !== "object" || Array.isArray(detail)) return;
+    const proto = Object.getPrototypeOf(detail);
+    if (proto !== Object.prototype && proto !== null) return;
+    const worker = detail.worker;
+    const task = detail.task;
+    if (typeof worker !== "string" || !worker || typeof task !== "string") return;
+    const match = Array.from(workers.querySelectorAll("button.console-worker"))
+      .find((b) => b.dataset.worker === worker && b.dataset.task === task);
+    if (!match) return;
+    match.click();
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    section.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+  });
+})();
+UNIO_BROWSER_WORKER_CONSOLE_JS
+# END EMBEDDED BROWSER
+
 # Remove only copies and links owned by the legacy installer.
 legacy_commands=(frugal-flock frgl-flc agentteam)
 legacy_link_target=agentteam
@@ -6346,6 +12513,21 @@ cmd_version() {
   echo "config: $CONF_FILE"
 }
 
+# ---------------------------------------------------------------- browser
+cmd_browser() {
+  command -v python3 >/dev/null || die "browser requires Python 3.9 or newer"
+  local project="" engine browser_dir
+  project=$(find_root) || true # An explicit --project also works outside a workspace.
+  engine=$(readlink -f -- "$0") || die "cannot resolve this Unio executable"
+  browser_dir="$CONF_DIR/lib/browser"
+  [ -f "$browser_dir/launcher.py" ] && [ -f "$browser_dir/server.py" ] \
+    || die "browser files missing; rerun the matching Unio installer"
+  # Preserve this exact configuration even when Observer changes its cwd.
+  UNIO_CONF_DIR=$(cd -- "$CONF_DIR" && pwd -P) || die "configuration directory unavailable"
+  export UNIO_CONF_DIR
+  exec python3 -B "$browser_dir/launcher.py" "$engine" "$project" "$UNIO_VERSION" "$@"
+}
+
 # ------------------------------------------------------------------ score
 cmd_score() { # fleet scorecard straight from the ledger; myapp = full view
   local root="${1:-}"
@@ -6926,6 +13108,9 @@ setup / health
                                      (default: codex antigravity opencode grok)
                                      refuses while secret-looking files are
                                      tracked; installs worker-branch guard hooks
+  unio browser [--project DIR]  launch the installed local browser workspace;
+                                     read-only by default, same CLI/config;
+                                     use --help for explicit startup grants
   unio agents [--json]          list agents: binary found? on/off? Local
                                      only: never signs in, probes quota or runs
                                      a configured command. --json: schema 1,
@@ -7099,6 +13284,7 @@ case "${1:-help}" in
   policy)   shift; cmd_policy "$@";;
   agents)   shift; cmd_agents "$@";;
   watch)    shift; cmd_watch "$@";;
+  browser)  shift; cmd_browser "$@";;
   off)      shift; cmd_off "$@";;
   on)       shift; cmd_on "$@";;
   smoke)    shift; cmd_smoke "$@";;
@@ -9253,7 +15439,7 @@ cat > "$COMP_DIR/unio" <<'COMPLETION_EOF'
 _unio() {
   local cur cmd root d cmds
   cur="${COMP_WORDS[COMP_CWORD]}"
-  cmds="new init run verify result handoff save diff sync review race sabotage score doctor tail kill report status mode tier lead account policy agents watch off on smoke selftest stop resume allow-retry version license help"
+  cmds="new init run verify result handoff save diff sync review race sabotage score doctor tail kill report status mode tier lead account policy agents watch browser off on smoke selftest stop resume allow-retry version license help"
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ); return
   fi
@@ -9269,6 +15455,7 @@ _unio() {
   agents=$(sed -n 's/^\([a-zA-Z0-9_-]*\)=.*/\1/p' \
     "${UNIO_CONF_DIR:-$HOME/.config/unio}/agents.conf" 2>/dev/null)
   case "$cmd" in
+    browser) COMPREPLY=( $(compgen -W "--project --port --observer-timeout --open-browser --enable-plan-drafts --enable-execution --enable-progress-output --progress-binding --progress-worker --enable-worker-files --files-worker --worker --reviewer --worker-company --reviewer-company --config-dir --task-template --help" -- "$cur") );;
     watch) COMPREPLY=( $(compgen -W "--once --json --interval" -- "$cur") );;
     allow-retry) COMPREPLY=( $(compgen -W "$tasks" -- "$cur") );;
     run)
