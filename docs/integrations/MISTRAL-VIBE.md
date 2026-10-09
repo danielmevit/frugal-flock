@@ -30,7 +30,7 @@ to the same shared budget before running them:
 unio account vibeglm mistral
 unio account vibe35 mistral
 unio resume
-unio run vibeglm-feature TASK-ID
+UNIO_TIMEOUT=5460 unio run vibeglm-feature TASK-ID
 unio stop
 unio verify vibeglm-feature TASK-ID
 ```
@@ -59,6 +59,10 @@ price, 120 turns and 90 minutes. Substantial work can explicitly select 4,000,00
 $10, up to 180 turns and 120 minutes. Values must be finite and positive within
 those supported bounds. The owner-selected task scope and funded subscription
 remain the spending authority; these defaults do not authorize additional charges.
+
+Keep the native Unio deadline above the CLI allowance plus shutdown margin:
+5460 seconds for the default, or 7260 for a 7200-second CLI task. An earlier
+outer timeout still wins; increasing only --max-tokens cannot extend it.
 
 Token totals include context sent again across steps; they are different from a
 model's context window or per-response output budget. A final call can overshoot
