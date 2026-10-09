@@ -1,11 +1,11 @@
 # Manual capacity readings
 
-`bridge/capacity.py` and the standalone `tools/capacity-readings.py` store
-and show capacity readings that a person entered by hand. This is a
-source-only foundation for a later CLI and browser integration. It is not an
-automatic provider meter. It is not installed, routed or shown in the
-browser yet. See [provider quota monitoring](../PROVIDER-QUOTA-MONITORING.md)
-for the wider plan.
+`bridge/capacity.py` and `tools/capacity-readings.py` store and show
+capacity readings that a person entered by hand. The 0.5.6 candidate
+installs them as `unio capacity`. This is not an automatic provider meter,
+and it is not routed or shown in the browser yet. See
+[provider quota monitoring](../PROVIDER-QUOTA-MONITORING.md) for the wider
+plan.
 
 The component uses only the Python standard library. It never makes a
 provider, model, network or authentication request. It does not bench or
@@ -13,8 +13,28 @@ enable agents, dispatch work, change tier or mode, or retry anything.
 
 ## Usage
 
-Run the script directly. It finds its own repository, so it needs no
-`PYTHONPATH` and works from any directory.
+The installed command takes the same arguments as the source script:
+
+```bash
+unio capacity --project PATH record --group codex --window five-hour \
+    --window-minutes 300 --remaining-percent 42 \
+    --observed-at 2026-10-09T14:00:00+02:00
+unio capacity show --group codex --json   # inside an initialized workspace
+unio capacity --help                      # works anywhere
+```
+
+Inside an initialized workspace (a directory with `coord/` and `wt/`), an
+omitted `--project` selects that workspace root, resolved without symlinks,
+just as the other native commands find it. Outside one, `--project` is
+required and its absence is refused before anything is written. Arguments
+are passed to Python as data and never evaluated by a shell. Abbreviated
+options are refused. The installer writes the store and CLI byte for byte
+under `~/.config/unio/lib/capacity/` and runs them in isolated Python
+(`-I -S`), so neither `PYTHONPATH`, site packages nor the source tree is
+used. Installation never writes or changes readings.
+
+From the source tree, run the script directly. It finds its own repository,
+so it needs no `PYTHONPATH` and works from any directory.
 
 ```bash
 python3 tools/capacity-readings.py --project PATH record \
@@ -155,8 +175,8 @@ refuses without changing the file's bytes. Fix or move the file by hand.
 
 ## Limitations
 
-- Manual input only. There is no provider adapter, browser view, installer
-  entry or routing use yet.
+- Manual input only. There is no provider adapter, browser view or
+  routing use yet.
 - Only the latest reading per window is kept. There is no history.
 - The lock depends on `flock`. It is suited to local file systems, not to
   network file systems that do not support it.

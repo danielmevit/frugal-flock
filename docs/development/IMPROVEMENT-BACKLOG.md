@@ -15,10 +15,10 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ### 1. Allowance, Reset, and Worker Readiness
 
-- **Next Slice**: Implement manual capacity readings and age tracking, treating missing/stale capacity as `Unknown`.
 - **Shipped**: Native shared-budget workflow admission, including the lead in low tier.
-- **Planned**: Remaining-allowance readings, reset/age indicators and their integration with worker readiness. No extra per-token spending or promotion of free workers to lead.
-- **Pending implementation**: Grok returned 402 without edits. Gemini produced a candidate, but lead review reproduced a broken standalone CLI, corrupt-state overwriting, invalid readings reported as usable, and a storage symlink escape. One owner-authorized Opus correction follows; the component is unaccepted and there is no live meter.
+- **Pending, lead-approved in review**: The manual readings store and standalone CLI (`CAPACITY-READINGS-GEMINI-1` at `528e214`). Grok returned 402 without edits. Gemini's candidate passed its 3 native checks, but lead review reproduced a broken standalone CLI, corrupt-state overwriting, invalid readings reported as usable, and a storage symlink escape. The owner-authorized Opus correction fixed all four, with 21 focused tests and personal lead approval.
+- **Pending, 0.5.6 candidate**: The installed `unio capacity record`/`show` command packages that reviewed component (`CAPACITY-NATIVE-OPUS-1`). It awaits lead review and the full release gate. Official 0.5.5 does not include it.
+- **Planned**: Automatic provider readings, browser reset/age indicators and their integration with worker readiness and scheduling. No extra per-token spending or promotion of free workers to lead. There is no live meter.
 - **Evidence**: [PROVIDER-QUOTA-MONITORING.md](../PROVIDER-QUOTA-MONITORING.md), [TASK-TIME-BUDGETS.md](TASK-TIME-BUDGETS.md)
 
 ### 2. Ready-Task Scheduling and Parallel Execution
@@ -79,5 +79,5 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ## Parallel Work
 
-- **Opus**: The initial release-preparation attempt failed OAuth without edits on 2026-10-09. The owner subsequently authorized one fresh capacity correction after signing in; its result remains pending.
+- **Opus**: The initial release-preparation attempt failed OAuth without edits on 2026-10-09. After sign-in, the owner-authorized capacity correction was approved by the lead at `528e214`. Because Grok is unavailable, the owner then authorized further Opus feature work: the native capacity packaging candidate awaits lead review.
 - **Grok**: Capacity Source ended 402 without edits on 2026-10-09; no active Grok run is claimed.

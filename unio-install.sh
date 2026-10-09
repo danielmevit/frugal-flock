@@ -15447,7 +15447,7 @@ LEAD_ESCALATION_TPL_EOF
 cat > "$TPL_DIR/MODEL-SCOREBOARD.md" <<'MODEL_SCOREBOARD_TPL_EOF'
 # Model scoreboard and delegation guide
 
-Updated 2026-10-08 from real Unio work. Read this before delegation, alongside
+Updated 2026-10-09 from real Unio work. Read this before delegation, alongside
 the project's latest capacity notes and owner instructions. Select by task
 fit and checked outcomes; an unavailable or owner-reserved model is not a
 fallback. Start at high or the supported middle and keep GLM at high.
@@ -15491,7 +15491,9 @@ and the [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE
 | --- | --- | --- |
 | `gpt-6.1-sol` / Codex CLI / xhigh | `QUEUE-INVARIANTS-1`; `RELEASE-TIMEOUT-CODEX-1` | 2 accepted corrections: queue invariants passed 8 focused checks plus recorded reviews; timeout repair passed 3 focused checks and personal lead review. Suitable evidence for targeted correctness work, not a full-model success rate. |
 | `claude-opus-5-5` / Claude Code / high | `BROWSER-MAP-IDENTITY-OPUS-1`; `WORK-SAVING-MANUAL-OPUS-1` | 1 accepted UI correction; 1 saving candidate requiring changes after two demonstrated lead findings despite passing its initial 5 checks. Strong implementation still needs real review. |
-| `claude-opus-5-5` / Claude Code 2.1.294 / high requested | `LEAD-COOLDOWN-CONTRACT-OPUS-1` | One owner-authorized fresh attempt completed a two-file contract in 10m25s with Source exit 0 and 2/2 native checks. Lead tightened four launch/quota boundaries before acceptance. Useful evidence for bounded interface research and design; this run produced the contract only. The existing lead later implemented the runtime, as recorded below. The earlier OAuth refresh conflict made no edits and is an operational failure, not a reasoning result. No further Opus call is authorized. |
+| `claude-opus-5-5` / Claude Code 2.1.294 / high requested | `LEAD-COOLDOWN-CONTRACT-OPUS-1` | One owner-authorized fresh attempt completed a two-file contract in 10m25s with Source exit 0 and 2/2 native checks. Lead tightened four launch/quota boundaries before acceptance. Useful evidence for bounded interface research and design; this run produced the contract only. The existing lead later implemented the runtime, as recorded below. The earlier OAuth refresh conflict made no edits and is an operational failure, not a reasoning result. |
+| `claude-opus-5-5` / Claude Code 2.1.295 / high requested | `CAPACITY-READINGS-OPUS-FIX-1` | One owner-authorized correction of the Gemini capacity candidate below: Source exit 0 in 7m43s, 3/3 native checks, 21 focused tests and personal lead APPROVE at `528e214`. Each reproduced defect, reintroduced locally, failed at least one test. The later packaging task `CAPACITY-NATIVE-OPUS-1` is pending lead review. An earlier OAuth failure on 2026-10-09 made no edits and is operational, not a reasoning result. |
+| Gemini / Antigravity CLI / exact variant not recorded | `CAPACITY-READINGS-GEMINI-1` | Source exit 0 in 223s and 3/3 native checks PASS, yet lead review reproduced four defects: the standalone CLI could not import its store, corrupt state was overwritten, invalid readings were reported as usable and a `coord` symlink escaped the project. Passing its own checks did not prove storage safety; the correction went to another worker. Grok's 402 end of the same assignment, without edits, is operational. |
 | `gemini-3.1-pro-high` / Antigravity CLI / high | `RELEASE-LAUNCH-OBSERVATION-1`; `BROWSER-THEME-MAP-1`; `BROWSER-THEME-MAP-FIX-1`; `BROWSER-MAP-IDENTITY-1`; `WORK-SAVING-PRESERVE-LOCKS-1` | 1 accepted bounded fixture correction; 2 UI candidates required further fixes; 1 connection failure without edits; 1 saving correction failed native scope verification despite 5 passing check commands; lead review found incomplete unsafe-lock inspection and took over. Repeated fixture mistakes and premature success messages added rework. Prefer smaller mechanical assignments. |
 | Existing Codex lead / same session / exact serving variant not exposed | `WORK-SAVING-LEAD-FINALIZE-1`; `WORK-SAVING-LOCK-OBSERVATION-1`; `WORK-SAVING-EMPTY-INDEX-1` | Takeover accepted in source after a self-authored full-suite failure exposed shared-lock observation, then a combined installer smoke found empty-index restore. Corrections passed 4/4 and 5/5 focused native checks with personal review. A later stale completion expectation was corrected; the full manual-saving suite passed 186 checks. Final versioned release validation remains pending. Same-session lead work is not an independent review or delegated Source. |
 | Existing Codex lead / same session / exact serving variant not exposed | `LEAD-COOLDOWN-RUNTIME-1`; `LEAD-COOLDOWN-DAEMON-1` | Runtime and daemon compatibility correction accepted with focused native checks and personal review. The full offline cooldown suite passed 106 assertions; a real metadata-only quota probe passed without a model call. Genuine usage-limit-to-restart acceptance remains not_run. This is direct lead implementation, not delegated Source or independent lab review. |
@@ -16166,7 +16168,11 @@ _unio() {
     browser) COMPREPLY=( $(compgen -W "--project --port --observer-timeout --open-browser --enable-plan-drafts --enable-execution --enable-progress-output --progress-binding --progress-worker --enable-worker-files --files-worker --worker --reviewer --worker-company --reviewer-company --config-dir --task-template --help" -- "$cur") );;
     watch) COMPREPLY=( $(compgen -W "--once --json --interval" -- "$cur") );;
     capacity)
-      case "${COMP_WORDS[COMP_CWORD-1]}" in
+      local word action=""
+      for word in "${COMP_WORDS[@]:2:COMP_CWORD-2}"; do
+        case "$word" in record|show) action="$word"; break;; esac
+      done
+      case "$action" in
         record) COMPREPLY=( $(compgen -W "--group --window --window-minutes --remaining-percent --observed-at --reset-at --help" -- "$cur") );;
         show) COMPREPLY=( $(compgen -W "--group --json --max-age-seconds --help" -- "$cur") );;
         *) COMPREPLY=( $(compgen -W "--project record show --help" -- "$cur") );;

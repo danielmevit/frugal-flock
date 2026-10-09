@@ -3,8 +3,17 @@
 Owner request recorded 2026-10-05. Unio does not yet have a live remaining
 quota indicator. This proposal extends the
 [capacity-aware continuation design](CAPACITY-AWARE-CONTINUATION.md).
-Schedule it after the currently approved milestones; no release number or
-delivery date is assigned yet.
+
+## Current state, 2026-10-09
+
+| Piece | State |
+| --- | --- |
+| Manual readings with age, reset and Unknown handling | `unio capacity record` and `show` in the 0.5.6 candidate, pending lead review and the release gate. Not in official 0.5.5. See [manual capacity readings](development/CAPACITY-READINGS.md). |
+| Automatic provider readings (Codex adapter first) | Planned. No adapter is installed. |
+| Browser indicators and lead refresh before dispatch | Planned. |
+| Scheduling, benching or retry based on readings | Planned. Readings change nothing on their own. |
+
+No release number or delivery date is assigned to the planned pieces.
 
 ## What the lead needs
 
@@ -43,11 +52,13 @@ receipt is in the private workspace at
 
 ## Delivery sequence
 
-1. Add timestamped manual readings and a supported read-only Codex adapter.
+1. Add timestamped manual readings (in the 0.5.6 candidate) and a
+   supported read-only Codex adapter (planned).
    Validate percentages, window lengths, timestamps and provider responses;
    retain all reported limit buckets. Store only the fields needed for
    scheduling, with an opaque local account/pool identifier.
-2. Expose a local CLI view and JSON output, then browser indicators showing
+2. Expose a local CLI view and JSON output (manual readings: 0.5.6
+   candidate), then browser indicators showing
    each window, remaining allowance, reset time, source and reading age.
    Distinguish provider readings, manual readings, consumption estimates,
    stale readings and Unknown. Missing data must never look like 100% free.
@@ -77,7 +88,9 @@ monitoring makes zero model calls, does not expose credentials and cannot
 perform billing or account-control actions. Test both JSON and browser
 views against the same normalized readings and show Unknown on failure.
 
-Until this ships, the lead should record actual supported readings or
-owner-provided meters in the private coordination log, use bounded tasks
-and preserve independent review capacity. Do not claim fleet-wide live
+Until automatic readings ship, the lead should record actual supported
+readings or owner-provided meters with `unio capacity record` where the
+0.5.6 candidate is installed, otherwise in the private coordination log.
+Use bounded tasks and preserve independent review capacity. A manual
+reading is what someone saw at one time. Do not claim fleet-wide live
 monitoring is active.

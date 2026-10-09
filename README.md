@@ -169,6 +169,25 @@ New projects include instructions for the lead to read the active policy before
 delegating. Verified-free OpenCode models handle routine support; they never
 become the lead, main feature owner or final approver.
 
+### Manual allowance tracking
+
+The 0.5.6 candidate adds `unio capacity`, a local record of the remaining
+allowance you saw for each shared budget group, with its age and optional
+reset time. You type the reading; Unio never asks a provider. Inside a
+workspace it uses that project; elsewhere pass `--project PATH`.
+
+```bash
+unio capacity record --group codex --window five-hour --window-minutes 300 \
+    --remaining-percent 42 --observed-at 2026-10-09T14:00:00+02:00 \
+    --reset-at 2026-10-09T17:30:00+02:00
+unio capacity show --group codex   # --json for machines
+```
+
+Only a fresh reading (default: under 15 minutes old) counts as usable. A
+missing, stale, expired or invalid reading shows as Unknown, never as 100%.
+A passed reset is not proof of a refill: record a new reading. Other clients
+can spend the same budget. Details: [manual capacity readings](docs/development/CAPACITY-READINGS.md).
+
 ## FAQ
 
 <details>
@@ -389,10 +408,13 @@ needed to rebuild the Word manuals with `tools/make-docx.sh`.
   [release notes](CHANGELOG.md) and [browser guide](bridge/README.md).
 - **Experimental in v0.5.4:** restart an owner-enabled lead after its cooldown.
   The genuine subscription-limit-to-restart cycle still needs live validation.
-- **Next:** simpler daily launch and observation, then remaining-allowance
-  monitoring and reliable delegation. Later version numbers are unassigned.
-- **Later:** remaining-allowance monitoring, more reliable connections and
-  smarter delegation, guided by actual project outcomes.
+- **Candidate, v0.5.6:** manual allowance readings with `unio capacity`
+  (see above); not released until the lead's full release gate passes.
+- **Next:** simpler daily launch and observation, then automatic
+  remaining-allowance readings and reliable delegation. Later version
+  numbers are unassigned.
+- **Later:** provider and browser allowance indicators, more reliable
+  connections and smarter delegation, guided by actual project outcomes.
 
 The [UX proposal](docs/UX-DIRECTION.md) and [next steps](docs/development/ROADMAP.md) explain the
 scope and order; the [brand notes](docs/BRAND.md) explain the name.
