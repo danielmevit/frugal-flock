@@ -51,8 +51,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 ### 7. Lead Cooldown and Identity Controls
 
 - **Shipped**: Lead cooldown shipped experimentally, opt-in in 0.5.4; genuine limit restart is still unobserved.
-- **Planned**: Extended supported adapters/identity remain future work.
-- **Evidence**: [LEAD-COOLDOWN-CONTRACT.md](LEAD-COOLDOWN-CONTRACT.md), [LEAD-COOLDOWN-RESTART.md](LEAD-COOLDOWN-RESTART.md)
+- **Planned**: Extended supported adapters/identity and [temporary lead capacity handover](LEAD-CAPACITY-HANDOVER.md) remain future work.
+- **Evidence**: [LEAD-COOLDOWN-CONTRACT.md](LEAD-COOLDOWN-CONTRACT.md), [LEAD-COOLDOWN-RESTART.md](LEAD-COOLDOWN-RESTART.md), [LEAD-CAPACITY-HANDOVER.md](LEAD-CAPACITY-HANDOVER.md)
 
 ### 8. Work Modes and Model Roles
 

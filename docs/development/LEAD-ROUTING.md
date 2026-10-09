@@ -111,9 +111,10 @@ Resume Unio before authorized calls and stop it afterward. Preserve failures.
 
 Make coherent scoped commits early, before lengthy final checks, and maintain
 clear handoffs. Do not rely on the final AI response to preserve work. Treat
-unfinished recovery data as unverified. Supervisor-owned automatic saving and
-portable checkpoint recovery remain planned work; these instructions do not
-claim that those features are implemented.
+unfinished recovery data as unverified. Supervisor-owned automatic saving,
+portable checkpoint recovery, and [lead capacity handover](LEAD-CAPACITY-HANDOVER.md)
+remain planned work; these instructions do not claim that those features are
+implemented.
 
 Read [task time budgets](TASK-TIME-BUDGETS.md) before choosing a deadline.
 Give substantial implementation about 90 minutes, with up to two hours for
