@@ -194,7 +194,8 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.ok(counts.includes("40 total tasks (37 need attention, 1 active, 2 finished)"), counts);
     assert.deepEqual(tuples[0], ["worker-1", "TASK-10"], "running task sorts before historical failures");
     assert.ok((await page.textContent('#map-activity')).startsWith('1 active task'));
-    assert.equal(await (await node(page, 'worker-1', 'TASK-10')).evaluate(g => g.querySelector('.node-state').textContent), 'RUNNING NOW');
+    assert.ok((await (await node(page, 'worker-1', 'TASK-10')).evaluate(g => g.querySelector('.node-state').textContent)).startsWith('Recorded Oct 8'));
+    assert.equal(await page.locator('#work-map [data-kind="worker"][data-worker="worker-1"] .node-label').getAttribute('data-full-title'), 'TASK-10');
     assert.equal(await page.evaluate(() => [...document.querySelectorAll("#work-map [data-category]")].filter((g) => g.dataset.task === "FAILED")[0].dataset.category), "attention");
     ok("failed/unknown/changes-requested/incomplete/completion-unknown/not-run tasks visible; only 2 passed+approved collapsed");
     for (const [worker, name, signal] of [["worker-1", "TASK-1", "failed"], ["worker", "FAILED", "failed"], ["worker-1", "TASK-10", "active"], ["worker", SCRIPT, "attention"], ["worker-2", "CHANGES", "attention"], ["worker-2", "UNRUN", "attention"]]) {
@@ -202,7 +203,7 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
       assert.equal(await g.evaluate(n => n.dataset.signal), signal);
       assert.ok(await g.evaluate(n => {
         const line = n.querySelector('.node-status');
-        return line.getAttribute('x1') === '78' && line.getAttribute('x2') === '78'
+        return line.getAttribute('x1') === '118' && line.getAttribute('x2') === '118'
           && getComputedStyle(line).strokeWidth === '3px' && line.getAttribute('vector-effect') === 'non-scaling-stroke';
       }));
     }
@@ -216,6 +217,54 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     await page.click("#map-prev-page");
     ok("pagination 24 + 14");
 
+    // Local brand marks identify the configured agent route, not an invented model.
+    const beforeBrands = results;
+    const brands = [['codex', 'Codex', 'openai'], ['claude', 'Claude', 'claude'],
+      ['grok', 'Grok', 'grok'], ['antigravity', 'Antigravity', 'antigravity'],
+      ['opencode', 'OpenCode', 'opencode'], ['kimi', 'Kimi', 'kimi'], ['gemini', 'Gemini', 'gemini']];
+    results = brands.map(([route], i) => task(route + '-brand', 'TASK-FOR-' + route.toUpperCase(),
+      i === 0 ? 'succeeded' : 'failed', i === 0 ? 'passed' : 'not_run', i === 0 ? 'approved' : 'not_run'));
+    results.push({ ...task('constructor-brand', 'UNKNOWN-TIME', 'succeeded', 'incomplete', 'not_run'), recorded_at: null });
+    results.push({ ...task('codex-brand', 'LATEST-OBSERVED-TASK', 'succeeded', 'incomplete', 'not_run'), recorded_at: '2026-10-09T09:00:00Z' });
+    await page.check('#map-history-toggle');
+    await poll(page);
+    await page.mouse.move(1, 1);
+    for (const [route, name, mark] of brands) {
+      const g = await node(page, route + '-brand', 'TASK-FOR-' + route.toUpperCase());
+      assert.equal(await g.evaluate(g => g.dataset.agentMark), mark);
+      assert.equal(await g.evaluate(g => g.querySelector('.node-agent').textContent), name);
+      assert.ok(await g.evaluate(g => g.querySelector('.node-logo path').getAttribute('d').length > 20));
+      assert.equal(await g.evaluate(g => g.querySelector('.node-label').dataset.fullTitle), 'TASK-FOR-' + route.toUpperCase());
+      assert.ok((await g.evaluate(g => g.querySelector('.node-state').textContent)).startsWith('Recorded Oct 8'));
+      assert.ok(await g.evaluate(g => {
+        const rect = g.querySelector('rect'), divider = g.querySelector('.node-divider'), logo = g.querySelector('.node-logo');
+        return +rect.getAttribute('width') === 240 && +divider.getAttribute('x1') === -60
+          && +logo.getAttribute('x') >= -120 && +logo.getAttribute('x') + +logo.getAttribute('width') <= -60;
+      }));
+    }
+    const fallback = await node(page, 'constructor-brand', 'UNKNOWN-TIME');
+    assert.equal(await fallback.evaluate(g => g.dataset.agentMark), '');
+    assert.equal(await fallback.evaluate(g => g.querySelector('.node-logo text').textContent), 'CO');
+    assert.equal(await fallback.evaluate(g => g.querySelector('.node-state').textContent), 'Recorded time unknown');
+    assert.equal(await page.locator('#work-map [data-kind="worker"][data-worker="codex-brand"] .node-label').getAttribute('data-full-title'), 'LATEST-OBSERVED-TASK');
+    for (const signal of ['passed', 'failed', 'attention']) {
+      const g = page.locator('#work-map [data-kind="task"][data-signal="' + signal + '"]').first();
+      assert.equal(await g.evaluate(g => getComputedStyle(g.querySelector('rect')).opacity), '0.55');
+      assert.equal(await g.evaluate(g => getComputedStyle(g.querySelector('.node-status')).opacity), '0.72');
+      assert.ok(await g.evaluate(g => {
+        const s = getComputedStyle(g.querySelector('.node-status')).stroke;
+        const values = s.match(/[\d.]+/g).map(Number);
+        return new Set(values.slice(0, 3)).size > 1; // retained hue, not gray
+      }));
+    }
+    await page.selectOption('#theme-selector', 'dark');
+    await page.screenshot({ path: path.join(shots, 'work-map-card-brands-dark.png'), fullPage: true });
+    await page.selectOption('#theme-selector', 'light');
+    results = beforeBrands;
+    await page.uncheck('#map-history-toggle');
+    await poll(page);
+    ok('quarter-width local AI marks, task-first titles, latest worker task, timestamp/fallback subtitles and all three muted outcome hues');
+
     // Finished filter without the history toggle.
     assert.equal(await page.isChecked("#map-history-toggle"), false);
     await page.selectOption("#map-state-filter", "finished");
@@ -223,9 +272,11 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.equal(await page.locator('#work-map [data-kind="task"][data-signal="passed"]').count(), 2);
     const finishedNode = page.locator('#work-map [data-kind="task"]').first();
     await page.mouse.move(1, 1);
-    assert.equal(await finishedNode.evaluate(g => getComputedStyle(g).opacity), '0.55');
+    assert.equal(await finishedNode.evaluate(g => getComputedStyle(g.querySelector('rect')).opacity), '0.55');
+    assert.equal(await finishedNode.evaluate(g => getComputedStyle(g.querySelector('.node-status')).opacity), '0.72');
     await finishedNode.focus();
-    assert.equal(await finishedNode.evaluate(g => getComputedStyle(g).opacity), '1');
+    assert.equal(await finishedNode.evaluate(g => getComputedStyle(g.querySelector('rect')).opacity), '1');
+    assert.equal(await finishedNode.evaluate(g => getComputedStyle(g.querySelector('.node-status')).opacity), '1');
     await page.locator('#map-state-filter').focus();
     await page.selectOption('#map-state-filter', 'active');
     assert.deepEqual(await taskTuples(page), [['worker-1', 'TASK-10']]);
@@ -249,7 +300,7 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
       ? { ...r, process: { state: 'succeeded', exit_code: 0 }, activity: 'succeeded', worker_lock: 'free' } : r);
     await poll(page);
     assert.equal(await page.locator('#work-map [data-kind="hub"]').getAttribute('data-signal'), 'none');
-    assert.equal(await page.locator('#work-map [data-kind="hub"] .node-state').textContent(), '0 active tasks');
+    assert.equal(await page.locator('#work-map [data-kind="hub"] .node-state').textContent(), '40 tasks · 0 active');
     assert.ok((await page.textContent('#map-activity')).includes('No recorded workers are running'));
     assert.ok((await page.textContent('#map-activity')).includes('Lead CLI activity is not shown'));
     results = originalResults;
@@ -451,8 +502,8 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
       const s = document.getElementById("work-map"), v = s.viewBox.baseVal;
       return [...s.querySelectorAll('[data-node-key]')].every(g => {
         const m = g.transform.baseVal.getItem(0).matrix;
-        return m.e - 80 >= v.x && m.e + 80 <= v.x + v.width &&
-          m.f - 26 >= v.y && m.f + 26 <= v.y + v.height;
+        return m.e - 120 >= v.x && m.e + 120 <= v.x + v.width &&
+          m.f - 40 >= v.y && m.f + 40 <= v.y + v.height;
       });
     }), "Fit contains all node rectangles");
     const fitScale = (await camera()).scale;
@@ -587,7 +638,7 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
         return hub.x < w.x && w.x < t.x;
       }) && groups.every((g, i) => groups.slice(i + 1).every(h => {
         const a = point(g), b = point(h);
-        return Math.abs(a.x - b.x) >= 160 || Math.abs(a.y - b.y) >= 52;
+        return Math.abs(a.x - b.x) >= 240 || Math.abs(a.y - b.y) >= 80;
       }));
     }), "ownership flows project to worker to task left-to-right without overlapping node rectangles");
     ok("left-to-right project/worker/task lanes have no node overlap");

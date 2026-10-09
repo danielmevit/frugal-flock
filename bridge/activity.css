@@ -306,9 +306,12 @@ footer a { display: inline-flex; align-items: center; min-height: 44px; color: v
 #work-map.is-panning, #work-map.is-panning [data-node-key] { cursor: grabbing !important; }
 #work-map [data-layer="links"] { pointer-events: none; }
 #work-map [data-node-key]:focus-visible rect { stroke: var(--focus-ring); stroke-width: 3; }
-#work-map [data-category="finished"] { opacity: 0.55; }
-#work-map [data-category="finished"]:is(:hover, :focus, [aria-pressed="true"]) { opacity: 1; }
-#work-map [data-signal="active"] .node-state { fill: var(--text-main); font-weight: 700; }
+#work-map [data-inactive="true"] > :is(rect, .node-divider, .node-logo, .node-agent, .node-label, .node-state) { opacity: 0.55; }
+#work-map [data-inactive="true"] > .node-status { opacity: 0.72; }
+#work-map [data-inactive="true"]:is(:hover, :focus, [aria-pressed="true"]) > * { opacity: 1; }
+.node-logo, .node-agent { fill: var(--text-main); pointer-events: none; }
+.node-divider { stroke: var(--line); stroke-width: 1; pointer-events: none; }
+.node-label { font-weight: 600; }
 #work-map [data-signal="active"] .node-label { font-weight: 700; }
 .map-pagination {
   display: flex;

@@ -833,12 +833,33 @@ worker → task**. Workers occupy separate lanes, with compact rows of tasks.
 Connections represent ownership only; no lead, delegation or dependency is
 inferred. At most 24 tasks appear per page. Search, state/worker filters,
 finished history and List view remain available for larger projects. Active
-tasks sort first, before pagination, and show **RUNNING NOW** with a strong
-neutral outline. Choose **Active** in the state filter to focus on running work.
+tasks sort first, before pagination, and keep a strong neutral outline and
+full contrast. Choose **Active** in the state filter to focus on running work.
 An explicit message appears when no recorded workers are running; the lead's
-CLI activity is not observed by this feed. Finished nodes are dimmed when
-history is shown, and return to full contrast on hover, focus or selection.
+CLI activity is not observed by this feed. Inactive cards are dimmed and
+return to full contrast on hover, focus or selection. Their red, green or
+yellow outcome strip keeps a clearer muted tone instead of turning gray.
 Stale or unreviewed tasks remain attention states, even if their process ended.
+
+Each card reserves its **left quarter for the AI logo and agent name**, with
+the **right three quarters for the task name and subtitle**. Task subtitles
+show the recorded time in the browser's local timezone, or explicitly say
+the time is unknown. Worker groups show the current running task, otherwise
+the latest observed task, with the number of tasks shown underneath. These
+remain worker grouping nodes; their details retain the full worker identity.
+The visible title can wrap over two lines; its full value stays in the
+accessible label and tooltip. Process/check/review state is available through
+the outcome strip, accessible description and selected task details.
+
+Logos identify known **agent routes**, not an inferred exact model or proof
+that a provider call occurred. For example, Antigravity remains Antigravity,
+and OpenCode remains OpenCode. Unknown routes use neutral initials. All marks
+are local inline monochrome SVG paths, so the existing `img-src 'none'`
+policy remains intact and no asset is fetched from a third-party service.
+Paths come from [Lobe Icons at the pinned source revision](https://github.com/lobehub/lobe-icons/tree/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons)
+under its [MIT license](https://github.com/lobehub/lobe-icons/blob/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/LICENSE).
+The complete copyright and permission notice is retained beside the paths in
+`activity.js`, including its standalone-installer copy. No icon library is installed.
 
 Use the **−** / **+** buttons to zoom from 5% to 300%. The percentage shows
 the current scale. Fit is a compact overview; zoom, filter or use List to read
