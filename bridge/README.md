@@ -45,6 +45,34 @@ The default remains read-only. All existing explicit draft, execution, output
 and file grants below remain available; use `unio browser --help`. Ctrl-C
 stops the service. Reinstalling preserves owner configuration and bench state.
 
+### Keep it running in the background
+
+To keep the read-only dashboard available while you work, without holding a
+terminal open, use the managed form (same build, later development):
+
+```bash
+unio dashboard                         # same as: unio dashboard ensure
+unio dashboard ensure --open-browser   # also ask the desktop to open it once
+unio dashboard status                  # show the link; never starts anything
+unio dashboard stop                    # end it; workers keep running
+```
+
+Ensure prints the actual `http://127.0.0.1:PORT` link. Calling it again, or
+from several terminals at once, reuses the same dashboard and link instead of
+starting another one or opening another tab. `--open-browser` only opens a
+newly started dashboard; if no browser can open (headless or some WSL setups),
+the link is still printed and the dashboard keeps running. It stays up until
+`unio dashboard stop`, regardless of STOP or AI usage limits. Add `--project
+PATH` outside a workspace and `--json` for scripts.
+
+The managed dashboard is always read-only; use foreground `unio browser` for
+drafts, execution, output or file grants. It is never adopted from a
+foreground `unio browser`, and stop only ends the dashboard it started itself.
+If its record is missing, stale, failed or unsafe, the command says so; see
+the [launcher contract](../docs/development/BROWSER-LAUNCHER-CONTRACT.md) for
+the safety and lifecycle rules. Lead AIs follow a startup rule to run ensure
+and show you the link; that does not attach Unio to other AI CLI sessions.
+
 ## Source startup
 
 From the repository root:

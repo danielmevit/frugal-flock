@@ -7,6 +7,24 @@ current instructions and the selected project's rules. These defaults apply
 whenever Unio is active; they are not permission to spend beyond an owner's
 approved plans, task scope or invocation budget.
 
+## Show the dashboard link at session start
+
+Owner rule: at the beginning of every Unio lead session, after identifying
+the project, run `unio dashboard ensure --open-browser` and show the printed
+`http://127.0.0.1:PORT` link in an update to the owner. During the same
+session and its continuations, reuse that dashboard; `unio dashboard status`
+reports the link without starting anything. Skip this only when the owner
+opts out. If no desktop browser opens, for example on a headless machine,
+the printed link is enough.
+
+This is a startup rule for cooperating leads that read these instructions.
+It is not detection of every AI CLI on the machine: Unio cannot turn an
+existing CLI conversation into a managed session by guessing its process, and
+the dashboard shows recorded Unio activity, not that conversation. The
+read-only dashboard stays up until `unio dashboard stop`, independent of STOP
+and of any AI usage limit, and stopping it never stops workers. Service details
+are in [the browser launcher contract](BROWSER-LAUNCHER-CONTRACT.md).
+
 ## Match the agent to the work
 
 Read [the standing model roles](../ai/MODEL-ROLES.md) before each session.

@@ -49,6 +49,18 @@ archive. Use it to prepare and run tasks, follow worker output and inspect files
 **In development:** a [packaged `unio browser` launcher](bridge/README.md#development-one-command-launch)
 starts the dashboard with the same CLI and configuration, read-only by default.
 This later daily-use slice is not included in the published v0.5.4 release.
+With it, `unio dashboard` keeps that read-only dashboard running in the
+background and prints its link; repeated calls reuse it. New lead instructions
+ask the lead to start it and show you the link at the beginning of a session:
+
+```text
+At the start of this lead session, run `unio dashboard ensure --open-browser`
+and show me the link it prints. Reuse that dashboard while we work.
+```
+
+This is a startup rule for cooperating lead AIs, not detection of other AI
+tools; it does not attach Unio to a chat that is already running. The
+dashboard stays up until `unio dashboard stop`, which never stops workers.
 
 [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
 [FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·
