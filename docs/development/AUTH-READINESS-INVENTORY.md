@@ -2,7 +2,7 @@
 
 This inventory documents the capabilities of installed AI assistants to verify non-generating authentication status. The goal is to support future readiness adapters without running inference or spending tokens.
 
-> **Data Collection Evidence**: Data was collected via CLI bounded introspection (`--version` and `--help` for auth/status commands) on `2026-10-09T16:40Z`. No network probes, token reads, or generating commands were executed.
+> **Data Collection Evidence**: CLI bounded introspection (`--version` and `--help` for auth/status commands) ran on 2026-10-09, local UTC+02:00. No network probes, token reads, or generating commands were executed by this inventory.
 
 ## Tool Inventory
 
@@ -12,7 +12,7 @@ This inventory documents the capabilities of installed AI assistants to verify n
 - **Output Format**: Documented support for `--json` (default) or `--text`.
 - **Exit Semantics**: Unknown/unverified from help text.
 - **Safe Fields**: Unknown/unverified (needs inspection of output structure).
-- **Limitations**: No documented indication if it distinguishes between valid auth and remaining quota.
+- **Limitations**: Sign-in metadata does not prove the next request will authenticate successfully or that quota remains. This project's earlier refresh conflict occurred despite healthy sign-in metadata.
 
 ### Codex (codex-cli)
 - **Version**: `0.161.0`
@@ -44,7 +44,7 @@ This inventory documents the capabilities of installed AI assistants to verify n
 - **Output Format**: Human-readable output. No documented JSON option.
 - **Exit Semantics**: Unknown/unverified.
 - **Safe Fields**: Unknown/unverified.
-- **Limitations**: May list raw credentials/tokens (not verified).
+- **Limitations**: Help describes listing providers and credentials. Actual output was not inspected here; do not retain raw output or treat listed credentials as verified provider readiness.
 
 ## Adapter Recommendation
 **Claude** (`claude auth status --json`) is the recommended smallest supported first adapter. It provides a dedicated status command and explicitly documents `--json` output support natively. This avoids regex parsing of human-readable text output which is brittle.
@@ -53,7 +53,7 @@ This inventory documents the capabilities of installed AI assistants to verify n
 When implementing the adapter, keep the following orthogonal states distinct:
 - **Binary Presence**: Tool is installed and runnable.
 - **Login**: Token/credential is present locally.
-- **Readiness**: Credential is valid and accepted by the remote endpoint (this is what auth status should check without side effects).
+- **Readiness**: Whether the intended workflow can run under current permissions, authentication and capacity. Status-command behavior must be verified individually; local sign-in metadata alone does not establish this.
 - **Quota / Spend Permission / Reset**: Having valid auth does not guarantee capacity or quota is available for generation. A healthy authstatus is not remaining allowance or restored capacity.
 
 ## Commands Executed
