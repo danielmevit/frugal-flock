@@ -84,7 +84,7 @@ This is a startup rule for cooperating lead AIs, not detection of other AI
 tools; it does not attach Unio to a chat that is already running. The
 dashboard stays up until `unio dashboard stop`, which never stops workers.
 
-[Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
+[Everyday use](docs/DAILY-USE.md) · [Step by step](#a-task-step-by-step) · [Try it free](#try-it-free-no-ai-calls) ·
 [FAQ](#faq) · [Under the hood](#for-the-curious-and-the-nerdy) ·
 [What's next](#whats-next)
 
@@ -144,6 +144,7 @@ PATH change for future terminals.
 
 ### 2. Choose your path
 
+- **Already installed:** [open your project and follow everyday work](docs/DAILY-USE.md).
 - **Show me the whole idea:** [take the worked-example tour](docs/EXAMPLE.md).
 - **Walk me through setup:** [follow the complete guide](docs/GUIDEBOOK.md),
   including signing in to your AI tools.
