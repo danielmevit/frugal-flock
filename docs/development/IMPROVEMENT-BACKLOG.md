@@ -5,8 +5,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 ## Current Delivery States
 
 - **Shipped**: Released globally and installed (latest: [v0.5.7](https://github.com/danielmevit/unio/releases/tag/v0.5.7)).
-- **Release candidate**: Integrated on a candidate branch with focused checks, waiting for the lead's full gate and publication. No next release candidate is currently assigned.
-- **Accepted Development**: Merged in `main`, passes focused checks and personal review, waiting for a release. This includes the optional Vibe worker and Perplexity research/code-proposal adapters; live validation remains pending. They are not packaged in v0.5.7. See [adapter setup](../integrations/README.md).
+- **Release candidate**: v0.5.8 packages the accepted Vibe worker and Perplexity research/code-proposal adapters, plus local discovery. Focused checks and personal review passed; complete gate and publication remain pending. Genuine account-backed trial outcomes are recorded below. See [adapter setup](../integrations/README.md).
+- **Accepted Development**: Merged in `main`, passes focused checks and personal review, waiting for a release. This state alone does not mean a feature is published or installed.
 - **Partially Implemented**: Working pieces exist in `main`, but the full milestone is incomplete.
 - **Pending**: A prepared task or candidate awaiting completion or acceptance. Distinguish an active run from a queued task or a failed attempt.
 - **Planned**: Approved by the owner but not yet started.

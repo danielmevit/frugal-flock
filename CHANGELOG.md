@@ -4,6 +4,23 @@ Release notes for Unio. Between releases, each task writes a short
 fragment in `changelog.d/`; the fragments are rolled into this file when a
 version is released.
 
+## 0.5.8 — optional subscription adapters — 2026-10-10
+
+See [release scope and setup](docs/RELEASE-0.5.8.md).
+
+- Package the exact Mistral Vibe and Perplexity adapter scripts in the standalone
+  installer, with generator checks preventing source/payload drift.
+- Add read-only `unio integrations [--json]` with adapter paths, roles and setup
+  guides; authentication and capacity remain Unknown.
+- Support explicitly pinned Vibe implementation workers and Perplexity research
+  or selected-context code proposals, with bounded calls and private receipts.
+- Request proposed code and tests inline, preserve real failures and incomplete
+  answers, and require implementation review and actual validation before use.
+- Preserve existing configuration and custom templates; include offline checks
+  for copied installers, JSON escaping and unsafe adapter targets.
+- Record genuine model-task outcomes and the separate recovery-save retention
+  follow-up. Preserve the owner-built project website.
+
 ## 0.5.7 — dashboard and AI allowance overview — 2026-10-09
 
 See [release scope and usage](docs/RELEASE-0.5.7.md).

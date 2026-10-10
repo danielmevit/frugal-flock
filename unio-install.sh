@@ -10363,7 +10363,7 @@ cat > "$BIN_DIR/unio" <<'UNIO_BIN_EOF'
 #   PROJECT/coord/    board.md, base, docs/, tasks/, reports/, blockers.md, STOP
 set -euo pipefail
 
-UNIO_VERSION="0.5.7"
+UNIO_VERSION="0.5.8"
 CONF_DIR="${UNIO_CONF_DIR:-$HOME/.config/unio}"
 CONF_FILE="$CONF_DIR/agents.conf"
 TPL_DIR="$CONF_DIR/templates"
@@ -15526,7 +15526,7 @@ cmd_integrations() {
   if [ "$json" = no ]; then
     echo "Local filesystem metadata only: no adapter, dependency or provider is loaded or run."
     echo "Manual external installation and sign-in remain required; authentication/capacity Unknown."
-    echo "Development addition: the released v0.5.7 standalone installer does not package these adapters."
+    echo "Unio packages the adapter scripts; external tools remain an explicit manual setup."
     echo "To use one, add an explicit agents.conf alias, map it with 'unio account', then 'unio run' (see guide)."
     echo "vibe-worker — $vibe_role"
     echo "  installed: $vibe_installed"
@@ -15547,7 +15547,7 @@ def entry(name, path, installed, role, guide):
 a = sys.argv[1:]
 print(json.dumps({"schema_version": 1,
                   "note": "local filesystem metadata only; no adapter, dependency or provider is loaded or run; "
-                          "manual external installation and sign-in required; development addition not in the released v0.5.7 installer",
+                          "manual external installation and sign-in required",
                   "adapters": [entry("vibe-worker", *a[0:4]), entry("perplexity-worker", *a[4:8])]}, indent=2))' \
       "$vibe_file" "$vibe_installed" "$vibe_role" "$guides/MISTRAL-VIBE.md" \
       "$pplx_file" "$pplx_installed" "$pplx_role" "$guides/PERPLEXITY-WEB.md"
@@ -18317,7 +18317,7 @@ LEAD_ESCALATION_TPL_EOF
 cat > "$TPL_DIR/MODEL-SCOREBOARD.md" <<'MODEL_SCOREBOARD_TPL_EOF'
 # Model scoreboard and delegation guide
 
-Updated 2026-10-09 from real Unio work. Read this before delegation, alongside
+Updated 2026-10-10 from real Unio work. Read this before delegation, alongside
 the project's latest capacity notes and owner instructions. Select by task
 fit and checked outcomes; an unavailable or owner-reserved model is not a
 fallback. Start at high or the supported middle and keep GLM at high.
@@ -18354,6 +18354,46 @@ supporting workers only. Exact controls and routes are in
 [model effort](https://github.com/danielmevit/unio/blob/main/docs/development/MODEL-EFFORT.md),
 [model roles](https://github.com/danielmevit/unio/blob/main/docs/ai/MODEL-ROLES.md)
 and the [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE-MODELS.md).
+
+## Adapter batch — 2026-10-09
+
+- Corrected-wrapper live GLM 5.3/high through Vibe saved packaging commit
+  `9d24ffe`, then ended with a connection failure/native exit 2 after
+  1,791,060 cumulative tokens, estimated $2.571018. This was below its local
+  bounds and is an operational failure, not a reasoning score. Opus 5.5/high
+  completed that saved work at `734a9d1` with four native checks and personal
+  lead approval; it is merged alongside the owner's independently built website.
+- Perplexity's GLM 5.3 Thinking route returned a genuine readiness proposal
+  in 121 seconds. It supplied a plan but referred to attachments absent from
+  the text-only handoff; no supplied implementation or claimed test pass is
+  accepted. Future prompts request code inline. Effective server model/lab
+  remains Unknown, and this answer is not independent review acceptance.
+- A separate Kimi K3 Thinking parser proposal completed in about 300 seconds
+  and returned both requested Python files inline. Personal inspection and a
+  local run of its six fake test methods found one failing fixture: empty input
+  was labeled as an array. The draft remains unmerged and needs implementation
+  review; this establishes usable text transport, not accepted parser behavior.
+- The Mistral Vibe GLM trial stopped at a local 200k cumulative token bound
+  after 201286 tokens and no edits. Medium 3.5 produced partial Perplexity
+  code before its local 600k bound (601926 tokens). These are task-budget
+  stops, not measured subscription exhaustion or a fair reasoning ranking.
+- Gemini's Vibe candidate returned Source 0 and passed its three checks, but
+  personal assessment and the real installed schema exposed incorrect CLI
+  configuration. The existing lead corrected it; nine offline checks and both
+  exact installed 2.26.1 model pins passed. No corrected-wrapper live quality
+  comparison is claimed.
+- Opus 5.5/high completed the saved Perplexity adapter with Source 0 and three
+  native checks. The lead fixed cancellation/date handling and added selected
+  source context, draft handoffs and the exact GPT-6 Sol Thinking route.
+  Eleven offline checks and the final three native checks passed, followed by
+  personal full-material assessment and integration into main.
+- Requested model identifiers do not prove effective model/lab or another
+  account's entitlement. Treat
+  proposals as input for implementation review, never independent acceptance.
+
+Use [task-sized budgets](TASK-TIME-BUDGETS.md); default high/supported middle,
+xhigh ceiling, never max/ultra. Preserve each actual failed attempt and its
+saved work. Do not keep retrying a struggling model.
 
 ## Selected project outcomes
 

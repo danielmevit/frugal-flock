@@ -1,6 +1,6 @@
 # Use Mistral Vibe as an optional Unio worker
 
-This source-tree adapter runs the owner's installed Vibe 2.26.1 CLI. It supports
+This optional adapter runs your installed Vibe 2.26.1 CLI. It supports
 GLM 5.3 (`zai-glm-5-3`, AI lab Z.ai) and Mistral Medium 3.5
 (`mistral-medium-3-5`, AI lab Mistral). Both use the Mistral transport and share
 one subscription budget.
@@ -9,9 +9,8 @@ one subscription budget.
 
 - Source checkout: `tools/vibe-worker.py`.
 - Installed copy: `~/.config/unio/lib/adapters/vibe-worker.py` (or under
-  `$UNIO_CONF_DIR`). **Development addition awaiting a future release:** the
-  installer on `main` places the exact reviewed bytes there, but the released
-  v0.5.7 installer does not. Use the source-checkout path with v0.5.7.
+  `$UNIO_CONF_DIR`). Unio 0.5.8 and later package the exact reviewed script.
+  Use the source-checkout path with 0.5.7 or earlier.
 
 `unio integrations` (or `--json`) shows the installed path and whether the file
 is present. It reads only file metadata: it never runs Vibe or the adapter, so

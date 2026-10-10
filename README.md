@@ -44,7 +44,12 @@ session, preserving their work and the agreed checks.
 through WSL, plus a [local browser workspace](bridge/README.md) in the source
 archive. Use it to prepare and run tasks, follow worker output and inspect files.
 
-*Install [Unio 0.5.7](https://github.com/danielmevit/unio/releases/tag/v0.5.7), the latest release. Since v0.5.5 the installer includes `unio browser`, which starts the dashboard with the same CLI and configuration, read-only by default. [Lead cooldown restart](docs/LEAD-COOLDOWN.md) is experimental and explicitly enabled; its genuine subscription-limit cycle remains unverified.*
+*Install [Unio 0.5.8](https://github.com/danielmevit/unio/releases/tag/v0.5.8), the latest release. Since v0.5.5 the installer includes `unio browser`, which starts the dashboard with the same CLI and configuration, read-only by default. [Lead cooldown restart](docs/LEAD-COOLDOWN.md) is experimental and explicitly enabled; its genuine subscription-limit cycle remains unverified.*
+
+**Added in 0.5.8:** `unio integrations` shows the packaged Mistral Vibe and
+Perplexity adapters and their setup guides. Vibe handles implementation;
+Perplexity supplies research or code proposals for an implementation agent
+to check and apply. External tools and sign-in remain your choice.
 
 **Added in 0.5.7:** `unio dashboard` keeps that read-only
 dashboard running in the background and prints its link; repeated calls reuse
@@ -93,9 +98,8 @@ Say you want to add search to a small website:
 - Optional [subscription adapters](docs/integrations/README.md) connect
   Mistral Vibe workers and Perplexity Pro research. Perplexity can research a
   task and propose code; an implementation agent reviews the proposal, makes
-  suitable changes and tests them. These adapters run from the source checkout
-  and require their own installed, signed-in tools; they are not packaged in
-  the v0.5.7 installer.
+  suitable changes and tests them. The installer packages both adapter scripts;
+  they require their own installed, signed-in tools and explicit configuration.
 - Unio does not get around usage limits or pool subscriptions. Each
   tool keeps its own plan, limits, and terms.
 - Switching AIs after a limit is supervised today: the next AI gets a

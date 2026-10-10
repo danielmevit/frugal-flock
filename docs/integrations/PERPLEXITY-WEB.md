@@ -16,13 +16,18 @@ its claimed test results were not verified. Proposal prompts now ask for code an
 tests inline. This trial does not establish another account's access, remaining
 allowance or the effective server-side model identity.
 
+A separate Kimi K3 Thinking trial on 2026-10-10 completed in about 300 seconds
+with both requested code files inline. After personal inspection, a local run
+of its six proposed test methods exposed one incorrect array fixture. The
+draft remains unmerged; the inline workflow works, but proposals still require
+implementation review and actual checks.
+
 ## Where the adapter lives
 
 - Source checkout: `tools/perplexity-worker.py`.
 - Installed copy: `~/.config/unio/lib/adapters/perplexity-worker.py` (or under
-  `$UNIO_CONF_DIR`). **Development addition awaiting a future release:** the
-  installer on `main` places the exact reviewed bytes there, but the released
-  v0.5.7 installer does not. Use the source-checkout path with v0.5.7.
+  `$UNIO_CONF_DIR`). Unio 0.5.8 and later package the exact reviewed script.
+  Use the source-checkout path with 0.5.7 or earlier.
 
 Installing Unio does not install the connector, sign in or contact Perplexity.
 `unio integrations` (or `--json`) shows the installed path and whether the file

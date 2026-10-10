@@ -1,21 +1,21 @@
 # Optional subscription adapters
 
-These adapters run from a Unio source checkout. Install and sign in to the
+These adapters ship with Unio 0.5.8 and also run from a source checkout.
+Install and sign in to the
 external tool manually; the adapter does not purchase credits, change billing or
 fall back to another paid service.
 
 ## Where the adapters live
 
-| Adapter | Source checkout | Installed copy (awaiting a future release) |
+| Adapter | Source checkout | Installed copy (0.5.8 and later) |
 | --- | --- | --- |
 | Vibe worker | `tools/vibe-worker.py` | `~/.config/unio/lib/adapters/vibe-worker.py` |
 | Perplexity worker | `tools/perplexity-worker.py` | `~/.config/unio/lib/adapters/perplexity-worker.py` |
 
-**Development addition, not yet released.** On `main`, the standalone installer
-copies the exact reviewed bytes of both adapters to the installed path above
-(or under `$UNIO_CONF_DIR/lib/adapters`). The released v0.5.7 installer does
-**not** include them. Until a later release ships this, use the source-checkout
-path. Installing Unio installs no Vibe, Perplexity connector or other external
+The standalone installer copies the exact reviewed bytes of both adapters to
+the installed path above (or under `$UNIO_CONF_DIR/lib/adapters`). With 0.5.7 or
+earlier, use the source-checkout path or upgrade. Installing Unio installs no
+Vibe, Perplexity connector or other external
 dependency, and starts no model.
 
 To see what is present, run:
@@ -70,5 +70,8 @@ A genuine Perplexity request on the GLM 5.3 Thinking route succeeded for one
 owner's Pro account. Its readiness proposal referenced missing code attachments,
 so it is incomplete and its claimed tests are unverified. Proposal prompts now
 request code inline; the adapter does not download generated attachments.
+A separate Kimi K3 request returned both code files inline. Local inspection
+and its proposed tests found one incorrect fixture, so that draft remains
+unmerged. Text delivery does not establish implementation correctness.
 Remaining allowance and effective model identity stay Unknown. The pinned
 connector names GPT-6 Sol, not GPT-6.1 Sol; do not silently equate the two.

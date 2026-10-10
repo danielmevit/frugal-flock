@@ -1,6 +1,6 @@
 # Model scoreboard and delegation guide
 
-Updated 2026-10-09 from real Unio work. Read this before delegation, alongside
+Updated 2026-10-10 from real Unio work. Read this before delegation, alongside
 the project's latest capacity notes and owner instructions. Select by task
 fit and checked outcomes; an unavailable or owner-reserved model is not a
 fallback. Start at high or the supported middle and keep GLM at high.
@@ -51,6 +51,11 @@ and the [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE
   the text-only handoff; no supplied implementation or claimed test pass is
   accepted. Future prompts request code inline. Effective server model/lab
   remains Unknown, and this answer is not independent review acceptance.
+- A separate Kimi K3 Thinking parser proposal completed in about 300 seconds
+  and returned both requested Python files inline. Personal inspection and a
+  local run of its six fake test methods found one failing fixture: empty input
+  was labeled as an array. The draft remains unmerged and needs implementation
+  review; this establishes usable text transport, not accepted parser behavior.
 - The Mistral Vibe GLM trial stopped at a local 200k cumulative token bound
   after 201286 tokens and no edits. Medium 3.5 produced partial Perplexity
   code before its local 600k bound (601926 tokens). These are task-budget
@@ -65,8 +70,8 @@ and the [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE
   source context, draft handoffs and the exact GPT-6 Sol Thinking route.
   Eleven offline checks and the final three native checks passed, followed by
   personal full-material assessment and integration into main.
-- Perplexity has not yet made a live query in this project. Requested model
-  identifiers do not prove effective model/lab or account entitlement. Treat
+- Requested model identifiers do not prove effective model/lab or another
+  account's entitlement. Treat
   proposals as input for implementation review, never independent acceptance.
 
 Use [task-sized budgets](TASK-TIME-BUDGETS.md); default high/supported middle,

@@ -5,7 +5,7 @@ starting work. They take precedence over dated examples in the repository.
 Check the owner's latest instructions, `unio version`, and `unio policy`;
 do not infer current availability from an earlier successful worker run.
 
-## Current public checkpoint — 2026-10-09
+## Current public checkpoint — 2026-10-10
 
 [Unio v0.5.7](https://github.com/danielmevit/unio/releases/tag/v0.5.7)
 is published and installed. Exact release source:
@@ -31,9 +31,9 @@ Other account readiness, fleet refresh and dispatch integration remain planned.
 Missing, stale or expired readings stay Unknown; a passed reset is not proof
 of refill. See [capacity usage](CAPACITY-READINGS.md).
 
-Main also contains optional source-tree [subscription adapters](../integrations/README.md),
-not packaged in the v0.5.7 installer. Awaiting a future release, the installer
-on main now copies both exact adapter files to `~/.config/unio/lib/adapters`
+The v0.5.8 candidate packages optional [subscription adapters](../integrations/README.md),
+which are not in the v0.5.7 installer. The candidate installer
+copies both exact adapter files to `~/.config/unio/lib/adapters`
 and adds read-only `unio integrations [--json]` (file metadata only; JSON via
 isolated stdlib Python). Its offline test and generator check are wired into
 the quality gate, which has not yet been run in full for this addition. Vibe 2.26.1 supports explicitly pinned
@@ -55,6 +55,10 @@ Thinking trial succeeded in 121 seconds. It returned a plan referencing missing
 attachments, so its proposed implementation and claimed tests remain unverified.
 The prompt now requests code/tests inline; no attachment is downloaded. This is
 one account observation, not proof of another account's access or effective identity.
+A separate Kimi K3 Thinking parser trial completed in about 300 seconds with
+two complete inline code files. Personal inspection and its six fake test methods
+found one incorrect array fixture. Preserve the draft for a separate implementation
+agent; it has not been merged or accepted as a readiness feature.
 Use the [manual setup and native proposal workflow](../integrations/PERPLEXITY-WEB.md).
 The disabled upstream text tool parser is not enabled as a command executor.
 
@@ -91,8 +95,8 @@ no provider is called. The capture script is local at
 Read the [roadmap](ROADMAP.md), [consolidated backlog](IMPROVEMENT-BACKLOG.md)
 and [version plan](../VERSION-PLAN.md). Finish one bounded feature at a time.
 
-1. Finish adapter packaging release checks and one bounded inline-code proposal
-   trial on the owner-selected GLM/Kimi routes. Assign actual readiness
+1. Finish the bounded v0.5.8 adapter packaging release checks. Both genuine
+   Perplexity proposal trials are complete; assign actual readiness
    implementation separately; preserve the first incomplete GLM proposal and
    all real failures without a blind retry or separately billed fallback.
 2. Add supported, read-only allowance and readiness adapters with truthful
@@ -103,9 +107,11 @@ and [version plan](../VERSION-PLAN.md). Finish one bounded feature at a time.
 3. Connect checked capacity/readiness evidence to scheduling and explain
    why a worker is idle or a task waits. Existing per-budget admission stays
    authoritative; a manual reading grants no launch or retry permission.
-4. Measure mounted-filesystem saving and observation overhead before
-   optimizing it. A killed or unstable save helper is not proof of lost
-   committed work or of an existing last-good save; inspect actual evidence.
+4. Correct project-wide save retention and measure mounted-filesystem saving
+   and observation overhead. New workers encountered the 32-save project cap:
+   current retention only evicts older saves belonging to the same worker.
+   Preserve all history while designing explicit archive/retention behavior.
+   A failed helper is not proof of lost commits or an existing last-good save.
 
 Phone/session pairing, live lead messaging and further UI polish remain
 planned. The browser launcher is local by default; it does not provide a
