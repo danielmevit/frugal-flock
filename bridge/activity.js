@@ -214,11 +214,12 @@
         + (retry.blocked ? "BLOCKED" : retry.retry_granted ? "one retry granted" : "brake clear"), "small"));
     if (!troubled.length && data.retries.length)
       limits.append(text("p", "No failed attempts recorded; the loop brake is clear for every task.", "small"));
-    document.getElementById("events").textContent = JSON.stringify(
+    renderTimeline(data);
+    setText(document.getElementById("events-raw"), JSON.stringify(
       { recent_events: data.recent_events, warnings: data.warnings },
       null,
       2,
-    );
+    ));
     status.className = "";
     status.textContent =
       "Observed " +
@@ -370,6 +371,56 @@
     const mine = Date.parse(r.recorded_at) || 0;
     return !data.results.some((o) => o !== r && o.worker === r.worker && (Date.parse(o.recorded_at) || 0) > mine);
   }
+  // ---- Activity timeline: each recorded event as one plain line ----------
+  function eventLine(e) {
+    const t = e.task || "a task";
+    const n = (v) => (typeof v === "number" ? v : "?");
+    switch (e.event) {
+      case "run_start": return ["Started " + t, "neutral"];
+      case "run": return e.exit === 0
+        ? ["Finished the run of " + t + (typeof e.duration_s === "number" ? " in " + span(e.duration_s) : ""), "passed"]
+        : ["Run of " + t + " ended with exit " + n(e.exit) + (e.wall ? " (time limit)" : ""), "failed"];
+      case "verify": {
+        const run = n(e.validate_run), failed = n(e.validate_failed);
+        const scope = e.scope && e.scope !== "OK" ? " · scope " + label(String(e.scope)).toLowerCase() : "";
+        return e.verdict === "PASS" ? [t + " passed its checks (" + run + "/" + run + ")" + scope, "passed"]
+          : e.verdict === "FAIL" ? [t + " failed " + failed + " of " + run + " checks" + scope, "failed"]
+            : [t + " checks " + label(String(e.verdict || "unknown")).toLowerCase() + scope, "attention"];
+      }
+      case "review": return e.decision === "approved"
+        ? [(e.reviewer || "A reviewer") + " approved " + t, "passed"]
+        : e.decision === "changes_requested" ? [(e.reviewer || "A reviewer") + " asked for changes on " + t, "failed"]
+          : ["Review of " + t + ": " + label(String(e.decision || "no decision")), "attention"];
+      case "merge": return ["Work from " + (e.worker || "a worker") + " was merged", "neutral"];
+      default: return [label(String(e.event || "event")) + (e.task ? " · " + e.task : ""), "neutral"];
+    }
+  }
+  function renderTimeline(data) {
+    const box = document.getElementById("events");
+    box.replaceChildren();
+    for (const warning of data.warnings || []) {
+      const row = text("div", "", "timeline-row timeline-warning");
+      row.append(text("span", "Warning", "timeline-time"), text("p", String(warning), "timeline-text"));
+      box.append(row);
+    }
+    const events = (data.recent_events || []).slice().sort((a, b) => (Date.parse(b.ts) || 0) - (Date.parse(a.ts) || 0));
+    let day = "";
+    for (const e of events) {
+      const at = Date.parse(e.ts);
+      const thisDay = Number.isFinite(at) ? new Date(at).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) : "Unknown day";
+      if (thisDay !== day) { day = thisDay; box.append(text("p", day, "timeline-day")); }
+      const [line, tone] = eventLine(e);
+      const row = text("div", "", "timeline-row");
+      row.dataset.tone = tone;
+      const when = text("time", Number.isFinite(at) ? new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : "--:--", "timeline-time");
+      when.dateTime = e.ts || "";
+      when.title = exactTime(e.ts);
+      row.append(when, e.worker ? agentBadge(e.worker) : text("span", ""), text("p", line, "timeline-text"));
+      box.append(row);
+    }
+    if (!events.length && !(data.warnings || []).length) box.append(text("p", "No recorded events yet.", "small"));
+  }
+
   const GROUPS = [["attention", "Needs you"], ["active", "Running"], ["finished", "Finished"]];
   function renderSummary(tally) {
     for (const button of document.querySelectorAll("#task-summary button")) {
@@ -934,6 +985,22 @@
     }
   }
 
+  // An orthogonal polyline whose corners are rounded by up to `radius`
+  // (never more than half of either neighboring segment).
+  function roundedPath(points, radius) {
+    const pts = points.filter((p, i) => i === 0 || p[0] !== points[i - 1][0] || p[1] !== points[i - 1][1]);
+    let d = "M " + pts[0][0] + " " + pts[0][1];
+    for (let i = 1; i < pts.length - 1; i++) {
+      const [px, py] = pts[i - 1], [x, y] = pts[i], [nx, ny] = pts[i + 1];
+      const r = Math.min(radius, Math.hypot(x - px, y - py) / 2, Math.hypot(nx - x, ny - y) / 2);
+      const ax = x - Math.sign(x - px) * r, ay = y - Math.sign(y - py) * r;
+      const bx = x + Math.sign(nx - x) * r, by = y + Math.sign(ny - y) * r;
+      d += " L " + ax + " " + ay + " Q " + x + " " + y + " " + bx + " " + by;
+    }
+    const last = pts[pts.length - 1];
+    return d + " L " + last[0] + " " + last[1];
+  }
+
   function renderMap(data, pageTasks, categories) {
     const svg = document.getElementById("work-map");
     // First appearance preserves active-first priority across worker lanes.
@@ -979,11 +1046,15 @@
     linkLayer.replaceChildren(...links.map(([src, tgt]) => {
       const line = document.createElementNS(SVG_NS, "path");
       const start = src.x + NODE_WIDTH / 2, end = tgt.x - NODE_WIDTH / 2, bend = (start + end) / 2;
-      // Task branches use the gaps above each row rather than crossing cards.
-      line.setAttribute("d", tgt.kind === "task"
-        ? "M " + start + " " + src.y + " H " + (start + 60) + " V " + (tgt.y - 52)
-          + " H " + (end - 24) + " V " + tgt.y + " H " + end
-        : "M " + start + " " + src.y + " C " + bend + " " + src.y + ", " + bend + " " + tgt.y + ", " + end + " " + tgt.y);
+      // One line style: right angles with softly rounded corners. Task
+      // branches use the gaps above each row rather than crossing cards.
+      // A task right beside its worker on the same row gets a straight line;
+      // only branches that would pass other cards detour through the gap.
+      const besideWorker = tgt.kind === "task" && Math.abs(tgt.y - src.y) < 1 && end - start < NODE_WIDTH;
+      line.setAttribute("d", roundedPath(besideWorker ? [[start, src.y], [end, tgt.y]]
+        : tgt.kind === "task"
+          ? [[start, src.y], [start + 60, src.y], [start + 60, tgt.y - 52], [end - 24, tgt.y - 52], [end - 24, tgt.y], [end, tgt.y]]
+          : [[start, src.y], [bend, src.y], [bend, tgt.y], [end, tgt.y]], 12));
       line.setAttribute("fill", "none");
       line.setAttribute("stroke", "var(--line-alt)");
       line.setAttribute("stroke-width", "2");
@@ -1556,6 +1627,7 @@
       document.getElementById("tasks").replaceChildren();
       document.getElementById("limits").replaceChildren();
       document.getElementById("events").textContent = "";
+      document.getElementById("events-raw").textContent = "";
       status.className = "error";
       status.textContent =
         "Local activity is unavailable. No current state is claimed.";

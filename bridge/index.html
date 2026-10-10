@@ -220,7 +220,10 @@
               <button id="map-reset" type="button">Reset 100%</button>
             </div>
           </div>
-          <p id="map-help" class="small map-help">Read left to right: project → worker → task. Connections show ownership, not execution order. Scroll to zoom at the pointer; hold the middle mouse button and drag to pan, or drag with the left button or touch. Use + / − to zoom, arrow keys to pan, 0 to fit, or Home to reset. Tab to a node, then Enter or Space to select.</p>
+          <details class="map-howto">
+            <summary>How to read the map</summary>
+            <p id="map-help" class="small map-help">Read left to right: project → worker → task. Connections show ownership, not execution order. Scroll to zoom at the pointer; hold the middle mouse button and drag to pan, or drag with the left button or touch. Use + / − to zoom, arrow keys to pan, 0 to fit, or Home to reset. Tab to a node, then Enter or Space to select.</p>
+          </details>
           <p class="small map-legend" aria-label="Node status legend">
             <span><i class="signal-passed" aria-hidden="true"></i>Finished: checks passed, review approved</span>
             <span><i class="signal-failed" aria-hidden="true"></i>Recorded failure</span>
@@ -268,7 +271,11 @@
         </details>
         <details>
           <summary>Recent recorded events and warnings</summary>
-          <pre id="events"></pre>
+          <div id="events" class="timeline"></div>
+          <details class="raw-data">
+            <summary>Raw data</summary>
+            <pre id="events-raw"></pre>
+          </details>
         </details>
       </div>
       <p id="mode-footer" class="small">
