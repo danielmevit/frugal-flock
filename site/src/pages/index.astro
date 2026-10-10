@@ -730,7 +730,9 @@ const faqs = [
   .row-on .row-num, .row-on .row-body, .row-on .row-who, .row-on .row-title { color: var(--on-text); }
 
   /* Install */
-  .install { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 40px; align-items: start; }
+  /* The terminal keeps its right edge and gives up width on the left, so the
+     text column has room to breathe. */
+  .install { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: clamp(56px, 8vw, 200px); align-items: start; }
   .install-copy p + p { margin-top: 12px; }
   .install-copy { color: var(--label); }
   .install-copy > p { max-width: 62ch; }
