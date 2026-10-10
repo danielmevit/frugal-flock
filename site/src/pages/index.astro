@@ -504,21 +504,18 @@ const faqs = [
     </footer>
 
     <script>
-      // Loading screen: the dot U builds itself while the page loads
-      // (at least 1.5 s so the mark completes, never more than about 3 s).
+      // Loading screen: the dot U builds itself while the page loads. As soon
+      // as the page is ready the visitor is let in, even mid-animation; it
+      // never stays longer than about 3 s.
       if (document.documentElement.classList.contains("is-loading")) {
-        const shownAt = performance.now();
         let finishing = false;
         const finish = () => {
           // the load event and the safety timeout can both call this; act once
           if (finishing) return;
           finishing = true;
-          const wait = Math.max(0, 1500 - (performance.now() - shownAt));
-          setTimeout(() => {
-            document.documentElement.classList.add("is-loaded");
-            try { sessionStorage.setItem("unio-loaded", "1"); } catch {}
-            setTimeout(() => document.documentElement.classList.remove("is-loading", "is-loaded"), 600);
-          }, wait);
+          document.documentElement.classList.add("is-loaded");
+          try { sessionStorage.setItem("unio-loaded", "1"); } catch {}
+          setTimeout(() => document.documentElement.classList.remove("is-loading", "is-loaded"), 600);
         };
         if (document.readyState === "complete") finish();
         else window.addEventListener("load", finish, { once: true });
