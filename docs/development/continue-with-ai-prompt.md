@@ -7,10 +7,10 @@ do not infer current availability from an earlier successful worker run.
 
 ## Current public checkpoint — 2026-10-10
 
-[Unio v0.5.7](https://github.com/danielmevit/unio/releases/tag/v0.5.7)
+[Unio v0.5.8](https://github.com/danielmevit/unio/releases/tag/v0.5.8)
 is published and installed. Exact release source:
-`30842abea68c8789bfb86b86460e7b13fe51b026`. The complete unchanged quality
-gate passed in 1376.59 seconds; five isolated artifact checks (including
+`bc8625837ae8574149bc87b8eefa069f7f1f8cbf`. The complete unchanged quality
+gate passed in 710.043 seconds; five isolated artifact checks (including
 40/40 selftest), upgrade/backup restore and official download checks passed.
 The installed engine, capacity runtime, dashboard and browser files match
 that release, with operator settings and custom lead templates preserved.
@@ -24,6 +24,8 @@ Later commits do not rewrite published tags or assets.
 - v0.5.6: installed manual capacity readings, age/reset and Unknown handling.
 - v0.5.7: managed background dashboard, shared task filters, visible AI agents
   and limits, plus explicit Codex metadata refresh with cached observations.
+- v0.5.8: packaged Vibe implementation and Perplexity research/code-proposal
+  adapters, with local integration discovery and explicit manual setup.
 
 The browser reads local observations; it never queries a provider. Explicit
 `unio capacity refresh codex --group codex` updates the supported Codex reading.
@@ -31,12 +33,13 @@ Other account readiness, fleet refresh and dispatch integration remain planned.
 Missing, stale or expired readings stay Unknown; a passed reset is not proof
 of refill. See [capacity usage](CAPACITY-READINGS.md).
 
-The v0.5.8 candidate packages optional [subscription adapters](../integrations/README.md),
-which are not in the v0.5.7 installer. The candidate installer
+The v0.5.8 release packages optional [subscription adapters](../integrations/README.md).
+The standalone installer
 copies both exact adapter files to `~/.config/unio/lib/adapters`
 and adds read-only `unio integrations [--json]` (file metadata only; JSON via
 isolated stdlib Python). Its offline test and generator check are wired into
-the quality gate, which has not yet been run in full for this addition. Vibe 2.26.1 supports explicitly pinned
+the complete passing quality gate. External dependencies and sign-in remain
+manual; installation does not activate these routes. Vibe 2.26.1 supports explicitly pinned
 GLM 5.3 and Mistral Medium 3.5/high, with 2M/$5 default and 4M/$10 substantial
 cumulative task bounds. Both pins were checked against the actual installed
 CLI schema offline; nine functional tests passed. A real corrected-wrapper GLM
@@ -95,10 +98,11 @@ no provider is called. The capture script is local at
 Read the [roadmap](ROADMAP.md), [consolidated backlog](IMPROVEMENT-BACKLOG.md)
 and [version plan](../VERSION-PLAN.md). Finish one bounded feature at a time.
 
-1. Finish the bounded v0.5.8 adapter packaging release checks. Both genuine
-   Perplexity proposal trials are complete; assign actual readiness
-   implementation separately; preserve the first incomplete GLM proposal and
-   all real failures without a blind retry or separately billed fallback.
+1. Correct project-wide save retention and measure mounted-filesystem saving
+   and observation overhead. New workers encountered the 32-save project cap:
+   current retention only evicts older saves belonging to the same worker.
+   Preserve all history while designing explicit archive/retention behavior.
+   A failed helper is not proof of lost commits or an existing last-good save.
 2. Add supported, read-only allowance and readiness adapters with truthful
    Unknown, observation age and reset handling. Auth status and allowance
    are separate: the [help-only inventory](AUTH-READINESS-INVENTORY.md)
@@ -107,11 +111,13 @@ and [version plan](../VERSION-PLAN.md). Finish one bounded feature at a time.
 3. Connect checked capacity/readiness evidence to scheduling and explain
    why a worker is idle or a task waits. Existing per-budget admission stays
    authoritative; a manual reading grants no launch or retry permission.
-4. Correct project-wide save retention and measure mounted-filesystem saving
-   and observation overhead. New workers encountered the 32-save project cap:
-   current retention only evicts older saves belonging to the same worker.
-   Preserve all history while designing explicit archive/retention behavior.
-   A failed helper is not proof of lost commits or an existing last-good save.
+
+Both initial Perplexity trials are complete. The owner requested a broader
+matched comparison on 2026-10-10: four identical scenarios per model, Thinking
+enabled, sequentially on the shared account. Preserve original responses and
+check proposed code independently; task-fit observations are not a universal
+ranking or implementation acceptance. Assign actual feature implementation
+separately, without blind retries or separately billed fallback.
 
 Phone/session pairing, live lead messaging and further UI polish remain
 planned. The browser launcher is local by default; it does not provide a

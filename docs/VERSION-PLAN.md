@@ -8,7 +8,7 @@ separates shipped features from source additions and recommends a functional
 delivery order. Recovery shipped in v0.5.4, followed by the browser launcher and
 map improvements in v0.5.5, manual capacity readings in v0.5.6 and the managed
 dashboard/explicit Codex readings in v0.5.7. Optional subscription adapters and
-standalone discovery are the bounded v0.5.8 candidate; published assets stay immutable.
+standalone discovery shipped in v0.5.8; published assets stay immutable.
 
 Validation update, 2026-10-08: see [completed checks, preserved failures and
 remaining release work](development/RECOVERY-ACCEPTANCE-2026-10-08.md). The complete candidate gate passed; final documentation-only publication retains identical runtime and test bytes.
@@ -23,7 +23,7 @@ remaining release work](development/RECOVERY-ACCEPTANCE-2026-10-08.md). The comp
 | 0.5.5 | Installed browser launcher (`unio browser`), interactive work map with active-first layout, task-logo cards, and muted outcome strips | [Released 2026-10-09](https://github.com/danielmevit/unio/releases/tag/v0.5.5); complete automated gate passed; phone pairing, allowance meter and live lead attachment remain planned |
 | 0.5.6 | Installed manual capacity readings with age, optional reset and Unknown handling; supporting readiness inventory and local documentation-link audit | [Release and downloads](https://github.com/danielmevit/unio/releases/tag/v0.5.6); automatic readings, browser meters and dispatch integration remain planned |
 | 0.5.7 | Managed background dashboard, shared task filters, visible AI agents and allowance windows, explicit Codex metadata refresh and cached observations | [Released and installed 2026-10-09](https://github.com/danielmevit/unio/releases/tag/v0.5.7); exact source30842abea68c, complete gate and official asset/install checks passed |
-| 0.5.8 | Packaged Vibe implementation and Perplexity research/code-proposal adapters; local integration discovery and documented setup | [Release scope](RELEASE-0.5.8.md); candidate preparation, complete gate and artifact checks pending |
+| 0.5.8 | Packaged Vibe implementation and Perplexity research/code-proposal adapters; local integration discovery and documented setup | [Released and installed 2026-10-10](https://github.com/danielmevit/unio/releases/tag/v0.5.8); source bc8625837ae8, complete gate passed in 710.043 seconds; artifact, upgrade/restore, official download and installed-command checks passed |
 
 The owner approved the [delivery priorities](development/ROADMAP.md#approved-delivery-priorities)
 on 2026-10-06: finish 0.5.3, deliver 0.5.4, then allowance monitoring, agent

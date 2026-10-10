@@ -4,8 +4,8 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ## Current Delivery States
 
-- **Shipped**: Released globally and installed (latest: [v0.5.7](https://github.com/danielmevit/unio/releases/tag/v0.5.7)).
-- **Release candidate**: v0.5.8 packages the accepted Vibe worker and Perplexity research/code-proposal adapters, plus local discovery. Focused checks and personal review passed; complete gate and publication remain pending. Genuine account-backed trial outcomes are recorded below. See [adapter setup](../integrations/README.md).
+- **Shipped**: Released globally and installed (latest: [v0.5.8](https://github.com/danielmevit/unio/releases/tag/v0.5.8)). The optional Vibe/Perplexity adapters and local discovery passed the complete gate, artifact installation, upgrade/restore and official download checks. See [adapter setup](../integrations/README.md).
+- **Release candidate**: No new candidate is designated. Next functional work addresses save retention, followed by supported readiness and scheduling.
 - **Accepted Development**: Merged in `main`, passes focused checks and personal review, waiting for a release. This state alone does not mean a feature is published or installed.
 - **Partially Implemented**: Working pieces exist in `main`, but the full milestone is incomplete.
 - **Pending**: A prepared task or candidate awaiting completion or acceptance. Distinguish an active run from a queued task or a failed attempt.
@@ -33,7 +33,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 ### 3. Connection, Auth, and Transport Reliability
 
 - **Documented now**: A [help-only readiness inventory](AUTH-READINESS-INVENTORY.md), with local sign-in, remote authentication, allowance and workflow readiness kept distinct. Claude JSON status is the smallest documented first adapter; actual exit and safe-field behavior still need checking.
-- **Accepted development**: Optional Vibe workers, Perplexity proposals and standalone adapter packaging/discovery are on main. Corrected Vibe made a real GLM run, saved work and reported a connection failure; Opus completed packaging with four native checks. The first genuine Perplexity GLM request returned a plan but missing code attachments; prompt correction requests inline code. These outcomes do not establish model rankings or remaining allowance.
+- **Shipped in 0.5.8**: Optional Vibe workers, Perplexity proposals and standalone adapter packaging/discovery. Corrected Vibe made a real GLM run, saved work and reported a connection failure; Opus completed packaging with four native checks. The first genuine Perplexity GLM request returned a plan but missing code attachments. Kimi returned two complete inline files after the prompt correction; six proposed test methods exposed one incorrect fixture. These outcomes do not establish model rankings or remaining allowance.
 - **Planned**: Implement supported read-only readiness adapters and improve prompt/connection reliability without blind retries.
 
 ### 4. Review Aggregation and Security
@@ -86,7 +86,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ## Parallel Work
 
-Current status, 2026-10-10: no AI worker is running. The installed v0.5.7 dashboard is running. Perplexity owner activation and the first GLM proposal trial completed; adapter packaging is merged, with a final text-only proposal correction under focused validation. The entries below record earlier work, not active jobs.
+Checkpoint, 2026-10-10: v0.5.8 is published and installed, and its managed read-only dashboard passed real HTTP checks. Both initial Perplexity trials completed. The owner then requested identical debugging, security, code and planning scenarios for GLM and Kimi Thinking. Check the local coordination log for their live state; the entries below record earlier work, not active jobs.
 
 - **Opus**: The initial release-preparation attempt failed OAuth without edits on 2026-10-09. After sign-in, the owner-authorized capacity correction was approved by the lead at `528e214`. Because Grok is unavailable, the owner then authorized further Opus feature work: Opus packaged the native capacity command for 0.5.6; the lead made bounded extreme-input corrections before release validation.
 - **Grok**: Capacity Source ended 402 without edits on 2026-10-09; no active Grok run is claimed.
