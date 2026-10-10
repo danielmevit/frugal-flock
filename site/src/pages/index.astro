@@ -96,13 +96,10 @@ const toneOf = (i: number) => toneNames[i % toneNames.length];
 // (AIs) making one thing. 6 × 7 cells.
 const MARK = ["11..11", "11..11", "11..11", "11..11", "11..11", "111111", ".1111."];
 const markDots = MARK.flatMap((row, y) => [...row].flatMap((c, x) => (c === "1" ? [{ x, y }] : [])));
-// The loading screen shows the mark inside a dim 10 × 11 dot field.
-const FIELD = { w: 10, h: 11, ox: 2, oy: 2 };
-const fieldCells = Array.from({ length: FIELD.w * FIELD.h }, (_, i) => {
-  const x = i % FIELD.w, y = Math.floor(i / FIELD.w);
-  const k = markDots.findIndex((d) => d.x + FIELD.ox === x && d.y + FIELD.oy === y);
-  return { on: k >= 0, k };
-});
+// When each dot of the mark switches on (ms), in markDots order: a ring
+// growing from the top-left dot, with a little jitter. Same timing as the
+// dashboard's loading screen.
+const markDelays = [0, 100, 401, 476, 97, 140, 380, 487, 198, 227, 409, 505, 269, 316, 486, 536, 403, 414, 546, 615, 462, 465, 515, 537, 597, 662, 559, 601, 637, 702];
 
 const agents = [
   { name: "Claude Code", mark: "claude" },
@@ -240,13 +237,6 @@ const faqs = [
     <meta name="theme-color" content="#1c1c1c" />
     <link rel="canonical" href={site} />
     <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
-    <script is:inline>
-      try {
-        if (!sessionStorage.getItem("unio-loaded") && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-          document.documentElement.classList.add("is-loading");
-        }
-      } catch (e) {}
-    </script>
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -269,21 +259,13 @@ const faqs = [
     })} />
   </head>
   <body>
-    <div class="loader" aria-hidden="true">
-      <span class="xh xh-tl"></span><span class="xh xh-tr"></span>
-      <span class="xh xh-bl"></span><span class="xh xh-br"></span>
-      <div class="loader-field" style={`--w: ${FIELD.w}`}>
-        {fieldCells.map((c) => <i class={c.on ? "on" : undefined} style={c.on ? `--k: ${c.k}` : undefined} />)}
-      </div>
-      <p class="loader-label">Unio</p>
-    </div>
     <a class="skip-link" href="#main">Skip to content</a>
 
     <header class="hud">
       <div class="wrap hud-inner">
         <a class="badge" href={`${base}/`} aria-label="Unio home">
           <span class="badge-name">
-            <svg class="mark" viewBox="0 0 23 27" aria-hidden="true">{markDots.map((d) => <rect x={d.x * 4} y={d.y * 4} width="3" height="3" rx="0.7" />)}</svg>
+            <svg class="mark" viewBox="0 0 23 27" aria-hidden="true">{markDots.map((d, i) => <rect x={d.x * 4} y={d.y * 4} width="3" height="3" rx="0.7" style={`--d: ${markDelays[i]}ms`} />)}</svg>
             <span class="wordmark">Unio</span>
           </span>
           <span class="badge-ver">v{version}</span>
@@ -504,24 +486,6 @@ const faqs = [
     </footer>
 
     <script>
-      // Loading screen: the dot U builds itself while the page loads. As soon
-      // as the page is ready the visitor is let in, even mid-animation; it
-      // never stays longer than about 3 s.
-      if (document.documentElement.classList.contains("is-loading")) {
-        let finishing = false;
-        const finish = () => {
-          // the load event and the safety timeout can both call this; act once
-          if (finishing) return;
-          finishing = true;
-          document.documentElement.classList.add("is-loaded");
-          try { sessionStorage.setItem("unio-loaded", "1"); } catch {}
-          setTimeout(() => document.documentElement.classList.remove("is-loading", "is-loaded"), 600);
-        };
-        if (document.readyState === "complete") finish();
-        else window.addEventListener("load", finish, { once: true });
-        setTimeout(finish, 3000);
-      }
-
       for (const button of document.querySelectorAll<HTMLButtonElement>("button.copy")) {
         button.addEventListener("click", async () => {
           try {
@@ -665,6 +629,25 @@ const faqs = [
   }
   .badge-name { display: flex; align-items: center; gap: 7px; padding: 0 12px 0 11px; background: var(--on); color: var(--on-text); }
   .mark { width: auto; height: 17px; fill: currentColor; }
+  /* The dot U builds itself: each dot switches on small and grows to full
+     size as a ring spreads from the top-left dot, then its color keeps
+     drifting through the agent tones, rippling across the mark. The tones
+     are the deep variants, which read on the light badge. Drawn as
+     vectors, so the edges stay crisp while they grow. */
+  @media (prefers-reduced-motion: no-preference) {
+    .mark rect {
+      --m-rust: #8b3b2d; --m-mustard: #8a682e; --m-sea: #2e6b5d;
+      --m-steel: #455a73; --m-periwinkle: #344483; --m-lavender: #433285;
+      transform-box: fill-box; transform-origin: center;
+      fill: var(--m-rust); opacity: 0;
+      animation: mark-dot 0.2s ease-out var(--d) forwards, mark-tone 3.6s linear var(--d) infinite;
+    }
+  }
+  @keyframes mark-dot { from { opacity: 1; transform: scale(0.36); } to { opacity: 1; transform: none; } }
+  @keyframes mark-tone {
+    0%, 100% { fill: var(--m-rust); } 16.6% { fill: var(--m-mustard); } 33.3% { fill: var(--m-sea); }
+    50% { fill: var(--m-steel); } 66.6% { fill: var(--m-periwinkle); } 83.3% { fill: var(--m-lavender); }
+  }
   /* The wordmark in the squashed all-caps display face */
   .wordmark { font-family: var(--wide); font-stretch: 68%; font-weight: 800; font-size: 1.02rem; line-height: 1; letter-spacing: 0.04em; text-transform: uppercase; }
   .badge-ver {
@@ -792,35 +775,6 @@ const faqs = [
   .key-attention { background: var(--attention); }
   .key-active { width: 10px; background: none; border: 2px solid var(--text); border-radius: var(--r-xs); }
   .foot-note { color: var(--muted); }
-
-  /* Loading screen: the dot U assembles on a dim field, its colors drifting
-     through the agent tones. Only shown when JS marked the page as loading. */
-  .loader { display: none; }
-  .is-loading .loader {
-    position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 22px;
-    background: var(--bg);
-  }
-  .is-loading body { overflow: hidden; }
-  .is-loaded .loader { opacity: 0; visibility: hidden; transition: opacity 0.5s ease, visibility 0s 0.5s; }
-  .loader .xh { width: 72px; height: 72px; }
-  .loader .xh-tl { left: 24px; top: 24px; } .loader .xh-tr { right: 24px; top: 24px; }
-  .loader .xh-bl { left: 24px; bottom: 24px; } .loader .xh-br { right: 24px; bottom: 24px; }
-  .loader-field { display: grid; grid-template-columns: repeat(var(--w), 1fr); gap: 5px; }
-  .loader-field i { width: 16px; height: 16px; border-radius: 3px; background: #232323; }
-  /* each dot of the U pops into a tone in turn, then keeps drifting
-     through the tones, so the colors ripple across the mark */
-  .loader-field i.on {
-    animation:
-      dot-on 0.3s calc(var(--k) * 30ms + 120ms) ease-out,
-      dot-tone 3.6s calc(var(--k) * 30ms + 120ms) linear infinite;
-  }
-  @keyframes dot-on { from { transform: scale(0.55); } to { transform: none; } }
-  @keyframes dot-tone {
-    0% { background: var(--t-rust); } 16.6% { background: var(--t-mustard); } 33.3% { background: var(--t-sea); }
-    50% { background: var(--t-steel); } 66.6% { background: var(--t-periwinkle); } 83.3% { background: var(--t-lavender); }
-    100% { background: var(--t-rust); }
-  }
-  .loader-label { font-family: var(--wide); font-stretch: 68%; font-weight: 800; font-size: 1.5rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text); }
 
   /* Marathon-style crosshairs at the hero's corners */
   .hero { position: relative; }
