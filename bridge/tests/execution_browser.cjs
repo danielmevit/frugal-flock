@@ -445,10 +445,17 @@ with open(os.path.join(sys.argv[1], 'calls.lock'), 'a') as lock:
     assert.equal(posts, beforeFailedRefresh + 1);
     assert.equal(sessionReads(), beforeFailedSessionReads + 2, "Only explicit reload reconnects the failed session");
     assert.ok(JSON.stringify(await savedIntent()) === JSON.stringify(originalIntent), "Explicit reload reads without replacing saved action intent");
-    assert.deepEqual(requests.slice(beforeFailedRequests).filter((r) => r.url !== origin + "/api/activity" && r.url.includes("/api/"))
-      .map((r) => ({method:r.method, route:r.url === approvalUrl ? "approve" : r.url === sessionUrl ? "session" : "job"})),
-      [{method:"POST",route:"approve"}, {method:"GET",route:"session"}, {method:"GET",route:"session"}, {method:"GET",route:"job"}],
-      "Failed refresh and explicit recovery use only the refused approval and capability/job reads");
+    const recoveryReads = requests.slice(beforeFailedRequests).filter((r) => r.url.includes("/api/"));
+    const jobUrl = origin + "/api/jobs/" + currentJobId;
+    const backgroundUrls = [origin + "/api/activity", origin + "/api/limits", jobUrl];
+    // Cached activity/allowance polling can interleave with recovery. Only
+    // GETs at these exact URLs are background reads; every other operation
+    // must still be the one refused POST and two explicit session reads.
+    assert.deepEqual(recoveryReads.filter((r) => !(r.method === "GET" && backgroundUrls.includes(r.url)))
+      .map((r) => ({method:r.method, url:r.url})),
+      [{method:"POST",url:approvalUrl}, {method:"GET",url:sessionUrl}, {method:"GET",url:sessionUrl}],
+      "Recovery never replays a write or uses an unexpected endpoint");
+    assert.ok(recoveryReads.some((r) => r.method === "GET" && r.url === jobUrl), "Explicit recovery reads the saved job");
     assert.equal(calls("run").length, 0);
     assert.equal(calls("review").length, 0);
     await stage("approve");

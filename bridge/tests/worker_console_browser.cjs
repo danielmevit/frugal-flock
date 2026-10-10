@@ -398,9 +398,18 @@ git("-c", "user.email=mock@invalid", "-c", "user.name=Mock", "commit", "-qm", "w
     assert.equal(await page.locator("#console-title").isVisible(), true);
     assert.equal(await workerButton.isVisible(), true);
     assert.deepEqual(problems, []);
-    const calls = fs.readFileSync(path.join(fixture, "calls.jsonl"), "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line)[0]);
+    const calls = fs.readFileSync(path.join(fixture, "calls.jsonl"), "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
     assert.ok(calls.length > 0);
-    assert.deepEqual([...new Set(calls)], ["watch"]);
+    // The limits overview also reads fixed local metadata. Check complete
+    // argv, so an unexpected command or a generating call still fails.
+    const allowed = [
+      ["watch", "--once", "--json"],
+      ["policy", "--json"],
+      ["capacity", "--project", fixture, "show", "--json"],
+      ["capacity", "--project", fixture, "show", "--provider", "codex", "--json"],
+    ].map((argv) => JSON.stringify(argv));
+    for (const argv of calls) assert.ok(allowed.includes(JSON.stringify(argv)), "only fixed local reads: " + JSON.stringify(argv));
+    assert.ok(calls.some((argv) => argv[0] === "watch"));
   } finally {
     if (browser) await browser.close();
     if (child && child.exitCode === null) {
