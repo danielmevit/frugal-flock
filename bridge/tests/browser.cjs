@@ -163,13 +163,22 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     assert.ok(
       (await page.locator("#limits").textContent()).includes("BLOCKED"),
     );
-    // Read-only mode exposes only view controls and read-only map nodes.
+    // Read-only mode exposes only view controls: the list's only extra
+    // buttons copy a suggested command to the clipboard.
+    const listButtons = await page.getByRole("button").evaluateAll((nodes) =>
+      nodes.filter((node) => !node.closest("#task-summary")).map((node) => node.classList.contains("copy-command") ? "copy" : node.textContent.trim()),
+    );
+    assert.deepEqual(listButtons.filter((name) => name !== "copy"), ["Refresh", "List", "Work map", "Reset filters"]);
+    assert.ok(listButtons.includes("copy"), "the list offers a copyable next step");
+    assert.deepEqual(await page.locator("#task-summary button").evaluateAll((nodes) => nodes.map((n) => n.dataset.state)), ["attention", "active", "finished"]);
+    // ...and read-only map nodes.
+    await page.click("#view-map");
     const buttons = await page.getByRole("button").evaluateAll((nodes) =>
-      nodes.map((node) => node.closest("#work-map") && node.dataset.nodeKey ? "map-node" : node.textContent.trim()),
+      nodes.filter((node) => !node.closest("#task-summary")).map((node) => node.closest("#work-map") && node.dataset.nodeKey ? "map-node" : node.textContent.trim()),
     );
     assert.deepEqual(
       buttons.filter((name) => name !== "map-node"),
-      ["Refresh", "Work map", "List", "Reset filters", "−", "+", "Fit view", "Reset 100%"],
+      ["Refresh", "List", "Work map", "Reset filters", "−", "+", "Fit view", "Reset 100%"],
     );
     assert.equal(buttons.filter((name) => name === "map-node").length, 3);
     assert.equal(

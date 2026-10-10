@@ -47,7 +47,11 @@
   const status = document.getElementById("status");
   let busy = false;
 
-  let currentView = window.innerWidth >= 1000 ? "map" : "list";
+  // The list is the readable default; a chosen view is remembered.
+  const VIEW_KEY = "unio-task-view";
+  let currentView = "list";
+  try { if (localStorage.getItem(VIEW_KEY) === "map") currentView = "map"; } catch (_) {}
+  function rememberView() { try { localStorage.setItem(VIEW_KEY, currentView); } catch (_) {} }
   let mapCategoryFilter = "";
   let mapSearchQuery = "";
   let mapWorkerFilter = "";
@@ -72,13 +76,15 @@
       listBtn.setAttribute("aria-pressed", currentView === "list" ? "true" : "false");
       document.getElementById("tasks-map-container").hidden = currentView !== "map";
       document.getElementById("tasks").hidden = currentView !== "list";
+      // the running-first hint describes the map's order, not the list's
+      document.getElementById("map-activity").hidden = currentView !== "map";
     }
   }
 
   const mapBtn = document.getElementById("view-map");
   if (mapBtn) {
-    mapBtn.addEventListener("click", () => { currentView = "map"; updateViewSwitch(); if (lastData) render(lastData); });
-    document.getElementById("view-list").addEventListener("click", () => { currentView = "list"; updateViewSwitch(); if (lastData) render(lastData); });
+    mapBtn.addEventListener("click", () => { currentView = "map"; rememberView(); updateViewSwitch(); if (lastData) render(lastData); });
+    document.getElementById("view-list").addEventListener("click", () => { currentView = "list"; rememberView(); updateViewSwitch(); if (lastData) render(lastData); });
 
     document.getElementById("map-search").addEventListener("input", (e) => { mapSearchQuery = e.target.value.toLowerCase(); mapCurrentPage = 0; if (lastData) render(lastData); });
     document.getElementById("map-worker-filter").addEventListener("change", (e) => { mapWorkerFilter = e.target.value; mapCurrentPage = 0; if (lastData) render(lastData); else syncWorkerOptions([]); });
@@ -97,6 +103,16 @@
       mapCurrentPage = 0;
       if (lastData) render(lastData);
     });
+
+    for (const button of document.querySelectorAll("#task-summary button")) {
+      button.addEventListener("click", () => {
+        const state = button.dataset.state;
+        mapStateFilter = mapStateFilter === state ? "" : state;
+        document.getElementById("map-state-filter").value = mapStateFilter;
+        mapCurrentPage = 0;
+        if (lastData) render(lastData);
+      });
+    }
 
     document.getElementById("map-prev-page").addEventListener("click", () => { mapCurrentPage = Math.max(0, mapCurrentPage - 1); if (lastData) render(lastData); });
     document.getElementById("map-next-page").addEventListener("click", () => { mapCurrentPage++; if (lastData) render(lastData); });
@@ -176,73 +192,8 @@
     if (currentView === "map") renderMap(data, pageTasks, categories);
     // The list shares the same filtered page and is kept current even while
     // hidden, so switching views never shows an older observation.
-    {
-      const tasks = document.getElementById("tasks");
-      tasks.replaceChildren();
-      for (const result of pageTasks) {
-        const row = text("div", "", "row");
-        const identity = text("div", "");
-        identity.append(text("strong", result.worker + " / " + result.task));
-      identity.append(
-        text("p", "Recorded at " + (result.recorded_at || "unknown")),
-      );
-      const state = text("div", "", "data");
-      state.append(
-        text(
-          "span",
-          result.activity.replaceAll("_", " "),
-          "chip" +
-            (result.activity === "completion_unknown" ||
-            result.process.state === "failed"
-              ? " warn"
-              : ""),
-        ),
-      );
-      state.append(
-        text(
-          "p",
-          "Process " +
-            result.process.state.replaceAll("_", " ") +
-            " · exit " +
-            (result.process.exit_code ?? "unknown") +
-            " · worker lock " +
-            result.worker_lock,
-        ),
-      );
-      state.append(
-        text(
-          "p",
-          "Validation " +
-            result.validation.state.replaceAll("_", " ") +
-            " · " +
-            result.validation.checks_run +
-            " checks / " +
-            result.validation.checks_failed +
-            " failed",
-        ),
-      );
-      state.append(
-        text(
-          "p",
-          "Review " +
-            result.review.state.replaceAll("_", " ") +
-            " · reviewer " +
-            (result.review.reviewer || "not recorded"),
-        ),
-      );
-      if (result.activity === "completion_unknown")
-        state.append(
-          text(
-            "p",
-            "No completion recorded; interruption possible. Detached processes are not ruled out.",
-          ),
-        );
-      row.append(identity, state);
-      tasks.append(row);
-    }
-    if (!data.results.length)
-      tasks.append(text("p", "No structured task evidence yet.", "small"));
-    }
+    renderSummary(tally);
+    renderTaskList(data, pageTasks, categories);
     const limits = document.getElementById("limits");
     limits.replaceChildren();
     for (const agent of data.agents) {
@@ -309,6 +260,173 @@
       data.observed_at +
       " · STOP " +
       (data.stopped ? "active" : "clear");
+  }
+
+  // ---- Plain-language task state ------------------------------------------
+  // One state per task, from the same strict verdict as the map: a task is
+  // Finished only when its run succeeded, its checks passed and a review
+  // approved it. Every state names one next step as a real unio command.
+  function humanState(r, verdict) {
+    const process = sectionState(r, "process"), validation = sectionState(r, "validation"), review = sectionState(r, "review");
+    const w = r.worker, t = r.task;
+    const v = r.validation || {};
+    const exit = r.process && r.process.exit_code !== null && r.process.exit_code !== undefined ? " (exit " + r.process.exit_code + ")" : "";
+    if (verdict.category === "active")
+      return { label: "Running", sentence: "The worker is running this task now.", next: ["Follow the live log", "unio tail " + t] };
+    if (process === "running" || r.activity === "completion_unknown")
+      return { label: "Run status unknown", sentence: "The run has no recorded end; it may have been interrupted.", next: ["Read the report", "unio report " + t] };
+    if (process !== "succeeded")
+      return { label: "Run failed", sentence: (process === "failed" ? "The run failed" : "The run ended: " + label(process)) + exit + ".", next: ["Read the report", "unio report " + t] };
+    if (validation === "failed")
+      return { label: "Checks failed", sentence: (v.checks_failed ?? "Some") + " of " + (v.checks_run ?? "its") + " checks failed.", next: ["Read why", "unio report " + t] };
+    if (validation !== "passed")
+      return { label: "Checks not run", sentence: "The run finished; its checks have not run yet.", next: ["Run the checks", "unio verify " + w + " " + t] };
+    if (review === "not_run")
+      return { label: "Waiting for review", sentence: "Ran and passed its checks; no review yet.", next: ["Ask another lab to review", "unio review " + w + " " + t] };
+    if (review === "changes_requested")
+      return { label: "Changes requested", sentence: "The reviewer asked for changes.", next: ["Read the review", "unio report " + t] };
+    if (review !== "approved")
+      return { label: "Review " + label(review), sentence: "The review did not finish with a decision.", next: ["Read the report", "unio report " + t] };
+    if (verdict.category !== "finished")
+      return { label: "Evidence is stale", sentence: "Approved, but the worktree changed since; check it again.", next: ["Check again", "unio verify " + w + " " + t] };
+    const reviewer = r.review && r.review.reviewer;
+    return { label: "Finished", sentence: reviewer ? "Approved by " + reviewer + ". Merging is your call." : "Approved. Merging is your call.", next: ["Inspect before you merge", "unio diff " + w] };
+  }
+  // Run → Checks → Review, each done, failed, waiting or unknown.
+  function trackSteps(r) {
+    const process = sectionState(r, "process"), validation = sectionState(r, "validation"), review = sectionState(r, "review");
+    const v = r.validation || {};
+    const run = process === "succeeded" ? "done" : process === "running" ? (r.activity === "running_recorded" ? "running" : "unknown")
+      : r.activity === "completion_unknown" ? "unknown" : "failed";
+    const checks = validation === "passed" ? "done" : validation === "failed" ? "failed" : "waiting";
+    const rev = review === "approved" ? "done" : review === "changes_requested" ? "failed" : review === "not_run" ? "waiting" : "unknown";
+    const counted = typeof v.checks_run === "number" && v.checks_run > 0 ? " " + (v.checks_run - (v.checks_failed || 0)) + "/" + v.checks_run : "";
+    return [["Run", run], ["Checks" + counted, checks], ["Review", rev]];
+  }
+  const STEP_WORDS = { done: "done", failed: "failed", waiting: "not yet", running: "running", unknown: "unknown" };
+  function trackElement(r) {
+    const ol = text("ol", "", "track");
+    for (const [name, step] of trackSteps(r)) {
+      const li = text("li", name);
+      li.dataset.step = step;
+      li.title = name + ": " + STEP_WORDS[step];
+      ol.append(li);
+    }
+    return ol;
+  }
+  // "12 min ago" against the observation time (never the viewer's clock);
+  // the exact local time is one hover away.
+  function ago(iso, nowIso) {
+    const then = Date.parse(iso), now = Date.parse(nowIso);
+    if (!Number.isFinite(then) || !Number.isFinite(now)) return "time unknown";
+    const s = Math.max(0, Math.round((now - then) / 1000));
+    if (s < 60) return "just now";
+    if (s < 3600) return Math.round(s / 60) + " min ago";
+    if (s < 86400) return Math.round(s / 3600) + " h ago";
+    const d = Math.round(s / 86400);
+    return d + (d === 1 ? " day ago" : " days ago");
+  }
+  function exactTime(iso) {
+    const t = Date.parse(iso);
+    return Number.isFinite(t) ? new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "medium" }) : "unknown";
+  }
+  function agentBadge(worker) {
+    const identity = agentIdentity(worker);
+    const wrap = text("span", "", "agent-badge");
+    wrap.dataset.agentMark = identity.mark;
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("class", "agent-logo");
+    const paths = identity.mark && AI_MARKS[identity.mark];
+    if (paths) {
+      for (const d of paths) {
+        const path = document.createElementNS(SVG_NS, "path");
+        path.setAttribute("d", d);
+        svg.appendChild(path);
+      }
+    } else {
+      const initials = document.createElementNS(SVG_NS, "text");
+      initials.setAttribute("x", "12"); initials.setAttribute("y", "16.5");
+      initials.setAttribute("text-anchor", "middle"); initials.setAttribute("font-size", "11");
+      initials.textContent = identity.initials;
+      svg.appendChild(initials);
+    }
+    wrap.append(svg, text("span", worker, "agent-name"));
+    return wrap;
+  }
+  function nextStep(next) {
+    const box = text("div", "", "next-step");
+    box.append(text("span", next[0], "next-label"));
+    const line = text("div", "", "next-line");
+    const code = text("code", next[1]);
+    const copy = text("button", "Copy", "copy-command");
+    copy.type = "button";
+    copy.setAttribute("aria-label", "Copy command: " + next[1]);
+    copy.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(next[1]); setText(copy, "Copied"); }
+      catch (_) { setText(copy, "Select it"); }
+      setTimeout(() => setText(copy, "Copy"), 1600);
+    });
+    line.append(code, copy);
+    box.append(line);
+    return box;
+  }
+  function technicalLines(r) {
+    const lines = [
+      "Process " + label(sectionState(r, "process")) + " · exit " + (r.process && r.process.exit_code !== null && r.process.exit_code !== undefined ? r.process.exit_code : "unknown") + " · worker lock " + r.worker_lock,
+      "Validation " + label(sectionState(r, "validation")) + " · " + (r.validation ? r.validation.checks_run : "unknown") + " checks / " + (r.validation ? r.validation.checks_failed : "unknown") + " failed",
+      "Review " + label(sectionState(r, "review")) + " · reviewer " + ((r.review && r.review.reviewer) || "not recorded"),
+      "Recorded at " + (r.recorded_at || "unknown"),
+    ];
+    if (r.activity === "completion_unknown") lines.push("No completion recorded; interruption possible. Detached processes are not ruled out.");
+    return lines;
+  }
+  const GROUPS = [["attention", "Needs you"], ["active", "Running"], ["finished", "Finished"]];
+  function renderSummary(tally) {
+    for (const button of document.querySelectorAll("#task-summary button")) {
+      const state = button.dataset.state;
+      setText(button.querySelector(".summary-count"), String(tally[state]));
+      button.setAttribute("aria-pressed", mapStateFilter === state ? "true" : "false");
+    }
+  }
+  function renderTaskList(data, pageTasks, categories) {
+    const tasks = document.getElementById("tasks");
+    tasks.replaceChildren();
+    for (const [category, title] of GROUPS) {
+      const records = pageTasks.filter((r) => categories.get(r).category === category);
+      if (!records.length) continue;
+      records.sort((a, b) => (Date.parse(b.recorded_at) || 0) - (Date.parse(a.recorded_at) || 0));
+      const group = text("section", "", "task-group");
+      group.dataset.group = category;
+      const heading = text("h3", "", "task-group-title");
+      heading.append(text("span", title), text("span", String(records.length), "task-group-count"));
+      group.append(heading);
+      for (const r of records) {
+        const verdict = categories.get(r);
+        const state = humanState(r, verdict);
+        const row = text("article", "", "row task-row");
+        row.dataset.worker = r.worker;
+        row.dataset.task = r.task;
+        row.dataset.signal = taskSignal(r, verdict);
+        const main = text("div", "", "task-main");
+        main.append(agentBadge(r.worker), text("strong", r.task, "task-name"), text("p", state.sentence, "task-sentence"));
+        const status = text("div", "", "task-status");
+        const pill = text("span", state.label, "state-pill");
+        const when = text("time", ago(r.recorded_at, data.observed_at), "task-when");
+        when.dateTime = r.recorded_at || "";
+        when.title = "Recorded " + exactTime(r.recorded_at);
+        status.append(pill, when);
+        const tech = document.createElement("details");
+        tech.className = "task-tech";
+        tech.append(text("summary", "Technical details"));
+        for (const line of technicalLines(r)) tech.append(text("p", line));
+        row.append(main, trackElement(r), status, nextStep(state.next), tech);
+        group.append(row);
+      }
+      tasks.append(group);
+    }
+    if (!data.results.length) tasks.append(text("p", "No structured task evidence yet.", "small"));
   }
 
   // JSON arrays cannot collide for different tuples, whatever the names hold.
@@ -1107,6 +1225,13 @@
   function showDetails(r, data, verdict) {
     const details = detailsFor("task", (root) => {
       appendDetailsHeader(root);
+      const brief = text("div", "", "task-brief");
+      brief.dataset.field = "brief";
+      root.appendChild(brief);
+      const fold = document.createElement("details");
+      fold.className = "task-tech";
+      fold.append(text("summary", "Technical details"));
+      root.appendChild(fold);
       const grid = document.createElement("dl");
       grid.className = "evidence-grid";
       grid.style.margin = "16px 0";
@@ -1119,10 +1244,20 @@
         row.append(dt, dd);
         grid.appendChild(row);
       }
-      root.appendChild(grid);
+      fold.appendChild(grid);
     });
     const field = (name) => details.querySelector('[data-field="' + name + '"]');
     setText(field("title"), r.worker + " / " + r.task);
+    const state = humanState(r, verdict);
+    const brief = field("brief");
+    const signature = JSON.stringify([state, trackSteps(r)]);
+    if (brief.dataset.signature !== signature) {
+      brief.dataset.signature = signature;
+      brief.dataset.signal = taskSignal(r, verdict);
+      const head = text("div", "", "task-status");
+      head.append(text("span", state.label, "state-pill"));
+      brief.replaceChildren(head, text("p", state.sentence, "task-sentence"), trackElement(r), nextStep(state.next));
+    }
     setText(field("observed"), "Current observation " + (data.observed_at || "unknown"));
     setText(field("recorded"), "Task evidence recorded " + (r.recorded_at || "unknown"));
     setText(field("status"), CATEGORY_TEXT[verdict.category] + (verdict.reasons.length ? " · " + verdict.reasons.join("; ") : ""));

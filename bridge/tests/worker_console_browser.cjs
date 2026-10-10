@@ -166,6 +166,8 @@ git("-c", "user.email=mock@invalid", "-c", "user.name=Mock", "commit", "-qm", "w
       };
     });
     await page.goto(origin);
+    // The list is the default view; the map checks below need the map.
+    await page.click("#view-map");
     const workerButton = page.locator("#console-workers").getByRole("button", { name: /^w1 \/ SOURCE-1/ });
     await workerButton.waitFor({ timeout: 10000 });
     await page.waitForFunction(() => {

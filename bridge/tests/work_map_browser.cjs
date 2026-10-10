@@ -179,6 +179,8 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     const page = await context.newPage();
     watch(page);
     await page.goto(origin);
+    // The list is the default view; this section exercises the map.
+    await page.click("#view-map");
     await page.waitForSelector("#tasks-map-container:not([hidden])");
     await page.waitForFunction(() => document.querySelectorAll("#work-map [data-node-key]").length > 0);
 
@@ -717,12 +719,13 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     assert.equal(await page.locator("#tasks .row").count(), 1);
     assert.ok((await page.locator("#tasks .row").first().textContent()).includes("impl-feature"));
     await page.selectOption("#map-category-filter", "Review");
-    assert.deepEqual((await page.locator("#tasks .row strong").allTextContents()).sort(),
+    const rowTuples = () => page.locator("#tasks .row").evaluateAll((rows) => rows.map((r) => r.dataset.worker + " / " + r.dataset.task));
+    assert.deepEqual((await rowTuples()).sort(),
       ["worker-cat / PLAIN-5", "worker-cat / REVIEW-FIX-3", "worker-cat / code-review"]);
     await page.selectOption("#map-category-filter", "Checks");
-    assert.deepEqual(await page.locator("#tasks .row strong").allTextContents(), ["worker-cat / BUILD-CHECK-4"]);
+    assert.deepEqual(await rowTuples(), ["worker-cat / BUILD-CHECK-4"]);
     await page.selectOption("#map-category-filter", "Other");
-    assert.deepEqual((await page.locator("#tasks .row strong").allTextContents()).sort(),
+    assert.deepEqual((await rowTuples()).sort(),
       ["worker-cat / NETWORK-2", "worker-cat / SIMPLIFY-1", "worker-cat / random-task"]);
     await poll(page);
     assert.equal(await page.inputValue("#map-category-filter"), "Other");
@@ -799,6 +802,8 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
     // Mobile 390px: no horizontal document overflow.
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(origin);
+    // The chosen view is remembered across reloads; start this check from the list.
+    await page.click("#view-list");
     await page.waitForSelector("#tasks .row");
     await page.click("#view-map");
     await page.waitForFunction(() => document.querySelectorAll("#work-map [data-node-key]").length > 0);

@@ -182,12 +182,17 @@
             <h2 id="tasks-title">Recorded tasks</h2>
           </div>
           <div class="view-switch" role="group" aria-label="Task view">
-            <button id="view-map" type="button" aria-pressed="true">Work map</button>
-            <button id="view-list" type="button" aria-pressed="false">List</button>
+            <button id="view-list" type="button" aria-pressed="true">List</button>
+            <button id="view-map" type="button" aria-pressed="false">Work map</button>
           </div>
           <p id="status" role="status" aria-live="polite">Loading local activity…</p>
         </div>
         <p class="small evidence-help">These are recorded observations. A successful process alone does not mean verified, reviewed or accepted source.</p>
+        <div id="task-summary" class="task-summary" role="group" aria-label="Tasks by state">
+          <button type="button" data-state="attention" aria-pressed="false"><span class="summary-count">0</span> <span class="summary-name">Needs you</span></button>
+          <button type="button" data-state="active" aria-pressed="false"><span class="summary-count">0</span> <span class="summary-name">Running</span></button>
+          <button type="button" data-state="finished" aria-pressed="false"><span class="summary-count">0</span> <span class="summary-name">Finished</span></button>
+        </div>
 
         <div class="map-controls task-filters" role="group" aria-label="Task filters">
           <select id="map-worker-filter" aria-label="Filter by worker"><option value="">All Workers</option></select>
