@@ -107,7 +107,7 @@ def owned_call(argv, env, seconds, cwd=None, data=b"", sinks=(None, None), outpu
     """Bound owned process-group lifetime and combined output; feed data via stdin."""
     child = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.PIPE,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                             start_new_session=True)
+                             start_new_session=True, umask=0o077)
     poll = selectors.DefaultSelector()
     streams = {child.stdout: 0, child.stderr: 1}
     for pipe in streams:
