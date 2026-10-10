@@ -16,6 +16,7 @@ ordinary use, start with the [project README](../../README.md) or the
 | [Workspace rules](WORKSPACE-RULES.md) | Standing instructions for contributors and AI workers |
 | [AI session startup](../ai/START_HERE.md) | Public entry point for lead and worker reading instructions |
 | [Lead routing and spending](LEAD-ROUTING.md) | Agent roles, verified-free chores, subscription limits and startup rules |
+| [Agent fleet and assignments](AGENT-FLEET.md) | Practical roles for all approved accounts, budget groups and exclusions |
 | [Model effort](MODEL-EFFORT.md) | Lead defaults, supported controls and justified escalation |
 | [Worker escalation and lead takeover](../ai/LEAD-ESCALATION.md) | One worker, one suitable replacement, then the existing lead finishes the correction |
 | [Model scoreboard and task fit](MODEL-SCOREBOARD.md) | Practical delegation guide with checked project outcomes and rework |

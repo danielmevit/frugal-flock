@@ -1,6 +1,8 @@
 # Optional subscription adapters
 
-These adapters ship with Unio 0.5.8 and also run from a source checkout.
+Vibe and Perplexity ship with Unio 0.5.8 and also run from a source checkout.
+The development checkout adds Copilot Free / Auto Balance; it is not included
+in the published 0.5.8 assets.
 Install and sign in to the
 external tool manually; the adapter does not purchase credits, change billing or
 fall back to another paid service.
@@ -11,8 +13,9 @@ fall back to another paid service.
 | --- | --- | --- |
 | Vibe worker | `tools/vibe-worker.py` | `~/.config/unio/lib/adapters/vibe-worker.py` |
 | Perplexity worker | `tools/perplexity-worker.py` | `~/.config/unio/lib/adapters/perplexity-worker.py` |
+| Copilot worker (unreleased) | `tools/copilot-worker.py` | Next installer: `~/.config/unio/lib/adapters/copilot-worker.py` |
 
-The standalone installer copies the exact reviewed bytes of both adapters to
+The standalone installer copies the exact reviewed adapter bytes to
 the installed path above (or under `$UNIO_CONF_DIR/lib/adapters`). With 0.5.7 or
 earlier, use the source-checkout path or upgrade. Installing Unio installs no
 Vibe, Perplexity connector or other external
@@ -38,6 +41,7 @@ and start it with `unio run`, so native per-budget slots stay in force.
 | Route | Use it for | Guide |
 | --- | --- | --- |
 | Mistral Vibe 2.26.1 | Implementation tasks using GLM 5.3 or Mistral Medium 3.5, explicitly pinned at high effort | [Vibe worker setup](MISTRAL-VIBE.md) |
+| Copilot Free / Auto Balance (source) | Routine documentation and small mechanical proposals; local/BYOK models excluded | [Copilot setup](GITHUB-COPILOT.md) |
 | Perplexity Pro web | Research and draft code proposals using GLM 5.3, Kimi K3 or the connector's GPT-6 Sol Thinking route | [Perplexity setup and proposal workflow](PERPLEXITY-WEB.md) |
 
 Perplexity supplies research, citations and proposed code from selected context.
@@ -75,3 +79,6 @@ and its proposed tests found one incorrect fixture, so that draft remains
 unmerged. Text delivery does not establish implementation correctness.
 Remaining allowance and effective model identity stay Unknown. The pinned
 connector names GPT-6 Sol, not GPT-6.1 Sol; do not silently equate the two.
+
+Use the [agent fleet guide](../development/AGENT-FLEET.md) to assign all
+approved accounts without duplicating their shared-budget workflows.

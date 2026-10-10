@@ -8,7 +8,9 @@ choice for one run. The owner can explicitly change the policy.
 | --- | --- | --- |
 | Lead | The owner's designated subscription agent | Planning, contracts, delegation, coordination, final assessment and authorized integration; direct implementation after bounded worker escalation |
 | Main implementation workers | Grok, Antigravity/Gemini, Claude Code and Codex | Product features, core behavior, architecture within the assigned scope, complex debugging, UI and substantive security corrections |
-| Routine supporting workers | The verified-free OpenCode Zen pool | Documentation, formatting, inventories, mechanical edits, boilerplate, running predefined checks and supplementary observations |
+| Optional implementation workers | Explicitly approved Mistral Vibe / GLM 5.3 and Medium 3.5 routes | Scoped implementation through the pinned adapter; inspect actual results |
+| Research and proposal workers | Perplexity Pro Thinking routes | Selected-context research and code drafts for a capable implementation agent to check and apply |
+| Routine supporting workers | The verified-free OpenCode Zen pool and owner-approved Copilot Free / Auto Balance route | Documentation, formatting, inventories, mechanical edits, boilerplate, running predefined checks and supplementary observations |
 
 The free pool must **never lead, own main feature implementation, perform
 final acceptance or replace a subscription lead during a cooldown**. A free

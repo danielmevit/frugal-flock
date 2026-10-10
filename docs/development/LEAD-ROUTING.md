@@ -1,6 +1,6 @@
 # Lead routing, reasoning effort and spending
 
-Read this policy, [bounded escalation](../ai/LEAD-ESCALATION.md), the
+Read [the current agent fleet](AGENT-FLEET.md), this policy, [bounded escalation](../ai/LEAD-ESCALATION.md), the
 [model scoreboard](MODEL-SCOREBOARD.md) and [model effort](MODEL-EFFORT.md) before planning
 assignments and at the start of each new lead session. Follow the owner's
 current instructions and the selected project's rules. These defaults apply

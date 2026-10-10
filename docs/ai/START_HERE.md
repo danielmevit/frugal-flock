@@ -68,3 +68,8 @@ coherent changes early. Report actual source exit and checks separately.
 Do not merge, publish, change billing, retry a frozen task or create other
 AI calls unless the task and owner explicitly authorize it. A source commit
 alone does not establish verification, review, acceptance or public delivery.
+
+Before delegating, read the [agent fleet guide](../development/AGENT-FLEET.md)
+for approved account routes, useful assignments and current exclusions. Local
+models are excluded under the current owner rule; Copilot Free uses its GitHub
+Auto Balance route, not a local provider.

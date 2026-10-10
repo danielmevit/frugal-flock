@@ -35,6 +35,8 @@ Read [how Unio assigns model roles](docs/ai/MODEL-ROLES.md): main implementation
 agents build the features; verified-free workers handle routine support. Read
 [how the lead keeps work moving](docs/development/PARALLEL-WORK.md): low tier
 allows one workflow per shared account, while independent accounts work together.
+The [agent fleet guide](docs/development/AGENT-FLEET.md) maps approved accounts
+to implementation, research and routine work, including Copilot Free / Balanced.
 The [model scoreboard](docs/development/MODEL-SCOREBOARD.md) helps it choose
 workers from actual project results. If a worker and one suitable replacement
 cannot finish, [the lead takes over](docs/ai/LEAD-ESCALATION.md) in its existing
