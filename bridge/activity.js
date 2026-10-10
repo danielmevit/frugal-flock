@@ -1366,6 +1366,17 @@
     renderLimits();
   }
 
+  // The loading screen (the dot U) stays until the first observation has
+  // finished, whatever its result, and at least long enough not to flash.
+  const bootStarted = performance.now();
+  let booted = false;
+  function markReady() {
+    if (booted) return;
+    booted = true;
+    const wait = Math.max(0, 600 - (performance.now() - bootStarted));
+    setTimeout(() => document.documentElement.classList.add("is-ready"), wait);
+  }
+
   async function refresh() {
     if (busy) return;
     busy = true;
@@ -1387,6 +1398,7 @@
     } finally {
       busy = false;
       document.getElementById("tasks").setAttribute("aria-busy", "false");
+      markReady();
     }
     // Allowance metadata never blocks the activity render above.
     renderLimits();

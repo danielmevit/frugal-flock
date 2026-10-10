@@ -1,3 +1,6 @@
+![Unio](docs/brand/unio-logo_light.svg#gh-light-mode-only)
+![Unio](docs/brand/unio-logo_dark.svg#gh-dark-mode-only)
+
 # Unio — Your AIs, in sync.
 
 Unio brings AI agents from different AI labs together to build and improve

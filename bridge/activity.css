@@ -395,3 +395,175 @@ footer a { display: inline-flex; align-items: center; min-height: 44px; color: v
 .limits-window[data-status="expired"] .limits-meter span,
 .limits-window[data-status="historical"] .limits-meter span { background: var(--line-alt); }
 .limits-window[data-status="invalid"] strong, .limits-window[data-status="unknown"] strong { color: var(--map-attention); }
+
+/* ------------------------------------------------------------------------
+   Unio interface language (shared with the project website).
+   Function first: nothing here adds information that is not in the data.
+   - corners: nothing is square; groups of buttons round their outer corners
+     more than the inner ones; only the brand badge is a pill
+   - small labels and numbers in monospace capitals
+   - one muted tone per agent (logos and card edges), never instead of the
+     status colors, which keep their meaning
+   ------------------------------------------------------------------------ */
+:root {
+  --mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-out: 9px;
+  /* agent tones, light theme: dark enough to read on light panels */
+  --t-rust: #8b3b2d;
+  --t-mustard: #8a682e;
+  --t-sea: #2e6b5d;
+  --t-steel: #455a73;
+  --t-periwinkle: #344483;
+  --t-lavender: #433285;
+}
+[data-theme="dark"] {
+  --t-rust: #cb7f72;
+  --t-mustard: #caaa72;
+  --t-sea: #74b4a5;
+  --t-steel: #91a2b6;
+  --t-periwinkle: #8795c9;
+  --t-lavender: #a094d1;
+}
+
+/* Hidden but announced (the theme label used this class without a rule). */
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+
+/* Header: the brand badge, sticky so Refresh and the mode stay in reach */
+.topbar {
+  position: sticky; top: 0; z-index: 20; min-height: 64px;
+  background: color-mix(in srgb, var(--bg-main) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+.brand {
+  display: inline-flex; align-items: center; height: 30px; padding: 0 13px;
+  border: 0; border-radius: 15px; background: var(--accent); color: var(--btn-primary-text);
+}
+.brand-logo { display: block; height: 15px; width: auto; }
+h1 { font-family: var(--mono); font-size: 12px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+#theme-selector {
+  min-height: 36px; padding: 6px 10px; font-size: 13px;
+  color: var(--text-main); background: var(--paper); border: 1px solid var(--btn-border);
+}
+.topbar-controls { gap: 10px; }
+#refresh { min-height: 36px; padding: 6px 14px; }
+
+/* Small labels: monospace capitals */
+.eyebrow, .mode-label, .state-label, .chip, .map-counts, #status, .map-legend,
+.evidence-grid dt, #map-zoom-level, .limits-card h4, .limits-subtitle, .empty-mark {
+  font-family: var(--mono); letter-spacing: .06em; text-transform: uppercase;
+}
+.eyebrow { font-size: 11px; }
+.mode-label, .state-label, .chip { font-size: 10.5px; font-weight: 650; }
+.map-counts, #status, .map-legend, .evidence-grid dt, #map-zoom-level { font-size: 11px; }
+.limits-subtitle { font-size: 12px; font-weight: 650; color: var(--muted); }
+
+/* Corners */
+button, input, textarea, .map-controls select, #theme-selector { border-radius: var(--r-sm); }
+.composer, .selected-work, .map-container { border-radius: var(--r-md); }
+.map-scroll-area, .limits-card, .limits-lead, pre, .warnings, .error { border-radius: var(--r-sm); }
+.mode-label, .state-label, .chip { border-radius: var(--r-xs); }
+#work-map [data-node-key] > rect { rx: 4px; }
+
+/* Button groups: inner corners small, outer corners rounder */
+:is(.view-switch, .map-camera-controls, .map-pagination, .console-tabs, .execution-actions) { gap: 4px; }
+:is(.view-switch, .map-camera-controls, .map-pagination, .console-tabs, .execution-actions) > button { border-radius: var(--r-xs); }
+:is(.view-switch, .map-camera-controls, .map-pagination, .console-tabs, .execution-actions) > button:first-of-type {
+  border-top-left-radius: var(--r-out); border-bottom-left-radius: var(--r-out);
+}
+:is(.view-switch, .map-camera-controls, .map-pagination, .console-tabs, .execution-actions) > button:last-of-type {
+  border-top-right-radius: var(--r-out); border-bottom-right-radius: var(--r-out);
+}
+.draft-reopen { gap: 4px; }
+.draft-reopen input { border-radius: var(--r-out) var(--r-xs) var(--r-xs) var(--r-out); }
+.draft-reopen button { border-radius: var(--r-xs) var(--r-out) var(--r-out) var(--r-xs); }
+/* The chosen view or tab is shown inverted, like a selected menu item */
+.view-switch button[aria-pressed="true"], .console-tabs button[aria-selected="true"] {
+  background: var(--accent); border-color: var(--accent); color: var(--btn-primary-text);
+}
+
+/* Agent cards: a header strip with the agent's tone on its edge */
+.limits-card { padding: 0 14px 12px; transition: border-color .16s, box-shadow .16s; }
+.limits-card h4 {
+  margin: 0 -14px 10px; padding: 8px 14px; font-size: 11.5px; font-weight: 700;
+  background: var(--bg-composer); border-bottom: 1px solid var(--line);
+  border-radius: calc(var(--r-sm) - 1px) calc(var(--r-sm) - 1px) 0 0;
+  box-shadow: inset 3px 0 0 var(--tone, var(--line-alt));
+}
+.limits-card:hover { border-color: var(--text-label); box-shadow: 0 0 0 1px var(--text-label); }
+.limits-meter { border-radius: var(--r-xs); }
+
+/* Hover: the thing under the pointer answers with a firmer edge */
+.map-container .row, .limits-lead { transition: background-color .16s; }
+.map-container .row:hover { background: var(--bg-composer); }
+input:hover, textarea:hover, .map-controls select:hover, #theme-selector:hover { border-color: var(--btn-hover-border); }
+
+/* One tone per agent. Map nodes carry the logo's mark name; cards carry the
+   configured route name. */
+[data-agent-mark="claude"], [data-route^="claude"], [data-agent-mark="minimax"] { --tone: var(--t-rust); }
+[data-agent-mark="openai"], [data-route^="codex"], [data-route^="perplexity"] { --tone: var(--t-sea); }
+[data-agent-mark="antigravity"], [data-agent-mark="gemini"], [data-route^="antigravity"],
+[data-route^="gemini"], [data-agent-mark="deepseek"], [data-route^="deepseek"] { --tone: var(--t-periwinkle); }
+[data-agent-mark="grok"], [data-route^="grok"], [data-agent-mark="opencode"], [data-route^="opencode"] { --tone: var(--t-steel); }
+[data-agent-mark="kimi"], [data-route^="kimi"], [data-agent-mark="qwen"], [data-route^="qwen"] { --tone: var(--t-lavender); }
+[data-agent-mark="zai"], [data-route^="glm"], [data-route^="vibe"], [data-route^="mistral"] { --tone: var(--t-mustard); }
+#work-map [data-agent-mark] .node-logo { fill: var(--tone, var(--text-main)); }
+
+/* Loading screen: the dot U assembles while the first observation is read,
+   its dots drifting through the agent tones. Purely visual: it never takes
+   clicks, it leaves as soon as the page has data, and it removes itself
+   after a few seconds even if no data ever arrives. */
+.boot {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 20px;
+  background: var(--bg-main); pointer-events: none;
+  animation: boot-away .3s ease 6s forwards;
+}
+.is-ready .boot { opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility 0s .35s; }
+@keyframes boot-away { to { opacity: 0; visibility: hidden; } }
+.boot-field { display: grid; grid-template-columns: repeat(10, 14px); gap: 4px; }
+.boot-field i { width: 14px; height: 14px; border-radius: 3px; background: var(--bg-composer); }
+/* each dot of the U waits dim like the field, then pops into a tone in turn */
+.boot-field i.on { animation: boot-dot .3s ease-out, boot-tone 3.6s linear infinite; }
+@keyframes boot-dot { from { transform: scale(.55); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .boot-field i.on { background: var(--accent); } }
+@keyframes boot-tone {
+  0%, 100% { background: var(--t-rust); } 16.6% { background: var(--t-mustard); } 33.3% { background: var(--t-sea); }
+  50% { background: var(--t-steel); } 66.6% { background: var(--t-periwinkle); } 83.3% { background: var(--t-lavender); }
+}
+.boot-label { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.boot-field i:nth-child(23) { animation-delay: 0ms, 0ms; }
+.boot-field i:nth-child(24) { animation-delay: 30ms, 30ms; }
+.boot-field i:nth-child(27) { animation-delay: 60ms, 60ms; }
+.boot-field i:nth-child(28) { animation-delay: 90ms, 90ms; }
+.boot-field i:nth-child(33) { animation-delay: 120ms, 120ms; }
+.boot-field i:nth-child(34) { animation-delay: 150ms, 150ms; }
+.boot-field i:nth-child(37) { animation-delay: 180ms, 180ms; }
+.boot-field i:nth-child(38) { animation-delay: 210ms, 210ms; }
+.boot-field i:nth-child(43) { animation-delay: 240ms, 240ms; }
+.boot-field i:nth-child(44) { animation-delay: 270ms, 270ms; }
+.boot-field i:nth-child(47) { animation-delay: 300ms, 300ms; }
+.boot-field i:nth-child(48) { animation-delay: 330ms, 330ms; }
+.boot-field i:nth-child(53) { animation-delay: 360ms, 360ms; }
+.boot-field i:nth-child(54) { animation-delay: 390ms, 390ms; }
+.boot-field i:nth-child(57) { animation-delay: 420ms, 420ms; }
+.boot-field i:nth-child(58) { animation-delay: 450ms, 450ms; }
+.boot-field i:nth-child(63) { animation-delay: 480ms, 480ms; }
+.boot-field i:nth-child(64) { animation-delay: 510ms, 510ms; }
+.boot-field i:nth-child(67) { animation-delay: 540ms, 540ms; }
+.boot-field i:nth-child(68) { animation-delay: 570ms, 570ms; }
+.boot-field i:nth-child(73) { animation-delay: 600ms, 600ms; }
+.boot-field i:nth-child(74) { animation-delay: 630ms, 630ms; }
+.boot-field i:nth-child(75) { animation-delay: 660ms, 660ms; }
+.boot-field i:nth-child(76) { animation-delay: 690ms, 690ms; }
+.boot-field i:nth-child(77) { animation-delay: 720ms, 720ms; }
+.boot-field i:nth-child(78) { animation-delay: 750ms, 750ms; }
+.boot-field i:nth-child(84) { animation-delay: 780ms, 780ms; }
+.boot-field i:nth-child(85) { animation-delay: 810ms, 810ms; }
+.boot-field i:nth-child(86) { animation-delay: 840ms, 840ms; }
+.boot-field i:nth-child(87) { animation-delay: 870ms, 870ms; }

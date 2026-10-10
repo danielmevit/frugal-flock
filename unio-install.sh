@@ -3775,11 +3775,15 @@ cat > "$CONF_DIR/lib/browser/index.html" <<'UNIO_BROWSER_INDEX_HTML'
     <script defer src="worker_console.js"></script>
   </head>
   <body>
+    <div class="boot" aria-hidden="true">
+      <div class="boot-field"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="on"></i><i class="on"></i><i></i><i></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i class="on"></i><i class="on"></i><i></i><i></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i class="on"></i><i class="on"></i><i></i><i></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i class="on"></i><i class="on"></i><i></i><i></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i class="on"></i><i class="on"></i><i></i><i></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <p class="boot-label">Reading recorded activity</p>
+    </div>
     <a class="skip-link" href="#workspace">Skip to workspace</a>
     <main id="workspace" tabindex="-1">
       <header class="topbar">
         <div class="workspace-brand">
-          <span class="brand">Unio</span>
+          <span class="brand"><svg class="brand-logo" viewBox="0 0 193.23 62.00" role="img" aria-label="Unio"><g fill="currentColor"><rect x="2.00" y="2.00" width="6.44" height="6.44" rx="1.48"/><rect x="10.59" y="2.00" width="6.44" height="6.44" rx="1.48"/><rect x="36.37" y="2.00" width="6.44" height="6.44" rx="1.48"/><rect x="44.96" y="2.00" width="6.44" height="6.44" rx="1.48"/><rect x="2.00" y="10.59" width="6.44" height="6.44" rx="1.48"/><rect x="10.59" y="10.59" width="6.44" height="6.44" rx="1.48"/><rect x="36.37" y="10.59" width="6.44" height="6.44" rx="1.48"/><rect x="44.96" y="10.59" width="6.44" height="6.44" rx="1.48"/><rect x="2.00" y="19.19" width="6.44" height="6.44" rx="1.48"/><rect x="10.59" y="19.19" width="6.44" height="6.44" rx="1.48"/><rect x="36.37" y="19.19" width="6.44" height="6.44" rx="1.48"/><rect x="44.96" y="19.19" width="6.44" height="6.44" rx="1.48"/><rect x="2.00" y="27.78" width="6.44" height="6.44" rx="1.48"/><rect x="10.59" y="27.78" width="6.44" height="6.44" rx="1.48"/><rect x="36.37" y="27.78" width="6.44" height="6.44" rx="1.48"/><rect x="44.96" y="27.78" width="6.44" height="6.44" rx="1.48"/><rect x="2.00" y="36.37" width="6.44" height="6.44" rx="1.48"/><rect x="10.59" y="36.37" width="6.44" height="6.44" rx="1.48"/><rect x="36.37" y="36.37" width="6.44" height="6.44" rx="1.48"/><rect x="44.96" y="36.37" width="6.44" height="6.44" rx="1.48"/><rect x="2.00" y="44.96" width="6.44" height="6.44" rx="1.48"/><rect x="10.59" y="44.96" width="6.44" height="6.44" rx="1.48"/><rect x="19.19" y="44.96" width="6.44" height="6.44" rx="1.48"/><rect x="27.78" y="44.96" width="6.44" height="6.44" rx="1.48"/><rect x="36.37" y="44.96" width="6.44" height="6.44" rx="1.48"/><rect x="44.96" y="44.96" width="6.44" height="6.44" rx="1.48"/><rect x="10.59" y="53.56" width="6.44" height="6.44" rx="1.48"/><rect x="19.19" y="53.56" width="6.44" height="6.44" rx="1.48"/><rect x="27.78" y="53.56" width="6.44" height="6.44" rx="1.48"/><rect x="36.37" y="53.56" width="6.44" height="6.44" rx="1.48"/><path d="M87.16086051544146 51.6997084548105Q83.10925375431817 51.6997084548105 80.17055497388579 50.35523249230649Q77.2318561934534 49.010756529802485 75.6498742163368 45.89155822088698Q74.06789223922019 42.77235991197147 74.06789223922019 37.52188170234247V10.91420584065574H83.2038485307748V38.00349658466984Q83.2038485307748 40.912178903905016 84.06532821161883 42.45968238223051Q84.92680789246285 44.007185860556 87.10248714449236 44.007185860556Q89.32726855691726 44.007185860556 90.23334688146457 42.45968238223051Q91.1394252060119 40.912178903905016 91.1394252060119 38.00349658466984V10.91420584065574H100.27538149756651V37.52188170234247Q100.27538149756651 42.77235991197147 98.69379962401337 45.89155822088698Q97.11221775046023 49.010756529802485 94.18899526130483 50.35523249230649Q91.2657727721494 51.6997084548105 87.16086051544146 51.6997084548105ZM108.20776740236244 51.0V10.91420584065574H116.83208890965787L124.0575391226898 27.46883464241862Q124.27089416066818 27.99454485674989 124.55843682615948 28.685079567633984Q124.84597949165078 29.37561427851808 125.13182059311092 30.140202333558754Q125.41766169457105 30.90479038859943 125.61340318466543 31.632648660907247L125.9049483741698 31.62264157627484Q125.87752758577464 30.4950223194962 125.87752758577464 29.396525415143884Q125.87752758577464 28.298028510791568 125.87752758577464 27.46883464241862V10.91420584065574H134.57109847836998V51.0H125.95171618034252L118.59123465782133 34.17630810918335Q118.22276928671724 33.24550924739059 117.83945508834006 32.080664311136516Q117.45614088996287 30.915819374882446 117.11636053567159 29.762047947669515L116.84723259224617 29.772055032301925Q116.87465338064133 30.79172267128358 116.87465338064133 31.974680368650066Q116.87465338064133 33.15763806601655 116.87465338064133 34.17630810918335V51.0ZM142.72671783968022 51.0V10.91420584065574H151.86267413123483V51.0ZM174.17896226081615 51.6997084548105Q169.19854743998658 51.6997084548105 165.8465772796663 49.536434714022604Q162.49460711934603 47.373160973234704 160.7966717624816 42.78879628810521Q159.0987364056172 38.20443160297572 159.0987364056172 30.96831154336735Q159.0987364056172 23.72298460625351 160.7966717624816 19.14322335987675Q162.49460711934603 14.563462113499988 165.8465772796663 12.388979749672615Q169.19854743998658 10.214497385845242 174.17896226081615 10.214497385845242Q179.19100120523012 10.214497385845242 182.554212155114 12.388979749672615Q185.91742310499785 14.563462113499988 187.59080738166458 19.14322335987675Q189.2641916583313 23.72298460625351 189.2641916583313 30.96831154336735Q189.2641916583313 38.20443160297572 187.59080738166458 42.78879628810521Q185.91742310499785 47.373160973234704 182.554212155114 49.536434714022604Q179.19100120523012 51.6997084548105 174.17896226081615 51.6997084548105ZM174.17896226081615 43.98050094623955Q175.81056379705535 43.98050094623955 176.90517409018236 43.317113130850274Q177.99978438330936 42.653725315461 178.67979089727334 41.379085808384175Q179.35979741123734 40.10444630130735 179.662757912879 38.250211392651494Q179.9657184145206 36.395976483995646 179.9657184145206 33.99686859369973V27.903326671255574Q179.9657184145206 25.500015445770398 179.662757912879 23.65702132667814Q179.35979741123734 21.814027207585884 178.67979089727334 20.53725386639031Q177.99978438330936 19.26048052519473 176.90517409018236 18.59709270980546Q175.81056379705535 17.933704894416188 174.17896226081615 17.933704894416188Q172.5697779706559 17.933704894416188 171.4639590544894 18.59709270980546Q170.35814013832294 19.26048052519473 169.68063539551704 20.53725386639031Q169.00313065271115 21.814027207585884 168.70227181866414 23.65702132667814Q168.40141298461714 25.500015445770398 168.40141298461714 27.903326671255574V33.99686859369973Q168.40141298461714 36.395976483995646 168.70227181866414 38.250211392651494Q169.00313065271115 40.10444630130735 169.68063539551704 41.379085808384175Q170.35814013832294 42.653725315461 171.4639590544894 43.317113130850274Q172.5697779706559 43.98050094623955 174.17896226081615 43.98050094623955Z"/></g></svg></span>
           <h1>Project workspace</h1>
         </div>
         <div class="topbar-controls">
@@ -5406,6 +5410,17 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
     renderLimits();
   }
 
+  // The loading screen (the dot U) stays until the first observation has
+  // finished, whatever its result, and at least long enough not to flash.
+  const bootStarted = performance.now();
+  let booted = false;
+  function markReady() {
+    if (booted) return;
+    booted = true;
+    const wait = Math.max(0, 600 - (performance.now() - bootStarted));
+    setTimeout(() => document.documentElement.classList.add("is-ready"), wait);
+  }
+
   async function refresh() {
     if (busy) return;
     busy = true;
@@ -5427,6 +5442,7 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
     } finally {
       busy = false;
       document.getElementById("tasks").setAttribute("aria-busy", "false");
+      markReady();
     }
     // Allowance metadata never blocks the activity render above.
     renderLimits();
@@ -5835,6 +5851,178 @@ footer a { display: inline-flex; align-items: center; min-height: 44px; color: v
 .limits-window[data-status="expired"] .limits-meter span,
 .limits-window[data-status="historical"] .limits-meter span { background: var(--line-alt); }
 .limits-window[data-status="invalid"] strong, .limits-window[data-status="unknown"] strong { color: var(--map-attention); }
+
+/* ------------------------------------------------------------------------
+   Unio interface language (shared with the project website).
+   Function first: nothing here adds information that is not in the data.
+   - corners: nothing is square; groups of buttons round their outer corners
+     more than the inner ones; only the brand badge is a pill
+   - small labels and numbers in monospace capitals
+   - one muted tone per agent (logos and card edges), never instead of the
+     status colors, which keep their meaning
+   ------------------------------------------------------------------------ */
+:root {
+  --mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-out: 9px;
+  /* agent tones, light theme: dark enough to read on light panels */
+  --t-rust: #8b3b2d;
+  --t-mustard: #8a682e;
+  --t-sea: #2e6b5d;
+  --t-steel: #455a73;
+  --t-periwinkle: #344483;
+  --t-lavender: #433285;
+}
+[data-theme="dark"] {
+  --t-rust: #cb7f72;
+  --t-mustard: #caaa72;
+  --t-sea: #74b4a5;
+  --t-steel: #91a2b6;
+  --t-periwinkle: #8795c9;
+  --t-lavender: #a094d1;
+}
+
+/* Hidden but announced (the theme label used this class without a rule). */
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+
+/* Header: the brand badge, sticky so Refresh and the mode stay in reach */
+.topbar {
+  position: sticky; top: 0; z-index: 20; min-height: 64px;
+  background: color-mix(in srgb, var(--bg-main) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+.brand {
+  display: inline-flex; align-items: center; height: 30px; padding: 0 13px;
+  border: 0; border-radius: 15px; background: var(--accent); color: var(--btn-primary-text);
+}
+.brand-logo { display: block; height: 15px; width: auto; }
+h1 { font-family: var(--mono); font-size: 12px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+#theme-selector {
+  min-height: 36px; padding: 6px 10px; font-size: 13px;
+  color: var(--text-main); background: var(--paper); border: 1px solid var(--btn-border);
+}
+.topbar-controls { gap: 10px; }
+#refresh { min-height: 36px; padding: 6px 14px; }
+
+/* Small labels: monospace capitals */
+.eyebrow, .mode-label, .state-label, .chip, .map-counts, #status, .map-legend,
+.evidence-grid dt, #map-zoom-level, .limits-card h4, .limits-subtitle, .empty-mark {
+  font-family: var(--mono); letter-spacing: .06em; text-transform: uppercase;
+}
+.eyebrow { font-size: 11px; }
+.mode-label, .state-label, .chip { font-size: 10.5px; font-weight: 650; }
+.map-counts, #status, .map-legend, .evidence-grid dt, #map-zoom-level { font-size: 11px; }
+.limits-subtitle { font-size: 12px; font-weight: 650; color: var(--muted); }
+
+/* Corners */
+button, input, textarea, .map-controls select, #theme-selector { border-radius: var(--r-sm); }
+.composer, .selected-work, .map-container { border-radius: var(--r-md); }
+.map-scroll-area, .limits-card, .limits-lead, pre, .warnings, .error { border-radius: var(--r-sm); }
+.mode-label, .state-label, .chip { border-radius: var(--r-xs); }
+#work-map [data-node-key] > rect { rx: 4px; }
+
+/* Button groups: inner corners small, outer corners rounder */
+:is(.view-switch, .map-camera-controls, .map-pagination, .console-tabs, .execution-actions) { gap: 4px; }
+:is(.view-switch, .map-camera-controls, .map-pagination, .console-tabs, .execution-actions) > button { border-radius: var(--r-xs); }
+:is(.view-switch, .map-camera-controls, .map-pagination, .console-tabs, .execution-actions) > button:first-of-type {
+  border-top-left-radius: var(--r-out); border-bottom-left-radius: var(--r-out);
+}
+:is(.view-switch, .map-camera-controls, .map-pagination, .console-tabs, .execution-actions) > button:last-of-type {
+  border-top-right-radius: var(--r-out); border-bottom-right-radius: var(--r-out);
+}
+.draft-reopen { gap: 4px; }
+.draft-reopen input { border-radius: var(--r-out) var(--r-xs) var(--r-xs) var(--r-out); }
+.draft-reopen button { border-radius: var(--r-xs) var(--r-out) var(--r-out) var(--r-xs); }
+/* The chosen view or tab is shown inverted, like a selected menu item */
+.view-switch button[aria-pressed="true"], .console-tabs button[aria-selected="true"] {
+  background: var(--accent); border-color: var(--accent); color: var(--btn-primary-text);
+}
+
+/* Agent cards: a header strip with the agent's tone on its edge */
+.limits-card { padding: 0 14px 12px; transition: border-color .16s, box-shadow .16s; }
+.limits-card h4 {
+  margin: 0 -14px 10px; padding: 8px 14px; font-size: 11.5px; font-weight: 700;
+  background: var(--bg-composer); border-bottom: 1px solid var(--line);
+  border-radius: calc(var(--r-sm) - 1px) calc(var(--r-sm) - 1px) 0 0;
+  box-shadow: inset 3px 0 0 var(--tone, var(--line-alt));
+}
+.limits-card:hover { border-color: var(--text-label); box-shadow: 0 0 0 1px var(--text-label); }
+.limits-meter { border-radius: var(--r-xs); }
+
+/* Hover: the thing under the pointer answers with a firmer edge */
+.map-container .row, .limits-lead { transition: background-color .16s; }
+.map-container .row:hover { background: var(--bg-composer); }
+input:hover, textarea:hover, .map-controls select:hover, #theme-selector:hover { border-color: var(--btn-hover-border); }
+
+/* One tone per agent. Map nodes carry the logo's mark name; cards carry the
+   configured route name. */
+[data-agent-mark="claude"], [data-route^="claude"], [data-agent-mark="minimax"] { --tone: var(--t-rust); }
+[data-agent-mark="openai"], [data-route^="codex"], [data-route^="perplexity"] { --tone: var(--t-sea); }
+[data-agent-mark="antigravity"], [data-agent-mark="gemini"], [data-route^="antigravity"],
+[data-route^="gemini"], [data-agent-mark="deepseek"], [data-route^="deepseek"] { --tone: var(--t-periwinkle); }
+[data-agent-mark="grok"], [data-route^="grok"], [data-agent-mark="opencode"], [data-route^="opencode"] { --tone: var(--t-steel); }
+[data-agent-mark="kimi"], [data-route^="kimi"], [data-agent-mark="qwen"], [data-route^="qwen"] { --tone: var(--t-lavender); }
+[data-agent-mark="zai"], [data-route^="glm"], [data-route^="vibe"], [data-route^="mistral"] { --tone: var(--t-mustard); }
+#work-map [data-agent-mark] .node-logo { fill: var(--tone, var(--text-main)); }
+
+/* Loading screen: the dot U assembles while the first observation is read,
+   its dots drifting through the agent tones. Purely visual: it never takes
+   clicks, it leaves as soon as the page has data, and it removes itself
+   after a few seconds even if no data ever arrives. */
+.boot {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 20px;
+  background: var(--bg-main); pointer-events: none;
+  animation: boot-away .3s ease 6s forwards;
+}
+.is-ready .boot { opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility 0s .35s; }
+@keyframes boot-away { to { opacity: 0; visibility: hidden; } }
+.boot-field { display: grid; grid-template-columns: repeat(10, 14px); gap: 4px; }
+.boot-field i { width: 14px; height: 14px; border-radius: 3px; background: var(--bg-composer); }
+/* each dot of the U waits dim like the field, then pops into a tone in turn */
+.boot-field i.on { animation: boot-dot .3s ease-out, boot-tone 3.6s linear infinite; }
+@keyframes boot-dot { from { transform: scale(.55); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .boot-field i.on { background: var(--accent); } }
+@keyframes boot-tone {
+  0%, 100% { background: var(--t-rust); } 16.6% { background: var(--t-mustard); } 33.3% { background: var(--t-sea); }
+  50% { background: var(--t-steel); } 66.6% { background: var(--t-periwinkle); } 83.3% { background: var(--t-lavender); }
+}
+.boot-label { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.boot-field i:nth-child(23) { animation-delay: 0ms, 0ms; }
+.boot-field i:nth-child(24) { animation-delay: 30ms, 30ms; }
+.boot-field i:nth-child(27) { animation-delay: 60ms, 60ms; }
+.boot-field i:nth-child(28) { animation-delay: 90ms, 90ms; }
+.boot-field i:nth-child(33) { animation-delay: 120ms, 120ms; }
+.boot-field i:nth-child(34) { animation-delay: 150ms, 150ms; }
+.boot-field i:nth-child(37) { animation-delay: 180ms, 180ms; }
+.boot-field i:nth-child(38) { animation-delay: 210ms, 210ms; }
+.boot-field i:nth-child(43) { animation-delay: 240ms, 240ms; }
+.boot-field i:nth-child(44) { animation-delay: 270ms, 270ms; }
+.boot-field i:nth-child(47) { animation-delay: 300ms, 300ms; }
+.boot-field i:nth-child(48) { animation-delay: 330ms, 330ms; }
+.boot-field i:nth-child(53) { animation-delay: 360ms, 360ms; }
+.boot-field i:nth-child(54) { animation-delay: 390ms, 390ms; }
+.boot-field i:nth-child(57) { animation-delay: 420ms, 420ms; }
+.boot-field i:nth-child(58) { animation-delay: 450ms, 450ms; }
+.boot-field i:nth-child(63) { animation-delay: 480ms, 480ms; }
+.boot-field i:nth-child(64) { animation-delay: 510ms, 510ms; }
+.boot-field i:nth-child(67) { animation-delay: 540ms, 540ms; }
+.boot-field i:nth-child(68) { animation-delay: 570ms, 570ms; }
+.boot-field i:nth-child(73) { animation-delay: 600ms, 600ms; }
+.boot-field i:nth-child(74) { animation-delay: 630ms, 630ms; }
+.boot-field i:nth-child(75) { animation-delay: 660ms, 660ms; }
+.boot-field i:nth-child(76) { animation-delay: 690ms, 690ms; }
+.boot-field i:nth-child(77) { animation-delay: 720ms, 720ms; }
+.boot-field i:nth-child(78) { animation-delay: 750ms, 750ms; }
+.boot-field i:nth-child(84) { animation-delay: 780ms, 780ms; }
+.boot-field i:nth-child(85) { animation-delay: 810ms, 810ms; }
+.boot-field i:nth-child(86) { animation-delay: 840ms, 840ms; }
+.boot-field i:nth-child(87) { animation-delay: 870ms, 870ms; }
 UNIO_BROWSER_ACTIVITY_CSS
 cat > "$CONF_DIR/lib/browser/drafts.js" <<'UNIO_BROWSER_DRAFTS_JS'
 /* Unio — Copyright (C) 2026 Daniel Mitev; Daniel Mevit (@danielmevit).
