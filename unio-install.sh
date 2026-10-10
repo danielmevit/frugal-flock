@@ -4315,31 +4315,46 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
   // One state per task, from the same strict verdict as the map: a task is
   // Finished only when its run succeeded, its checks passed and a review
   // approved it. Every state names one next step as a real unio command.
-  function humanState(r, verdict) {
+  // Worker and task names come from project files, so a suggested command
+  // quotes them: pasting it can only ever run unio with those names. A name
+  // with control characters or a leading "-" gets no command at all.
+  const SAFE_ARG = /^[A-Za-z0-9._\/@%+=:,][A-Za-z0-9._\/@%+=:,-]*$/;
+  function shellArg(value) {
+    const v = String(value);
+    if (/[\u0000-\u001f\u007f]/.test(v) || v.startsWith("-") || !v) return null;
+    return SAFE_ARG.test(v) ? v : "'" + v.replaceAll("'", "'\\''") + "'";
+  }
+  function unioCommand(verb, ...args) {
+    const quoted = args.map(shellArg);
+    return quoted.includes(null) ? null : ["unio", verb, ...quoted].join(" ");
+  }
+  function humanState(r, verdict, latestForWorker = true) {
     const process = sectionState(r, "process"), validation = sectionState(r, "validation"), review = sectionState(r, "review");
     const w = r.worker, t = r.task;
     const v = r.validation || {};
     const exit = r.process && r.process.exit_code !== null && r.process.exit_code !== undefined ? " (exit " + r.process.exit_code + ")" : "";
     if (verdict.category === "active")
-      return { label: "Running", sentence: "The worker is running this task now.", next: ["Follow the live log", "unio tail " + t] };
+      return { label: "Running", sentence: "The worker is running this task now.", next: ["Follow the live log", unioCommand("tail", t)] };
     if (process === "running" || r.activity === "completion_unknown")
-      return { label: "Run status unknown", sentence: "The run has no recorded end; it may have been interrupted.", next: ["Read the report", "unio report " + t] };
+      return { label: "Run status unknown", sentence: "The run has no recorded end; it may have been interrupted.", next: ["Read the report", unioCommand("report", t)] };
     if (process !== "succeeded")
-      return { label: "Run failed", sentence: (process === "failed" ? "The run failed" : "The run ended: " + label(process)) + exit + ".", next: ["Read the report", "unio report " + t] };
+      return { label: "Run failed", sentence: (process === "failed" ? "The run failed" : "The run ended: " + label(process)) + exit + ".", next: ["Read the report", unioCommand("report", t)] };
     if (validation === "failed")
-      return { label: "Checks failed", sentence: (v.checks_failed ?? "Some") + " of " + (v.checks_run ?? "its") + " checks failed.", next: ["Read why", "unio report " + t] };
+      return { label: "Checks failed", sentence: (v.checks_failed ?? "Some") + " of " + (v.checks_run ?? "its") + " checks failed.", next: ["Read why", unioCommand("report", t)] };
     if (validation !== "passed")
-      return { label: "Checks not run", sentence: "The run finished; its checks have not run yet.", next: ["Run the checks", "unio verify " + w + " " + t] };
+      return { label: "Checks not run", sentence: "The run finished; its checks have not run yet.", next: ["Run the checks", unioCommand("verify", w, t)] };
     if (review === "not_run")
-      return { label: "Waiting for review", sentence: "Ran and passed its checks; no review yet.", next: ["Ask another lab to review", "unio review " + w + " " + t] };
+      return { label: "Waiting for review", sentence: "Ran and passed its checks; no review yet.", next: ["Ask another lab to review", unioCommand("review", w, t)] };
     if (review === "changes_requested")
-      return { label: "Changes requested", sentence: "The reviewer asked for changes.", next: ["Read the review", "unio report " + t] };
+      return { label: "Changes requested", sentence: "The reviewer asked for changes.", next: ["Read the review", unioCommand("report", t)] };
     if (review !== "approved")
-      return { label: "Review " + label(review), sentence: "The review did not finish with a decision.", next: ["Read the report", "unio report " + t] };
+      return { label: "Review " + label(review), sentence: "The review did not finish with a decision.", next: ["Read the report", unioCommand("report", t)] };
     if (verdict.category !== "finished")
-      return { label: "Evidence is stale", sentence: "Approved, but the worktree changed since; check it again.", next: ["Check again", "unio verify " + w + " " + t] };
+      return { label: "Evidence is stale", sentence: "Approved, but the worktree changed since; check it again.", next: ["Check again", unioCommand("verify", w, t)] };
     const reviewer = r.review && r.review.reviewer;
-    return { label: "Finished", sentence: reviewer ? "Approved by " + reviewer + ". Merging is your call." : "Approved. Merging is your call.", next: ["Inspect before you merge", "unio diff " + w] };
+    // unio diff shows the worker's whole current branch, not one task.
+    return { label: "Finished", sentence: (reviewer ? "Approved by " + reviewer + "." : "Approved.") + " Merging is your call.",
+      next: [latestForWorker ? "Inspect the branch before you merge" : "Worker's branch (includes later work)", unioCommand("diff", w)] };
   }
   // Run → Checks → Review, each done, failed, waiting or unknown.
   function trackSteps(r) {
@@ -4406,6 +4421,10 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
   }
   function nextStep(next) {
     const box = text("div", "", "next-step");
+    if (!next[1]) {
+      box.append(text("span", "Next step", "next-label"), text("p", "No command shown: this name has characters that cannot be pasted safely.", "small"));
+      return box;
+    }
     box.append(text("span", next[0], "next-label"));
     const line = text("div", "", "next-line");
     const code = text("code", next[1]);
@@ -4431,6 +4450,10 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
     if (r.activity === "completion_unknown") lines.push("No completion recorded; interruption possible. Detached processes are not ruled out.");
     return lines;
   }
+  function isLatestForWorker(data, r) {
+    const mine = Date.parse(r.recorded_at) || 0;
+    return !data.results.some((o) => o !== r && o.worker === r.worker && (Date.parse(o.recorded_at) || 0) > mine);
+  }
   const GROUPS = [["attention", "Needs you"], ["active", "Running"], ["finished", "Finished"]];
   function renderSummary(tally) {
     for (const button of document.querySelectorAll("#task-summary button")) {
@@ -4453,7 +4476,7 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
       group.append(heading);
       for (const r of records) {
         const verdict = categories.get(r);
-        const state = humanState(r, verdict);
+        const state = humanState(r, verdict, isLatestForWorker(data, r));
         const row = text("article", "", "row task-row");
         row.dataset.worker = r.worker;
         row.dataset.task = r.task;
@@ -5297,7 +5320,7 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
     });
     const field = (name) => details.querySelector('[data-field="' + name + '"]');
     setText(field("title"), r.worker + " / " + r.task);
-    const state = humanState(r, verdict);
+    const state = humanState(r, verdict, isLatestForWorker(data, r));
     const brief = field("brief");
     const signature = JSON.stringify([state, trackSteps(r)]);
     if (brief.dataset.signature !== signature) {

@@ -171,6 +171,13 @@ const { chromium } = require(process.env.M2_PLAYWRIGHT_MODULE || "playwright");
     assert.deepEqual(listButtons.filter((name) => name !== "copy"), ["Refresh", "List", "Work map", "Reset filters"]);
     assert.ok(listButtons.includes("copy"), "the list offers a copyable next step");
     assert.deepEqual(await page.locator("#task-summary button").evaluateAll((nodes) => nodes.map((n) => n.dataset.state)), ["attention", "active", "finished"]);
+    // Suggested commands are built from names in project files: every name is
+    // either plain or single-quoted, so pasting one can only run unio.
+    const commands = await page.locator("#tasks .next-line code").allTextContents();
+    assert.ok(commands.length > 0, "the list suggests commands");
+    for (const command of commands)
+      assert.match(command, /^unio [a-z-]+( ('([^']|'\\'')*'|[A-Za-z0-9._\/@%+=:,][A-Za-z0-9._\/@%+=:,-]*))+$/, "command arguments are quoted: " + command);
+    assert.ok(commands.some((c) => c.includes(" '<img src=x onerror=alert(1)> long_literal_task_")), "the task name with markup and spaces is one quoted argument");
     // ...and read-only map nodes.
     await page.click("#view-map");
     const buttons = await page.getByRole("button").evaluateAll((nodes) =>
