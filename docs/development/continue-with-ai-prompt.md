@@ -32,7 +32,11 @@ Missing, stale or expired readings stay Unknown; a passed reset is not proof
 of refill. See [capacity usage](CAPACITY-READINGS.md).
 
 Main also contains optional source-tree [subscription adapters](../integrations/README.md),
-not packaged in the v0.5.7 installer. Vibe 2.26.1 supports explicitly pinned
+not packaged in the v0.5.7 installer. Awaiting a future release, the installer
+on main now copies both exact adapter files to `~/.config/unio/lib/adapters`
+and adds read-only `unio integrations [--json]` (file metadata only; JSON via
+isolated stdlib Python). Its offline test and generator check are wired into
+the quality gate, which has not yet been run in full for this addition. Vibe 2.26.1 supports explicitly pinned
 GLM 5.3 and Mistral Medium 3.5/high, with 2M/$5 default and 4M/$10 substantial
 cumulative task bounds. Both pins were checked against the actual installed
 CLI schema offline; nine functional tests passed. Effective model/effort and

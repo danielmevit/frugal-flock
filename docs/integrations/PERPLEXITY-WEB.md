@@ -13,6 +13,21 @@ fixtures only (`tests/unio-perplexity.py`). No live Perplexity query was
 made while building it. Nothing here proves that your account can reach a
 given model, how much allowance remains, or how good the answers are.
 
+## Where the adapter lives
+
+- Source checkout: `tools/perplexity-worker.py`.
+- Installed copy: `~/.config/unio/lib/adapters/perplexity-worker.py` (or under
+  `$UNIO_CONF_DIR`). **Development addition awaiting a future release:** the
+  installer on `main` places the exact reviewed bytes there, but the released
+  v0.5.7 installer does not. Use the source-checkout path with v0.5.7.
+
+Installing Unio does not install the connector, sign in or contact Perplexity.
+`unio integrations` (or `--json`) shows the installed path and whether the file
+is present. It reads only file metadata: it never imports the connector, reads
+the token or runs the adapter. `installed: true` is not readiness; sign-in,
+entitlement and allowance stay unknown. Manual installation and login remain
+owner steps, and no live Perplexity trial is claimed here.
+
 ## What it uses
 
 The adapter relies on the community library
@@ -156,6 +171,36 @@ before adding that route. All three supported routes request Thinking; its
 effective depth is unknown and there is no high/xhigh/max effort flag here.
 
 ## Owner setup (manual, once)
+
+> **Read this before running any setup command.**
+>
+> - **Unofficial and unsupported.** The connector is not affiliated with or
+>   supported by Perplexity. Its author labels it a learning project for
+>   research and education and warns that consequences for your account,
+>   including rate limiting, suspension or termination, are possible
+>   ([README](https://github.com/jacob-bd/perplexity-web-mcp/blob/e34b5082d6c16283358d8a1e3cbd7fa61c35fc0d/README.md#L46-L49)). This repeats upstream's warning; Unio
+>   has not observed any account restriction.
+> - **Plaintext token.** The pinned code stores your session token as plain
+>   text in `~/.config/perplexity-web-mcp/token`, created with mode `0600` in a
+>   directory created with mode `0700`, not in an operating-system keyring
+>   ([`token_store.py#L19-L73`](https://github.com/jacob-bd/perplexity-web-mcp/blob/e34b5082d6c16283358d8a1e3cbd7fa61c35fc0d/src/perplexity_web_mcp/token_store.py#L19-L73)).
+>   Any software running as your user, including this package's dependencies,
+>   can read it. A virtual environment separates packages; it is not a sandbox.
+> - **Pins are partial.** The commit pin fixes the connector's own code. Its
+>   dependencies are version ranges that pip resolves at install time
+>   ([`pyproject.toml#L25-L39`](https://github.com/jacob-bd/perplexity-web-mcp/blob/e34b5082d6c16283358d8a1e3cbd7fa61c35fc0d/pyproject.toml#L25-L39)), so transitive
+>   packages are not pinned. No pin proves that code is safe.
+> - **Login output is secret.** `pwm login` may print part of the session token
+>   ([`cli/auth.py#L226-L232`](https://github.com/jacob-bd/perplexity-web-mcp/blob/e34b5082d6c16283358d8a1e3cbd7fa61c35fc0d/src/perplexity_web_mcp/cli/auth.py#L226-L232)).
+>   Keep the email code, the token and all login output in your terminal. Never
+>   put them in a chat, task file, receipt or Git.
+> - **Credentials stay native.** The token remains in the connector's own config
+>   outside any repository; Unio never copies it. Unio's bounded proposal
+>   workflow and offline adapter tests are not a security audit of the upstream
+>   connector or its dependencies.
+> - **Alternative without login.** You can research manually in the Perplexity
+>   web app and transfer a proposal yourself into a task for an implementation
+>   agent. That needs no connector installation or login.
 
 Run these steps yourself in a terminal, not through an AI agent. Upstream
 supports Python 3.10 to 3.13.
@@ -328,6 +373,11 @@ perplexityglm="$HOME/.local/share/unio-perplexity/bin/python" "$HOME/code/unio/t
 perplexitykimi="$HOME/.local/share/unio-perplexity/bin/python" "$HOME/code/unio/tools/perplexity-worker.py" --model kimi_k3 --prompt-file "$TASKFILE"
 perplexitygpt="$HOME/.local/share/unio-perplexity/bin/python" "$HOME/code/unio/tools/perplexity-worker.py" --model gpt6_sol --prompt-file "$TASKFILE"
 ```
+
+With an installer that packages the adapter, replace
+`"$HOME/code/unio/tools/perplexity-worker.py"` with the installed copy,
+`"$HOME/.config/unio/lib/adapters/perplexity-worker.py"`. The bytes are
+identical; the interpreter must still be the connector's venv Python.
 
 ```bash
 unio account perplexityglm perplexity

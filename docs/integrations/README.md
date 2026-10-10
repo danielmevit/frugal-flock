@@ -1,9 +1,39 @@
 # Optional subscription adapters
 
-These adapters run from a Unio source checkout. They are not included in the
-v0.5.7 standalone installer. Install and sign in to the external tool manually;
-the adapter does not purchase credits, change billing or fall back to another
-paid service.
+These adapters run from a Unio source checkout. Install and sign in to the
+external tool manually; the adapter does not purchase credits, change billing or
+fall back to another paid service.
+
+## Where the adapters live
+
+| Adapter | Source checkout | Installed copy (awaiting a future release) |
+| --- | --- | --- |
+| Vibe worker | `tools/vibe-worker.py` | `~/.config/unio/lib/adapters/vibe-worker.py` |
+| Perplexity worker | `tools/perplexity-worker.py` | `~/.config/unio/lib/adapters/perplexity-worker.py` |
+
+**Development addition, not yet released.** On `main`, the standalone installer
+copies the exact reviewed bytes of both adapters to the installed path above
+(or under `$UNIO_CONF_DIR/lib/adapters`). The released v0.5.7 installer does
+**not** include them. Until a later release ships this, use the source-checkout
+path. Installing Unio installs no Vibe, Perplexity connector or other external
+dependency, and starts no model.
+
+To see what is present, run:
+
+```bash
+unio integrations          # human-readable
+unio integrations --json   # schema_version 1
+```
+
+It reports each adapter's role, installed path, whether that file is present
+and its setup guide. It only reads local file metadata: it loads no adapter or
+dependency, reads no token or config contents, makes no network or model
+request and writes nothing. It works outside a project and while STOP is set.
+`installed: true` means only that the file exists; authentication and capacity
+remain `unknown`. `--json` needs Python 3, run isolated with the standard
+library `json` module only. The command never launches an adapter: you still
+add an explicit `agents.conf` alias, map it to its budget with `unio account`
+and start it with `unio run`, so native per-budget slots stay in force.
 
 | Route | Use it for | Guide |
 | --- | --- | --- |
@@ -19,7 +49,17 @@ The adapter never executes suggested commands or applies a patch automatically.
 Keep aliases on the same subscription in one shared budget group. Perplexity,
 Mistral Vibe and OpenCode are separate account routes even when they offer the
 same underlying model. In low tier, each shared budget permits one independent
-native workflow, including a lead when that account hosts it.
+native workflow, including a lead when that account hosts it. For example,
+after adding the aliases from each guide:
+
+```bash
+unio account vibeglm mistral
+unio account vibe35 mistral
+unio account perplexityglm perplexity
+unio resume
+UNIO_TIMEOUT=5460 unio run vibeglm-feature TASK-ID
+unio stop
+```
 
 Both adapters passed focused offline tests. The corrected Vibe configuration
 also passed an offline check against the installed CLI schema. No live
