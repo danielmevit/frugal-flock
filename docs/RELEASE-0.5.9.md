@@ -29,7 +29,8 @@ proposals with local/BYOK models excluded. Balance is automatic routing, not a
 fixed model or effort level. Native usage does not establish remaining account
 allowance. Setup and authentication remain explicit and manual.
 
-The packaged [agent fleet guide](development/AGENT-FLEET.md) explains how to
+The packaged [agent fleet guide](development/AGENT-FLEET.md), routing and effort
+instructions explain how to
 assign capable implementation workers, research/proposal routes and routine
 helpers while respecting shared subscriptions. Existing operator configuration
 is preserved on upgrade. An AI response is still a proposal until inspected and

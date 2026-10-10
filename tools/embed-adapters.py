@@ -46,14 +46,16 @@ def embedded_block():
             raise SystemExit(name + ' must be UTF-8 LF text with a final newline')
         head = 'cat > "$CONF_DIR/lib/adapters/' + name + "\" <<'" + delimiter + "'\n"
         parts.append(head + text + delimiter + '\n')
-    guide = (ROOT / 'docs' / 'development' / 'AGENT-FLEET.md').read_text()
-    delimiter = 'UNIO_AGENT_FLEET_MD'
-    if not guide.endswith('\n') or delimiter in guide.splitlines():
-        raise SystemExit('fleet guide must end in a newline and not contain its delimiter')
-    # Existing operator guide stays intact, including symlinks: no following or replacement.
-    parts.append('if [ ! -e "$TPL_DIR/AGENT-FLEET.md" ] && [ ! -L "$TPL_DIR/AGENT-FLEET.md" ]; then\n'
-                 + 'cat > "$TPL_DIR/AGENT-FLEET.md" <<\'' + delimiter + "'\n"
-                 + guide + delimiter + '\nfi\n')
+    for name in ('AGENT-FLEET', 'LEAD-ROUTING', 'MODEL-EFFORT'):
+        guide = (ROOT / 'docs' / 'development' / (name + '.md')).read_text()
+        delimiter = 'UNIO_' + name.replace('-', '_') + '_MD'
+        if not guide.endswith('\n') or '\r' in guide or delimiter in guide.splitlines():
+            raise SystemExit(name + ' guide must be LF text ending in a newline without its delimiter')
+        # Existing operator guides stay intact, including symlinks.
+        target = '$TPL_DIR/' + name + '.md'
+        parts.append('if [ ! -e "' + target + '" ] && [ ! -L "' + target + '" ]; then\n'
+                     + 'cat > "' + target + '" <<\'' + delimiter + "'\n"
+                     + guide + delimiter + '\nfi\n')
     parts.append(END)
     return ''.join(parts)
 
@@ -70,6 +72,19 @@ def main():
         marker = '# END EMBEDDED DASHBOARD\n'
         assert marker in old
         updated = old.replace(marker, marker + block, 1)
+    # These pre-existing templates have canonical public copies too. Updating
+    # a role or task-fit result must not leave a stale standalone installer.
+    for relative, name, delimiter in (
+        ('docs/ai/MODEL-ROLES.md', 'MODEL-ROLES.md', 'MODEL_ROLES_TPL_EOF'),
+        ('docs/development/MODEL-SCOREBOARD.md', 'MODEL-SCOREBOARD.md', 'MODEL_SCOREBOARD_TPL_EOF'),
+    ):
+        guide = (ROOT / relative).read_text()
+        if not guide.endswith('\n') or '\r' in guide or delimiter in guide.splitlines():
+            raise SystemExit(name + ' must be LF text ending in a newline without its delimiter')
+        marker = 'cat > "$TPL_DIR/' + name + '" <<\'' + delimiter + "'\n"
+        left, rest = updated.split(marker, 1)
+        _, right = rest.split('\n' + delimiter + '\n', 1)
+        updated = left + marker + guide + delimiter + '\n' + right
     if sys.argv[1:] == ['--check']:
         if old != updated:
             raise SystemExit('embedded adapters differ; run python3 -B tools/embed-adapters.py')

@@ -10794,6 +10794,375 @@ never loop through weaker workers or duplicate the lead's account session.
   the current guide and scoreboard are instructions, not runtime scoring.
 UNIO_AGENT_FLEET_MD
 fi
+if [ ! -e "$TPL_DIR/LEAD-ROUTING.md" ] && [ ! -L "$TPL_DIR/LEAD-ROUTING.md" ]; then
+cat > "$TPL_DIR/LEAD-ROUTING.md" <<'UNIO_LEAD_ROUTING_MD'
+# Lead routing, reasoning effort and spending
+
+Read [the current agent fleet](AGENT-FLEET.md), this policy, [bounded escalation](../ai/LEAD-ESCALATION.md), the
+[model scoreboard](MODEL-SCOREBOARD.md) and [model effort](MODEL-EFFORT.md) before planning
+assignments and at the start of each new lead session. Follow the owner's
+current instructions and the selected project's rules. These defaults apply
+whenever Unio is active; they are not permission to spend beyond an owner's
+approved plans, task scope or invocation budget.
+
+## Show the dashboard link at session start
+
+Owner rule: at the beginning of every Unio lead session, after identifying
+the project, run `unio dashboard ensure --open-browser` and show the printed
+`http://127.0.0.1:PORT` link in an update to the owner. During the same
+session and its continuations, reuse that dashboard; `unio dashboard status`
+reports the link without starting anything. Skip this only when the owner
+opts out. If no desktop browser opens, for example on a headless machine,
+the printed link is enough.
+
+This is a startup rule for cooperating leads that read these instructions.
+It is not detection of every AI CLI on the machine: Unio cannot turn an
+existing CLI conversation into a managed session by guessing its process, and
+the dashboard shows recorded Unio activity, not that conversation. The
+read-only dashboard stays up until `unio dashboard stop`, independent of STOP
+and of any AI usage limit, and stopping it never stops workers. Service details
+are in [the browser launcher contract](BROWSER-LAUNCHER-CONTRACT.md).
+
+## Match the agent to the work
+
+Read [the standing model roles](../ai/MODEL-ROLES.md) before each session.
+Grok, Antigravity/Gemini, Claude Code and Codex are the main implementation
+agents. Use available workers from that group for product features, core
+behavior, UI, complex debugging and substantive security corrections. The
+owner's designated lead normally plans, coordinates, reviews and integrates.
+After a worker and one suitable replacement fail to finish, it directly
+implements the remaining correction in its existing session. Follow
+[bounded escalation](../ai/LEAD-ESCALATION.md) and consult the
+[model scoreboard](MODEL-SCOREBOARD.md) before delegation. This does not
+create another workflow or grant extra spending or integration authority.
+
+Use the [verified free worker pool](../FREE-MODELS.md) only for routine
+support: documentation, formatting, inventories, mechanical changes,
+boilerplate, predefined checks and supplementary observations. Free routes
+must never lead, own main feature implementation, decide final acceptance or
+replace the lead during a cooldown. Increasing effort does not promote a
+free model into another role. Escalate difficult findings to a main worker.
+This is a standing owner policy, not an invented reasoning-score ranking.
+
+Choose using task fit and current availability. Low tier counts the lead's
+workflow, so do not launch a second independent job on its shared allowance.
+If Codex leads and Claude is exhausted, use available Grok and
+Antigravity/Gemini for implementation. Antigravity (`agy`) is a multi-model
+CLI; record its selected model and AI lab. A past capacity failure is dated
+evidence: check the owner's new availability report instead of treating it
+as permanent, while preserving invocation and no-paid-fallback rules.
+
+Keep available agents moving on approved, independent tasks rather than
+waiting for an entire batch to finish. Low tier is one independent workflow
+per shared account, including the lead; different accounts can run together.
+Track dependencies and scope ownership, revisit the ready queue when a worker
+finishes, and return to its saved result without blocking unrelated work.
+Do not invent chores merely to keep models busy. Follow
+[the parallel work policy](PARALLEL-WORK.md), preserve frozen runs and integrate
+dependent changes in order. The lead assesses each complete change under the
+current owner review policy.
+
+## No extra token charges by default
+
+Use the owner's existing funded subscriptions. OpenCode subscription models
+use the `opencode-go` route. Do not substitute a pay-as-you-go model or buy
+credits, top up, change billing, create an account or alter authentication
+to get around a limit. Those actions require explicit owner authorization.
+
+The eleven exact Zen free routes in [the inventory](../FREE-MODELS.md) are
+an owner-approved exception for worker assignments while prices remain zero.
+Before each new assignment, check current official pricing and native input,
+output and cache costs. Missing, conflicting or nonzero cost means the route
+is ineligible. Pin the primary model and any title/helper `small_model` to
+the same eligible free model. Do not enable paid fallback or silently replace
+an unavailable free model. Exo's local eligibility is still unestablished.
+See [OpenCode's pricing](https://opencode.ai/docs/zen/#pricing).
+
+## Start at high or the supported middle
+
+Choose high, or the model's supported middle level, for ordinary work.
+Medium is appropriate for routine chores on models that expose it. Keep
+GLM 5.3 at high. LongCat's observed low/medium/high scale permits medium for
+routine work; MiMo V2.6 Flash exposes no effort variant on this route, so
+record the inherited/effective setting as unknown rather than inventing one.
+
+Raise effort only when evidence shows reasoning difficulty. Use a supported
+next level, such as high to xhigh. Xhigh is the owner-selected ceiling;
+do not request max or ultra on any model. Routes exposing only high remain at
+high; routes with only max need another eligible model. Record the reason,
+time bound and current allowance.
+Return ordinary later tasks to the default. Authentication, quota, transport
+and missing-tool failures need their actual causes resolved; more reasoning
+will not fix them. Read the model effort guide for route-specific exceptions.
+
+## Check capacity and preserve work
+
+An installed CLI or model catalog does not prove sign-in, quota or availability.
+Use supported account metadata when available; otherwise record Unknown or a
+dated owner reading. Distinguish five-hour, weekly and monthly limits, and
+keep a reset estimate separate from actual restored capacity. Never repeatedly
+call a known unavailable route to test whether waiting fixed it.
+
+Freeze each task, scope, model, effort, configuration and time bound before
+its authorized invocation. Record actual requested/effective settings, route,
+AI lab, allowance evidence and its age. Respect one-invocation/no-retry rules;
+a concrete defect may justify a new scoped correction, not an unchanged retry.
+Resume Unio before authorized calls and stop it afterward. Preserve failures.
+
+Make coherent scoped commits early, before lengthy final checks, and maintain
+clear handoffs. Do not rely on the final AI response to preserve work. Treat
+unfinished recovery data as unverified. Since 0.5.4, native runs capture
+baseline, changed periodic and final recovery saves (`unio save`); a lead still
+commits early, because a save is not acceptance. Portable checkpoint recovery
+across tools and the [temporary acting-lead handover](LEAD-CAPACITY-HANDOVER.md)
+remain planned work; these instructions do not claim that those features are
+implemented.
+
+## Delegate more as the lead's allowance falls
+
+This is a current lead instruction, not native runtime automation. As the
+lead's trustworthy allowance falls, delegate implementation to other eligible
+main workers and conserve the lead for coordination, review and recovery.
+Suggested operating defaults: below about 20% remaining in either the 5h or
+the weekly window, delegate implementation first; below about 10%, prepare a
+handover packet. These are not native thresholds and not proof of availability.
+Use only a fresh observed reading with its source and age (`unio capacity
+show`, or the browser's Designated AI agents & limits section); a missing,
+stale or expired reading stays Unknown, and a passed reset is not recovered
+allowance. `unio lead <agent>` registers a reservation only; it does not move a
+live CLI conversation or switch to an acting lead. See
+[lead capacity handover](LEAD-CAPACITY-HANDOVER.md).
+
+Read [task time budgets](TASK-TIME-BUDGETS.md) before choosing a deadline.
+Give substantial implementation about 90 minutes, with up to two hours for
+heavier work. Keep Unio, wrapper and CLI limits consistent; keep individual
+checks bounded and save early progress. A task timeout is not evidence of
+exhausted subscription allowance.
+
+## Independent reviews and owner control
+
+Keep source execution, checks, review, acceptance, merge and publication distinct.
+Use independent agents from different AI labs under the project's review rules;
+the project's current owner instructions decide the review count and the
+lead always performs its own assessment. The current Unio session uses
+personal lead review without extra reviewer workers, under the owner-selected
+YOLO mode. Preserve that explicit exception in review receipts.
+Prepare reviewers separately with complete material and no peer verdicts.
+Supplementary routine checks do not replace a competent final security review.
+Fixes require fresh reviews of the changed candidate. Reviews reduce risk;
+they cannot guarantee every error will be found.
+
+Run the checks frozen for the task and push the exact accepted revision.
+Under the current YOLO cadence, use focused checks per coherent feature and
+reserve the full repository gate for release or demonstrated need. Keep releases and installation within the owner's authorization.
+The owner remains in control of plans, spending and published changes.
+
+## Where leads find these instructions
+
+In the Unio source repository, this file and the model effort guide are in
+`docs/development/`; the development index and continuation prompt link here.
+The local workspace entry instructions and installed lead template should
+point to readable copies before any assignment. Preserve existing owner role
+cards when adding those references; do not replace custom instructions.
+
+## Work policy commands
+
+Before planning or delegation, run `unio policy` and read the
+[work modes guide](../WORK-MODES.md) (installed as
+`coord/docs/WORK-MODES.md` after `unio init`). The mode shapes scope and review
+planning; the tier caps independent workflows per shared provider/account
+budget (low 1, medium 2, high 4, lead included). Register the lead with
+`unio lead <agent>` and group aliases sharing one budget with
+`unio account <agent> <group>`. This slice provides guidance and native slot enforcement via strict budget groups.
+
+This document is an operating policy for the lead. The current runner does
+not automatically enforce these routing choices, read pricing, escalate
+reasoning effort or expose a fleet-wide quota meter. Standalone installer
+packaging of the guides is part of shipping work; do not infer its completion
+from the presence of a repository document or a manual local guide update.
+
+## Owner routing preference — 2026-10-07
+
+Prefer Grok for nuanced reasoning, security and control logic, and tests that
+need precise lifecycle or failure analysis. Use current Gemini workers for
+bounded mechanical implementation with a clear contract and observable checks.
+Claude and Codex remain main implementation options when their accounts are
+available and the selected tier permits another workflow.
+
+This preference reflects the owner's assessment and Unio's recorded experience.
+Recent Gemini candidates passed focused checks but still needed lead corrections:
+the work-saving draft omitted required schema and restore rules, and a timeout
+fixture understated process lifetime and missed children after parent exit.
+Treat a successful worker exit and green checks as evidence to inspect; personally
+review the actual change before acceptance under the selected review policy.
+These runs do not establish a universal model ranking.
+
+Reassess Gemini when a newer model is actually available on the owner's route,
+using completed Unio tasks and observed defects. A version announcement alone
+does not change assignments. Record the exact model, effort, route and result.
+
+Availability still controls dispatch. Preserve exhausted-account failures;
+an explicit new owner assignment can authorize one fresh task attempt, without
+any paid fallback, account change or automatic retry. Low tier permits one
+independent workflow per shared account, so queue reasoning tasks behind an
+active Grok task. Free Zen workers keep their routine supporting role.
+UNIO_LEAD_ROUTING_MD
+fi
+if [ ! -e "$TPL_DIR/MODEL-EFFORT.md" ] && [ ! -L "$TPL_DIR/MODEL-EFFORT.md" ]; then
+cat > "$TPL_DIR/MODEL-EFFORT.md" <<'UNIO_MODEL_EFFORT_MD'
+# Choosing model effort in Unio
+
+This is the lead's operating guide for choosing how much reasoning a worker
+or reviewer should use. Read it before assigning work. It also applies to
+the lead's own next session when that session's settings are controllable.
+Owner instructions and the project's run, retry and spending rules take
+precedence. This guide does not authorize another invocation.
+
+Read [lead routing and spending](LEAD-ROUTING.md) and [task budgets](TASK-TIME-BUDGETS.md) alongside this guide.
+A listed model is an inventory entry, not authorization to use a paid route.
+
+## Default and escalation
+
+Start with **high**, or the supported **middle level** for a model whose
+scale differs. Use medium for routine documentation, coordination and
+well-understood edits when the model supports it. Do not default to low,
+maximum effort or a model's more expensive implicit default. The route
+table below identifies exceptions where a middle setting is unavailable.
+
+Increase effort when evidence points to reasoning difficulty: an agent
+misses interacting constraints, cannot explain a reproducible defect,
+overlooks a demonstrated security boundary, or struggles with a genuinely
+complex design. First give it the relevant evidence and a focused question.
+Missing context and an overly broad task often need a clearer assignment.
+Do not increase effort or retry indefinitely: follow
+[bounded worker escalation and direct lead takeover](../ai/LEAD-ESCALATION.md)
+when one worker and one suitable replacement cannot finish the correction.
+
+Use the next **effective, supported** level, with **xhigh as the ceiling**.
+The owner updated this standing policy on 2026-10-09: do not request max or
+ultra for any lead, worker or reviewer. High remains the ordinary starting
+choice. Routes without xhigh stay at high; do not invent a variant or silently
+translate xhigh into max. A route exposing only max is ineligible under this
+policy unless another supported non-max setting is verified. Do not omit a
+variant to hide a known maximum default. Unknown effective effort stays Unknown.
+The capability inventory below may describe levels that this policy forbids.
+Record the reason, scope, time limit and known allowance before escalation.
+Return the next ordinary task to its default; escalation is not permanent.
+
+Authentication failures, usage limits, database locks, network errors,
+prompt-size failures and missing tools are operational problems. Increasing
+effort will not fix them. Preserve the actual failure and resolve its cause.
+An elapsed reset estimate is not proof that capacity returned.
+
+## Check the actual route
+
+A model, its CLI and its gateway can expose different controls. Check the
+exact model ID, installed CLI version and route metadata before choosing a
+setting. A flag accepted by a CLI does not prove the model uses that level.
+Likewise, a reasoning-capable model need not expose adjustable effort.
+
+The following inventory was researched on **2026-10-06** using official
+documentation and installed CLI help/model metadata. It covers the model
+pins used in this project; it is not a promise of account availability.
+Recheck it when a model, gateway or CLI changes. OpenCode observations below
+come from `opencode models opencode-go --verbose` and
+`opencode models opencode --verbose`, without generating model responses.
+
+| Agent / exact route | Exposed controls | Starting choice | Escalation and limits |
+| --- | --- | --- | --- |
+| Codex / `gpt-6.1-sol` | Model: low, medium, high, xhigh, max; CLI configuration `model_reasoning_effort` | high; medium for routine work | xhigh ceiling; max is forbidden by owner policy. Do not infer ultra support from another model or client. |
+| Claude / `claude-opus-5-5` | low, medium, high, xhigh, max; installed Claude Code accepts `--effort` | high; medium for routine coordination or writing | xhigh ceiling; max is forbidden by owner policy. The model's API default is medium; pin the chosen level explicitly. |
+| Antigravity / `gemini-3.1-pro-high`, `gemini-3.1-pro-low` | Native `agy models` exposes High and Low for Gemini 3.1 Pro | `gemini-3.1-pro-high --effort high` | High is the top exposed level. Match the low model with low only when deliberately chosen. Generic CLI medium/xhigh/max flags do not create Pro variants; high/xhigh was rejected before inference. |
+| Antigravity / `claude-opus-4-6-thinking` | Native catalog lists the Thinking model; `--effort high` was rejected before inference on2026-10-07 | Exact model default; omit `--effort` | Effective reasoning level remains Unknown. This route is separate from Claude Code Opus5.5 and does not expose its effort scale. |
+| Grok / `grok-4.7` | low, medium, high, xhigh; installed Grok Build uses `--reasoning-effort` / `--effort` | high; medium for routine work | xhigh is the highest documented level. No documented max on this model. |
+| Copilot Free / `auto --auto-tier balance` | Balance is routing; this Auto route rejects explicit effort flags | Omit effort; effective effort Unknown | Native1.0.95 rejected an explicit medium flag before a response. Do not equate Balance with high/xhigh or a fixed model/lab. No max/ultra or local/BYOK fallback. See [Copilot setup](../integrations/GITHUB-COPILOT.md). |
+| Perplexity Pro / `glm_5_3_thinking`, `kimik3thinking` | Thinking identifiers only in the pinned connector; no graduated effort control | Explicit Thinking route | No high/xhigh setting; do not map Thinking to max. Effective reasoning depth stays Unknown. See the [matched field trials](https://github.com/danielmevit/unio/blob/main/docs/development/PERPLEXITY-FIELD-TRIALS-2026-10-10.md). |
+| GLM / `opencode-go/glm-5.3` | Installed variants: low, high, max; `reasoningEffort` | high, the middle of this scale | Stay at high; max is forbidden. No medium/xhigh variant. Native Z.ai default is max, so pin high rather than omit it. |
+| DeepSeek / `opencode-go/deepseek-v4-pro` | Installed variants: high, max; `reasoningEffort` | high | Stay at high; max is forbidden. Direct DeepSeek also documents low, but this installed route does not expose a low variant. Direct API xhigh maps to high, so it is not an escalation. |
+| Kimi / `opencode-go/kimi-k3` | Installed variant: max only; `reasoningEffort` | No eligible setting verified under the no-max policy | Only max is catalogued: choose another eligible route rather than silently inherit it. Do not manufacture high. Moonshot's direct K3 API offers low/high/max, but that is a different route. Prefer an already configured adjustable agent when budget control matters. |
+| Qwen / `opencode-go/qwen3.8-max` | Installed variants: low, medium, xhigh; route option `effort` | medium, the middle of this scale | xhigh for harder work. Direct Alibaba API maps high/max to xhigh; those labels do not create extra levels. The word max in the model name is not the selected effort. |
+| MiniMax / `opencode-go/minimax-m3` | Installed variants: none (thinking disabled), thinking (adaptive thinking) | thinking | A thinking toggle, not a graduated high/xhigh/max scale. M3.1 effort documentation must not be applied to this M3 pin. |
+| NVIDIA / `opencode/nemotron-3-ultra-free` | Reasoning capability true; installed variants empty | Inherited route default; requested/effective effort unknown | No exposed effort override on this route. NVIDIA's self-hosted thinking controls do not prove Zen support. |
+| InclusionAI / `opencode/ling-3.1-flash-free` | Installed variants: low, medium, high; `reasoningEffort` | high; medium for routine work | high is the highest exposed variant. Endpoint availability is a separate check. |
+| Meituan / `opencode/longcat-2.5-preview-free` | Installed variants: low, medium, high; `reasoningEffort` | high; medium for routine work | high is the highest exposed variant. The direct LongCat API's thinking toggle is a different control. Gateway-effective depth needs response evidence. |
+| Xiaomi / `opencode/mimo-v2.6-flash-free` | Reasoning capability true; installed variants empty | Inherited route default; requested/effective effort unknown | No exposed effort override. Research did not verify direct effort documentation for this exact V2.6 pin; do not borrow V2.5 settings. |
+
+Empty variants mean **no exposed override**, not no reasoning and not high
+by default. If a route cannot meet the requested high/middle policy, record
+that exception. Do not silently translate labels or create a custom variant
+without verifying the gateway actually supports its parameter. Check advertised model variants rather than inferring from generic CLI effort choices. Unknown effective effort stays unknown.
+
+On **2026-10-07**, the owner clarified the Antigravity Pro choices and a
+non-generating `agy models` query confirmed `gemini-3.1-pro-high` (High) and
+`gemini-3.1-pro-low` (Low). Those are the exposed Pro variants. The generic
+`agy --help` effort list covers other models too; match the model variant
+to its effort. A native Pro-high/xhigh dispatch was rejected before inference.
+Keep Pro at high by default. Record requested effort separately from the
+effective reasoning observed in a response.
+
+## How the lead applies a choice
+
+Use a separate per-run configuration and a wrapper pinned to the exact
+model and setting. Avoid changing global CLI settings or a shared wrapper
+under a running task. A frozen task's existing model/effort stays unchanged.
+
+Examples of the effort portion of a wrapper are:
+
+```bash
+codex exec -m gpt-6.1-sol -c 'model_reasoning_effort="high"' -
+claude --model claude-opus-5-5 --effort high
+agy --model gemini-3.1-pro-high --effort high
+grok --model grok-4.7 --reasoning-effort high
+opencode run --model opencode-go/glm-5.3 --variant high
+opencode run --model opencode-go/qwen3.8-max --variant medium
+opencode run --model opencode-go/minimax-m3 --variant thinking
+```
+
+These illustrate flags; they are not complete unattended-run commands.
+Preserve the project's permission mode, safe prompt transport, timeouts and
+native Unio lifecycle. Quote paths, including the config directory. Check
+installed help before using a command on a different machine.
+
+For every new assignment, record:
+
+- Exact model ID, AI lab, CLI version and gateway route.
+- Requested effort, its actual flag/variant and the evidence supporting it.
+- Effective effort if the response proves it; otherwise **unknown**.
+- Why this level fits the task, especially any escalation to xhigh.
+- Time/spending bounds, observed capacity and the age of that observation.
+- Task ID and any relationship to an earlier failed or corrected task.
+
+Choosing another effort does not waive task scope, owner approval, retry
+restrictions or review requirements. Under a one-invocation rule, do not
+rerun an unchanged task merely to increase effort. A genuine correction
+needs a bounded new task describing the demonstrated defect. Preserve the
+original call, logs and result. Adjust the next authorized assignment;
+mid-session changes require an explicitly supported, authorized mechanism.
+
+Reviewers choose their own supported level for the task's risk. Keep their
+reviews independent, check the same complete candidate, and honor the
+project's required number of reviews from different AI labs. Higher effort
+does not replace verification or guarantee that every mistake is caught.
+
+## Primary references
+
+- [GPT-6.1 Sol model controls](https://developers.openai.com/api/docs/models/gpt-6.1-sol) and [Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
+- [Claude effort and Opus 5.5](https://platform.claude.com/docs/en/build-with-claude/effort).
+- [Gemini thinking levels](https://ai.google.dev/gemini-api/docs/thinking).
+- [Grok reasoning controls](https://docs.x.ai/developers/model-capabilities/text/reasoning).
+- [GLM-5.3 reasoning parameters](https://docs.z.ai/guides/llm/glm-5.3).
+- [DeepSeek thinking and effort mappings](https://api-docs.deepseek.com/guides/thinking_mode/).
+- [Moonshot's Kimi K3 announcement](https://forum.moonshot.ai/t/kimi-k3-is-here-our-most-capable-model/480); its direct API differs from this project's Go route.
+- [Alibaba's Qwen parameters and mappings](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions).
+- [MiniMax model-specific controls](https://platform.minimax.io/docs/guides/text-generation).
+- [NVIDIA's Nemotron Ultra model card](https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b/modelcard), [InclusionAI's Ling repository](https://github.com/inclusionAI/Ling), [LongCat's OpenCode integration](https://longcat.chat/platform/docs/OpenCode.html) and [Xiaomi's thinking guide](https://platform.xiaomimimo.com/docs/en-US/usage-guide/passing-back-reasoning_content). These do not establish every Zen gateway override.
+- [OpenCode variants](https://opencode.ai/docs/models/) and [Zen routes](https://opencode.ai/docs/zen/). Match their current catalogue to the installed CLI's resolved metadata.
+
+Provider documentation describes capabilities; local metadata describes the
+exposed route; actual run receipts describe what was requested and observed.
+Keep those three kinds of evidence distinct.
+UNIO_MODEL_EFFORT_MD
+fi
 # END EMBEDDED ADAPTERS
 
 # Remove only copies and links owned by the legacy installer.
@@ -19403,47 +19772,100 @@ substantive problems to the lead instead of expanding a routine assignment.
 WORKER_TPL_EOF
 
 cat > "$TPL_DIR/MODEL-ROLES.md" <<'MODEL_ROLES_TPL_EOF'
-# Standing model roles — every Unio session
+# Model roles — standing Unio instructions
 
-The designated subscription lead plans, coordinates, reviews and performs
-owner-authorized integration. Main implementation workers are Grok,
-Antigravity/Gemini, Claude Code and Codex, chosen by current capacity and fit.
-In low tier, the lead counts as its shared budget's one independent workflow;
-do not create a second feature/test job on that same allowance.
+Read this before assigning work in every new lead session. These defaults
+apply across sessions, handoffs and cooldown recovery; they are not a temporary
+choice for one run. The owner can explicitly change the policy.
 
-Verified-free OpenCode Zen models are routine supporting workers only:
-documentation, formatting, inventories, mechanical edits, boilerplate and
-predefined checks. They must never lead, own main features, make final
-acceptance decisions or replace the lead during cooldown. Raising effort
-does not change the role. Escalate difficult bugs/security/design work to a
-main implementation worker. This rule persists across all sessions and handoffs.
+| Role | Agents | Work they own |
+| --- | --- | --- |
+| Lead | The owner's designated subscription agent | Planning, contracts, delegation, coordination, final assessment and authorized integration; direct implementation after bounded worker escalation |
+| Main implementation workers | Grok, Antigravity/Gemini, Claude Code and Codex | Product features, core behavior, architecture within the assigned scope, complex debugging, UI and substantive security corrections |
+| Optional implementation workers | Explicitly approved Mistral Vibe / GLM 5.3 and Medium 3.5 routes | Scoped implementation through the pinned adapter; inspect actual results |
+| Research and proposal workers | Perplexity Pro Thinking routes | Selected-context research and code drafts for a capable implementation agent to check and apply |
+| Routine supporting workers | The verified-free OpenCode Zen pool and owner-approved Copilot Free / Auto Balance route | Documentation, formatting, inventories, mechanical edits, boilerplate, running predefined checks and supplementary observations |
 
-Use existing owner-approved subscriptions and verified zero-cost free routes.
-Pin primary/helper models free; no paid fallback, purchases or billing/auth
-changes. Supported current metadata and the owner's latest availability
-information take precedence over stale failure assumptions. A model list is
-not proof of quota. Preserve frozen task checks, failed receipts and invocation
-limits; no automatic retries. These are agent instructions, not automatic
-runtime detection of a model class.
+The free pool must **never lead, own main feature implementation, perform
+final acceptance or replace a subscription lead during a cooldown**. A free
+worker follows a precise bounded task and reports results to the lead. If a
+routine assignment reveals a design problem, difficult bug or security issue,
+preserve the findings and give the substantive work to a main implementation
+worker. Raising a free model's effort does not change its permitted role.
 
-If a worker and one suitable replacement cannot finish, the lead directly
-implements the correction in its existing session. Preserve work and checks;
-low tier does not permit another lead-provider worker. Read LEAD-ESCALATION.md
-and MODEL-SCOREBOARD.md beside this template before delegation. This is lead
-guidance, not automatic model switching or extra spending authority.
+The distinction is an owner-selected routing policy, not a claim that every
+listed model has a measured quality or reasoning score. See the exact free
+routes and checked outcomes in [the inventory](../FREE-MODELS.md).
 
-For the full source policy read docs/ai/MODEL-ROLES.md and
-docs/development/LEAD-ROUTING.md in the Unio repository.
+## When delegation struggles
 
-Read AGENT-FLEET.md in the installed templates (or coord/docs) before assignments.
-Explicitly approved Mistral Vibe GLM5.3/Medium3.5 routes are optional implementation
-workers. Perplexity Thinking routes supply selected-context research and code
-proposals for a capable implementation agent to inspect/apply/validate. Copilot
-Free / Auto Balance starts as a routine proposal worker, never a lead or final
-acceptance authority. Balance is routing, not effort or a fixed AI lab. No local
-or BYOK model fallback. Current owner holds and task-fit evidence take precedence.
-All aliases sharing one subscription use one budget group; low-tier one-workflow
-limits include the lead. Research/draft delivery is never implementation acceptance.
+Follow [worker, replacement, lead](LEAD-ESCALATION.md): one suitable worker,
+one capable available replacement, then the lead directly finishes the
+remaining correction in its existing session. Preserve the previous work
+and failures; do not send a struggling model another blind attempt. In low
+tier this is the same lead workflow, not permission for another worker CLI.
+Consult the [task-fit scoreboard](../development/MODEL-SCOREBOARD.md).
+
+## Choose available workers without duplicating the lead
+
+Choose among the main implementation agents by task fit, current allowance
+and the owner's latest availability information. Antigravity (`agy`) is the
+multi-model platform used for Gemini here; record its actual selected model.
+Do not silently substitute a different account, CLI or paid API route.
+
+In low tier, an agent already serving as lead occupies its shared budget's
+single independent workflow. For example, a Codex lead must not launch a
+second independent Codex implementation session. Other available budgets
+can work concurrently. Authorized helpers inside one workflow are allowed;
+they do not turn it into several independent features or test assignments.
+Read the separate [mode and tier guide](../WORK-MODES.md).
+
+Capacity changes are temporary; role definitions persist. If Claude has hit
+a weekly limit and Codex leads, assign substantive work to available Grok
+and Antigravity/Gemini. Revisit dated failures when the owner reports restored
+availability, using supported metadata or one authorized task invocation.
+An installed CLI or model list alone does not prove usable quota. Preserve
+actual failures; never blindly retry a frozen task or promote a free worker
+because a main implementation route is unavailable.
+
+## Spending and verification
+
+Use existing owner-approved subscriptions. Free workers require current
+official and native zero prices, with primary and helper models pinned to
+the same eligible free route. No paid fallback, purchases, billing or
+authentication changes. Follow the [routing and effort guide](../development/LEAD-ROUTING.md).
+
+Use the selected work mode and the task's frozen checks. A supporting worker's
+output, successful script run or approval does not replace the lead's review
+or establish acceptance. Record real outcomes rather than running a separate
+benchmark campaign to fill a scorecard. These are instructions for agents;
+the runtime does not automatically identify a model's class from its name.
+
+## Owner routing preference — 2026-10-07
+
+Prefer Grok for nuanced reasoning, security and control logic, and tests that
+need precise lifecycle or failure analysis. Use current Gemini workers for
+bounded mechanical implementation with a clear contract and observable checks.
+Claude and Codex remain main implementation options when their accounts are
+available and the selected tier permits another workflow.
+
+This preference reflects the owner's assessment and Unio's recorded experience.
+Recent Gemini candidates passed focused checks but still needed lead corrections:
+the work-saving draft omitted required schema and restore rules, and a timeout
+fixture understated process lifetime and missed children after parent exit.
+Treat a successful worker exit and green checks as evidence to inspect; personally
+review the actual change before acceptance under the selected review policy.
+These runs do not establish a universal model ranking.
+
+Reassess Gemini when a newer model is actually available on the owner's route,
+using completed Unio tasks and observed defects. A version announcement alone
+does not change assignments. Record the exact model, effort, route and result.
+
+Availability still controls dispatch. Preserve exhausted-account failures;
+an explicit new owner assignment can authorize one fresh task attempt, without
+any paid fallback, account change or automatic retry. Low tier permits one
+independent workflow per shared account, so queue reasoning tasks behind an
+active Grok task. Free Zen workers keep their routine supporting role.
 MODEL_ROLES_TPL_EOF
 
 cat > "$TPL_DIR/LEAD-ESCALATION.md" <<'LEAD_ESCALATION_TPL_EOF'
@@ -19559,6 +19981,39 @@ supporting workers only. Exact controls and routes are in
 [model effort](https://github.com/danielmevit/unio/blob/main/docs/development/MODEL-EFFORT.md),
 [model roles](https://github.com/danielmevit/unio/blob/main/docs/ai/MODEL-ROLES.md)
 and the [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE-MODELS.md).
+
+## Copilot Free / Auto Balance — 2026-10-10
+
+A real Unio correction task returned one useful documentation draft in 10.958s:
+Source 0/native 0/adapter 0, one user request, native usage metric `gpt-6-luna`.
+The lead inspected and adapted its routing/budget explanation into the
+[agent fleet guide](AGENT-FLEET.md). Effective server identity, effort and
+remaining Free allowance remain Unknown; this sample does not rank coding skill.
+
+Two prior frozen tasks failed in setup and remain preserved: incorrect provider
+registry field types, then an unsupported explicit Auto effort. The latter
+reported zero user requests/API duration/AI credits. Lead corrected arrays and
+omitted effort flags; these were adapter compatibility defects, not model answers.
+The Opus adapter Source completed with two saved commits and seven offline checks;
+lead inspection corrected version punctuation and the compatibility boundaries.
+Original native verification remained INCOMPLETE because the lead's task used
+"Scope" rather than "Allowed scope"; both checks passed, and a separate native
+scope-only verification passed without another provider call. Final corrected
+helper and shipping checks passed before source integration. No extra AI reviewers.
+
+Start Copilot on routine docs, inventories and small mechanical proposals.
+Auto's model can change, so it cannot establish cross-lab review independence.
+Local/BYOK routes are excluded. See [Copilot setup](../integrations/GITHUB-COPILOT.md).
+
+## Matched Perplexity scenarios — 2026-10-10
+
+The [four-scenario field report](https://github.com/danielmevit/unio/blob/main/docs/development/PERPLEXITY-FIELD-TRIALS-2026-10-10.md) records
+identical debugging, archived security, code and integration-planning tasks for
+GLM 5.3 Thinking and Kimi K3 Thinking. Both planners passed 16 independent
+checks, and both generated two faulty test fixtures. Their reproduced security
+findings were complementary. Kimi returned faster in this one batch; GLM's
+integration plan kept slots and allowance clearer. Use the report's bounded
+task-fit guidance, not an overall model ranking. No proposal was merged.
 
 ## Adapter batch — 2026-10-09
 

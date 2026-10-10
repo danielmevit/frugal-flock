@@ -18,6 +18,8 @@ See [release scope and usage](docs/RELEASE-0.5.9.md).
   technical evidence and simplify work-map connections and phone filters.
 - Package the optional Copilot Auto Balance proposal adapter and persistent
   fleet guide. Local/BYOK models stay excluded; proposals require inspection.
+- Keep packaged model-role and task-fit guides synchronized with their source,
+  and include lead-routing and effort instructions without replacing owner copies.
 
 ## 0.5.8 — optional subscription adapters — 2026-10-10
 

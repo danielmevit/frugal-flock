@@ -85,9 +85,12 @@ class AdapterInstallTests(unittest.TestCase):
         custom = 'vibeglm=python3 ' + shlex.quote(str(adapters / 'vibe-worker.py')) + ' --model glm-5-3\n'
         (conf / 'agents.conf').write_text(custom)
         (conf / 'templates' / 'MY-NOTES.md').write_text('owner template\n')
-        self.assertEqual((conf / 'templates' / 'AGENT-FLEET.md').read_bytes(),
-                         (SOURCE / 'docs/development/AGENT-FLEET.md').read_bytes())
-        (conf / 'templates' / 'AGENT-FLEET.md').write_text('owner fleet notes\n')
+        for name in ('AGENT-FLEET', 'LEAD-ROUTING', 'MODEL-EFFORT'):
+            self.assertEqual((conf / 'templates' / (name + '.md')).read_bytes(),
+                             (SOURCE / 'docs/development' / (name + '.md')).read_bytes())
+            (conf / 'templates' / (name + '.md')).write_text('owner ' + name + ' notes\n')
+        for relative in ('docs/ai/MODEL-ROLES.md', 'docs/development/MODEL-SCOREBOARD.md'):
+            self.assertEqual((conf / 'templates' / Path(relative).name).read_bytes(), (SOURCE / relative).read_bytes())
         (adapters / 'owner notes.txt').write_text('unrelated\n')
         credential = self.home / '.config' / 'perplexity-web-mcp' / 'token'
         credential.parent.mkdir(parents=True)
@@ -96,7 +99,8 @@ class AdapterInstallTests(unittest.TestCase):
         self.install(conf)
         self.assertEqual((conf / 'agents.conf').read_text(), custom)
         self.assertEqual((conf / 'templates' / 'MY-NOTES.md').read_text(), 'owner template\n')
-        self.assertEqual((conf / 'templates' / 'AGENT-FLEET.md').read_text(), 'owner fleet notes\n')
+        for name in ('AGENT-FLEET', 'LEAD-ROUTING', 'MODEL-EFFORT'):
+            self.assertEqual((conf / 'templates' / (name + '.md')).read_text(), 'owner ' + name + ' notes\n')
         self.assertEqual((adapters / 'owner notes.txt').read_text(), 'unrelated\n')
         self.assertEqual(credential.read_text(), 'fake-not-a-token\n')
         for name in ADAPTERS:
