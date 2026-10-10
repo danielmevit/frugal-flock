@@ -704,7 +704,7 @@ input:hover, textarea:hover, .map-controls select:hover, #theme-selector:hover {
 .timeline-row[data-tone="failed"] { --signal-color: var(--map-failed); }
 .timeline-row[data-tone="attention"] { --signal-color: var(--map-attention); }
 .timeline-time { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
-.timeline-row .agent-badge { flex-direction: row; gap: 6px; min-width: 0; }
+.timeline-row .agent-badge { grid-row: auto; flex-direction: row; gap: 6px; min-width: 0; }
 .timeline-row .agent-logo { width: 16px; height: 16px; }
 .timeline-text { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
 .timeline-warning { grid-template-columns: 70px minmax(0, 1fr); --signal-color: var(--map-attention); }
