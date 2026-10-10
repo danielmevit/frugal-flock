@@ -1,5 +1,6 @@
 ---
 import fs from "node:fs";
+import { execSync } from "node:child_process";
 import "@fontsource/instrument-serif/400.css";
 import "@fontsource-variable/archivo/wdth.css";
 import "@fontsource/ibm-plex-mono/400.css";
@@ -28,6 +29,30 @@ const doc = (path: string) => `${repo}/blob/main/${path}`;
 const year = 2026;
 const pad = (n: number) => String(n).padStart(2, "0");
 
+// The commit this page was built from; it only feeds the footer's barcode.
+// The visible build number is the release version.
+let build = (process.env.GITHUB_SHA ?? "").slice(0, 7);
+if (!build) {
+  try {
+    build = execSync("git rev-parse --short=7 HEAD", { encoding: "utf8" }).trim();
+  } catch {
+    build = "0000000";
+  }
+}
+// The site is published right after this build, so the build date is the
+// publishing date. Written day.month.year.
+const builtOn = new Date().toISOString().slice(0, 10).split("-").reverse().join(".");
+// A barcode drawn from the build hash: each hex digit sets two bar widths.
+const bars: { x: number; w: number }[] = [];
+let barX = 0;
+for (const ch of build) {
+  const v = parseInt(ch, 16) || 0;
+  for (const w of [1 + (v & 3), 1 + ((v >> 2) & 3)]) {
+    bars.push({ x: barX, w });
+    barX += w + 1 + (w % 2);
+  }
+}
+
 const readouts = [
   { label: "Version", value: version },
   { label: "Platform", value: "Linux · WSL" },
@@ -52,6 +77,33 @@ const legend = [
 
 // AIs that ship their own command-line tool, plus OpenCode. Anything else with
 // a CLI joins the same way, which the last (open) slot says.
+// Muted tones sampled from the owner's game-UI reference ("The Cradle"),
+// lifted to read on charcoal (each is at least 5:1 on the page background).
+// Every agent carries one: its tile, its bus node and its dots in the animation.
+const tones: Record<string, string> = {
+  rust: "#cb7f72",
+  mustard: "#caaa72",
+  sea: "#74b4a5",
+  steel: "#91a2b6",
+  periwinkle: "#8795c9",
+  lavender: "#a094d1",
+};
+const toneNames = Object.keys(tones);
+const toneVars = toneNames.map((n) => `--t-${n}: ${tones[n]}`).join("; ");
+const toneOf = (i: number) => toneNames[i % toneNames.length];
+
+// The Unio mark: a U built from slightly rounded square dots — many dots
+// (AIs) making one thing. 6 × 7 cells.
+const MARK = ["11..11", "11..11", "11..11", "11..11", "11..11", "111111", ".1111."];
+const markDots = MARK.flatMap((row, y) => [...row].flatMap((c, x) => (c === "1" ? [{ x, y }] : [])));
+// The loading screen shows the mark inside a dim 10 × 11 dot field.
+const FIELD = { w: 10, h: 11, ox: 2, oy: 2 };
+const fieldCells = Array.from({ length: FIELD.w * FIELD.h }, (_, i) => {
+  const x = i % FIELD.w, y = Math.floor(i / FIELD.w);
+  const k = markDots.findIndex((d) => d.x + FIELD.ox === x && d.y + FIELD.oy === y);
+  return { on: k >= 0, k };
+});
+
 const agents = [
   { name: "Claude Code", mark: "claude" },
   { name: "Codex", mark: "openai" },
@@ -177,7 +229,7 @@ const faqs = [
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" style={toneVars}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -188,6 +240,13 @@ const faqs = [
     <meta name="theme-color" content="#1c1c1c" />
     <link rel="canonical" href={site} />
     <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
+    <script is:inline>
+      try {
+        if (!sessionStorage.getItem("unio-loaded") && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          document.documentElement.classList.add("is-loading");
+        }
+      } catch (e) {}
+    </script>
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -210,16 +269,27 @@ const faqs = [
     })} />
   </head>
   <body>
+    <div class="loader" aria-hidden="true">
+      <span class="xh xh-tl"></span><span class="xh xh-tr"></span>
+      <span class="xh xh-bl"></span><span class="xh xh-br"></span>
+      <div class="loader-field" style={`--w: ${FIELD.w}`}>
+        {fieldCells.map((c) => <i class={c.on ? "on" : undefined} style={c.on ? `--k: ${c.k}` : undefined} />)}
+      </div>
+      <p class="loader-label">Unio <span>// syncing agents</span></p>
+    </div>
     <a class="skip-link" href="#main">Skip to content</a>
 
     <header class="hud">
       <div class="wrap hud-inner">
         <a class="badge" href={`${base}/`} aria-label="Unio home">
-          <span class="badge-name">Unio</span>
+          <span class="badge-name">
+            <svg class="mark" viewBox="0 0 23 27" aria-hidden="true">{markDots.map((d) => <rect x={d.x * 4} y={d.y * 4} width="3" height="3" rx="0.7" />)}</svg>
+            <span class="wordmark">Unio</span>
+          </span>
           <span class="badge-ver">v{version}</span>
         </a>
         <p class="hud-readout">
-          <span>AGPL-3.0</span><span>Linux · WSL</span><span>Free</span>
+          <span class="sync"><i aria-hidden="true"></i>In sync</span><span>AGPL-3.0</span><span>Linux · WSL</span><span>Free</span>
         </p>
         <nav class="tabs" aria-label="Main">
           <a class="tab tab-wide" href="#how">How it works</a>
@@ -253,9 +323,17 @@ const faqs = [
               </div>
             ))}
           </dl>
+          <p class="script" aria-hidden="true">
+            <span>unio://workspace · lead ⇄ workers ⇄ reviewers</span>
+            <span>isolation 1 branch / worker · checks before merge</span>
+            <span>build {version} · {builtOn} · agpl-3.0-only</span>
+          </p>
         </div>
 
-        <figure class="map-panel brackets">
+        <figure class="map-panel">
+          <span class="fig-label" aria-hidden="true">Fig.01 — unio.dash // work-map // read-only</span>
+          <span class="xh xh-tl" aria-hidden="true"></span><span class="xh xh-tr" aria-hidden="true"></span>
+          <span class="xh xh-bl" aria-hidden="true"></span><span class="xh xh-br" aria-hidden="true"></span>
           <div class="panel-bar">
             <span class="panel-title">Work map</span>
             <ul class="stats" aria-label="Tasks in this example">
@@ -281,28 +359,30 @@ const faqs = [
         </figure>
       </section>
 
-      <div class="checker" aria-hidden="true"></div>
 
       <section class="section wrap" id="works" aria-labelledby="works-title">
         <div class="section-head">
           <span class="index">01</span>
           <h2 id="works-title">Works with</h2>
-          <span class="rule" aria-hidden="true"></span>
-          <span class="count">{pad(agents.length)} + any CLI</span>
+          <ol class="bus-line bus-mini" aria-hidden="true">{agents.map((_, i) => <li style={`--tone: var(--t-${toneOf(i)})`} />)}<li class="bus-open" /></ol>
         </div>
         <p class="section-lead">
           These, and any other AI that has a command-line interface (CLI).
         </p>
         <ul class="slots">
-          {agents.map((a) => (
-            <li class="slot">
+          {agents.map((a, i) => (
+            <li class="slot" style={`--tone: var(--t-${toneOf(i)})`}>
+              <span class="slot-code" aria-hidden="true">A{pad(i + 1)}</span>
               <svg viewBox="0 0 24 24" aria-hidden="true" fill-rule={evenOdd.has(a.mark) ? "evenodd" : undefined}>{marks[a.mark].map((d) => <path d={d} />)}</svg>
               <span class="slot-name">{a.name}</span>
+              <span class="slot-foot" aria-hidden="true">CLI</span>
             </li>
           ))}
           <li class="slot slot-empty">
+            <span class="slot-code" aria-hidden="true">[No link]</span>
             <span class="slot-plus" aria-hidden="true">+</span>
             <span class="slot-name">Any other AI with a CLI</span>
+            <span class="slot-foot" aria-hidden="true">Open port</span>
           </li>
         </ul>
         <p class="roster-note">
@@ -315,8 +395,7 @@ const faqs = [
         <div class="section-head">
           <span class="index">02</span>
           <h2 id="features-title">One team, from different AI labs</h2>
-          <span class="rule" aria-hidden="true"></span>
-          <span class="count">{pad(features.length)}</span>
+          <ol class="bus-line bus-mini" aria-hidden="true">{agents.map((_, i) => <li style={`--tone: var(--t-${toneOf(i)})`} />)}<li class="bus-open" /></ol>
         </div>
         <div class="grid">
           {features.map((f, i) => (
@@ -335,16 +414,15 @@ const faqs = [
         <div class="section-head">
           <span class="index">03</span>
           <h2 id="how-title">A task, step by step</h2>
-          <span class="rule" aria-hidden="true"></span>
-          <span class="count">{pad(steps.length)} steps</span>
+          <ol class="bus-line bus-mini" aria-hidden="true">{agents.map((_, i) => <li style={`--tone: var(--t-${toneOf(i)})`} />)}<li class="bus-open" /></ol>
         </div>
         <ol class="rows">
           {steps.map((s, i) => (
-            <li class={i === steps.length - 1 ? "row row-on" : "row"}>
+            <li class="row">
               <span class="row-num">{pad(i + 1)}</span>
               <h3 class="row-title">{s.title}</h3>
               <p class="row-body">{s.body}</p>
-              <span class="row-who">{s.who}</span>
+              <span class="row-who">{s.who}<span class="prog" aria-hidden="true">{steps.map((_, j) => <i class={j <= i ? "on" : undefined} />)}</span></span>
             </li>
           ))}
         </ol>
@@ -354,8 +432,7 @@ const faqs = [
         <div class="section-head">
           <span class="index">04</span>
           <h2 id="install-title">Try it free, with no AI calls</h2>
-          <span class="rule" aria-hidden="true"></span>
-          <span class="count">0 AI calls</span>
+          <ol class="bus-line bus-mini" aria-hidden="true">{agents.map((_, i) => <li style={`--tone: var(--t-${toneOf(i)})`} />)}<li class="bus-open" /></ol>
         </div>
         <div class="install">
           <div class="install-copy">
@@ -377,6 +454,7 @@ const faqs = [
               <button class="tab copy" type="button" data-copy={commands.join("\n")}>Copy</button>
             </div>
             <pre><code>{commands.map((c) => <span class="line"><span class="prompt" aria-hidden="true">$ </span>{c}</span>)}</code></pre>
+            <div class="console-foot" aria-hidden="true"><span>tty · bash · stand-in agents</span><span>0 provider calls</span></div>
           </div>
         </div>
       </section>
@@ -385,8 +463,7 @@ const faqs = [
         <div class="section-head">
           <span class="index">05</span>
           <h2 id="notes-title">What Unio doesn't do</h2>
-          <span class="rule" aria-hidden="true"></span>
-          <span class="count">{pad(notes.length)}</span>
+          <ol class="bus-line bus-mini" aria-hidden="true">{agents.map((_, i) => <li style={`--tone: var(--t-${toneOf(i)})`} />)}<li class="bus-open" /></ol>
         </div>
         <ul class="intel">
           {notes.map((n) => <li><span class="tag">{n.tag}</span><p>{n.body}</p></li>)}
@@ -397,8 +474,7 @@ const faqs = [
         <div class="section-head">
           <span class="index">06</span>
           <h2 id="faq-title">Questions</h2>
-          <span class="rule" aria-hidden="true"></span>
-          <span class="count">{pad(faqs.length)}</span>
+          <ol class="bus-line bus-mini" aria-hidden="true">{agents.map((_, i) => <li style={`--tone: var(--t-${toneOf(i)})`} />)}<li class="bus-open" /></ol>
         </div>
         <div class="faq">
           {faqs.map((f) => (
@@ -414,6 +490,10 @@ const faqs = [
     <footer class="foot-hud">
       <div class="wrap foot-inner">
         <p>© {year} Daniel Mevit · Made by <a href="https://damt.xyz">damt.xyz</a></p>
+        <div class="stamp" aria-hidden="true">
+          <svg class="barcode" viewBox={`0 0 ${barX} 14`} preserveAspectRatio="none">{bars.map((b) => <rect x={b.x} y="0" width={b.w} height="14" />)}</svg>
+          <span>build {version} · published {builtOn}</span>
+        </div>
         <nav class="tabs" aria-label="Project links">
           <a class="tab" href={repo}>GitHub</a>
           <a class="tab" href={`${repo}/releases`}>Releases</a>
@@ -424,6 +504,23 @@ const faqs = [
     </footer>
 
     <script>
+      // Loading screen: the dot U builds itself while the page loads
+      // (at least 1.5 s so the mark completes, never more than about 3 s).
+      if (document.documentElement.classList.contains("is-loading")) {
+        const shownAt = performance.now();
+        const finish = () => {
+          const wait = Math.max(0, 1500 - (performance.now() - shownAt));
+          setTimeout(() => {
+            document.documentElement.classList.add("is-loaded");
+            try { sessionStorage.setItem("unio-loaded", "1"); } catch {}
+            setTimeout(() => document.documentElement.classList.remove("is-loading", "is-loaded"), 600);
+          }, wait);
+        };
+        if (document.readyState === "complete") finish();
+        else window.addEventListener("load", finish, { once: true });
+        setTimeout(finish, 3000);
+      }
+
       for (const button of document.querySelectorAll<HTMLButtonElement>("button.copy")) {
         button.addEventListener("click", async () => {
           try {
@@ -459,6 +556,8 @@ const faqs = [
     --on-hover: #eeeeee;
     --on-text: #1c1c1c;
     --focus: #e2e2e2;
+    /* decorative system text: present, but almost part of the background */
+    --ghost: #363636;
     --passed: #3fb950;
     --failed: #f85149;
     --attention: #d29922;
@@ -466,6 +565,12 @@ const faqs = [
     --serif: "Instrument Serif", "Times New Roman", serif;
     --wide: "Archivo Variable", "Arial Black", system-ui, sans-serif;
     --gutter: clamp(16px, 2.6vw, 64px);
+    /* Corners: nothing is perfectly square. Groups of buttons round their
+       outer corners more than the inner ones; only the badge is a pill. */
+    --r-xs: 2px;
+    --r-sm: 4px;
+    --r-md: 6px;
+    --r-out: 9px;
     --gap: 2px;
     color-scheme: dark;
     font-synthesis: none;
@@ -513,18 +618,19 @@ const faqs = [
     background: var(--chip);
     color: var(--label);
     padding: 1px 5px;
+    border-radius: var(--r-xs);
   }
 
   .wrap { width: 100%; padding-inline: var(--gutter); }
 
   .skip-link {
     position: absolute; left: 16px; top: -48px; z-index: 60;
-    background: var(--on); color: var(--on-text); padding: 8px 12px;
+    background: var(--on); color: var(--on-text); padding: 8px 12px; border-radius: var(--r-sm);
   }
   .skip-link:focus { top: 12px; }
 
   /* Micro labels — small uppercase mono, the UI's smallest voice */
-  .micro, .index, .count, .tag, .panel-title, .stats, .legend, .foot-note,
+  .micro, .index, .tag, .panel-title, .stats, .legend, .foot-note,
   .readout dt, .card-bar, .row-who, .hud-readout {
     font-family: var(--mono);
     font-size: 0.72rem;
@@ -556,7 +662,10 @@ const faqs = [
     height: 28px; border-radius: 14px; overflow: hidden;
     text-decoration: none; font-size: 0.78rem;
   }
-  .badge-name { display: grid; place-items: center; padding: 0 12px 0 14px; background: var(--on); color: var(--on-text); }
+  .badge-name { display: flex; align-items: center; gap: 7px; padding: 0 12px 0 11px; background: var(--on); color: var(--on-text); }
+  .mark { width: auto; height: 17px; fill: currentColor; }
+  /* The wordmark in the squashed all-caps display face */
+  .wordmark { font-family: var(--wide); font-stretch: 68%; font-weight: 800; font-size: 1.02rem; line-height: 1; letter-spacing: 0.04em; text-transform: uppercase; }
   .badge-ver {
     display: grid; place-items: center; padding: 0 12px 0 10px;
     background: var(--chip); color: var(--label);
@@ -564,14 +673,29 @@ const faqs = [
   }
   .hud-readout { display: flex; gap: 16px; color: var(--muted); }
   .hud-readout span + span::before { content: "/"; margin-right: 16px; color: var(--line-alt); }
-  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+  .sync { display: inline-flex; align-items: center; gap: 8px; color: var(--label); }
+  .sync i { width: 7px; height: 7px; border-radius: var(--r-xs); background: var(--passed); animation: pip 2.4s ease-in-out infinite; }
+  @keyframes pip { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  /* "Scripts": tiny low-contrast system text, the way game HUDs annotate panels */
+  .script, .fig-label, .slot-code, .slot-foot, .console-foot, .stamp {
+    font-family: var(--mono); font-size: 0.6rem; font-weight: 500;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--ghost);
+  }
+  /* the footer's version / build / date is real information: readable */
+  .stamp { color: #8a8a8a; }
+  .script { display: grid; gap: 2px; margin-top: 22px; line-height: 1.5; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
   .tab {
     display: inline-flex; align-items: center; gap: 6px;
     min-height: 30px; padding: 0 10px;
     border: 1px solid var(--line-alt);
     background: transparent; color: var(--label);
     font-size: 0.66rem; text-decoration: none; cursor: pointer;
+    border-radius: var(--r-xs);
   }
+  .tabs > .tab:first-child { border-top-left-radius: var(--r-out); border-bottom-left-radius: var(--r-out); }
+  .tabs > .tab:last-child { border-top-right-radius: var(--r-out); border-bottom-right-radius: var(--r-out); }
   .tab:hover { background: var(--raised); color: var(--text); }
   .tab-on { background: var(--on); border-color: var(--on); color: var(--on-text); }
   .tab-on:hover { background: var(--on-hover); color: var(--on-text); }
@@ -583,7 +707,10 @@ const faqs = [
     border: 1px solid var(--line-alt);
     background: var(--paper); color: var(--text);
     font-size: 0.8rem; text-decoration: none;
+    border-radius: var(--r-xs);
   }
+  .actions > .btn:first-child { border-top-left-radius: var(--r-out); border-bottom-left-radius: var(--r-out); }
+  .actions > .btn:last-child { border-top-right-radius: var(--r-out); border-bottom-right-radius: var(--r-out); }
   .btn:hover { background: var(--raised); color: var(--text); }
   .btn-on { background: var(--on); border-color: var(--on); color: var(--on-text); }
   .btn-on:hover { background: var(--on-hover); color: var(--on-text); }
@@ -628,7 +755,7 @@ const faqs = [
   /* Each sentence starts on its own line, so no word is left dangling. */
   .lead span { display: block; }
   p { text-wrap: pretty; }
-  .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 26px; }
+  .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 26px; }
   .readouts {
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
     margin: 30px 0 0; border-top: 1px solid var(--line);
@@ -638,7 +765,9 @@ const faqs = [
   .readout dt { color: var(--muted); }
   .readout dd { margin: 2px 0 0; font-weight: 600; font-size: 0.9rem; }
 
-  .map-panel { margin: 0; background: var(--paper); border: 1px solid var(--line); }
+  .map-panel { margin: 0; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md); }
+  .fig-label { position: absolute; left: 12px; bottom: calc(100% + 12px); white-space: nowrap; }
+  .map-panel > .panel-bar, .console > .panel-bar { border-radius: calc(var(--r-md) - 1px) calc(var(--r-md) - 1px) 0 0; }
   .panel-bar {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     padding: 8px 12px; min-height: 40px;
@@ -652,6 +781,7 @@ const faqs = [
   .panel-foot {
     display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px;
     padding: 9px 12px; border-top: 1px solid var(--line); background: var(--deep);
+    border-radius: 0 0 calc(var(--r-md) - 1px) calc(var(--r-md) - 1px);
   }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; color: var(--muted); }
   .legend li { display: inline-flex; align-items: center; gap: 6px; }
@@ -659,14 +789,73 @@ const faqs = [
   .key-passed { background: var(--passed); }
   .key-failed { background: var(--failed); }
   .key-attention { background: var(--attention); }
-  .key-active { width: 10px; background: none; border: 2px solid var(--text); }
+  .key-active { width: 10px; background: none; border: 2px solid var(--text); border-radius: var(--r-xs); }
   .foot-note { color: var(--muted); }
 
-  /* Checkerboard strip divider */
-  .checker {
-    height: 10px;
-    background: repeating-conic-gradient(var(--paper) 0 25%, transparent 0 50%) 0 0 / 10px 10px;
-    border-block: 1px solid var(--line);
+  /* Loading screen: the dot U assembles on a dim field, its colors drifting
+     through the agent tones. Only shown when JS marked the page as loading. */
+  .loader { display: none; }
+  .is-loading .loader {
+    position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 22px;
+    background: var(--bg);
+  }
+  .is-loading body { overflow: hidden; }
+  .is-loaded .loader { opacity: 0; visibility: hidden; transition: opacity 0.5s ease, visibility 0s 0.5s; }
+  .loader .xh { width: 72px; height: 72px; }
+  .loader .xh-tl { left: 24px; top: 24px; } .loader .xh-tr { right: 24px; top: 24px; }
+  .loader .xh-bl { left: 24px; bottom: 24px; } .loader .xh-br { right: 24px; bottom: 24px; }
+  .loader-field { display: grid; grid-template-columns: repeat(var(--w), 1fr); gap: 5px; }
+  .loader-field i { width: 16px; height: 16px; border-radius: 3px; background: #232323; }
+  /* each dot of the U pops into a tone in turn, then keeps drifting
+     through the tones, so the colors ripple across the mark */
+  .loader-field i.on {
+    animation:
+      dot-on 0.3s calc(var(--k) * 30ms + 120ms) ease-out,
+      dot-tone 3.6s calc(var(--k) * 30ms + 120ms) linear infinite;
+  }
+  @keyframes dot-on { from { transform: scale(0.55); } to { transform: none; } }
+  @keyframes dot-tone {
+    0% { background: var(--t-rust); } 16.6% { background: var(--t-mustard); } 33.3% { background: var(--t-sea); }
+    50% { background: var(--t-steel); } 66.6% { background: var(--t-periwinkle); } 83.3% { background: var(--t-lavender); }
+    100% { background: var(--t-rust); }
+  }
+  .loader-label { font-family: var(--wide); font-stretch: 68%; font-weight: 800; font-size: 1.5rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text); }
+  .loader-label span { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.08em; color: #8a8a8a; vertical-align: middle; }
+
+  /* Marathon-style crosshairs at the hero's corners */
+  .hero { position: relative; }
+  .xh { position: absolute; width: 40px; height: 40px; pointer-events: none;
+    background:
+      linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat,
+      linear-gradient(var(--line), var(--line)) center / 1px 100% no-repeat; }
+  .xh::after { content: ""; position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; background: var(--line-alt); transform: translate(-50%, -50%) rotate(45deg); }
+  .map-panel { position: relative; }
+  .map-panel .xh { width: 26px; height: 26px; }
+  .map-panel .xh-tl { left: -30px; top: -30px; } .map-panel .xh-tr { right: -30px; top: -30px; }
+  .map-panel .xh-bl { left: -30px; bottom: -30px; } .map-panel .xh-br { right: -30px; bottom: -30px; }
+  /* only where the side margin is wide enough to hold them */
+  @media (max-width: 1199px) { .map-panel .xh { display: none; } }
+
+  /* Sync bus line (used in the section titles): every agent on one line,
+     plus an open port, with a signal passing along it. */
+  .bus-line {
+    position: relative; flex: 1; display: flex; justify-content: space-between; align-items: center;
+    margin: 0; padding: 0 14px; list-style: none; height: 44px; overflow: hidden;
+  }
+  .bus-line::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--line-alt);
+  }
+  .bus-line::after {
+    content: ""; position: absolute; top: calc(50% - 1px); left: -12%; width: 12%; height: 3px; border-radius: var(--r-xs);
+    background: linear-gradient(to right, transparent, var(--label), transparent);
+    animation: signal 5s linear infinite;
+  }
+  @keyframes signal { from { left: -12%; } to { left: 100%; } }
+  .bus-line li { position: relative; z-index: 1; width: 9px; height: 9px; border-radius: var(--r-xs); background: var(--tone, var(--label)); }
+  .bus-line .bus-open { background: var(--deep); border: 1px dashed var(--muted); }
+  @media (prefers-reduced-motion: reduce) {
+    .bus-line::after, .sync i { animation: none; }
+    .bus-line::after { display: none; }
   }
 
   /* Sections */
@@ -679,8 +868,11 @@ const faqs = [
     line-height: 1;
     text-transform: uppercase;
   }
-  .rule { flex: 1; min-width: 24px; height: 1px; background: var(--line); align-self: center; }
-  .count { color: var(--muted); white-space: nowrap; }
+  /* Section heads carry a small sync bus instead of a plain rule */
+  .section-head .bus-mini { flex: 1; min-width: 60px; height: 14px; padding: 0 2px; align-self: center; }
+  .bus-mini li { width: 6px; height: 6px; border-radius: 1.5px; }
+  .bus-mini::after { height: 2px; top: calc(50% - 0.5px); }
+
 
   /* Roster: eleven agents and an open slot, so 12 / 6 / 3 columns always
      fill evenly */
@@ -688,18 +880,29 @@ const faqs = [
   .slot {
     position: relative;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem;
-    aspect-ratio: 1 / 1.08; padding: 12px 6px;
-    background: var(--paper); border: 1px solid var(--line);
+    aspect-ratio: 1 / 1.12; padding: 1.2rem 6px calc(1.3rem + 10px);
+    background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-sm);
     color: var(--label);
   }
+  .slot-code { position: absolute; top: 6px; left: 8px; }
+  .slot-foot {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 1.3rem;
+    display: flex; align-items: center; padding-left: 12px;
+    border-top: 1px solid var(--line); border-radius: 0 0 calc(var(--r-sm) - 1px) calc(var(--r-sm) - 1px);
+    background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(255, 255, 255, 0.035) 5px 6px);
+  }
+  .slot-foot::before { content: ""; position: absolute; left: 5px; top: 4px; bottom: 4px; width: 2px; border-radius: 1px; background: var(--tone, var(--line-alt)); }
+  .slot:hover svg { color: var(--tone, var(--text)); }
+  .slot svg { transition: color 0.2s; }
   .slot svg { width: 32%; max-width: 64px; height: auto; fill: currentColor; }
   .slot-name { font-size: 0.6rem; text-align: center; line-height: 1.2; color: var(--text); }
   .slot:hover { background: var(--raised); color: var(--text); }
   .slot-empty {
-    border-style: dashed; border-color: var(--line-alt);
-    background: repeating-linear-gradient(135deg, transparent 0 7px, rgba(255, 255, 255, 0.035) 7px 8px);
+    border-style: dashed; border-color: var(--line-alt); background: var(--bg);
+    /* corner to corner, like an unplugged slot */
+    background-image: linear-gradient(to top right, transparent calc(50% - 0.6px), var(--line) 50%, transparent calc(50% + 0.6px));
   }
-  .slot-empty:hover { background-color: transparent; }
+  .slot-empty:hover { background-color: var(--bg); }
   .slot-empty .slot-name { color: var(--muted); }
   .slot-plus { font-family: var(--mono); font-size: 2rem; line-height: 1; color: var(--muted); }
   .section-lead { margin: -8px 0 18px; color: var(--label); }
@@ -707,11 +910,11 @@ const faqs = [
 
   /* Feature cards */
   .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); }
-  .card { background: var(--paper); border: 1px solid var(--line); }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-sm); }
   .card-bar {
     display: flex; justify-content: space-between;
     padding: 8px 14px; background: var(--deep); border-bottom: 1px solid var(--line);
-    color: var(--muted);
+    color: var(--muted); border-radius: calc(var(--r-sm) - 1px) calc(var(--r-sm) - 1px) 0 0;
   }
   .card-body { padding: 16px 14px 18px; }
   .card h3 { font-size: 0.86rem; line-height: 1.3; }
@@ -724,14 +927,16 @@ const faqs = [
     grid-template-columns: 3rem minmax(170px, 0.9fr) minmax(0, 2.4fr) 11rem;
     gap: 16px; align-items: center;
     padding: 14px 16px;
-    background: var(--paper); border: 1px solid var(--line);
+    background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-sm);
   }
   .row-num { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
   .row-title { font-size: 0.82rem; }
   .row-body { color: var(--muted); font-size: 0.88rem; }
-  .row-who { justify-self: end; color: var(--label); }
-  .row-on { background: var(--on); border-color: var(--on); }
-  .row-on .row-num, .row-on .row-body, .row-on .row-who, .row-on .row-title { color: var(--on-text); }
+  .row-who { justify-self: end; display: flex; flex-direction: column; align-items: flex-end; gap: 7px; color: var(--label); }
+  .prog { display: flex; gap: 3px; }
+  .prog i { width: 14px; height: 3px; border-radius: 1px; background: var(--line); }
+  .prog i.on { background: var(--label); }
+
 
   /* Install */
   /* The terminal keeps its right edge and gives up width on the left, so the
@@ -746,8 +951,14 @@ const faqs = [
     display: flex; justify-content: space-between; padding: 12px 2px;
     font-size: 0.82rem; text-decoration: none;
   }
-  .menu a:hover { background: var(--paper); padding-inline: 10px; }
-  .console { background: var(--deep); border: 1px solid var(--line); }
+  .menu a:hover { background: var(--paper); padding-inline: 10px; border-radius: var(--r-xs); }
+  .console { background: var(--deep); border: 1px solid var(--line); border-radius: var(--r-md); }
+  .console .copy { border-radius: var(--r-sm); }
+  .console-foot {
+    display: flex; justify-content: space-between; gap: 12px; padding: 7px 14px;
+    border-top: 1px solid var(--line); background: var(--paper);
+    border-radius: 0 0 calc(var(--r-md) - 1px) calc(var(--r-md) - 1px);
+  }
   .console .panel-bar { background: var(--paper); }
   .console pre { margin: 0; padding: 16px; overflow-x: auto; }
   .console code { display: grid; background: none; padding: 0; color: var(--text); font-size: 0.86rem; line-height: 1.85; }
@@ -756,15 +967,15 @@ const faqs = [
 
   /* Intel rows */
   .intel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); margin: 0; padding: 0; list-style: none; }
-  .intel li { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; background: var(--paper); border: 1px solid var(--line); }
-  .tag { flex: none; padding: 2px 7px; background: var(--chip); color: var(--label); }
+  .intel li { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-sm); }
+  .tag { flex: none; padding: 2px 7px; background: var(--chip); color: var(--label); border-radius: var(--r-xs); }
   .intel p { color: var(--muted); font-size: 0.88rem; }
 
   /* FAQ */
   .faq { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
   /* A closed question keeps its own height; open questions in the same row
      match the taller one. */
-  .faq details { background: var(--paper); border: 1px solid var(--line); align-self: start; }
+  .faq details { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-sm); align-self: start; }
   .faq details[open] { align-self: stretch; }
   .faq summary {
     display: flex; justify-content: space-between; align-items: center; gap: 16px;
@@ -772,7 +983,7 @@ const faqs = [
   }
   .faq summary::-webkit-details-marker { display: none; }
   .faq summary::after { content: "▾"; color: var(--muted); transition: transform 0.15s; }
-  .faq details[open] summary { background: var(--on); color: var(--on-text); }
+  .faq details[open] summary { background: var(--on); color: var(--on-text); border-radius: calc(var(--r-sm) - 1px) calc(var(--r-sm) - 1px) 0 0; }
   .faq details[open] summary::after { color: var(--on-text); transform: rotate(180deg); }
   .faq details p { padding: 14px 16px 16px; color: var(--muted); font-size: 0.9rem; }
   @media (prefers-reduced-motion: reduce) { .faq summary::after { transition: none; } }
@@ -785,6 +996,31 @@ const faqs = [
   }
   .foot-inner a { color: var(--label); }
   .foot-hud .tabs { margin-left: 0; }
+  .stamp { display: flex; align-items: center; gap: 10px; margin-inline: auto; }
+  .barcode { width: 92px; height: 14px; fill: var(--ghost); }
+
+  /* Hover: panels answer the pointer with a thicker edge and a lift in
+     shade; tiles also take their agent's tone. */
+  .slot, .card, .row, .intel li, .faq details, .map-panel, .btn, .tab, .menu a {
+    transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, transform 0.18s ease, padding 0.18s ease;
+  }
+  .card:hover, .row:hover, .intel li:hover, .faq details:hover, .map-panel:hover {
+    border-color: var(--label); box-shadow: 0 0 0 1px var(--label); background-color: var(--raised);
+  }
+  .faq details[open]:hover { background-color: var(--paper); }
+  .card:hover .card-bar { color: var(--label); }
+  .row:hover .row-num { color: var(--text); }
+  .row:hover .prog i.on { background: var(--text); }
+  .intel li:hover .tag { background: var(--on); color: var(--on-text); }
+  .slot:hover { border-color: var(--tone, var(--label)); box-shadow: 0 0 0 1px var(--tone, var(--label)); transform: translateY(-2px); }
+  .slot:hover .slot-foot::before { width: 4px; }
+  .slot-empty:hover { border-style: solid; border-color: var(--muted); box-shadow: none; }
+  .map-panel:hover { background-color: var(--paper); }
+  .btn:not(.btn-on):hover, .tab:not(.tab-on):hover { border-color: var(--label); }
+  @media (prefers-reduced-motion: reduce) {
+    .slot:hover { transform: none; }
+    .slot, .card, .row, .intel li, .faq details, .map-panel, .btn, .tab, .menu a { transition: none; }
+  }
 
   /* Responsive */
   @media (min-width: 1700px) {
@@ -811,8 +1047,9 @@ const faqs = [
   }
   @media (max-width: 760px) {
     .tab-wide { display: none; }
+    .hud .tabs > .tab:nth-child(3) { border-top-left-radius: var(--r-out); border-bottom-left-radius: var(--r-out); }
+    .stamp, .map-panel .xh { display: none; }
     .intel { grid-template-columns: minmax(0, 1fr); }
-    .count { display: none; }
   }
   @media (max-width: 560px) {
     .grid { grid-template-columns: minmax(0, 1fr); }
@@ -820,6 +1057,10 @@ const faqs = [
     .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .readout:nth-child(3) { border-left: 0; padding-left: 0; }
     .actions { grid-template-columns: minmax(0, 1fr); }
+    .actions > .btn:first-child { border-radius: var(--r-out) var(--r-out) var(--r-xs) var(--r-xs); }
+    .actions > .btn:last-child { border-radius: var(--r-xs) var(--r-xs) var(--r-out) var(--r-out); }
+    .bus-mini li:nth-child(n+7):not(.bus-open) { display: none; }
+    .fig-label { display: none; }
     .row { grid-template-columns: 2rem minmax(0, 1fr); }
     .row-who { grid-column: 2; justify-self: start; }
     .panel-bar { flex-wrap: wrap; }
