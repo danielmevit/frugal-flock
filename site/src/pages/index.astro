@@ -508,7 +508,11 @@ const faqs = [
       // (at least 1.5 s so the mark completes, never more than about 3 s).
       if (document.documentElement.classList.contains("is-loading")) {
         const shownAt = performance.now();
+        let finishing = false;
         const finish = () => {
+          // the load event and the safety timeout can both call this; act once
+          if (finishing) return;
+          finishing = true;
           const wait = Math.max(0, 1500 - (performance.now() - shownAt));
           setTimeout(() => {
             document.documentElement.classList.add("is-loaded");
