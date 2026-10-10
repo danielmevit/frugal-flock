@@ -86,7 +86,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ## Parallel Work
 
-Checkpoint, 2026-10-10: v0.5.8 is published and installed, and its managed read-only dashboard passed real HTTP checks. Both initial Perplexity trials completed. The owner then requested identical debugging, security, code and planning scenarios for GLM and Kimi Thinking. Check the local coordination log for their live state; the entries below record earlier work, not active jobs.
+Checkpoint, 2026-10-10: v0.5.8 is published and installed, and its managed read-only dashboard passed real HTTP checks. Both initial Perplexity trials and the owner-requested [matched four-scenario comparison](PERPLEXITY-FIELD-TRIALS-2026-10-10.md) completed. Both planners passed independent checks; their generated tests required corrections. No trial worker remains active and no planner was merged. Check the local coordination log for later work; the entries below record earlier work, not active jobs.
 
 - **Opus**: The initial release-preparation attempt failed OAuth without edits on 2026-10-09. After sign-in, the owner-authorized capacity correction was approved by the lead at `528e214`. Because Grok is unavailable, the owner then authorized further Opus feature work: Opus packaged the native capacity command for 0.5.6; the lead made bounded extreme-input corrections before release validation.
 - **Grok**: Capacity Source ended 402 without edits on 2026-10-09; no active Grok run is claimed.

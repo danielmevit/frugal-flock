@@ -112,11 +112,13 @@ and [version plan](../VERSION-PLAN.md). Finish one bounded feature at a time.
    why a worker is idle or a task waits. Existing per-budget admission stays
    authoritative; a manual reading grants no launch or retry permission.
 
-Both initial Perplexity trials are complete. The owner requested a broader
-matched comparison on 2026-10-10: four identical scenarios per model, Thinking
-enabled, sequentially on the shared account. Preserve original responses and
-check proposed code independently; task-fit observations are not a universal
-ranking or implementation acceptance. Assign actual feature implementation
+Both initial Perplexity trials and the owner-requested
+[matched four-scenario comparison](PERPLEXITY-FIELD-TRIALS-2026-10-10.md) are
+complete. Both Thinking routes received identical material sequentially on the
+shared account. Both planners passed 16 independent checks; both authored two
+faulty test fixtures, and their security findings were complementary. No planner
+was merged. Preserve original responses; these observations are task-fit guidance,
+not a universal ranking or implementation acceptance. Assign actual feature work
 separately, without blind retries or separately billed fallback.
 
 Phone/session pairing, live lead messaging and further UI polish remain

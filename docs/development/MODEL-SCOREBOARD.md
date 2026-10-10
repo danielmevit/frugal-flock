@@ -38,6 +38,16 @@ supporting workers only. Exact controls and routes are in
 [model roles](https://github.com/danielmevit/unio/blob/main/docs/ai/MODEL-ROLES.md)
 and the [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE-MODELS.md).
 
+## Matched Perplexity scenarios — 2026-10-10
+
+The [four-scenario field report](https://github.com/danielmevit/unio/blob/main/docs/development/PERPLEXITY-FIELD-TRIALS-2026-10-10.md) records
+identical debugging, archived security, code and integration-planning tasks for
+GLM 5.3 Thinking and Kimi K3 Thinking. Both planners passed 16 independent
+checks, and both generated two faulty test fixtures. Their reproduced security
+findings were complementary. Kimi returned faster in this one batch; GLM's
+integration plan kept slots and allowance clearer. Use the report's bounded
+task-fit guidance, not an overall model ranking. No proposal was merged.
+
 ## Adapter batch — 2026-10-09
 
 - Corrected-wrapper live GLM 5.3/high through Vibe saved packaging commit
