@@ -12,9 +12,9 @@ for assignments and shared budget groups.
 On the inspected Copilot CLI 1.0.95, Balanced maps to `--model auto
 --auto-tier balance`. It is an automatic routing profile, not a fixed model,
 AI lab or reasoning-effort level. GitHub selects eligible models under the
-account's plan and policies. The adapter requests medium reasoning for its
-routine tasks; acceptance of that setting does not prove effective depth.
-No max/ultra request is made. An unsupported version or setting fails rather
+account's plan and policies. This exact Auto route rejects explicit reasoning-effort flags, so the
+adapter omits them and records effective effort as Unknown. Balance does
+not mean medium or high reasoning. No max/ultra request is made. An unsupported version or setting fails rather
 than silently changing routes.
 
 The owner reports Copilot Free. Its included allowance is the only authorized
@@ -48,7 +48,7 @@ copilot=python3 '/absolute/path/to/unio/tools/copilot-worker.py' --receipt-dir '
 
 Once a published release packages Copilot, the helper path can be
 `~/.config/unio/lib/adapters/copilot-worker.py` (or under `UNIO_CONF_DIR`).
-Keep the receipt parent outside the Git checkout, owned by you and mode0700.
+Keep the receipt parent outside the Git checkout, owned by you and mode 0700.
 The adapter requires it to exist; it never creates an account or dependency.
 Then assign a concrete task using an explicitly prepared worker worktree:
 
@@ -92,9 +92,9 @@ upstream GitHub behavior. Review any update before widening compatibility.
 
 ## Limits and receipts
 
-Default task deadline is15minutes; up to2hours can be selected for a justified
+Default task deadline is 15 minutes; up to 2 hours can be selected for a justified
 task. Keep the outer Unio deadline above the adapter's deadline plus shutdown
-margin. `--max-ai-credits` defaults to30, the native minimum. This is a soft
+margin. `--max-ai-credits` defaults to 30, the native minimum. This is a soft
 session limit, observed after a model response and capable of overshoot;
 it neither measures remaining account allowance nor enforces a billing cap.
 It does not authorize extra charges. A failed run never starts another route.
@@ -109,11 +109,20 @@ The adapter's stdout contains operational metadata, not raw account settings.
 
 ## Trial status
 
-The adapter's focused offline checks and first real bounded routine task are
-pending. No Copilot completion, code-quality score or account allowance has
-yet been established. Update this section from the original receipt after
-the task ends; preserve operational failures without calling them model
-quality results.
+On 2026-10-10 the corrected adapter passed seven focused offline checks and
+three shipping/discovery checks. A real native Unio corrective task returned a
+useful routing/budget documentation draft: Source 0, native 0, adapter 0,
+10.958seconds. Native usage reported one user request and model metric label
+`gpt-6-luna`. This verifies one text-delivery workflow, not coding quality,
+server-proven identity or remaining Free allowance.
+
+Two earlier frozen tasks remain failed and were not replayed. The first caught
+incorrect object-valued provider/model lists; the exact native parser requires
+arrays. The second caught an explicit medium effort flag unsupported by Auto;
+its native usage reported zero user requests, API duration and AI credits.
+The lead fixed both compatibility defects before the corrective invocation.
+Private original task/config/output receipts remain local. No local model,
+authentication or billing change was used to resolve them.
 
 ## References checked 2026-10-10
 
@@ -122,6 +131,6 @@ quality results.
 - [Native CLI command reference and tool controls](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference).
 - [Provider registry and settings precedence](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference).
 - Installed `copilot --help`, `copilot help config`, `copilot help providers`,
-  `copilot help billing` and `copilot help limits` for1.0.95. Native help says
-  the minimum credit limit is30 and session-wide, with possible overshoot;
+  `copilot help billing` and `copilot help limits` for 1.0.95. Native help says
+  the minimum credit limit is 30 and session-wide, with possible overshoot;
   online reference wording differs, so keep the supported version explicit.

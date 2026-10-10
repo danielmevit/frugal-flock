@@ -13,10 +13,10 @@ import tempfile
 import unittest
 
 SOURCE = Path(__file__).resolve().parent.parent
-ADAPTERS = ('vibe-worker.py', 'perplexity-worker.py')
+ADAPTERS = ('vibe-worker.py', 'perplexity-worker.py', 'copilot-worker.py')
 # Executables a careless discovery/installer could reach; none may run.
 SENTINELS = ('vibe', 'pwm', 'perplexity-web-mcp', 'pip', 'pip3', 'uv', 'curl', 'wget',
-             'codex', 'claude', 'gemini', 'agy', 'opencode', 'grok', 'kimi')
+             'copilot', 'codex', 'claude', 'gemini', 'agy', 'opencode', 'grok', 'kimi')
 # Paths with a quote, backslash, newline, tab and ESC must still produce valid JSON.
 HOSTILE = 'conf with spaces "q" \\ back\nslash\ttab\x1b esc'
 
@@ -85,6 +85,9 @@ class AdapterInstallTests(unittest.TestCase):
         custom = 'vibeglm=python3 ' + shlex.quote(str(adapters / 'vibe-worker.py')) + ' --model glm-5-3\n'
         (conf / 'agents.conf').write_text(custom)
         (conf / 'templates' / 'MY-NOTES.md').write_text('owner template\n')
+        self.assertEqual((conf / 'templates' / 'AGENT-FLEET.md').read_bytes(),
+                         (SOURCE / 'docs/development/AGENT-FLEET.md').read_bytes())
+        (conf / 'templates' / 'AGENT-FLEET.md').write_text('owner fleet notes\n')
         (adapters / 'owner notes.txt').write_text('unrelated\n')
         credential = self.home / '.config' / 'perplexity-web-mcp' / 'token'
         credential.parent.mkdir(parents=True)
@@ -93,6 +96,7 @@ class AdapterInstallTests(unittest.TestCase):
         self.install(conf)
         self.assertEqual((conf / 'agents.conf').read_text(), custom)
         self.assertEqual((conf / 'templates' / 'MY-NOTES.md').read_text(), 'owner template\n')
+        self.assertEqual((conf / 'templates' / 'AGENT-FLEET.md').read_text(), 'owner fleet notes\n')
         self.assertEqual((adapters / 'owner notes.txt').read_text(), 'unrelated\n')
         self.assertEqual(credential.read_text(), 'fake-not-a-token\n')
         for name in ADAPTERS:
@@ -126,7 +130,7 @@ class AdapterInstallTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             value = json.loads(result.stdout)
             self.assertEqual(value['schema_version'], 1)
-            self.assertEqual([a['name'] for a in value['adapters']], ['vibe-worker', 'perplexity-worker'])
+            self.assertEqual([a['name'] for a in value['adapters']], ['vibe-worker', 'perplexity-worker', 'copilot-worker'])
             for adapter, name in zip(value['adapters'], ADAPTERS):
                 self.assertEqual(adapter['path'], str(conf / 'lib' / 'adapters' / name))
                 self.assertIs(adapter['installed'], True)
@@ -141,7 +145,7 @@ class AdapterInstallTests(unittest.TestCase):
         result = self.integrations(missing, '--json', cwd=outside)
         self.assertEqual(result.returncode, 0, result.stderr)
         value = json.loads(result.stdout)
-        self.assertEqual([a['installed'] for a in value['adapters']], [False, False])
+        self.assertEqual([a['installed'] for a in value['adapters']], [False, False, False])
         self.assertFalse(missing.exists())
 
         for bad in (['--jsn'], ['--json', 'extra'], ['vibe-worker']):
@@ -171,6 +175,12 @@ class AdapterInstallTests(unittest.TestCase):
         outside.write_text('outside bytes\n')
         (adapters / 'perplexity-worker.py').unlink()
         (adapters / 'perplexity-worker.py').symlink_to(outside)
+        assert_refused(conf, adapters)
+        self.assertEqual(outside.read_text(), 'outside bytes\n')
+
+        conf, adapters = prepare('copilot last target symlink')
+        (adapters / 'copilot-worker.py').unlink()
+        (adapters / 'copilot-worker.py').symlink_to(outside)
         assert_refused(conf, adapters)
         self.assertEqual(outside.read_text(), 'outside bytes\n')
 

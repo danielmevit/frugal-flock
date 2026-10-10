@@ -8825,14 +8825,14 @@ UNIO_DASHBOARD_PY
 # END EMBEDDED DASHBOARD
 # BEGIN EMBEDDED ADAPTERS
 # Check every generated destination before replacing any adapter: all
-# directories and both files are validated first, then both are written.
+# directories and all files are validated first, then all are written.
 for adapters_dir in "$CONF_DIR/lib" "$CONF_DIR/lib/adapters"; do
   if [ -L "$adapters_dir" ] || { [ -e "$adapters_dir" ] && [ ! -d "$adapters_dir" ]; }; then
     echo "unio: refusing unsafe adapter directory: $adapters_dir" >&2
     exit 1
   fi
 done
-for adapters_file in "$CONF_DIR/lib/adapters/vibe-worker.py" "$CONF_DIR/lib/adapters/perplexity-worker.py"; do
+for adapters_file in "$CONF_DIR/lib/adapters/vibe-worker.py" "$CONF_DIR/lib/adapters/perplexity-worker.py" "$CONF_DIR/lib/adapters/copilot-worker.py"; do
   if [ -L "$adapters_file" ] || { [ -e "$adapters_file" ] && { [ ! -f "$adapters_file" ] || [ "$(stat -c '%h' -- "$adapters_file")" != 1 ]; }; }; then
     echo "unio: refusing unsafe adapter file: $adapters_file" >&2
     exit 1
@@ -9608,6 +9608,490 @@ def main(argv=None):
 if __name__ == '__main__':
     sys.exit(main())
 UNIO_PERPLEXITY_WORKER_PY
+cat > "$CONF_DIR/lib/adapters/copilot-worker.py" <<'UNIO_COPILOT_WORKER_PY'
+#!/usr/bin/env python3
+# Unio — Copyright (C) 2026 Daniel Mitev
+# SPDX-License-Identifier: AGPL-3.0-only; additional terms in NOTICE.
+"""Optional GitHub Copilot CLI 1.0.95 Balanced (Auto) routine-proposal worker.
+
+Text proposals only: no model tools, patch execution or retry. The parent shell
+and the native credential store stay trusted_host; this is not a sandbox.
+"""
+import argparse
+import hashlib
+import json
+import math
+import os
+from pathlib import Path
+import re
+import selectors
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+
+VERSION = "1.0.95"
+PROMPT_BYTES = 1048576
+OUTPUT_BYTES = 8388608
+META_BYTES = 1048576
+KEEP_ENV = ("COPILOT_HOME", "COPILOT_GITHUB_TOKEN")
+MCP_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
+# The proposal role needs no model tool; view is the smallest non-empty allowlist.
+AVAILABLE = ("view",)
+EXCLUDED = ("task", "list_agents", "read_agent", "write_agent", "skill", "ask_user")
+DENIED = ("read", "write", "shell", "url", "memory")
+
+
+class Refusal(Exception):
+    pass
+
+
+def date():
+    return subprocess.check_output(["date", "-Is"], text=True, timeout=5).strip()
+
+
+def read_regular(path, limit):
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    with os.fdopen(fd, "rb") as source:
+        info = os.fstat(source.fileno())
+        if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= limit:
+            raise Refusal("invalid_or_oversized_file")
+        data = source.read(limit + 1)
+        if len(data) > limit:
+            raise Refusal("invalid_or_oversized_file")
+    data.decode("utf-8", errors="strict")
+    if b"\0" in data:
+        raise Refusal("invalid_utf8_task")
+    return data
+
+
+def strict_json(data):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError("duplicate key")
+            result[key] = value
+        return result
+    def constant(_):
+        raise ValueError("nonfinite JSON")
+    return json.loads(data, object_pairs_hook=pairs, parse_constant=constant)
+
+
+def route_environment(providers, inherited=None):
+    """Native auth and home only; no inherited Copilot, provider or Git routing."""
+    env = {k: v for k, v in (os.environ if inherited is None else inherited).items()
+           if not (k.startswith("COPILOT_") or k.startswith("GIT_")) or k in KEEP_ENV}
+    env["COPILOT_PROVIDERS_CONFIG"] = str(providers)
+    return env
+
+
+def private_file(path, data):
+    with open(path, "xb") as out:
+        os.chmod(path, 0o600)
+        out.write(data)
+
+
+def exited(child):
+    """Leader exit without reaping, so its process-group id cannot be reused yet."""
+    try:
+        return os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None
+    except ChildProcessError:
+        return True
+
+
+def stop_group(child):
+    # Signal only this invocation's own new process group, including descendants.
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(child.pid, sig)
+        except ProcessLookupError:
+            return
+        if sig == signal.SIGTERM:
+            time.sleep(.1)
+
+
+def owned_call(argv, env, seconds, cwd=None, data=b"", sinks=(None, None), output_limit=OUTPUT_BYTES):
+    """Bound owned process-group lifetime and combined output; feed data via stdin."""
+    child = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             start_new_session=True, umask=0o077)
+    poll = selectors.DefaultSelector()
+    streams = {child.stdout: 0, child.stderr: 1}
+    for pipe in streams:
+        poll.register(pipe, selectors.EVENT_READ)
+    if data:
+        os.set_blocking(child.stdin.fileno(), False)
+        poll.register(child.stdin, selectors.EVENT_WRITE)
+    else:
+        child.stdin.close()
+    deadline = time.monotonic() + seconds
+    view, sent, seen, stopped = memoryview(data), 0, 0, False
+    capture = (bytearray(), bytearray())
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise Refusal("timeout")
+            if not stopped and exited(child):
+                # Descendants must not outlive the native parent or hold its pipes.
+                stop_group(child)
+                stopped = True
+            if not poll.get_map():
+                if stopped:
+                    break
+                time.sleep(min(remaining, .05))
+                continue
+            for key, _ in poll.select(min(remaining, .2)):
+                if key.fileobj is child.stdin:
+                    try:
+                        sent += os.write(child.stdin.fileno(), view[sent:sent + 65536])
+                    except BrokenPipeError:
+                        sent = len(data)
+                    if sent >= len(data):
+                        poll.unregister(child.stdin)
+                        child.stdin.close()
+                    continue
+                chunk = os.read(key.fileobj.fileno(), 65536)
+                if not chunk:
+                    poll.unregister(key.fileobj)
+                    continue
+                seen += len(chunk)
+                if seen > output_limit:
+                    raise Refusal("output_limit")
+                index = streams[key.fileobj]
+                if sinks[index] is None:
+                    capture[index].extend(chunk)
+                else:
+                    sinks[index].write(chunk)
+        return child.wait(timeout=5), bytes(capture[0]), bytes(capture[1])
+    finally:
+        poll.close()
+        if child.returncode is None:
+            stop_group(child)
+        for pipe in (child.stdin, child.stdout, child.stderr):
+            pipe.close()
+        child.wait(timeout=5)
+
+
+def metadata(cli, env, cwd, *command):
+    return owned_call([cli, "--no-auto-update", *command], env, 60, cwd, output_limit=META_BYTES)
+
+
+def auto_fallback_setting(cli, env, cwd):
+    code, out, err = metadata(cli, env, cwd, "config", "continueOnAutoMode")
+    value = out.decode("utf-8", errors="replace").strip()
+    if code == 1 and not value and not err.strip():
+        return "unset"
+    if code == 0 and value == "false":
+        return "false"
+    raise Refusal("auto_fallback_enabled" if code == 0 and value == "true" else "unrecognized_auto_fallback_setting")
+
+
+def refuse_plugins(cli, env, cwd):
+    code, out, _ = metadata(cli, env, cwd, "plugin", "list", "--json")
+    try:
+        plugins = strict_json(out) if code == 0 else None
+    except (ValueError, UnicodeError, RecursionError):
+        plugins = None
+    if not isinstance(plugins, list):
+        raise Refusal("invalid_plugin_metadata")
+    if plugins:
+        raise Refusal("plugins_present")
+
+
+def refuse_extensions(env):
+    home = Path(env["COPILOT_HOME"]) if env.get("COPILOT_HOME") else Path.home() / ".copilot"
+    path = home / "extensions"
+    if os.path.lexists(path) and (path.is_symlink() or not path.is_dir() or any(path.iterdir())):
+        raise Refusal("extensions_present")
+
+
+def mcp_names(cli, env, cwd):
+    """Server names only; raw MCP configuration and headers are never kept."""
+    code, out, _ = metadata(cli, env, cwd, "mcp", "list", "--json")
+    try:
+        value = strict_json(out) if code == 0 else None
+    except (ValueError, UnicodeError, RecursionError):
+        value = None
+    servers = value.get("mcpServers", {}) if isinstance(value, dict) else None
+    if not isinstance(servers, dict) or len(servers) > 64:
+        raise Refusal("invalid_mcp_metadata")
+    if not all(isinstance(name, str) and MCP_NAME.fullmatch(name) for name in servers):
+        raise Refusal("invalid_mcp_metadata")
+    return sorted(servers)
+
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as source:
+        for block in iter(lambda: source.read(1048576), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def main():
+    def interrupted(_signum, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupted)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--prompt-file", help="Regular UTF-8 task with all selected context inline; otherwise TASKFILE")
+    parser.add_argument("--receipt-dir", required=True, help="Existing private parent; each invocation creates a new run")
+    parser.add_argument("--time-limit", type=float, default=900)
+    parser.add_argument("--max-ai-credits", type=int, default=30, help="Native soft cap, 30..300")
+    args = parser.parse_args()
+    record = None
+    receipt = None
+    started = time.monotonic()
+    exit_code = 2
+    try:
+        if not math.isfinite(args.time_limit) or not 0 < args.time_limit <= 7200:
+            raise Refusal("invalid_bounds")
+        if not 30 <= args.max_ai_credits <= 300:
+            raise Refusal("invalid_bounds")
+        prompt = args.prompt_file or os.environ.get("TASKFILE")
+        if not prompt:
+            raise Refusal("missing_task")
+        data = read_regular(prompt, PROMPT_BYTES)
+        parent = Path(args.receipt_dir).absolute()
+        info = parent.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+            raise Refusal("receipt_parent_must_be_private")
+        cli = shutil.which("copilot")
+        git = shutil.which("git")
+        if not cli or not git:
+            raise Refusal("missing_cli")
+        cli = os.path.realpath(cli)
+        env = route_environment(parent / "unused-providers.json")
+        code, version, _ = owned_call([cli, "--no-auto-update", "--version"], env, 30, parent, output_limit=4096)
+        lines = version.decode("utf-8", errors="replace").strip().splitlines()
+        # Later lines may announce an update; only the first identifies the binary.
+        if code or not lines or lines[0].strip() not in {"GitHub Copilot CLI " + VERSION, "GitHub Copilot CLI " + VERSION + "."}:
+            raise Refusal("unsupported_cli")
+        directory = Path(tempfile.mkdtemp(prefix="copilot-run-", dir=parent))
+        receipt = directory / "receipt.json"
+        proposal = directory / "proposal.md"
+        usage = directory / "usage.json"
+        stderr_path = directory / "native-stderr.log"
+        record = dict(schema_version=1, started_at=date(), role="routine_proposal",
+                      transport="GitHub Copilot CLI", cli_version=VERSION, cli_sha256=file_sha256(cli),
+                      task_sha256=hashlib.sha256(data).hexdigest(), task_bytes=len(data), prompt_transport="stdin",
+                      budget_group="copilot", subscription="owner_reported_free", remaining_allowance="unknown",
+                      requested_route=dict(name="Balanced", model="auto", auto_tier="balance"),
+                      requested_effort="not_configurable_auto", effective_model="unknown", effective_ai_lab="unknown",
+                      effective_effort="unknown",
+                      native_limits=dict(max_ai_credits=args.max_ai_credits, max_ai_credits_kind="soft_post_response",
+                                         time_limit=args.time_limit),
+                      trust=dict(parent_shell="trusted_host", native_credentials="trusted_host", sandbox=False),
+                      invocations=0, invocation_retries=0, fallback_route="none", native_exit=None,
+                      outcome="preflight", proposal_path=str(proposal), usage_path=str(usage),
+                      stderr_path=str(stderr_path))
+        receipt.write_text(json.dumps(record, indent=2) + "\n")
+        work = directory / "work"
+        template = directory / "git-template"
+        work.mkdir(mode=0o700)
+        template.mkdir(mode=0o700)
+        settings = work / ".github" / "copilot"
+        settings.mkdir(parents=True)
+        private_file(settings / "settings.json", b'{"disableAllHooks": true}\n')
+        providers = directory / "providers.json"
+        private_file(providers, b'{"providers": [], "models": []}\n')
+        env = route_environment(providers)
+        # A neutral repository bounds native parent-repository discovery.
+        code, _, _ = owned_call([git, "init", "--quiet", "--template=" + str(template), str(work)],
+                                env, 30, directory, output_limit=65536)
+        if code:
+            raise Refusal("git_init_failed")
+        record["continue_on_auto_mode"] = auto_fallback_setting(cli, env, work)
+        refuse_plugins(cli, env, work)
+        refuse_extensions(env)
+        names = mcp_names(cli, env, work)
+        record.update(plugins=0, extensions="none", disabled_mcp_servers=names, builtin_mcps="disabled",
+                      model_tools=dict(available=list(AVAILABLE), excluded=list(EXCLUDED), denied=list(DENIED)))
+        argv = [cli, "--no-auto-update", "--model", "auto", "--auto-tier", "balance",
+                "--max-ai-credits", str(args.max_ai_credits), "--usage-output-file", str(usage),
+                "--log-dir", str(directory / "native-logs"), "--log-level", "none", "--stream", "off", "--silent",
+                "--no-custom-instructions", "--no-ask-user", "--no-experimental", "--no-bash-env",
+                "--no-remote", "--no-remote-export", "--disable-builtin-mcps",
+                "--secret-env-vars=" + ",".join(KEEP_ENV + ("GH_TOKEN", "GITHUB_TOKEN"))]
+        for name in names:
+            argv.append("--disable-mcp-server=" + name)
+        argv.extend("--available-tools=" + name for name in AVAILABLE)
+        argv.extend("--excluded-tools=" + name for name in EXCLUDED)
+        argv.extend("--deny-tool=" + name for name in DENIED)
+        # Required for non-interactive mode; deny rules still take precedence.
+        argv.append("--allow-all-tools")
+        record.update(invocations=1, outcome="starting")
+        receipt.write_text(json.dumps(record, indent=2) + "\n")
+        with open(proposal, "xb") as out, open(stderr_path, "xb") as err:
+            os.chmod(proposal, 0o600)
+            os.chmod(stderr_path, 0o600)
+            code, _, _ = owned_call(argv, env, args.time_limit, work, data, (out, err))
+        record["native_exit"] = code
+        try:
+            read_regular(usage, META_BYTES)
+            strict_json(usage.read_bytes())
+            record["usage_state"] = "recorded_not_remaining_allowance"
+        except (OSError, ValueError, UnicodeError, Refusal, RecursionError):
+            record["usage_state"] = "invalid_or_missing"
+        record["proposal_bytes"] = proposal.stat().st_size
+        if code:
+            record["outcome"], exit_code = "native_failed", 1
+        else:
+            try:
+                text = read_regular(proposal, OUTPUT_BYTES).decode("utf-8")
+            except (OSError, UnicodeError, Refusal):
+                text = ""
+            if text.strip():
+                record["outcome"], exit_code = "proposal_recorded", 0
+            else:
+                record["outcome"], exit_code = "empty_or_invalid_response", 2
+    except KeyboardInterrupt:
+        exit_code = 130
+        if record is not None:
+            record["outcome"] = "interrupted"
+    except (Refusal, OSError, ValueError, UnicodeError, subprocess.SubprocessError) as error:
+        state = str(error) if isinstance(error, Refusal) else "local_failure"
+        if record is not None:
+            record["outcome"] = state
+        print("Copilot adapter: " + state, file=sys.stderr)
+        exit_code = 124 if state == "timeout" else 2
+    finally:
+        if record is not None:
+            record.update(adapter_exit=exit_code, elapsed_seconds=round(time.monotonic() - started, 3), finished_at=date())
+            receipt.write_text(json.dumps(record, indent=2) + "\n")
+            print(json.dumps({"receipt": str(receipt), "adapter_exit": exit_code, "native_exit": record["native_exit"],
+                              "outcome": record["outcome"], "proposal": record["proposal_path"]}))
+    return exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+UNIO_COPILOT_WORKER_PY
+if [ ! -e "$TPL_DIR/AGENT-FLEET.md" ] && [ ! -L "$TPL_DIR/AGENT-FLEET.md" ]; then
+cat > "$TPL_DIR/AGENT-FLEET.md" <<'UNIO_AGENT_FLEET_MD'
+# Assigning the Unio agent fleet
+
+Read this at lead startup alongside [routing](https://github.com/danielmevit/unio/blob/main/docs/development/LEAD-ROUTING.md),
+[effort](https://github.com/danielmevit/unio/blob/main/docs/development/MODEL-EFFORT.md), [roles](https://github.com/danielmevit/unio/blob/main/docs/ai/MODEL-ROLES.md) and the
+[task-fit scoreboard](https://github.com/danielmevit/unio/blob/main/docs/development/MODEL-SCOREBOARD.md). This is an assignment guide,
+not an automatic scheduler or proof that an account has allowance left.
+The account inventory below was checked on 2026-10-10. Current owner
+instructions and fresher observations take precedence.
+
+## Routing and budget are different
+
+Copilot Auto Balance chooses eligible hosted models for each prompt; it does
+not pin a model, AI lab or reasoning level. Unio's low tier admits one independent
+workflow per shared account, including its registered lead. Several model names
+on that subscription do not create extra groups. Session usage does not show
+remaining account allowance.
+
+## Give each account useful work
+
+| Account route | Best starting assignment | Controls and boundaries |
+| --- | --- | --- |
+| Existing Codex lead | Plan, delegate, inspect actual changes, integrate and preserve handoffs | Keep one existing lead session. Low tier does not permit another independent Codex job on that account. |
+| Claude Code / Opus 5.5 | Substantial implementation, UI interaction, stateful corrections and bounded architecture work | High normally; supported xhigh only when justified. Check owner holds and current account availability. |
+| Grok | Nuanced control logic, security reasoning and precise failure analysis | Owner-preferred reasoning worker when available; high normally. A historical quota failure is dated evidence. |
+| Antigravity / Gemini 3.1 Pro | Mechanical implementation with clear inputs, outputs and checks | Pin the high model and high effort. This route exposes high/low, not xhigh. Recent work needed lead corrections; keep assignments bounded. |
+| Mistral Vibe / GLM 5.3 | Implementation from a concrete contract, including more involved code | Explicit GLM/high pin. Use existing monthly subscription; task estimates do not measure remaining allowance. |
+| Mistral Vibe / Medium 3.5 | Smaller implementation or mechanical corrections when GLM is busy or unsuitable | Same Mistral budget as GLM: queue behind it in low tier. No fair checked ranking between the two yet. |
+| Perplexity Pro / GLM 5.3 Thinking | Research, integration plans and supplementary code analysis using selected public context | Proposal only. Its matched plan separated occupied slots from quota more clearly; this is a small sample. |
+| Perplexity Pro / Kimi K3 Thinking | Quick draft functions, small proposed patches and a complementary view of supplied code | Proposal only. Faster in one matched batch; both models generated faulty test fixtures. Independently check proposed code and tests. |
+| GitHub Copilot Free / Auto Balance | Documentation drafts, inventories and small mechanical code proposals | One checked documentation draft delivered; native usage labelled GPT-6 Luna. Balance is routing, not effort or a fixed AI lab. Local/BYOK models are excluded. |
+| OpenCode Go | Available GLM 5.3, Qwen 3.8, Kimi K3 or other explicitly approved capable routes for implementation | Use Go only, never a paid Zen counterpart. Models share the Go account budget; an old reset estimate proves no current capacity. |
+| Verified-free OpenCode Zen pool | Documentation, formatting, inventories, boilerplate and predefined supplementary checks | Routine workers only. Verify current official/native zero input, output and cache prices; pin primary and helpers. Never lead or own main features. |
+
+These assignments use current owner preferences and completed Unio work,
+not advertised benchmark scores. Copilot's Free plan is an account tier;
+it does not establish the reasoning ability or identity of Auto's selected
+model. Start it on small work and widen its scope only with checked results
+and owner policy. The [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE-MODELS.md) covers all eleven
+approved Zen candidates and exact routes; Exo still needs local eligibility.
+Keep local models unused on this machine under the owner's current rule.
+
+## Plan a small batch rather than a model race
+
+For a functional milestone, give one capable implementation worker a
+concrete change. Meanwhile, a different account can draft documentation or
+research a relevant question if that work is independently useful. Scripts
+can run deterministic inventories and checks without an AI session. Do not
+create busywork or eleven-way benchmarks to keep every model occupied.
+
+For example, Vibe GLM can implement a bounded save-retention correction,
+while Copilot drafts its operator explanation from a supplied contract.
+Perplexity can analyze a specific unresolved question if the implementation
+actually needs it. The lead checks the real patch and test evidence under
+the chosen work mode. This example is not an instruction to launch those
+jobs without first freezing their tasks and checking account slots.
+
+A research response or proposed patch is not a completed implementation.
+A capable implementation worker or the existing lead checks, applies and
+validates suitable proposals in its own worktree. Generated tests need
+independent scrutiny. The [matched Perplexity report](https://github.com/danielmevit/unio/blob/main/docs/development/PERPLEXITY-FIELD-TRIALS-2026-10-10.md)
+shows why successful delivery and test authorship are separate from correctness.
+
+## Group by allowance, not by model name
+
+Low tier permits one independent native workflow per shared account,
+including a registered lead. Give all aliases using one subscription the
+same budget label with `unio account`. The actual alias must match the
+prefix before the first hyphen in its worker name.
+
+| Budget label example | Aliases that belong together |
+| --- | --- |
+| `codex` | All sessions using that Codex subscription, including the lead |
+| `claude` | Claude Code aliases on that Claude subscription |
+| `grok` | Grok aliases on that Grok subscription |
+| `antigravity` | Models reached through that Antigravity allowance |
+| `mistral` | Vibe GLM and Medium 3.5 aliases on the same subscription |
+| `perplexity` | Perplexity GLM, Kimi and other approved routes on that Pro account |
+| `copilot` | Copilot aliases using that GitHub account |
+| `opencode` | Go and free Zen aliases using the same OpenCode account unless separate allowances are established |
+
+GLM through Vibe and GLM through Perplexity do not automatically share
+allowance. Conversely, different model names inside one subscription do
+not create separate budgets. Groups enforce workflow concurrency, not
+current quota. Unmanaged sessions remain uncounted: respect known owner
+activity elsewhere. Never merge unrelated accounts solely because their
+models come from the same AI lab.
+
+## Before each assignment
+
+1. Read the newest owner instructions, scoreboard and capacity observation.
+   Check `unio policy` and current native jobs; availability can be Unknown.
+2. Choose a task-fitting route with owner-approved funding. Freeze model or
+   Auto profile, supported effort, scope, checks and task-sized deadline.
+3. Map its alias to the actual shared budget. Run `unio resume`, then one
+   authorized `unio run`; close the batch with `unio stop`.
+4. Preserve commits, drafts, failures and receipts. Review the actual result;
+   a zero exit or model self-report does not establish acceptance.
+5. Update the scoreboard with task, route, settings, observed outcome and
+   rework. Keep operational failures separate from code-quality findings.
+
+Start at high or the supported middle; xhigh is the ceiling. No max/ultra,
+paid fallback, topups or billing changes. Thinking is a route switch, not
+an adjustable effort scale. Auto Balance does not pin the underlying lab,
+so it cannot establish independent cross-lab review by itself. If a worker
+struggles, use one suitable replacement, then the existing lead finishes;
+never loop through weaker workers or duplicate the lead's account session.
+
+## Setup and evidence
+
+- [Optional integrations](https://github.com/danielmevit/unio/blob/main/docs/integrations/README.md): installed Vibe and
+  Perplexity adapters; source Copilot setup as documented there.
+- [Copilot Free / Balanced](https://github.com/danielmevit/unio/blob/main/docs/integrations/GITHUB-COPILOT.md): native route,
+  exclusions, private proposal receipts and current trial status.
+- [Capacity and freshness](https://github.com/danielmevit/unio/blob/main/docs/development/CAPACITY-READINGS.md): remaining allowance is
+  Unknown unless a supported observation or dated owner reading supplies it.
+- [Model experience](https://github.com/danielmevit/unio/blob/main/docs/development/MODEL-EXPERIENCE.md): future automatic task-fit profiles;
+  the current guide and scoreboard are instructions, not runtime scoring.
+UNIO_AGENT_FLEET_MD
+fi
 # END EMBEDDED ADAPTERS
 
 # Remove only copies and links owned by the legacy installer.
@@ -14959,7 +15443,7 @@ POLICY_MD_EOF
   fi
 
   local guide
-  for guide in LEAD-ESCALATION.md MODEL-SCOREBOARD.md; do
+  for guide in LEAD-ESCALATION.md MODEL-SCOREBOARD.md AGENT-FLEET.md; do
     [ -f "$root/coord/docs/$guide" ] || cp "$TPL_DIR/$guide" "$root/coord/docs/$guide"
   done
   if ! grep -q 'UNIO-LEAD-ESCALATION' "$main_dir/MASTER.md" 2>/dev/null; then
@@ -15518,11 +16002,14 @@ cmd_integrations() {
   local guides="https://github.com/danielmevit/unio/blob/main/docs/integrations"
   local vibe_file="$adapters_dir/vibe-worker.py"
   local pplx_file="$adapters_dir/perplexity-worker.py"
+  local copilot_file="$adapters_dir/copilot-worker.py"
   local vibe_role="implementation worker (Mistral Vibe 2.26.1; pinned GLM 5.3 / Mistral Medium 3.5, high effort)"
   local pplx_role="research and code-proposal adapter (Perplexity Pro web; proposals need a separate implementation agent)"
-  local vibe_installed=false pplx_installed=false
+  local copilot_role="routine proposal worker (GitHub Copilot Free / Auto Balance; no local or BYOK models)"
+  local vibe_installed=false pplx_installed=false copilot_installed=false
   if [ -f "$vibe_file" ] && [ ! -L "$vibe_file" ]; then vibe_installed=true; fi
   if [ -f "$pplx_file" ] && [ ! -L "$pplx_file" ]; then pplx_installed=true; fi
+  if [ -f "$copilot_file" ] && [ ! -L "$copilot_file" ]; then copilot_installed=true; fi
   if [ "$json" = no ]; then
     echo "Local filesystem metadata only: no adapter, dependency or provider is loaded or run."
     echo "Manual external installation and sign-in remain required; authentication/capacity Unknown."
@@ -15536,6 +16023,10 @@ cmd_integrations() {
     echo "  installed: $pplx_installed"
     echo "  path: $pplx_file"
     echo "  setup guide: $guides/PERPLEXITY-WEB.md"
+    echo "copilot-worker — $copilot_role"
+    echo "  installed: $copilot_installed"
+    echo "  path: $copilot_file"
+    echo "  setup guide: $guides/GITHUB-COPILOT.md"
   else
     # Isolated stdlib json (-I -S): every path character, including quotes,
     # backslashes, newlines and other control characters, is escaped.
@@ -15548,9 +16039,10 @@ a = sys.argv[1:]
 print(json.dumps({"schema_version": 1,
                   "note": "local filesystem metadata only; no adapter, dependency or provider is loaded or run; "
                           "manual external installation and sign-in required",
-                  "adapters": [entry("vibe-worker", *a[0:4]), entry("perplexity-worker", *a[4:8])]}, indent=2))' \
+                  "adapters": [entry("vibe-worker", *a[0:4]), entry("perplexity-worker", *a[4:8]), entry("copilot-worker", *a[8:12])]}, indent=2))' \
       "$vibe_file" "$vibe_installed" "$vibe_role" "$guides/MISTRAL-VIBE.md" \
-      "$pplx_file" "$pplx_installed" "$pplx_role" "$guides/PERPLEXITY-WEB.md"
+      "$pplx_file" "$pplx_installed" "$pplx_role" "$guides/PERPLEXITY-WEB.md" \
+      "$copilot_file" "$copilot_installed" "$copilot_role" "$guides/GITHUB-COPILOT.md"
   fi
 }
 
@@ -18086,7 +18578,8 @@ replace a lead during cooldown. Higher effort does not change this role.
 If a routine task reveals a difficult bug or security issue, preserve the
 finding and assign the substantive correction to a main implementation worker.
 
-Read ${UNIO_CONF_DIR:-$HOME/.config/unio}/templates/MODEL-ROLES.md. In the Unio repository,
+Read ${UNIO_CONF_DIR:-$HOME/.config/unio}/templates/AGENT-FLEET.md for practical
+account assignments, shared budgets and exclusions, then MODEL-ROLES.md there. In the Unio repository,
 read docs/ai/MODEL-ROLES.md and docs/development/LEAD-ROUTING.md. Before
 assignments also read ../coord/docs/LEAD-ESCALATION.md and MODEL-SCOREBOARD.md
 in that folder (installed templates provide the originals). Use checked
@@ -18239,6 +18732,16 @@ guidance, not automatic model switching or extra spending authority.
 
 For the full source policy read docs/ai/MODEL-ROLES.md and
 docs/development/LEAD-ROUTING.md in the Unio repository.
+
+Read AGENT-FLEET.md in the installed templates (or coord/docs) before assignments.
+Explicitly approved Mistral Vibe GLM5.3/Medium3.5 routes are optional implementation
+workers. Perplexity Thinking routes supply selected-context research and code
+proposals for a capable implementation agent to inspect/apply/validate. Copilot
+Free / Auto Balance starts as a routine proposal worker, never a lead or final
+acceptance authority. Balance is routing, not effort or a fixed AI lab. No local
+or BYOK model fallback. Current owner holds and task-fit evidence take precedence.
+All aliases sharing one subscription use one budget group; low-tier one-workflow
+limits include the lead. Research/draft delivery is never implementation acceptance.
 MODEL_ROLES_TPL_EOF
 
 cat > "$TPL_DIR/LEAD-ESCALATION.md" <<'LEAD_ESCALATION_TPL_EOF'

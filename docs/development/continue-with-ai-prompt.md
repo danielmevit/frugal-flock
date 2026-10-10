@@ -5,6 +5,22 @@ starting work. They take precedence over dated examples in the repository.
 Check the owner's latest instructions, `unio version`, and `unio policy`;
 do not infer current availability from an earlier successful worker run.
 
+## New source integration — 2026-10-10
+
+The development checkout adds Copilot Free / Auto Balance as a bounded routine
+proposal worker, its packaging/discovery entry and a persistent
+[agent fleet guide](AGENT-FLEET.md). These source changes are not a new published
+release; official/global 0.5.8 remains unchanged. Exact helper seven offline checks and
+three shipping checks passed. One actual corrective Copilot task delivered a
+reviewed documentation draft in 10.958s; usage labelled `gpt-6-luna`. Two earlier
+setup failures remain preserved. Auto rejects explicit effort flags; empty provider
+and model registry fields must be arrays. No local model or paid fallback.
+
+Future leads read fleet, routing, effort and scoreboard guides. Current subscriptions
+have distinct groups; aliases sharing each subscription serialize in low tier.
+Perplexity remains proposal/research only, free Zen/Copilot initially routine
+workers. Next functional priority remains save-retention reliability.
+
 ## Current public checkpoint — 2026-10-10
 
 [Unio v0.5.8](https://github.com/danielmevit/unio/releases/tag/v0.5.8)

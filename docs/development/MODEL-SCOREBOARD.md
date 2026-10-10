@@ -38,6 +38,29 @@ supporting workers only. Exact controls and routes are in
 [model roles](https://github.com/danielmevit/unio/blob/main/docs/ai/MODEL-ROLES.md)
 and the [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE-MODELS.md).
 
+## Copilot Free / Auto Balance — 2026-10-10
+
+A real Unio correction task returned one useful documentation draft in 10.958s:
+Source 0/native 0/adapter 0, one user request, native usage metric `gpt-6-luna`.
+The lead inspected and adapted its routing/budget explanation into the
+[agent fleet guide](AGENT-FLEET.md). Effective server identity, effort and
+remaining Free allowance remain Unknown; this sample does not rank coding skill.
+
+Two prior frozen tasks failed in setup and remain preserved: incorrect provider
+registry field types, then an unsupported explicit Auto effort. The latter
+reported zero user requests/API duration/AI credits. Lead corrected arrays and
+omitted effort flags; these were adapter compatibility defects, not model answers.
+The Opus adapter Source completed with two saved commits and seven offline checks;
+lead inspection corrected version punctuation and the compatibility boundaries.
+Original native verification remained INCOMPLETE because the lead's task used
+"Scope" rather than "Allowed scope"; both checks passed, and a separate native
+scope-only verification passed without another provider call. Final corrected
+helper and shipping checks passed before source integration. No extra AI reviewers.
+
+Start Copilot on routine docs, inventories and small mechanical proposals.
+Auto's model can change, so it cannot establish cross-lab review independence.
+Local/BYOK routes are excluded. See [Copilot setup](../integrations/GITHUB-COPILOT.md).
+
 ## Matched Perplexity scenarios — 2026-10-10
 
 The [four-scenario field report](https://github.com/danielmevit/unio/blob/main/docs/development/PERPLEXITY-FIELD-TRIALS-2026-10-10.md) records
