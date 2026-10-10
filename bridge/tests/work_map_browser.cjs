@@ -667,7 +667,10 @@ sys.stdout.buffer.write((root/'coord'/'snapshot.json').read_bytes())
       await page.selectOption("#theme-selector", theme);
       assert.ok(await page.evaluate(() => {
         const style = getComputedStyle(document.documentElement);
-        return [...style].filter(k => k.startsWith("--") && !['--map-passed', '--map-failed', '--map-attention'].includes(k)).every(k => {
+        // Status colors and the six muted agent tones (owner decision,
+        // 2026-10-10) are the only non-gray tokens; every surface stays neutral.
+        const tones = ['--t-rust', '--t-mustard', '--t-sea', '--t-steel', '--t-periwinkle', '--t-lavender'];
+        return [...style].filter(k => k.startsWith("--") && !['--map-passed', '--map-failed', '--map-attention', ...tones].includes(k)).every(k => {
           const value = style.getPropertyValue(k).trim();
           return !/^#[0-9a-f]{6}$/i.test(value) || value.slice(1, 3) === value.slice(3, 5) && value.slice(3, 5) === value.slice(5, 7);
         });

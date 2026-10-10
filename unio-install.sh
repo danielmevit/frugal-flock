@@ -5903,12 +5903,12 @@ footer a { display: inline-flex; align-items: center; min-height: 44px; color: v
 .brand-logo { display: block; height: 15px; width: auto; }
 h1 { font-family: var(--mono); font-size: 12px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 
+/* header controls keep the 44 px touch target */
 #theme-selector {
-  min-height: 36px; padding: 6px 10px; font-size: 13px;
+  min-height: 44px; padding: 6px 10px; font-size: 13px;
   color: var(--text-main); background: var(--paper); border: 1px solid var(--btn-border);
 }
 .topbar-controls { gap: 10px; }
-#refresh { min-height: 36px; padding: 6px 14px; }
 
 /* Small labels: monospace capitals */
 .eyebrow, .mode-label, .state-label, .chip, .map-counts, #status, .map-legend,
