@@ -21,6 +21,18 @@ have distinct groups; aliases sharing each subscription serialize in low tier.
 Perplexity remains proposal/research only, free Zen/Copilot initially routine
 workers. Next functional priority remains save-retention reliability.
 
+## Dashboard integration checkpoint — 2026-10-10
+
+The owner authorized integrating Opus's saved dashboard work at `0aa9a8b`
+and then continuing functional milestones. Its nine commits are preserved on
+`agent/claude-dashboard-ui`; the release candidate is on
+`agent/codex-dashboard-release`. Version 0.5.9 includes that interface work and
+the already-reviewed Copilot/fleet packaging. Do not redo the owner website or
+silently add the unfinished map-grouping proposal to this release. Read the
+local coordination log for actual gate, publication and installation outcomes.
+After delivery, prioritize save-retention reliability, then supported readiness
+and scheduling. One native workflow per shared subscription still includes lead.
+
 ## Current public checkpoint — 2026-10-10
 
 [Unio v0.5.8](https://github.com/danielmevit/unio/releases/tag/v0.5.8)

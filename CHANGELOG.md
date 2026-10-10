@@ -4,6 +4,21 @@ Release notes for Unio. Between releases, each task writes a short
 fragment in `changelog.d/`; the fragments are rolled into this file when a
 version is released.
 
+## 0.5.9 — clearer dashboard and agent fleet — 2026-10-10
+
+See [release scope and usage](docs/RELEASE-0.5.9.md).
+
+- Bring the website's interface language into the installed dashboard: dot-U
+  branding, clear task rows, muted agent tones and responsive layouts.
+- Start with a readable task list, remember the selected list/map view and
+  show Run, Checks and Review separately, with safely quoted next-step commands.
+- Show one allowance card per agent and separate cards for genuinely shared
+  budgets; keep missing or stale readings Unknown.
+- Replace raw activity output with a readable timeline, retain expandable
+  technical evidence and simplify work-map connections and phone filters.
+- Package the optional Copilot Auto Balance proposal adapter and persistent
+  fleet guide. Local/BYOK models stay excluded; proposals require inspection.
+
 ## 0.5.8 — optional subscription adapters — 2026-10-10
 
 See [release scope and setup](docs/RELEASE-0.5.8.md).
