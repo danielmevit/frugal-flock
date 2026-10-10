@@ -8,6 +8,8 @@
 # Unio rename contract: entirely isolated, no providers or credentials.
 set -euo pipefail
 REPO_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+EXPECTED_VERSION=$(sed -n 's/^UNIO_VERSION="\([^"]*\)"$/\1/p' "$REPO_DIR/unio-install.sh")
+[ -n "$EXPECTED_VERSION" ] || { echo 'FAIL: missing declared release version' >&2; exit 1; }
 BRAND_SANDBOX=$(mktemp -d)
 trap 'rm -rf "$BRAND_SANDBOX"' EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -195,7 +197,8 @@ done
 unio license > "$BRAND_SANDBOX/entry-license"
 cmp "$BRAND_SANDBOX/expected-license" "$BRAND_SANDBOX/entry-license"
 unio version > "$BRAND_SANDBOX/version"
-grep -q '^Unio 0\.5\.7 ' "$BRAND_SANDBOX/version"
+IFS= read -r branded_version < "$BRAND_SANDBOX/version"
+[[ "$branded_version" == "Unio $EXPECTED_VERSION ("* ]] || fail 'installed version differs from release declaration'
 grep -Fxq 'Your AIs, in sync.' "$BRAND_SANDBOX/version"
 grep -Fxq "config: $UNIO_CONF_DIR/agents.conf" "$BRAND_SANDBOX/version"
 rc=0
