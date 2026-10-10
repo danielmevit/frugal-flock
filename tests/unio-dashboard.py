@@ -22,6 +22,8 @@ import time
 import unittest
 
 SOURCE = Path(__file__).resolve().parent.parent
+RELEASE_VERSION = re.search(r'^UNIO_VERSION="([^"]+)"$',
+                            (SOURCE / 'unio-install.sh').read_text(), re.MULTILINE).group(1)
 HELPER = SOURCE / 'tools' / 'runtime' / 'dashboard.py'
 BROWSER_FILES = ('server.py', 'launcher.py', 'progress.py', 'worker_files.py',
                  'plan_store.py', 'job_store.py', 'execution_service.py', 'index.html',
@@ -201,7 +203,7 @@ class DashboardTests(unittest.TestCase):
         code, raw = self.request(port, '/api/dashboard')
         self.assertEqual(code, 200)
         document = json.loads(raw)
-        self.assertEqual(document, dict(schema_version=1, managed=True, mode='read-only', version='0.5.7',
+        self.assertEqual(document, dict(schema_version=1, managed=True, mode='read-only', version=RELEASE_VERSION,
                                         project_hash=helper.project_hash(self.project),
                                         launch_nonce=record['launch_nonce']))
         self.assertNotIn(str(self.project).encode(), raw)

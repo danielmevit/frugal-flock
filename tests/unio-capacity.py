@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import shutil
 import subprocess
@@ -102,7 +103,9 @@ class InstalledCapacityTests(unittest.TestCase):
 
     def test_native_help_version_and_exact_payload(self):
         self.assert_embedded()
-        self.assertTrue(self.unio('version').stdout.startswith('Unio 0.5.7 '))
+        declared = re.search(r'^UNIO_VERSION="([^"]+)"$',
+                             (SOURCE / 'unio-install.sh').read_text(), re.MULTILINE).group(1)
+        self.assertTrue(self.unio('version').stdout.startswith('Unio ' + declared + ' '))
         self.assertIn('unio capacity [--project DIR] record|show', self.unio('help').stdout)
         for args in (('capacity',), ('capacity', '--help'), ('capacity', 'record', '--help')):
             with self.subTest(args=args):
