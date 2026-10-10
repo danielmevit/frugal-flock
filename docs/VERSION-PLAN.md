@@ -8,8 +8,8 @@ separates shipped features from source additions and recommends a functional
 delivery order. Recovery shipped in v0.5.4, followed by the browser launcher and
 map improvements in v0.5.5, manual capacity readings in v0.5.6 and the managed
 dashboard/explicit Codex readings in v0.5.7. Optional subscription adapters and
-standalone discovery shipped in v0.5.8. The next bounded release, v0.5.9,
-integrates the saved dashboard redesign and Copilot/fleet packaging; published
+standalone discovery shipped in v0.5.8. Version v0.5.9 integrates the saved
+dashboard redesign and Copilot/fleet packaging; published
 assets stay immutable.
 
 Validation update, 2026-10-08: see [completed checks, preserved failures and
@@ -17,7 +17,7 @@ remaining release work](development/RECOVERY-ACCEPTANCE-2026-10-08.md). The comp
 
 | Version | Included work | State |
 | --- | --- | --- |
-| 0.5.9 | Saved dashboard redesign: readable task list, agent allowance cards, activity timeline and map readability; packaged Copilot Auto Balance and fleet guide | Owner-authorized release preparation; focused browser checks and complete release gate required before publication |
+| 0.5.9 | Saved dashboard redesign: readable task list, agent allowance cards, activity timeline and map readability; packaged Copilot Auto Balance and fleet guide | [Released and installed 2026-10-10](https://github.com/danielmevit/unio/releases/tag/v0.5.9); source0c2def4, complete gate, six browser suites, artifacts, upgrade/restore and official download/install checks passed |
 | 0.5.0 | Completed A/B/C/D rename; installer, commands, config, docs and prototypes | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.0); source aebe23c; installed with owner approval |
 | 0.5.1 | Limit-policy hardening and regression coverage | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.1); source af437b1 |
 | 0.5.2 | Queue approval, reservation and recovery library | [Published 2026-10-06](https://github.com/danielmevit/unio/releases/tag/v0.5.2); source 1bddeab |

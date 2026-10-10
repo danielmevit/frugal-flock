@@ -4,7 +4,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ## Current Delivery States
 
-- **Shipped**: Released globally and installed (latest: [v0.5.8](https://github.com/danielmevit/unio/releases/tag/v0.5.8)). The optional Vibe/Perplexity adapters and local discovery passed the complete gate, artifact installation, upgrade/restore and official download checks. See [adapter setup](../integrations/README.md).
+- **Shipped**: Released globally and installed (latest: [v0.5.9](https://github.com/danielmevit/unio/releases/tag/v0.5.9)). The dashboard redesign and Copilot/fleet packaging passed the complete gate, six browser suites, artifact installation, upgrade/restore and official download checks. See [release scope](../RELEASE-0.5.9.md) and [adapter setup](../integrations/README.md).
 - **Release candidate**: No new candidate is designated. Next functional work addresses save retention, followed by supported readiness and scheduling.
 - **Accepted Development**: Merged in `main`, passes focused checks and personal review, waiting for a release. This state alone does not mean a feature is published or installed.
 - **Partially Implemented**: Working pieces exist in `main`, but the full milestone is incomplete.

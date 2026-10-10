@@ -108,7 +108,7 @@ never loop through weaker workers or duplicate the lead's account session.
 ## Setup and evidence
 
 - [Optional integrations](https://github.com/danielmevit/unio/blob/main/docs/integrations/README.md): installed Vibe and
-  Perplexity adapters; source Copilot setup as documented there.
+  Perplexity and Copilot adapters; Copilot is packaged starting in 0.5.9.
 - [Copilot Free / Balanced](https://github.com/danielmevit/unio/blob/main/docs/integrations/GITHUB-COPILOT.md): native route,
   exclusions, private proposal receipts and current trial status.
 - [Capacity and freshness](https://github.com/danielmevit/unio/blob/main/docs/development/CAPACITY-READINGS.md): remaining allowance is

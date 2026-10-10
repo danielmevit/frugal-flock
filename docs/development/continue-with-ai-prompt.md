@@ -5,7 +5,24 @@ starting work. They take precedence over dated examples in the repository.
 Check the owner's latest instructions, `unio version`, and `unio policy`;
 do not infer current availability from an earlier successful worker run.
 
-## New source integration — 2026-10-10
+## Current release — 2026-10-10
+
+[Unio v0.5.9](https://github.com/danielmevit/unio/releases/tag/v0.5.9) is
+published and installed from `0c2def4dfee307622b3d5959641a22d220d1576a`.
+It preserves all nine Opus dashboard commits at `0aa9a8b` and packages the
+completed Copilot/fleet integration. The complete gate passed in 740.945s;
+all six browser suites, exact artifacts, upgrade/restore, official download
+hashes and installed runtime/payload checks passed. Operator settings and
+custom templates were preserved; earlier failed evidence and tags remain intact.
+
+The next functional tasks are project-wide save retention preserving history,
+sanitized supported authentication observations, and a bounded isolated save
+performance probe. Check the local coordination log for actual worker state;
+prepared tasks are not completed implementations. The latest managed dashboard
+URL comes from `unio dashboard ensure --open-browser`. A separate design preview
+may show demo data. Further map grouping and remote pairing remain follow-up work.
+
+## Earlier source integration — 2026-10-10
 
 The development checkout adds Copilot Free / Auto Balance as a bounded routine
 proposal worker, its packaging/discovery entry and a persistent
@@ -33,7 +50,7 @@ local coordination log for actual gate, publication and installation outcomes.
 After delivery, prioritize save-retention reliability, then supported readiness
 and scheduling. One native workflow per shared subscription still includes lead.
 
-## Current public checkpoint — 2026-10-10
+## Previous release checkpoint — 2026-10-10
 
 [Unio v0.5.8](https://github.com/danielmevit/unio/releases/tag/v0.5.8)
 is published and installed. Exact release source:

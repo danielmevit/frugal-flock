@@ -1,9 +1,7 @@
 # GitHub Copilot Free / Balanced
 
-The source checkout adds `tools/copilot-worker.py` as a bounded routine
-proposal worker. This is unreleased development work; the published 0.5.8
-installer includes Vibe and Perplexity, not Copilot. The next installer
-packages this helper alongside them without installing or authenticating
+Unio 0.5.9 packages `tools/copilot-worker.py` as a bounded routine
+proposal worker alongside Vibe and Perplexity, without installing or authenticating
 any external tool. Follow [the fleet guide](../development/AGENT-FLEET.md)
 for assignments and shared budget groups.
 
@@ -40,13 +38,13 @@ remaining Free allowance.
 
 From an initialized Unio project, create a private receipt parent and add
 an alias to your existing `agents.conf` without replacing its other entries.
-For current 0.5.8, point the alias to the reviewed source-checkout helper:
+Use the installed 0.5.9 helper, or the reviewed source-checkout helper:
 
 ```text
 copilot=python3 '/absolute/path/to/unio/tools/copilot-worker.py' --receipt-dir '/absolute/private/copilot-proposals'
 ```
 
-Once a published release packages Copilot, the helper path can be
+With 0.5.9, the installed helper path is
 `~/.config/unio/lib/adapters/copilot-worker.py` (or under `UNIO_CONF_DIR`).
 Keep the receipt parent outside the Git checkout, owned by you and mode 0700.
 The adapter requires it to exist; it never creates an account or dependency.

@@ -1,23 +1,23 @@
 # Optional subscription adapters
 
-Vibe and Perplexity ship with Unio 0.5.8 and also run from a source checkout.
-The development checkout adds Copilot Free / Auto Balance; it is not included
-in the published 0.5.8 assets.
+Vibe and Perplexity ship with Unio 0.5.8 and later. Copilot Free / Auto Balance
+joins them in 0.5.9. All three also run from a source checkout.
 Install and sign in to the
 external tool manually; the adapter does not purchase credits, change billing or
 fall back to another paid service.
 
 ## Where the adapters live
 
-| Adapter | Source checkout | Installed copy (0.5.8 and later) |
+| Adapter | Source checkout | Installed copy |
 | --- | --- | --- |
 | Vibe worker | `tools/vibe-worker.py` | `~/.config/unio/lib/adapters/vibe-worker.py` |
 | Perplexity worker | `tools/perplexity-worker.py` | `~/.config/unio/lib/adapters/perplexity-worker.py` |
-| Copilot worker (unreleased) | `tools/copilot-worker.py` | Next installer: `~/.config/unio/lib/adapters/copilot-worker.py` |
+| Copilot worker (0.5.9+) | `tools/copilot-worker.py` | `~/.config/unio/lib/adapters/copilot-worker.py` |
 
 The standalone installer copies the exact reviewed adapter bytes to
 the installed path above (or under `$UNIO_CONF_DIR/lib/adapters`). With 0.5.7 or
-earlier, use the source-checkout path or upgrade. Installing Unio installs no
+earlier, use the source-checkout path or upgrade; Copilot needs 0.5.9 or its
+source-checkout helper. Installing Unio installs no
 Vibe, Perplexity connector or other external
 dependency, and starts no model.
 
@@ -41,7 +41,7 @@ and start it with `unio run`, so native per-budget slots stay in force.
 | Route | Use it for | Guide |
 | --- | --- | --- |
 | Mistral Vibe 2.26.1 | Implementation tasks using GLM 5.3 or Mistral Medium 3.5, explicitly pinned at high effort | [Vibe worker setup](MISTRAL-VIBE.md) |
-| Copilot Free / Auto Balance (source) | Routine documentation and small mechanical proposals; local/BYOK models excluded | [Copilot setup](GITHUB-COPILOT.md) |
+| Copilot Free / Auto Balance | Routine documentation and small mechanical proposals; local/BYOK models excluded | [Copilot setup](GITHUB-COPILOT.md) |
 | Perplexity Pro web | Research and draft code proposals using GLM 5.3, Kimi K3 or the connector's GPT-6 Sol Thinking route | [Perplexity setup and proposal workflow](PERPLEXITY-WEB.md) |
 
 Perplexity supplies research, citations and proposed code from selected context.
