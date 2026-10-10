@@ -671,3 +671,22 @@ input:hover, textarea:hover, .map-controls select:hover, #theme-selector:hover {
   .task-row .task-status { flex-direction: row; align-items: center; gap: 10px; }
   .track { flex-wrap: wrap; }
 }
+
+/* ---- Agents & limits: one card per agent ---------------------------------- */
+.limits-caveat { margin: -6px 0 14px; color: var(--muted); }
+.limits-routes { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 6px; }
+.limits-groups { gap: 6px; }
+.limits-card h4 { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; font-family: inherit; font-size: 13px; }
+.limits-card h4 .agent-badge { flex-direction: row; min-width: 0; gap: 8px; }
+.limits-card h4 .agent-logo { width: 18px; height: 18px; }
+.limits-card h4 .agent-name { font-size: 12.5px; font-weight: 700; color: var(--text-main); text-transform: none; }
+.limits-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.limits-tags .chip { margin: 0; }
+.limits-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; }
+.limits-facts > div { display: contents; }
+.limits-facts dt { font-family: var(--mono); font-size: 10.5px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+.limits-facts dd { margin: 0; font-size: 12.5px; overflow-wrap: anywhere; }
+.limits-allowance { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; }
+.limits-allowance-title { margin: 0 0 2px; font-family: var(--mono); font-size: 10.5px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.limits-allowance .limits-window:first-of-type { border-top: 0; margin-top: 0; padding-top: 2px; }
+.limits-card > p.small { margin-top: 10px; }

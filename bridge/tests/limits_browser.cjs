@@ -122,16 +122,21 @@ sys.stdout.buffer.write((data / name).read_bytes())
     ok("visible section outside collapsed details; registered-lead/mode/tier reservation overview");
 
     const route = async (name) => page.locator('#limits-routes [data-route="' + name + '"]').textContent();
+    // Each agent card states its facts as labeled readouts: Budget, Running, Tool.
+    const facts = async (name) => page.locator('#limits-routes [data-route="' + name + '"] .limits-facts').evaluate((dl) =>
+      Object.fromEntries([...dl.children].map((row) => [row.querySelector("dt").textContent, row.querySelector("dd").textContent])));
     const codexRoute = await route("codex");
     assert.ok(codexRoute.includes("Registered lead (reservation)"));
-    assert.ok(codexRoute.includes("Shared budget group codex · binary installed"));
-    assert.ok(codexRoute.includes("Native active workflows 0 + registered lead = 1 of 1"));
-    assert.ok(codexRoute.includes("Authentication Unknown"));
+    assert.deepEqual(await facts("codex"), { Budget: "codex, shared with codex-reviewer", Running: "0 + registered lead = 1 of 1", Tool: "installed" });
+    // The authentication caveat is stated once for every agent, not per card.
+    assert.ok((await page.textContent("#limits-caveat")).includes("Authentication Unknown for every agent"));
     const reviewer = await route("codex-reviewer");
-    assert.ok(reviewer.includes("Benched OFF") && reviewer.includes("group codex · binary Unknown"));
-    assert.ok((await route("claude")).includes("Native active workflows 1 = 1 of 1"));
+    assert.ok(reviewer.includes("Benched OFF"));
+    assert.equal((await facts("codex-reviewer")).Budget, "codex, shared with codex");
+    assert.equal((await facts("codex-reviewer")).Tool, "Unknown");
+    assert.equal((await facts("claude")).Running, "1 of 1");
     assert.equal(await page.locator(".limits-section img").count(), 0);
-    assert.ok((await route("<img src=x onerror=alert(1)>")).includes("binary missing"));
+    assert.equal((await facts("<img src=x onerror=alert(1)>")).Tool, "missing");
     ok("each route: shared group, binary, ON/OFF, native workflow count, lead role, authentication Unknown, literal labels");
 
     assert.equal(await page.locator('#limits-groups [data-group="codex"]').count(), 1, "shared budget shown once");
@@ -146,7 +151,9 @@ sys.stdout.buffer.write((data / name).read_bytes())
     assert.ok(!(await codexGroup.textContent()).includes("81.5"), "windows are never summed");
     ok("Automatic Codex 5h and weekly windows: remaining, reset countdown, age, freshness and source");
 
-    const claude = await page.locator('#limits-groups [data-group="claude"] .limits-window').allTextContents();
+    // claude's budget is its own, so its allowance sits inside its card.
+    assert.equal(await page.locator('#limits-groups [data-group="claude"]').count(), 0);
+    const claude = await page.locator('#limits-routes [data-route="claude"] .limits-window').allTextContents();
     assert.ok(claude[0].startsWith("five-hour · 5h · 42% remaining") && claude[0].includes("Source Manual · observed 1m before check · fresh"), claude[0]);
     assert.ok(claude[1].startsWith("weekly · weekly · last reading 80% · usable Unknown (stale)") && claude[1].includes("Reset time Unknown"), claude[1]);
     const spare = page.locator('#limits-groups [data-group="spare"]');
@@ -163,7 +170,7 @@ sys.stdout.buffer.write((data / name).read_bytes())
     await page.waitForFunction(() => document.getElementById("limits-lead").textContent.includes("Unknown"), null, { timeout: 15000 });
     assert.ok((await page.textContent("#limits-lead")).startsWith("Registered lead, mode and tier: Unknown"));
     assert.ok((await page.textContent("#limits-groups")).includes("Manual and automatic Codex readings are unavailable from the installed CLI and stay Unknown."));
-    assert.ok((await route("claude")).includes("Shared budget group Unknown"));
+    assert.equal((await facts("claude")).Budget, "Unknown");
     assert.ok((await page.textContent("#status")).includes("STOP clear"));
     assert.ok((await page.textContent("#tasks")).includes("LIMITS-1"));
     ok("unsupported native reads show Unknown without breaking activity");

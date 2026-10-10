@@ -194,61 +194,26 @@
     // hidden, so switching views never shows an older observation.
     renderSummary(tally);
     renderTaskList(data, pageTasks, categories);
+    // Tools and operator limits: one honest line for what is never observed,
+    // then only what actually happened (benched tools, failed attempts).
     const limits = document.getElementById("limits");
     limits.replaceChildren();
-    for (const agent of data.agents) {
-      const row = text("div", "", "row");
-      row.append(text("strong", agent.name));
-      const info = text("div", "", "data");
-      info.append(
-        text(
-          "span",
-          agent.bench.off ? "OFF" : "on",
-          "chip" + (agent.bench.off ? " warn" : ""),
-        ),
-      );
-      info.append(
-        text(
-          "p",
-          "Binary " +
-            (agent.binary.present === null
-              ? "unknown"
-              : agent.binary.present
-                ? "installed"
-                : "missing") +
-            " · authentication unknown · capacity unknown",
-        ),
-      );
-      if (agent.bench.operator_retry_at !== null)
-        info.append(
-          text(
-            "p",
-            "Operator retry epoch " +
-              agent.bench.operator_retry_at +
-              "; not a provider reset.",
-          ),
-        );
-      row.append(info);
-      limits.append(row);
-    }
-    if (!data.agents.length)
+    if (data.agents.length)
+      limits.append(text("p", "For every tool, authentication unknown · capacity unknown: this page never signs in or asks a provider.", "small"));
+    else
       limits.append(text("p", "No tool observations recorded. Authentication and capacity remain unknown.", "small"));
-    for (const retry of data.retries)
-      limits.append(
-        text(
-          "p",
-          retry.task +
-            ": " +
-            retry.failed_attempts +
-            " failed attempts · " +
-            (retry.blocked
-              ? "BLOCKED"
-              : retry.retry_granted
-                ? "one retry granted"
-                : "brake clear"),
-          "small",
-        ),
-      );
+    const missing = data.agents.filter((a) => a.binary && a.binary.present === false).map((a) => a.name);
+    if (missing.length) limits.append(text("p", "Tool missing: " + missing.join(", ") + ".", "small"));
+    for (const agent of data.agents) {
+      const retryAt = agent.bench.operator_retry_at !== null ? " · operator retry epoch " + agent.bench.operator_retry_at + "; not a provider reset" : "";
+      if (agent.bench.off || retryAt) limits.append(text("p", agent.name + (agent.bench.off ? " is benched (OFF)" : "") + retryAt + ".", "small"));
+    }
+    const troubled = data.retries.filter((retry) => retry.failed_attempts > 0 || retry.blocked || retry.retry_granted);
+    for (const retry of troubled)
+      limits.append(text("p", retry.task + ": " + retry.failed_attempts + " failed " + (retry.failed_attempts === 1 ? "attempt" : "attempts") + " · "
+        + (retry.blocked ? "BLOCKED" : retry.retry_granted ? "one retry granted" : "brake clear"), "small"));
+    if (!troubled.length && data.retries.length)
+      limits.append(text("p", "No failed attempts recorded; the loop brake is clear for every task.", "small"));
     document.getElementById("events").textContent = JSON.stringify(
       { recent_events: data.recent_events, warnings: data.warnings },
       null,
@@ -1453,20 +1418,73 @@
         + " = " + withLead + " of " + policy.workflow_limit_per_group;
     };
 
+    // Members per budget group: a group with exactly one member is that
+    // agent's own budget and is shown inside its card; only budgets shared
+    // by several agents (or with readings but no agent) get their own card.
+    const membersOf = (group) => Array.from(names).filter((n) => policy && groupOf(n) === group).sort();
+    const windowsFor = (group) => {
+      const parts = [];
+      const provider = codex && codex.groups[group];
+      if (provider) {
+        if (provider.state !== "ok")
+          parts.push(text("p", "Automatic Codex: Unknown (" + (provider.reason || "unknown").replaceAll("_", " ") + ")"));
+        for (const [bucket, entry] of Object.entries(provider.buckets || {}))
+          for (const slot of ["primary", "secondary"])
+            if (entry.windows[slot]) parts.push(limitsWindow(bucket, entry.windows[slot]));
+        if (provider.last_good)
+          for (const [bucket, entry] of Object.entries(provider.last_good.buckets || {}))
+            for (const slot of ["primary", "secondary"])
+              if (entry.windows[slot]) parts.push(limitsWindow(bucket + " (historical)", entry.windows[slot]));
+      }
+      const recorded = manual && manual.groups[group];
+      if (recorded) for (const [label, w] of Object.entries(recorded.windows)) parts.push(limitsWindow(label, w));
+      const current = parts.filter((p) => p.classList && p.classList.contains("limits-window") && !p.textContent.includes("(historical)")).length;
+      if (!current) parts.push(text("p", "No current allowance reading · remaining Unknown"));
+      return parts;
+    };
+    const fact = (dl, name, value) => {
+      const row = document.createElement("div");
+      row.append(text("dt", name), text("dd", value));
+      dl.append(row);
+    };
+
     const routes = document.getElementById("limits-routes");
     routes.replaceChildren();
     for (const name of Array.from(names).sort()) {
       const agent = agents.find((a) => a.name === name);
       const card = text("div", "", "limits-card");
       card.dataset.route = name;
-      card.append(text("h4", name));
-      if (policy && policy.lead_agent === name) card.append(text("span", "Registered lead (reservation)", "chip"));
-      card.append(text("span", agent ? (agent.bench && agent.bench.off ? "Benched OFF" : "ON") : "ON/OFF Unknown", "chip" + (agent && agent.bench && agent.bench.off ? " warn" : "")));
+      const head = text("h4", "");
+      head.append(agentBadge(name));
+      card.append(head);
+      const tags = text("div", "", "limits-tags");
+      if (policy && policy.lead_agent === name) tags.append(text("span", "Registered lead (reservation)", "chip"));
+      tags.append(text("span", agent ? (agent.bench && agent.bench.off ? "Benched OFF" : "ON") : "ON/OFF Unknown", "chip" + (agent && agent.bench && agent.bench.off ? " warn" : "")));
+      card.append(tags);
+      const facts = document.createElement("dl");
+      facts.className = "limits-facts";
+      const group = policy ? groupOf(name) : null;
+      const shared = group ? membersOf(group).filter((m) => m !== name) : [];
+      fact(facts, "Budget", group === null ? "Unknown" : group + (shared.length ? ", shared with " + shared.join(", ") : ", its own"));
+      // "0 of 1"; the sum is spelled out only when the lead counts too.
+      const running = () => {
+        const native = policy.active_native_workflows[group] || 0;
+        return policy.lead_group === group
+          ? native + " + registered lead = " + (native + 1) + " of " + policy.workflow_limit_per_group
+          : native + " of " + policy.workflow_limit_per_group;
+      };
+      fact(facts, "Running", policy ? running() : "Unknown");
       const binary = agent && agent.binary ? agent.binary.present : null;
-      card.append(text("p", "Shared budget group " + (policy ? groupOf(name) : "Unknown") + " · binary "
-        + (binary === true ? "installed" : binary === false ? "missing" : "Unknown")));
-      card.append(text("p", policy ? active(groupOf(name)) : "Native active workflows Unknown"));
-      card.append(text("p", "Authentication Unknown · ON, an installed binary or a sign-in is not readiness."));
+      fact(facts, "Tool", binary === true ? "installed" : binary === false ? "missing" : "Unknown");
+      card.append(facts);
+      if (group !== null && !shared.length) {
+        const allowance = text("div", "", "limits-allowance");
+        allowance.dataset.group = group;
+        allowance.append(text("p", "Allowance", "limits-allowance-title"), ...windowsFor(group));
+        card.append(allowance);
+      } else if (group !== null) {
+        card.append(text("p", "Allowance: see the shared budget " + group + " below.", "small"));
+      }
       routes.append(card);
     }
     if (!names.size) routes.append(text("p", "No configured routes observed. Routes and their limits are Unknown.", "small"));
@@ -1478,32 +1496,20 @@
     if (codex) Object.keys(codex.groups).forEach((g) => groups.add(g));
     const list = document.getElementById("limits-groups");
     list.replaceChildren();
+    let sharedCards = 0;
     for (const group of Array.from(groups).sort()) {
+      const members = membersOf(group);
+      if (policy && members.length === 1) continue;   // shown inside that agent's card
       const card = text("div", "", "limits-card");
       card.dataset.group = group;
-      card.append(text("h4", "Group " + group));
-      const members = Array.from(names).filter((n) => policy && groupOf(n) === group).sort();
+      card.append(text("h4", "Shared budget " + group));
       card.append(text("p", members.length ? "Shared by " + members.join(", ") : "No configured route maps to this group"));
       card.append(text("p", active(group)));
-      let windows = 0;
-      const provider = codex && codex.groups[group];
-      if (provider) {
-        if (provider.state !== "ok")
-          card.append(text("p", "Automatic Codex: Unknown (" + (provider.reason || "unknown").replaceAll("_", " ") + ")"));
-        for (const [bucket, entry] of Object.entries(provider.buckets || {}))
-          for (const slot of ["primary", "secondary"])
-            if (entry.windows[slot]) { card.append(limitsWindow(bucket, entry.windows[slot])); windows++; }
-        if (provider.last_good)
-          for (const [bucket, entry] of Object.entries(provider.last_good.buckets || {}))
-            for (const slot of ["primary", "secondary"])
-              if (entry.windows[slot]) card.append(limitsWindow(bucket + " (historical)", entry.windows[slot]));
-      }
-      const recorded = manual && manual.groups[group];
-      if (recorded)
-        for (const [label, w] of Object.entries(recorded.windows)) { card.append(limitsWindow(label, w)); windows++; }
-      if (!windows) card.append(text("p", "No current allowance reading · remaining Unknown"));
+      card.append(...windowsFor(group));
       list.append(card);
+      sharedCards++;
     }
+    document.querySelector(".limits-subtitle").hidden = !sharedCards && !!policy;
     if (!groups.size) list.append(text("p", "No shared budget groups or readings observed. Allowance is Unknown.", "small"));
     if (!manual || !codex)
       list.append(text("p", (!manual && !codex ? "Manual and automatic Codex readings are" : !manual ? "Manual readings are" : "Automatic Codex readings are")
