@@ -704,6 +704,27 @@
     applyMapPresentation();
   }
 
+  function optionLogo(worker) {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("class", "option-logo");
+    const mark = agentIdentity(worker).mark;
+    const paths = mark && AI_MARKS[mark];
+    if (paths) {
+      for (const d of paths) {
+        const path = document.createElementNS(SVG_NS, "path");
+        path.setAttribute("d", d);
+        svg.appendChild(path);
+      }
+    } else {
+      const dot = document.createElementNS(SVG_NS, "rect");
+      for (const [k, v] of [["x", "7"], ["y", "7"], ["width", "10"], ["height", "10"], ["rx", "2.5"]]) dot.setAttribute(k, v);
+      svg.appendChild(dot);
+    }
+    return svg;
+  }
+
   function syncWorkerOptions(names) {
     const select = document.getElementById("map-worker-filter");
     const wanted = Array.from(new Set(names)).sort();
@@ -717,8 +738,12 @@
       if (!option) {
         option = document.createElement("option");
         option.value = want.value;
+        // Each worker shows its lab's logo where the browser can draw rich
+        // options; elsewhere the option is just its name, as before.
+        if (want.value) option.append(optionLogo(want.value), text("span", "", "option-label"));
       }
-      setText(option, want.text);
+      setText(option.querySelector(".option-label") || option, want.text);
+      if (want.value) option.dataset.agentMark = agentIdentity(want.value).mark;
       if (select.options[index] !== option) select.insertBefore(option, select.options[index] || null);
     });
     for (const option of existing.values()) option.remove();

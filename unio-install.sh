@@ -4039,16 +4039,18 @@ cat > "$CONF_DIR/lib/browser/index.html" <<'UNIO_BROWSER_INDEX_HTML'
           </details>
         </details>
       </div>
-      <p id="mode-footer" class="small">
-        Default mode observes local activity only. Authentication and provider capacity are unknown.
-        Use CLI result to recheck current readiness.
-      </p>
-      <footer>
-        <span>Unio — Your AIs, in sync.</span>
-        <nav aria-label="Project links">
-          <a href="https://github.com/danielmevit/unio">GitHub</a>
-          <a href="https://github.com/danielmevit/unio/blob/main/LICENSE">License · AGPL-3.0-only</a>
-        </nav>
+      <footer class="page-footer">
+        <p id="mode-footer" class="small">
+          Default mode observes local activity only. Authentication and provider capacity are unknown.
+          Use CLI result to recheck current readiness.
+        </p>
+        <div class="footer-row">
+          <span class="footer-brand"><svg class="footer-mark" viewBox="0 0 23 27" aria-hidden="true"><rect x="0" y="0" width="3" height="3" rx="0.7"/><rect x="4" y="0" width="3" height="3" rx="0.7"/><rect x="16" y="0" width="3" height="3" rx="0.7"/><rect x="20" y="0" width="3" height="3" rx="0.7"/><rect x="0" y="4" width="3" height="3" rx="0.7"/><rect x="4" y="4" width="3" height="3" rx="0.7"/><rect x="16" y="4" width="3" height="3" rx="0.7"/><rect x="20" y="4" width="3" height="3" rx="0.7"/><rect x="0" y="8" width="3" height="3" rx="0.7"/><rect x="4" y="8" width="3" height="3" rx="0.7"/><rect x="16" y="8" width="3" height="3" rx="0.7"/><rect x="20" y="8" width="3" height="3" rx="0.7"/><rect x="0" y="12" width="3" height="3" rx="0.7"/><rect x="4" y="12" width="3" height="3" rx="0.7"/><rect x="16" y="12" width="3" height="3" rx="0.7"/><rect x="20" y="12" width="3" height="3" rx="0.7"/><rect x="0" y="16" width="3" height="3" rx="0.7"/><rect x="4" y="16" width="3" height="3" rx="0.7"/><rect x="16" y="16" width="3" height="3" rx="0.7"/><rect x="20" y="16" width="3" height="3" rx="0.7"/><rect x="0" y="20" width="3" height="3" rx="0.7"/><rect x="4" y="20" width="3" height="3" rx="0.7"/><rect x="8" y="20" width="3" height="3" rx="0.7"/><rect x="12" y="20" width="3" height="3" rx="0.7"/><rect x="16" y="20" width="3" height="3" rx="0.7"/><rect x="20" y="20" width="3" height="3" rx="0.7"/><rect x="4" y="24" width="3" height="3" rx="0.7"/><rect x="8" y="24" width="3" height="3" rx="0.7"/><rect x="12" y="24" width="3" height="3" rx="0.7"/><rect x="16" y="24" width="3" height="3" rx="0.7"/></svg>Unio — Your AIs, in sync.</span>
+          <nav aria-label="Project links">
+            <a href="https://github.com/danielmevit/unio">GitHub</a>
+            <a href="https://github.com/danielmevit/unio/blob/main/LICENSE">License · AGPL-3.0-only</a>
+          </nav>
+        </div>
       </footer>
     </main>
   </body>
@@ -4761,6 +4763,27 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
     applyMapPresentation();
   }
 
+  function optionLogo(worker) {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("class", "option-logo");
+    const mark = agentIdentity(worker).mark;
+    const paths = mark && AI_MARKS[mark];
+    if (paths) {
+      for (const d of paths) {
+        const path = document.createElementNS(SVG_NS, "path");
+        path.setAttribute("d", d);
+        svg.appendChild(path);
+      }
+    } else {
+      const dot = document.createElementNS(SVG_NS, "rect");
+      for (const [k, v] of [["x", "7"], ["y", "7"], ["width", "10"], ["height", "10"], ["rx", "2.5"]]) dot.setAttribute(k, v);
+      svg.appendChild(dot);
+    }
+    return svg;
+  }
+
   function syncWorkerOptions(names) {
     const select = document.getElementById("map-worker-filter");
     const wanted = Array.from(new Set(names)).sort();
@@ -4774,8 +4797,12 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
       if (!option) {
         option = document.createElement("option");
         option.value = want.value;
+        // Each worker shows its lab's logo where the browser can draw rich
+        // options; elsewhere the option is just its name, as before.
+        if (want.value) option.append(optionLogo(want.value), text("span", "", "option-label"));
       }
-      setText(option, want.text);
+      setText(option.querySelector(".option-label") || option, want.text);
+      if (want.value) option.dataset.agentMark = agentIdentity(want.value).mark;
       if (select.options[index] !== option) select.insertBefore(option, select.options[index] || null);
     });
     for (const option of existing.values()) option.remove();
@@ -5812,7 +5839,7 @@ body {
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; line-height: 1.55; }
-main { width: 100%; padding: 0 clamp(16px, 2.3vw, 48px) 24px; }
+main { --page-pad: clamp(16px, 2.3vw, 48px); width: 100%; padding: 0 var(--page-pad) 24px; }
 section, form, details, .workspace-layout > * { min-width: 0; }
 button, input, textarea, select, summary { font: inherit; }
 h1, h2, h3, h4, p { margin-top: 0; }
@@ -5913,14 +5940,14 @@ footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12
 footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
 footer a { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); font-size: 13px; text-underline-offset: 3px; }
 @media (max-width: 1000px) {
-  main { padding: 0 24px 24px; }
+  main { --page-pad: 24px; }
   .workspace-layout { grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); gap: 18px; }
   .selected-work, .composer { padding: 22px; }
   .stages { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 8px; }
   .preview-grid, .provider-labels { grid-template-columns: 1fr; gap: 0; }
 }
 @media (max-width: 720px) {
-  main { padding: 0 16px 20px; }
+  main { --page-pad: 16px; padding-bottom: 20px; }
   .topbar { flex-wrap: wrap; gap: 8px; padding: 16px 0; }
   .workspace-brand { gap: 12px; }
   .brand { padding-right: 12px; }
@@ -6429,6 +6456,54 @@ input:hover, textarea:hover, .map-controls select:hover, #theme-selector:hover {
   .task-filters #map-reset-filters, .task-filters .map-counts { grid-column: 1 / -1; }
   .timeline-row { grid-template-columns: 46px minmax(0, 1fr); }
   .timeline-row .agent-badge { display: none; }
+}
+
+/* ---- Worker filter: each worker with its lab's logo -------------------------
+   Uses the browser's customizable select where available (a real <select>,
+   so keyboard, screen readers and forms behave as before). */
+@supports (appearance: base-select) {
+  #map-worker-filter, #map-worker-filter::picker(select) { appearance: base-select; }
+  #map-worker-filter { display: flex; align-items: center; gap: 8px; }
+  #map-worker-filter::picker(select) {
+    max-height: min(60vh, 520px); padding: 4px; margin-top: 4px;
+    background: var(--paper); color: var(--text-main);
+    border: 1px solid var(--line-alt); border-radius: var(--r-sm);
+  }
+  #map-worker-filter option {
+    display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 10px;
+    border-radius: var(--r-xs); font-size: 13px;
+  }
+  #map-worker-filter option:hover, #map-worker-filter option:focus-visible { background: var(--btn-hover-bg); }
+  #map-worker-filter option:checked { background: var(--bg-label); font-weight: 650; }
+  #map-worker-filter option::checkmark { display: none; }
+  #map-worker-filter .option-logo { flex: none; width: 18px; height: 18px; fill: var(--tone, var(--text-main)); }
+}
+
+/* ---- Footer: its own full-width band ------------------------------------- */
+:root { --footer-bg: #e6e6e6; }
+[data-theme="dark"] { --footer-bg: #151515; }
+.page-footer {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px;
+  margin: 48px calc(-1 * var(--page-pad)) -24px; padding: 20px var(--page-pad) 22px;
+  background: var(--footer-bg); border-top: 1px solid var(--line-alt);
+  font-size: 12px; color: var(--muted);
+}
+.page-footer #mode-footer { margin: 0; max-width: 100ch; font-size: 12px; }
+.footer-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding-top: 14px; border-top: 1px solid var(--line); }
+.footer-brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; font-weight: 650; letter-spacing: .02em; color: var(--text-label); }
+.footer-mark { width: auto; height: 16px; fill: currentColor; }
+.page-footer nav { display: flex; gap: 4px; }
+.page-footer nav a {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px;
+  border: 1px solid var(--btn-border); border-radius: var(--r-xs); background: transparent;
+  color: var(--text-label); text-decoration: none; font-size: 12px; font-weight: 600;
+}
+.page-footer nav a:first-child { border-radius: var(--r-out) var(--r-xs) var(--r-xs) var(--r-out); }
+.page-footer nav a:last-child { border-radius: var(--r-xs) var(--r-out) var(--r-out) var(--r-xs); }
+.page-footer nav a:hover { background: var(--btn-hover-bg); border-color: var(--btn-hover-border); color: var(--text-main); }
+@media (max-width: 720px) {
+  .page-footer { margin-bottom: -20px; }
+  .footer-row { flex-direction: column; align-items: flex-start; }
 }
 UNIO_BROWSER_ACTIVITY_CSS
 cat > "$CONF_DIR/lib/browser/drafts.js" <<'UNIO_BROWSER_DRAFTS_JS'

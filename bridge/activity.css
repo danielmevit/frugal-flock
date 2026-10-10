@@ -107,7 +107,7 @@ body {
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; line-height: 1.55; }
-main { width: 100%; padding: 0 clamp(16px, 2.3vw, 48px) 24px; }
+main { --page-pad: clamp(16px, 2.3vw, 48px); width: 100%; padding: 0 var(--page-pad) 24px; }
 section, form, details, .workspace-layout > * { min-width: 0; }
 button, input, textarea, select, summary { font: inherit; }
 h1, h2, h3, h4, p { margin-top: 0; }
@@ -208,14 +208,14 @@ footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12
 footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
 footer a { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); font-size: 13px; text-underline-offset: 3px; }
 @media (max-width: 1000px) {
-  main { padding: 0 24px 24px; }
+  main { --page-pad: 24px; }
   .workspace-layout { grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); gap: 18px; }
   .selected-work, .composer { padding: 22px; }
   .stages { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 8px; }
   .preview-grid, .provider-labels { grid-template-columns: 1fr; gap: 0; }
 }
 @media (max-width: 720px) {
-  main { padding: 0 16px 20px; }
+  main { --page-pad: 16px; padding-bottom: 20px; }
   .topbar { flex-wrap: wrap; gap: 8px; padding: 16px 0; }
   .workspace-brand { gap: 12px; }
   .brand { padding-right: 12px; }
@@ -724,4 +724,52 @@ input:hover, textarea:hover, .map-controls select:hover, #theme-selector:hover {
   .task-filters #map-reset-filters, .task-filters .map-counts { grid-column: 1 / -1; }
   .timeline-row { grid-template-columns: 46px minmax(0, 1fr); }
   .timeline-row .agent-badge { display: none; }
+}
+
+/* ---- Worker filter: each worker with its lab's logo -------------------------
+   Uses the browser's customizable select where available (a real <select>,
+   so keyboard, screen readers and forms behave as before). */
+@supports (appearance: base-select) {
+  #map-worker-filter, #map-worker-filter::picker(select) { appearance: base-select; }
+  #map-worker-filter { display: flex; align-items: center; gap: 8px; }
+  #map-worker-filter::picker(select) {
+    max-height: min(60vh, 520px); padding: 4px; margin-top: 4px;
+    background: var(--paper); color: var(--text-main);
+    border: 1px solid var(--line-alt); border-radius: var(--r-sm);
+  }
+  #map-worker-filter option {
+    display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 10px;
+    border-radius: var(--r-xs); font-size: 13px;
+  }
+  #map-worker-filter option:hover, #map-worker-filter option:focus-visible { background: var(--btn-hover-bg); }
+  #map-worker-filter option:checked { background: var(--bg-label); font-weight: 650; }
+  #map-worker-filter option::checkmark { display: none; }
+  #map-worker-filter .option-logo { flex: none; width: 18px; height: 18px; fill: var(--tone, var(--text-main)); }
+}
+
+/* ---- Footer: its own full-width band ------------------------------------- */
+:root { --footer-bg: #e6e6e6; }
+[data-theme="dark"] { --footer-bg: #151515; }
+.page-footer {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px;
+  margin: 48px calc(-1 * var(--page-pad)) -24px; padding: 20px var(--page-pad) 22px;
+  background: var(--footer-bg); border-top: 1px solid var(--line-alt);
+  font-size: 12px; color: var(--muted);
+}
+.page-footer #mode-footer { margin: 0; max-width: 100ch; font-size: 12px; }
+.footer-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding-top: 14px; border-top: 1px solid var(--line); }
+.footer-brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; font-weight: 650; letter-spacing: .02em; color: var(--text-label); }
+.footer-mark { width: auto; height: 16px; fill: currentColor; }
+.page-footer nav { display: flex; gap: 4px; }
+.page-footer nav a {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px;
+  border: 1px solid var(--btn-border); border-radius: var(--r-xs); background: transparent;
+  color: var(--text-label); text-decoration: none; font-size: 12px; font-weight: 600;
+}
+.page-footer nav a:first-child { border-radius: var(--r-out) var(--r-xs) var(--r-xs) var(--r-out); }
+.page-footer nav a:last-child { border-radius: var(--r-xs) var(--r-out) var(--r-out) var(--r-xs); }
+.page-footer nav a:hover { background: var(--btn-hover-bg); border-color: var(--btn-hover-border); color: var(--text-main); }
+@media (max-width: 720px) {
+  .page-footer { margin-bottom: -20px; }
+  .footer-row { flex-direction: column; align-items: flex-start; }
 }
