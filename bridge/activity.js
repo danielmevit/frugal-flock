@@ -449,7 +449,12 @@
         row.dataset.task = r.task;
         row.dataset.signal = taskSignal(r, verdict);
         const main = text("div", "", "task-main");
-        main.append(agentBadge(r.worker), text("strong", r.task, "task-name"), text("p", state.sentence, "task-sentence"));
+        // The logo alone identifies the agent here; the name stays available
+        // to screen readers and as the hover title.
+        const badge = agentBadge(r.worker);
+        badge.classList.add("logo-only");
+        badge.title = r.worker;
+        main.append(badge, text("strong", r.task, "task-name"), text("p", state.sentence, "task-sentence"));
         const status = text("div", "", "task-status");
         const pill = text("span", state.label, "state-pill");
         const when = text("time", ago(r.recorded_at, data.observed_at), "task-when");

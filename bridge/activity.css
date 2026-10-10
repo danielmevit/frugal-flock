@@ -773,3 +773,30 @@ input:hover, textarea:hover, .map-controls select:hover, #theme-selector:hover {
   .page-footer { margin-bottom: -20px; }
   .footer-row { flex-direction: column; align-items: flex-start; }
 }
+
+/* ---- Task rows: every row shares the same columns ------------------------ */
+.task-row.row { grid-template-columns: minmax(0, 1fr) 272px 176px 340px; }
+.task-main { grid-template-columns: 40px minmax(0, 1fr); }
+.agent-badge.logo-only { min-width: 0; width: 40px; }
+.agent-badge.logo-only .agent-logo { width: 26px; height: 26px; }
+.agent-badge.logo-only .agent-name {
+  position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+/* Run / Checks / Review: the same three widths in every row */
+.track { display: grid; grid-template-columns: 62px 112px 90px; gap: 4px; }
+.track li { justify-content: flex-start; min-width: 0; }
+.next-step { width: 100%; }
+@media (max-width: 1200px) {
+  .task-row.row { grid-template-columns: minmax(0, 1fr) 176px; }
+  .task-row .track { grid-column: 1 / -1; grid-row: 2; }
+  .task-row .next-step { grid-column: 1 / -1; max-width: 520px; }
+}
+@media (max-width: 720px) {
+  .task-row.row { grid-template-columns: minmax(0, 1fr); }
+  .track { grid-template-columns: 62px 112px 90px; }
+}
+.task-row.row { grid-template-columns: minmax(0, 1fr) 272px 176px 384px; }
+/* a long command wraps instead of being cut off; Copy takes it whole */
+.next-line code { white-space: normal; overflow-wrap: anywhere; overflow-x: visible; }
+@media (max-width: 1200px) { .task-row.row { grid-template-columns: minmax(0, 1fr) 176px; } }
+@media (max-width: 720px) { .task-row.row { grid-template-columns: minmax(0, 1fr); } }
