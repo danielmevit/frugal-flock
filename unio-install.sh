@@ -4111,10 +4111,41 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
   let currentView = "list";
   try { if (localStorage.getItem(VIEW_KEY) === "map") currentView = "map"; } catch (_) {}
   function rememberView() { try { localStorage.setItem(VIEW_KEY, currentView); } catch (_) {} }
-  let mapCategoryFilter = "";
-  let mapSearchQuery = "";
-  let mapWorkerFilter = "";
-  let mapStateFilter = "";
+  const FILTERS_KEY = "unio-task-filters:v1";
+  const FILTER_STATES = new Set(["", "all", "active", "attention", "finished"]);
+  function validFilters(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value) || value.version !== 1) return false;
+    const fields = { search: 256, worker: 128, state: 16, category: 128 };
+    if (Object.keys(value).length !== 5) return false;
+    for (const [name, limit] of Object.entries(fields)) {
+      if (typeof value[name] !== "string" || value[name].length > limit || /[\x00-\x1f\x7f]/.test(value[name])) return false;
+    }
+    return FILTER_STATES.has(value.state);
+  }
+  function storedFilters() {
+    try {
+      const raw = localStorage.getItem(FILTERS_KEY);
+      if (raw === null) return null;
+      const value = raw.length <= 2048 ? JSON.parse(raw) : null;
+      if (validFilters(value)) return value;
+    } catch (_) {}
+    try { localStorage.removeItem(FILTERS_KEY); } catch (_) {}
+    return null;
+  }
+  const restoredFilters = storedFilters();
+  let reconcileRestoredFilters = restoredFilters !== null;
+  let mapCategoryFilter = restoredFilters ? restoredFilters.category : "";
+  let mapSearchQuery = restoredFilters ? restoredFilters.search.toLowerCase() : "";
+  let mapWorkerFilter = restoredFilters ? restoredFilters.worker : "";
+  let mapStateFilter = restoredFilters ? restoredFilters.state : "";
+  function rememberFilters() {
+    const value = { version: 1, search: document.getElementById("map-search").value,
+      worker: mapWorkerFilter, state: mapStateFilter, category: mapCategoryFilter };
+    try {
+      if (validFilters(value)) localStorage.setItem(FILTERS_KEY, JSON.stringify(value));
+      else localStorage.removeItem(FILTERS_KEY);
+    } catch (_) {}
+  }
   let mapCurrentPage = 0;
   let mapFitView = true;
   const mapCamera = { x: 0, y: 0, scale: 1 };
@@ -4145,10 +4176,10 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
     mapBtn.addEventListener("click", () => { currentView = "map"; rememberView(); updateViewSwitch(); if (lastData) render(lastData); });
     document.getElementById("view-list").addEventListener("click", () => { currentView = "list"; rememberView(); updateViewSwitch(); if (lastData) render(lastData); });
 
-    document.getElementById("map-search").addEventListener("input", (e) => { mapSearchQuery = e.target.value.toLowerCase(); mapCurrentPage = 0; if (lastData) render(lastData); });
-    document.getElementById("map-worker-filter").addEventListener("change", (e) => { mapWorkerFilter = e.target.value; mapCurrentPage = 0; if (lastData) render(lastData); else syncWorkerOptions([]); });
-    document.getElementById("map-state-filter").addEventListener("change", (e) => { mapStateFilter = e.target.value; mapCurrentPage = 0; if (lastData) render(lastData); });
-    document.getElementById("map-category-filter").addEventListener("change", (e) => { mapCategoryFilter = e.target.value; mapCurrentPage = 0; if (lastData) render(lastData); else syncCategoryOptions([]); });
+    document.getElementById("map-search").addEventListener("input", (e) => { e.target.value = e.target.value.slice(0, 256); mapSearchQuery = e.target.value.toLowerCase(); mapCurrentPage = 0; rememberFilters(); if (lastData) render(lastData); });
+    document.getElementById("map-worker-filter").addEventListener("change", (e) => { mapWorkerFilter = e.target.value; mapCurrentPage = 0; rememberFilters(); if (lastData) render(lastData); else syncWorkerOptions([]); });
+    document.getElementById("map-state-filter").addEventListener("change", (e) => { mapStateFilter = e.target.value; mapCurrentPage = 0; rememberFilters(); if (lastData) render(lastData); });
+    document.getElementById("map-category-filter").addEventListener("change", (e) => { mapCategoryFilter = e.target.value; mapCurrentPage = 0; rememberFilters(); if (lastData) render(lastData); else syncCategoryOptions([]); });
 
     document.getElementById("map-reset-filters").addEventListener("click", () => {
       mapSearchQuery = "";
@@ -4160,6 +4191,7 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
       document.getElementById("map-state-filter").value = "";
       document.getElementById("map-category-filter").value = "";
       mapCurrentPage = 0;
+      rememberFilters();
       if (lastData) render(lastData);
     });
 
@@ -4169,6 +4201,7 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
         mapStateFilter = mapStateFilter === state ? "" : state;
         document.getElementById("map-state-filter").value = mapStateFilter;
         mapCurrentPage = 0;
+        rememberFilters();
         if (lastData) render(lastData);
       });
     }
@@ -4180,6 +4213,8 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
     document.getElementById("map-zoom-in").addEventListener("click", () => zoomMap(1.25));
     document.getElementById("map-zoom-out").addEventListener("click", () => zoomMap(1 / 1.25));
     setupMapGestures();
+    document.getElementById("map-search").value = restoredFilters ? restoredFilters.search : "";
+    document.getElementById("map-state-filter").value = mapStateFilter;
     updateViewSwitch();
     applyMapPresentation();
     new ResizeObserver(applyMapPresentation).observe(document.getElementById("work-map").parentElement);
@@ -4200,6 +4235,15 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
 
   function render(data) {
     lastData = data;
+    // Only restored choices are reconciled once live evidence arrives. Keep
+    // existing live-selection behavior when a later observation omits a worker.
+    if (reconcileRestoredFilters) {
+      reconcileRestoredFilters = false;
+      const oldWorker = mapWorkerFilter, oldCategory = mapCategoryFilter;
+      if (mapWorkerFilter && !data.results.some((r) => r.worker === mapWorkerFilter)) mapWorkerFilter = "";
+      if (mapCategoryFilter && !data.results.some((r) => taskKind(r) === mapCategoryFilter)) mapCategoryFilter = "";
+      if (oldWorker !== mapWorkerFilter || oldCategory !== mapCategoryFilter) rememberFilters();
+    }
     const { filtered, categories, tally } = getFilteredTasks(data);
 
     filtered.sort((a, b) => {
@@ -5730,6 +5774,10 @@ cat > "$CONF_DIR/lib/browser/activity.js" <<'UNIO_BROWSER_ACTIVITY_JS'
     refreshLimits();
   }
   document.getElementById("refresh").addEventListener("click", refresh);
+  // Worker option logos depend on the identity tables initialized above.
+  // Seed restored choices before the first request, after those tables exist.
+  syncWorkerOptions([]);
+  syncCategoryOptions([]);
   refresh();
   setInterval(refresh, 2000);
 })();
