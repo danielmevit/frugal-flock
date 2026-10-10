@@ -58,6 +58,7 @@ const agents = [
   { name: "Antigravity", mark: "antigravity" },
   { name: "Grok", mark: "grok" },
   { name: "Mistral Vibe", mark: "mistral" },
+  { name: "Perplexity", mark: "perplexity" },
   { name: "Kimi Code", mark: "kimi" },
   { name: "Qwen Code", mark: "qwen" },
   { name: "MiniMax Code", mark: "minimax" },
@@ -677,8 +678,8 @@ const faqs = [
   .rule { flex: 1; min-width: 24px; height: 1px; background: var(--line); align-self: center; }
   .count { color: var(--muted); white-space: nowrap; }
 
-  /* Roster: ten agents and an open slot two columns wide, so 12 / 6 / 3
-     columns always fill evenly */
+  /* Roster: eleven agents and an open slot, so 12 / 6 / 3 columns always
+     fill evenly */
   .slots { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); margin: 0; padding: 0; list-style: none; }
   .slot {
     position: relative;
@@ -691,7 +692,6 @@ const faqs = [
   .slot-name { font-size: 0.6rem; text-align: center; line-height: 1.2; color: var(--text); }
   .slot:hover { background: var(--raised); color: var(--text); }
   .slot-empty {
-    grid-column: span 2; aspect-ratio: auto;
     border-style: dashed; border-color: var(--line-alt);
     background: repeating-linear-gradient(135deg, transparent 0 7px, rgba(255, 255, 255, 0.035) 7px 8px);
   }
