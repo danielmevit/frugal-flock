@@ -39,15 +39,22 @@ isolated stdlib Python). Its offline test and generator check are wired into
 the quality gate, which has not yet been run in full for this addition. Vibe 2.26.1 supports explicitly pinned
 GLM 5.3 and Mistral Medium 3.5/high, with 2M/$5 default and 4M/$10 substantial
 cumulative task bounds. Both pins were checked against the actual installed
-CLI schema offline; nine functional tests passed. Effective model/effort and
-remaining monthly allowance stay Unknown.
+CLI schema offline; nine functional tests passed. A real corrected-wrapper GLM
+run saved an early packaging commit, then ended with a connection failure at
+1,791,060 cumulative tokens/estimated $2.571018, below its local bounds.
+Opus completed the saved implementation, passed four native checks and received
+personal lead approval. Packaging is merged alongside the owner's website.
+Effective model/effort and remaining monthly allowance stay Unknown.
 
 Perplexity supports one research answer or a selected-file code-proposal packet,
 then a separate capable implementation agent reviews, applies and validates.
 GLM 5.3, Kimi K3 and the connector's GPT-6 Sol Thinking identifier are pinned;
 GPT-6.1 Sol is not exposed in that pin and is not silently aliased. Eleven
-offline tests passed. Manual dependency installation/login and a genuine
-account-backed trial remain; do not claim live entitlement or quality yet.
+offline tests passed. The owner completed manual setup; one account-backed GLM
+Thinking trial succeeded in 121 seconds. It returned a plan referencing missing
+attachments, so its proposed implementation and claimed tests remain unverified.
+The prompt now requests code/tests inline; no attachment is downloaded. This is
+one account observation, not proof of another account's access or effective identity.
 Use the [manual setup and native proposal workflow](../integrations/PERPLEXITY-WEB.md).
 The disabled upstream text tool parser is not enabled as a command executor.
 
@@ -84,9 +91,10 @@ no provider is called. The capture script is local at
 Read the [roadmap](ROADMAP.md), [consolidated backlog](IMPROVEMENT-BACKLOG.md)
 and [version plan](../VERSION-PLAN.md). Finish one bounded feature at a time.
 
-1. After owner Perplexity login, run one bounded real research/code-proposal
-   task through native Unio, then assign its implementation separately. Preserve
-   actual failures; no automatic retry or separately billed fallback.
+1. Finish adapter packaging release checks and one bounded inline-code proposal
+   trial on the owner-selected GLM/Kimi routes. Assign actual readiness
+   implementation separately; preserve the first incomplete GLM proposal and
+   all real failures without a blind retry or separately billed fallback.
 2. Add supported, read-only allowance and readiness adapters with truthful
    Unknown, observation age and reset handling. Auth status and allowance
    are separate: the [help-only inventory](AUTH-READINESS-INVENTORY.md)

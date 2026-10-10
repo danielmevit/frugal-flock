@@ -61,8 +61,14 @@ UNIO_TIMEOUT=5460 unio run vibeglm-feature TASK-ID
 unio stop
 ```
 
-Both adapters passed focused offline tests. The corrected Vibe configuration
-also passed an offline check against the installed CLI schema. No live
-Perplexity account entitlement, remaining allowance, response quality or
-effective model identity has been verified. The pinned connector names GPT-6
-Sol, not GPT-6.1 Sol; do not silently equate the two.
+Both adapters passed focused offline tests. The corrected Vibe wrapper also
+made a real GLM 5.3 implementation run: it saved an early commit, then reported
+a connection failure with native exit 2. Opus completed that saved packaging
+work and passed four native checks. This is not a model-quality ranking.
+
+A genuine Perplexity request on the GLM 5.3 Thinking route succeeded for one
+owner's Pro account. Its readiness proposal referenced missing code attachments,
+so it is incomplete and its claimed tests are unverified. Proposal prompts now
+request code inline; the adapter does not download generated attachments.
+Remaining allowance and effective model identity stay Unknown. The pinned
+connector names GPT-6 Sol, not GPT-6.1 Sol; do not silently equate the two.

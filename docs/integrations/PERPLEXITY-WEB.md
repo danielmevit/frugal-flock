@@ -8,10 +8,13 @@ answer. It can also include selected source files and save a code proposal for
 another agent to review and implement through Unio. It does not edit project
 files, run proposed commands, commit, or give an accepted final review.
 
-What has been verified: the adapter's own code, against offline fake
-fixtures only (`tests/unio-perplexity.py`). No live Perplexity query was
-made while building it. Nothing here proves that your account can reach a
-given model, how much allowance remains, or how good the answers are.
+The adapter passed offline fake fixtures (`tests/unio-perplexity.py`). A first
+genuine GLM 5.3 Thinking request through one owner's Pro account also succeeded
+on 2026-10-09 in about 121 seconds. It returned a readiness plan but referred to
+code attachments the text-only adapter did not receive. That proposal is incomplete;
+its claimed test results were not verified. Proposal prompts now ask for code and
+tests inline. This trial does not establish another account's access, remaining
+allowance or the effective server-side model identity.
 
 ## Where the adapter lives
 
@@ -26,7 +29,8 @@ Installing Unio does not install the connector, sign in or contact Perplexity.
 is present. It reads only file metadata: it never imports the connector, reads
 the token or runs the adapter. `installed: true` is not readiness; sign-in,
 entitlement and allowance stay unknown. Manual installation and login remain
-owner steps, and no live Perplexity trial is claimed here.
+owner steps. The single account-specific trial above is separate from installation
+or file presence.
 
 ## What it uses
 

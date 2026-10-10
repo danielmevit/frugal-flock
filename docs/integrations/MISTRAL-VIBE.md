@@ -120,6 +120,14 @@ for a newer Mistral model does not establish this account's access or its qualit
 
 ## References
 
+Real corrected-wrapper trial, 2026-10-09: GLM 5.3 saved the first adapter-packaging
+commit, then its native session ended with `infrastructure_failure`/connection
+failure and exit 2 after 1,791,060 cumulative tokens, estimated $2.571018.
+The local 2M/$5 bounds were not reached. This verifies an actual invocation and
+truthful failure export, not completion or remaining subscription capacity.
+Opus subsequently completed the saved work through a separately authorized task;
+four native checks and personal lead review passed.
+
 - [Mistral subscription billing and usage](https://docs.mistral.ai/admin/billing-usage/subscriptions).
 - [Mistral model pricing](https://docs.mistral.ai/inference/pricing).
 - [Mistral reasoning controls](https://docs.mistral.ai/studio/conversations/reasoning).

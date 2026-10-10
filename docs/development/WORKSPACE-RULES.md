@@ -11,13 +11,14 @@ design references, generated deliverables and scratch belong INSIDE one
 important work in shared temporary directories. Ask before using a different
 storage layout. Do not move unrelated projects into this workspace.
 
-The current local workspace remains the legacy path `D:\Vibe Coding\_vm\frugal-flock` on Windows,
-or `/mnt/d/Vibe Coding/_vm/frugal-flock` in WSL:
+The current local workspace is `D:\Vibe Coding\_vm\unio` on Windows,
+or `/mnt/d/Vibe Coding/_vm/unio` in WSL. See the completed
+[relocation record](WORKSPACE-RENAME.md); historical evidence retains its old paths.
 
 ```text
-frugal-flock/ (legacy path)
+unio/
   repo/          Main Git checkout: stable source, documentation and prompt
-  wt/codex/      Active Codex working copy: unfinished quality fixes
+  wt/codex-lead/ Private lead checkpoints and handoff
   wt/.../        Other registered worktrees; keep inactive histories intact
   coord/         Task orders, reports, locks and coordination history
   artifacts/     Private project-specific references and obsolete prototypes

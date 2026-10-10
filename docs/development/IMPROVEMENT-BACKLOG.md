@@ -33,7 +33,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 ### 3. Connection, Auth, and Transport Reliability
 
 - **Documented now**: A [help-only readiness inventory](AUTH-READINESS-INVENTORY.md), with local sign-in, remote authentication, allowance and workflow readiness kept distinct. Claude JSON status is the smallest documented first adapter; actual exit and safe-field behavior still need checking.
-- **Accepted development**: Optional Vibe workers and Perplexity research/code-proposal handoffs are on main with nine and eleven offline functional checks respectively. Perplexity needs owner installation/sign-in before a genuine live trial; the corrected Vibe wrapper also needs a bounded live trial. These checks do not establish model quality or remaining allowance.
+- **Accepted development**: Optional Vibe workers, Perplexity proposals and standalone adapter packaging/discovery are on main. Corrected Vibe made a real GLM run, saved work and reported a connection failure; Opus completed packaging with four native checks. The first genuine Perplexity GLM request returned a plan but missing code attachments; prompt correction requests inline code. These outcomes do not establish model rankings or remaining allowance.
 - **Planned**: Implement supported read-only readiness adapters and improve prompt/connection reliability without blind retries.
 
 ### 4. Review Aggregation and Security
@@ -49,6 +49,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 - **Shipped**: Manual and automatic native-run saves and separately authorized restored-worker continuation shipped in 0.5.4.
 - **Available now**: Early commits are worker policy and context handoffs already exist. Snapshots are not commits or off-device backups.
 - **Planned**: Better enforcement of early checkpoints and clearer recovery/handoff status.
+- **Observed follow-up, 2026-10-09/10**: This workspace reached the 32-save project retention cap across historical workers; new workers' saves were refused, and some mounted-filesystem scans exceeded their deadlines. The refusal text mentions pinned/corrupt evidence even though no continuation claim files were present. Preserve existing saves; implement explainable bounded retention/archiving and measure scan cost. Early commits preserved the current implementation, but automatic saving must not be described as working for these runs.
 - **Evidence**: [WORK-SAVING-CONTRACT.md](WORK-SAVING-CONTRACT.md)
 
 ### 7. Lead Cooldown and Identity Controls
@@ -85,7 +86,7 @@ This backlog consolidates pending, accepted, and shipped functional improvements
 
 ## Parallel Work
 
-Current status, 2026-10-09: no AI worker is running. The installed v0.5.7 dashboard is running. The next adapter activation step requires the owner's Perplexity sign-in; the entries below record earlier work, not active jobs.
+Current status, 2026-10-10: no AI worker is running. The installed v0.5.7 dashboard is running. Perplexity owner activation and the first GLM proposal trial completed; adapter packaging is merged, with a final text-only proposal correction under focused validation. The entries below record earlier work, not active jobs.
 
 - **Opus**: The initial release-preparation attempt failed OAuth without edits on 2026-10-09. After sign-in, the owner-authorized capacity correction was approved by the lead at `528e214`. Because Grok is unavailable, the owner then authorized further Opus feature work: Opus packaged the native capacity command for 0.5.6; the lead made bounded extreme-input corrections before release validation.
 - **Grok**: Capacity Source ended 402 without edits on 2026-10-09; no active Grok run is claimed.

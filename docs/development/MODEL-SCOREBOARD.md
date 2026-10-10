@@ -40,6 +40,17 @@ and the [free inventory](https://github.com/danielmevit/unio/blob/main/docs/FREE
 
 ## Adapter batch — 2026-10-09
 
+- Corrected-wrapper live GLM 5.3/high through Vibe saved packaging commit
+  `9d24ffe`, then ended with a connection failure/native exit 2 after
+  1,791,060 cumulative tokens, estimated $2.571018. This was below its local
+  bounds and is an operational failure, not a reasoning score. Opus 5.5/high
+  completed that saved work at `734a9d1` with four native checks and personal
+  lead approval; it is merged alongside the owner's independently built website.
+- Perplexity's GLM 5.3 Thinking route returned a genuine readiness proposal
+  in 121 seconds. It supplied a plan but referred to attachments absent from
+  the text-only handoff; no supplied implementation or claimed test pass is
+  accepted. Future prompts request code inline. Effective server model/lab
+  remains Unknown, and this answer is not independent review acceptance.
 - The Mistral Vibe GLM trial stopped at a local 200k cumulative token bound
   after 201286 tokens and no edits. Medium 3.5 produced partial Perplexity
   code before its local 600k bound (601926 tokens). These are task-budget
